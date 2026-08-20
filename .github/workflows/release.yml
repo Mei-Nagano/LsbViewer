@@ -1,13 +1,15 @@
 name: Build Release APK
 
-# 触发：推送 v* 标签时构建并发布 Release；也可在 Actions 页面手动触发（手动触发同样发布 Release）
+# 触发：推送 v* 标签时构建并发布 Release；也可在 Actions 页面手动触发（手动触发同样发布 Release）。
+# 版本号自动化：构建版本取自标签（或手动触发时 build.gradle.kts 的默认值），发布成功后
+# 工作流把下一开发版本（patch+1）写回 main 的 build.gradle.kts——发版全程无需手动改版本号
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release 标签名（留空则自动使用 build.gradle.kts 的 versionName，如 v1.0.0）'
+        description: 'Release 标签名（留空则发布 build.gradle.kts 中的当前版本，如 v1.0.7）'
         required: false
         default: ''
 
@@ -53,10 +55,31 @@ jobs:
           LSB_KEY_ALIAS: ${{ secrets.LSB_KEY_ALIAS }}
           LSB_KEY_PASSWORD: ${{ secrets.LSB_KEY_PASSWORD }}
         run: |
+          # 版本号来源：标签触发取标签名（v1.0.7 → 1.0.7）；手动触发取输入 tag
+          # （留空则读 build.gradle.kts 的默认 versionName，即"下一待发布版本"）。
+          # versionCode 按 major*10000+minor*100+patch 编码，随版本名单调递增
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            INPUT="${{ github.event.inputs.tag }}"
+            if [ -n "$INPUT" ]; then VERSION="${INPUT#v}"; else
+              VERSION=$(grep -oP 'versionName\s*=.*\?:\s*"\K[0-9.]+' app/build.gradle.kts | head -1)
+            fi
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::版本号格式异常：'$VERSION'（应为 X.Y.Z）"
+            exit 1
+          fi
+          IFS='.' read -r MA MI PA <<< "$VERSION"
+          VCODE=$((MA*10000 + MI*100 + PA))
+          echo "构建版本：$VERSION (versionCode=$VCODE)"
+          echo "REL_VERSION=$VERSION" >> "$GITHUB_ENV"
           # 兜底：Windows 提交可能丢失 gradlew 执行位（exit 126）
           chmod +x gradlew
           ./gradlew assembleRelease \
             -PLSB_STORE_FILE="$RUNNER_TEMP/lsb-release.jks" \
+            -PappVersionName="$VERSION" \
+            -PappVersionCode="$VCODE" \
             --no-daemon --stacktrace
 
       - name: 上传构建产物
@@ -68,7 +91,7 @@ jobs:
 
       # 创建 GitHub Release 并附带三个 ABI 的 APK：
       # - 标签触发：直接用推送的标签名
-      # - 手动触发：用输入的 tag（留空则读 build.gradle.kts 的 versionName 拼成 vX.Y.Z），并在当前 commit 上补建标签
+      # - 手动触发：用输入的 tag（留空则用构建版本拼成 vX.Y.Z），并在当前 commit 上补建标签
       - name: 发布 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,10 +101,7 @@ jobs:
             EXTRA_ARGS=""
           else
             TAG="${{ github.event.inputs.tag }}"
-            if [ -z "$TAG" ]; then
-              VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
-              TAG="v$VERSION"
-            fi
+            if [ -z "$TAG" ]; then TAG="v$REL_VERSION"; fi
             EXTRA_ARGS="--target $GITHUB_SHA"
           fi
           echo "发布 Release：$TAG"
@@ -94,3 +114,31 @@ jobs:
             --title "LinuxSB $TAG" \
             --generate-notes \
             $EXTRA_ARGS
+
+      # 发布成功后把下一开发版本（patch+1）写回 build.gradle.kts，
+      # 此后发版无需手动改版本号：手动触发（tag 留空）即可发布文件里的当前版本
+      - name: 写回下一开发版本号
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IFS='.' read -r MA MI PA <<< "$REL_VERSION"
+          NEXT="$MA.$MI.$((PA+1))"
+          IFS='.' read -r A B C <<< "$NEXT"
+          NEXT_CODE=$((A*10000 + B*100 + C))
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -q -B ver-sync origin/main
+          sed -E -i "s/^([[:space:]]*versionCode = .*\?: )[0-9]+$/\1$NEXT_CODE/" app/build.gradle.kts
+          sed -E -i "s/^([[:space:]]*versionName = .*\?: )\"[^\"]*\"$/\1\"$NEXT\"/" app/build.gradle.kts
+          if git diff --quiet; then
+            echo "版本号已是 $NEXT，无需写回"
+          else
+            git add app/build.gradle.kts
+            git commit -m "chore: 发布 v$REL_VERSION，下一开发版本 $NEXT"
+            if git push origin ver-sync:main; then
+              echo "已写回 main：$NEXT / $NEXT_CODE"
+            else
+              echo "::warning::版本号写回失败（main 有新提交或分支保护），请手动把 build.gradle.kts 改为 $NEXT / $NEXT_CODE"
+            fi
+          fi
