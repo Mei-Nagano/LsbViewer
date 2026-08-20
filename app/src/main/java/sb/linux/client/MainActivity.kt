@@ -7,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -199,12 +198,6 @@ fun LsbApp(session: Session) {
                         onClick = { nav.navigate("home") { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } },
                         icon = { Icon(Icons.Filled.Home, null) },
                         label = { Text("首页") }
-                    )
-                    NavigationBarItem(
-                        selected = route == "forums",
-                        onClick = { nav.navigate("forums") { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } },
-                        icon = { Icon(Icons.Filled.Forum, null) },
-                        label = { Text("板块") }
                     )
                     NavigationBarItem(
                         selected = route == "me",
