@@ -139,6 +139,7 @@ object HtmlParser {
             }
 
         val posts = d.select("ul.topic-post-list > li.post-entry, ul.post-list.topic-post-list > li.post-entry").map { li ->
+            val floorNum = li.attr("data-floor").toIntOrNull() ?: 0
             val authorA = li.selectFirst("a.post-author")
             val groups = li.select(".post-user-group").map { it.text().trim() }.filter { it.isNotBlank() }
             val uidBadge = groups.firstOrNull { it.startsWith("UID") }
@@ -177,7 +178,7 @@ object HtmlParser {
             }
             PostEntry(
                 id = (li.attr("id").removePrefix("post-").toLongOrNull() ?: 0L),
-                floor = li.attr("data-floor").toIntOrNull() ?: 0,
+                floor = floorNum,
                 authorId = idFrom(authorA?.attr("href")),
                 authorName = authorA?.text() ?: "",
                 avatarUrl = absUrl(avatarOf(li)),
@@ -189,8 +190,10 @@ object HtmlParser {
                 editInfo = editInfo,
                 editUserId = editUserId,
                 editUserName = editUserName,
-                // 整楼 HTML 提取引用（?floor=N 链接 / 纯文本 #N），覆盖正文外的引用块
-                referencedFloors = floorRefs(li.html()).filter { it > 0 }.distinct(),
+                // 整楼 HTML 提取引用（?floor=N 链接 / 纯文本 #N）。
+                // 必须过滤本楼楼层号：源站每楼自带 <a class="post-floor" href="?floor=N">#N</a> 徽标，
+                // 不过滤会导致每条评论都出现"查看对话"按钮且指向自己
+                referencedFloors = floorRefs(li.html()).filter { it > 0 && it != floorNum }.distinct(),
                 likeCount = likeBtn?.selectFirst(".like-coin-count")?.text()?.filter { it.isDigit() }?.toIntOrNull()
                     ?: likeForm?.selectFirst(".like-coin-count")?.text()?.filter { it.isDigit() }?.toIntOrNull() ?: 0,
                 liked = likeBtn?.attr("data-like-coin-liked") == "1",

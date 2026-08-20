@@ -2217,12 +2217,6 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
             GroupCard {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
                     Text("检查更新时机", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "在应用启动时自动检查 GitHub Release 新版本",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     Spacer(Modifier.height(10.dp))
                     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                         SegmentedButton(
@@ -2230,7 +2224,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                             onClick = { updateMode = 0; session.settings.updateCheckMode = 0 },
                             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
                             modifier = Modifier.weight(1f)
-                        ) { Text("每次打开应用", maxLines = 1) }
+                        ) { Text("每次启动", maxLines = 1) }
                         SegmentedButton(
                             selected = updateMode == 1,
                             onClick = { updateMode = 1; session.settings.updateCheckMode = 1 },

@@ -126,7 +126,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var showExportDialog by remember { mutableStateOf(false) }
     var exportBusy by remember { mutableStateOf<String?>(null) }
 
-    // 评论区排序：0 = 默认排序（源站页面顺序），1 = 按#号（楼层号）排序；记住上次选择
+    // 评论区排序：0 = 正序（楼层号升序，源站默认），1 = 倒序（最新在前）；记住上次选择
     var sortOrder by remember { mutableIntStateOf(session.commentSortOrder) }
 
     // 打赏弹幕：数据 + 每帖开关（默认跟随全局设置）
@@ -159,15 +159,12 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var aiBusy by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
 
-    // 排序后的楼层列表（楼主正文固定首位）
+    // 排序后的楼层列表（楼主正文固定首位；源站页面顺序即楼层正序，倒序按楼层号降序）
     val sortedPosts = remember(data, sortOrder) {
         val d = data ?: return@remember emptyList()
-        if (sortOrder == 0) d.posts
-        else {
-            val main = d.posts.firstOrNull()
-            val rest = d.posts.drop(1).sortedBy { it.floor }
-            if (main != null) listOf(main) + rest else rest
-        }
+        val main = d.posts.firstOrNull()
+        val rest = if (sortOrder == 1) d.posts.drop(1).sortedByDescending { it.floor } else d.posts.drop(1)
+        if (main != null) listOf(main) + rest else rest
     }
     val mainPost = sortedPosts.firstOrNull()
 
@@ -313,10 +310,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     }
 
     /**
-     * #N 对话串联：拉取帖子全部页（上限 10 页），把引用链双向完整串联：
-     * 向上回溯 #引用，向下收集所有引用了链内楼层的回复。
+     * #N 对话串联：拉取帖子全部页（上限 10 页），提取「当前楼层所在的线性对话链」：
+     * 向上回溯本楼引用的楼层（含间接引用），向下沿引用边收集引用了链内楼层的后续回复。
+     * 只保留当前楼层对话路径上的帖子，平行分支（同样引用了祖先楼层的其他回复）不收进来。
      */
-    fun openThread(startPost: PostEntry, startRefFloor: Int) {
+    fun openThread(startPost: PostEntry) {
         scope.launch {
             threadLoading = true; threadError = null; threadPosts = null
             try {
@@ -333,30 +331,26 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     page++
                 }
 
-                fun refsOf(p: PostEntry): Set<Int> = p.referencedFloors.toSet()
-
+                val start = startPost.floor
                 val byFloor = all.filter { it.floor > 0 }.associateBy { it.floor }
-                // 链内楼层集合：从起点楼层 + 起点回溯引用开始
-                val chain = mutableSetOf<Int>()
-                val queue = ArrayDeque<Int>()
-                if (startPost.floor > 0) { chain.add(startPost.floor); queue.add(startPost.floor) }
-                queue.add(startRefFloor)
-                // 向上回溯（直接引用链）；引用楼层已删除时也保留楼层号在链内，
-                // 让"引用了该楼层"的其他回复仍能被向下扩展收进链
-                val visited = mutableSetOf(startRefFloor)
-                while (queue.isNotEmpty()) {
-                    val f = queue.removeFirst()
-                    if (f <= 0 || !visited.add(f) && f != startRefFloor) continue
-                    chain.add(f)
-                    val p = byFloor[f] ?: continue
-                    refsOf(p).forEach { r -> if (r !in visited) { visited.add(r); queue.add(r) } }
+                // 向上：本楼 + 其引用链（含间接）
+                val chain = linkedSetOf<Int>()
+                val up = ArrayDeque<Int>()
+                if (start > 0) { chain.add(start); up.add(start) }
+                while (up.isNotEmpty()) {
+                    val p = byFloor[up.removeFirst()] ?: continue
+                    p.referencedFloors.forEach { r -> if (r > 0 && chain.add(r)) up.add(r) }
                 }
-                // 向下扩展：迭代到不动点（此前固定 3 轮，长链会漏掉后继楼层）
-                while (true) {
-                    val add = all.filter { it.floor > 0 && it.floor !in chain && refsOf(it).any { r -> r in chain } }
-                        .map { it.floor }
-                    if (add.isEmpty()) break
-                    chain.addAll(add)
+                // 向下：从本楼出发沿引用边收集后续回复（仅引用了链内楼层的，不含平行分支）
+                val down = ArrayDeque<Int>()
+                if (start > 0) down.add(start)
+                while (down.isNotEmpty()) {
+                    val f = down.removeFirst()
+                    all.forEach { p ->
+                        if (p.floor > 0 && p.floor !in chain && f in p.referencedFloors) {
+                            chain.add(p.floor); down.add(p.floor)
+                        }
+                    }
                 }
                 val posts = all.filter { it.floor > 0 && it.floor in chain }
                     .sortedBy { it.floor }
@@ -655,7 +649,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 onCoin = { coinTarget = main },
                                 onReport = { nav.navigate("report/${main.likeCoinType.ifBlank { "topic" }}/${main.id}") },
                                 onFloor = { f -> jumpToFloor(f) },
-                                onThread = { ref -> openThread(main, ref) },
+                                onThread = { openThread(main) },
                                 onCopy = { copyPost = main },
                                 onDonate = if (d.donateUrl != null) ({ nav.navigate("donate/$tid") }) else null,
                                 onEditUser = { uid -> nav.navigate("user/$uid") },
@@ -692,7 +686,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                             .padding(2.dp)
                                     ) {
-                                        listOf("默认" to 0, "楼层" to 1).forEach { (label, idx) ->
+                                        listOf("正序" to 0, "倒序" to 1).forEach { (label, idx) ->
                                             val sel = sortOrder == idx
                                             Text(
                                                 label,
@@ -742,7 +736,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             onCoin = { coinTarget = post },
                             onReport = { nav.navigate("report/${post.likeCoinType.ifBlank { "reply" }}/${post.id}") },
                             onFloor = { f -> jumpToFloor(f) },
-                            onThread = { ref -> openThread(post, ref) },
+                            onThread = { openThread(post) },
                             onCopy = { copyPost = post },
                             onEditUser = { uid -> nav.navigate("user/$uid") },
                         )
@@ -1322,7 +1316,7 @@ fun PostCard(
     onCoin: () -> Unit,
     onReport: () -> Unit,
     onFloor: (Int) -> Unit,
-    onThread: (Int) -> Unit,
+    onThread: () -> Unit,
     isMainPost: Boolean = false,
     highlight: Boolean = false,
     onCopy: () -> Unit = {},
@@ -1395,7 +1389,7 @@ private fun PostCardContent(
     onCoin: () -> Unit,
     onReport: () -> Unit,
     onFloor: (Int) -> Unit,
-    onThread: (Int) -> Unit,
+    onThread: () -> Unit,
     showFloorBadge: Boolean,
     modifier: Modifier = Modifier,
     onCopy: () -> Unit = {},
@@ -1469,16 +1463,15 @@ private fun PostCardContent(
                 HtmlContent(post.contentHtml, onFloor = onFloor)
             }
         }
-        // #N 引用：串联整条对话链，弹窗展示（不直接跳转）
+        // #N 引用：仅在本楼真实引用了其他楼层时展示（自身楼层徽标已在解析层过滤）
         val refFloors = post.referencedFloors.filter { it > 0 }
-        val refFloor = refFloors.firstOrNull()
-        if (refFloor != null) {
+        if (refFloors.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
                 modifier = Modifier.clip(RoundedCornerShape(50))
-                    .clickable { onThread(refFloor) }
+                    .clickable { onThread() }
             ) {
                 Row(
                     Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -1492,7 +1485,7 @@ private fun PostCardContent(
                     )
                     Text(
                         if (refFloors.size > 1) "查看 ${refFloors.joinToString(" ") { "#$it" }} 对话"
-                        else "查看 #$refFloor 对话",
+                        else "查看 #${refFloors.first()} 对话",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
