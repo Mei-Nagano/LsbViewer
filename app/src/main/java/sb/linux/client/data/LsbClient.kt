@@ -117,6 +117,8 @@ class LsbClient(private val context: Context) {
     var verificationUi: (suspend (String, String) -> Boolean)? = null
     private val verificationMutex = Mutex()
     private val avatarMemoryCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+    // 头像并发去重：同一 URL 的并发请求共享首个请求的结果（列表页同一头像出现多次时只发一次网络请求）
+    private val avatarInFlight = java.util.concurrent.ConcurrentHashMap<String, CompletableDeferred<ByteArray>>()
     private val avatarCacheDir: File by lazy {
         File(context.cacheDir, "lsb_avatar_cache").apply { mkdirs() }
     }
@@ -181,6 +183,26 @@ class LsbClient(private val context: Context) {
             ).any { html.contains(it, ignoreCase = true) }
 
         private fun isChallenge(html: String): Boolean = isUamChallenge(html) || isCloudflareChallenge(html)
+
+        /** SVG 字节嗅探：<svg 开头，或 <?xml 声明且前 1KB 内含 <svg（与 Coil SvgDecoder 的嗅探规则一致） */
+        private fun isSvgBytes(b: ByteArray): Boolean {
+            val head = String(b, 0, minOf(1024, b.size), Charsets.UTF_8).trimStart()
+            return head.startsWith("<svg") || (head.startsWith("<?xml") && head.contains("<svg"))
+        }
+
+        /** 已知二进制图片魔数：JPEG / PNG / GIF / WebP */
+        private fun isBinaryImageMagic(b: ByteArray): Boolean {
+            fun u(i: Int) = b[i].toInt() and 0xFF
+            return (b.size >= 3 && u(0) == 0xFF && u(1) == 0xD8 && u(2) == 0xFF) ||
+                (b.size >= 4 && u(0) == 0x89 && u(1) == 0x50 && u(2) == 0x4E && u(3) == 0x47) ||
+                (b.size >= 4 && u(0) == 0x47 && u(1) == 0x49 && u(2) == 0x46 && u(3) == 0x38) ||
+                (b.size >= 12 && u(0) == 0x52 && u(1) == 0x49 && u(2) == 0x46 && u(3) == 0x46 &&
+                    u(8) == 0x57 && u(9) == 0x45 && u(10) == 0x42 && u(11) == 0x50)
+        }
+
+        /** 有效图片字节：以魔数/内容为准，不信任 Content-Type（验证盾可能返回伪装成图片类型的 HTML） */
+        fun isValidImageBytes(b: ByteArray): Boolean =
+            b.isNotEmpty() && (isBinaryImageMagic(b) || (b[0] == '<'.code.toByte() && isSvgBytes(b)))
 
         /**
          * 空白或疑似被源站/Cloudflare 套盾的响应，也需要触发验证页展示。
@@ -345,23 +367,49 @@ class LsbClient(private val context: Context) {
         get("/")
     }
 
-    /** 通过 UAM 通道拉取图片原始字节（源站默认头像等静态资源也被验证盾保护） */
+    /**
+     * 拉取图片原始字节（源站头像等静态资源被 /FL/CC/VALIDATOR 重定向验证盾保护，
+     * OkHttp 自动跟随 302 验证链）。
+     * 三重防护：并发去重（同 URL 只发一次请求）、魔数校验（防验证页 HTML 混入缓存）、
+     * 磁盘缓存读取时再校验（历史坏缓存自动删除自愈，不再永久显示失败）。
+     */
     suspend fun fetchBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
         avatarMemoryCache[url]?.let { return@withContext it }
-        // v2 前缀：旧版写入磁盘缓存前未校验内容，可能残留验证页 HTML / 504 页等无效字节
-        // 且读取时不校验导致头像永久显示失败，换前缀一次性作废旧缓存
+        // v2 前缀：读取时校验魔数；旧版（未校验内容即写入）残留的验证页 HTML 等坏文件在此自愈删除
         val cacheFile = File(avatarCacheDir, "v2_${url.hashCode().toString(16)}.dat")
         if (cacheFile.exists()) {
-            val cached = cacheFile.readBytes()
-            if (cached.isNotEmpty()) {
+            val cached = runCatching { cacheFile.readBytes() }.getOrDefault(ByteArray(0))
+            if (isValidImageBytes(cached)) {
                 avatarMemoryCache[url] = cached
                 return@withContext cached
             }
+            runCatching { cacheFile.delete() } // 坏缓存：删除后重新拉取
         }
+        // 并发去重：首个请求完成前，同 URL 的后续请求共享其结果
+        val mine = CompletableDeferred<ByteArray>()
+        val existing = avatarInFlight.putIfAbsent(url, mine)
+        if (existing != null) return@withContext existing.await()
+        try {
+            val bytes = fetchImageBytes(url)
+            avatarMemoryCache[url] = bytes
+            runCatching { cacheFile.writeBytes(bytes) }
+            mine.complete(bytes)
+            bytes
+        } catch (e: Exception) {
+            // 首个请求被取消不能连累等待者：等待者收到普通异常后仍可走 URL 兜底
+            mine.completeExceptionally(
+                if (e is kotlinx.coroutines.CancellationException) LsbException("图片请求中断") else e
+            )
+            throw e
+        } finally {
+            avatarInFlight.remove(url, mine)
+        }
+    }
 
-        // 源站上传头像（/app/upload/avatar_upload/...）带 ?v= 时间戳参数时网关稳定 504，
-        // 去掉查询参数即可正常返回：先按原 URL 请求，全部失败后再用去参 URL 重试
-        val candidates = if (url.contains('?')) listOf(url, url.substringBefore('?')) else listOf(url)
+    /** 图片网络拉取：魔数校验为准（不信任 Content-Type）；?v= 参数 504 时去参重试；验证页触发 solveUam 后重试 */
+    private suspend fun fetchImageBytes(url: String): ByteArray {
+        // 去参 URL 优先：?v= 时间戳只是缓存穿透参数，去掉不影响内容，还规避网关对带参 URL 的 504
+        val candidates = if (url.contains('?')) listOf(url.substringBefore('?'), url) else listOf(url)
 
         var result: ByteArray? = null
         for (candidate in candidates) {
@@ -373,20 +421,14 @@ class LsbClient(private val context: Context) {
                 repeat(3) {
                     http.newCall(req).execute().use { r ->
                         val b = r.body?.bytes() ?: ByteArray(0)
-                        val type = r.header("Content-Type") ?: ""
-                        val head = String(b, Charsets.UTF_8).trimStart()
-                        if (b.isNotEmpty() &&
-                            (type.startsWith("image/", ignoreCase = true) ||
-                                head.startsWith("<?xml", ignoreCase = true) ||
-                                head.startsWith("<svg", ignoreCase = true))
-                        ) {
+                        if (isValidImageBytes(b)) {
                             result = b
                             return@attempt
                         }
-                        // 504/502 网关错误页（可能为空体）不是 UAM 验证页：
-                        // solveUam 失败不能中断候选重试，否则永远走不到去参 URL
+                        // 内容不是图片：仅真正命中验证特征时才触发验证恢复
+                        // （504 空体等网关错误不该弹验证页，直接重试/换候选）
                         val html = String(b, Charsets.UTF_8)
-                        if (needsVerification(r.code, html)) {
+                        if (isChallenge(html)) {
                             runCatching { solveUam(r.request.url.toString(), html) }
                         }
                     }
@@ -394,12 +436,7 @@ class LsbClient(private val context: Context) {
             }
             if (result != null) break
         }
-        val bytes = result ?: throw LsbException("图片加载失败")
-        if (bytes.isNotEmpty()) {
-            avatarMemoryCache[url] = bytes
-            runCatching { cacheFile.writeBytes(bytes) }
-        }
-        bytes
+        return result ?: throw LsbException("图片加载失败")
     }
 
     suspend fun postForm(path: String, form: Map<String, String>): Resp = withContext(Dispatchers.IO) {

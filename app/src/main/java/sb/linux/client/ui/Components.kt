@@ -121,8 +121,9 @@ fun onColorFor(bg: Color): Color =
     if (bg.luminance() > 0.5f) Color.Black else Color.White
 
 /**
- * 头像：一律显示服务端给出的 URL（HTML 解析结果），不做任何公式推导；
- * URL 为空（解析失败/服务端未提供）时显示占位图标。
+ * 头像：一律显示服务端给出的 URL（HTML 解析结果），不做任何公式推导；URL 为空时显示占位图标。
+ * 单通道加载：先走 fetchBytes（内存/磁盘缓存 + 并发去重 + 魔数校验），失败才回退 URL 直载；
+ * 兜底直载禁用 Coil 磁盘缓存——验证盾可能返回 200 HTML，写入后会永久毒化该缓存键。
  */
 @Composable
 fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier) {
@@ -130,25 +131,27 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val app = context.applicationContext as LsbApp
     val target = url.trim()
-    val bytes by produceState<ByteArray?>(null, target) {
-        value = if (target.isEmpty()) null else withContext(Dispatchers.IO) {
-            runCatching { app.client.fetchBytes(target) }.getOrNull()
+    // null=加载中；空数组=fetchBytes 失败（转 URL 兜底）；非空=字节就绪
+    val fetch by produceState<ByteArray?>(null, target) {
+        value = withContext(Dispatchers.IO) {
+            if (target.isEmpty()) ByteArray(0)
+            else runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
         }
     }
+    val b = fetch
     val px = with(density) { size.dp.roundToPx() }
-    val b = bytes
-    // 双通道：预取字节成功用字节渲染；失败/为空回退 URL 直载（Coil 复用同一 OkHttp + 会话 Cookie，另有磁盘缓存）
-    // 直载同样规避源站 ?v= 时间戳参数导致的 504，缓存键保持原始 target
+    // 加载中（b==null）不发起图片请求；字节就绪用字节渲染，fetchBytes 失败才用 URL 直载
     val model = remember(target, px, b) {
-        coil.request.ImageRequest.Builder(context)
+        if (target.isEmpty() || b == null) null
+        else coil.request.ImageRequest.Builder(context)
             .data(
-                if (b != null && b.isNotEmpty()) b
+                if (b.isNotEmpty()) b
                 else if (target.contains('?')) target.substringBefore('?')
                 else target
             )
             .size(px)
             .memoryCacheKey(target)
-            .diskCacheKey(target)
+            .diskCachePolicy(coil.request.CachePolicy.DISABLED)
             .crossfade(180)
             .build()
     }
@@ -167,8 +170,8 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         contentAlignment = Alignment.Center
     ) {
-        if (target.isEmpty()) {
-            // 服务端未提供头像 URL：直接显示占位图标
+        if (model == null) {
+            // 加载中 / 服务端未提供头像 URL：显示占位图标
             fallback()
         } else {
             // loading / error 均显示兜底图标，避免解码失败时"显示一下就没影"
