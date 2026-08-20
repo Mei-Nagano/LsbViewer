@@ -1404,7 +1404,7 @@ private fun PostCardContent(
     Column(modifier) {
         // 作者行：头像 + 名称/徽章 + 元信息，楼层号固定右上角
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(post.avatarUrl, avatarSize, Modifier.clickable(onClick = onUser), userId = post.authorId)
+            Avatar(post.avatarUrl, avatarSize, Modifier.clickable(onClick = onUser))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Row(
@@ -1621,7 +1621,7 @@ fun DanmakuBar(items: List<DanmakuItem>) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    Avatar(d.avatarUrl, 15, seed = d.user)
+                    Avatar(d.avatarUrl, 15)
                     Text(
                         "${d.user} ${d.action} ${d.amount}",
                         style = MaterialTheme.typography.labelSmall,
@@ -1961,7 +1961,7 @@ private fun ThreadPostItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Avatar(post.avatarUrl, 28, Modifier.clickable(onClick = onUser), userId = post.authorId)
+            Avatar(post.avatarUrl, 28, Modifier.clickable(onClick = onUser))
             Text(
                 post.authorName,
                 style = MaterialTheme.typography.titleSmall,

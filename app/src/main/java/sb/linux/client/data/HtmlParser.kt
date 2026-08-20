@@ -617,10 +617,21 @@ object HtmlParser {
         val visibles: List<ProfileField> get() = fields.filter { it.type != "hidden" && it.type != "password" && it.type != "file" }
     }
 
+    /** 源站预置头像选择器（.avatar-picker）：风格/编号/基址全部以服务端 HTML 为准，不做公式推导 */
+    data class AvatarPickerData(
+        val styleField: String,                    // 风格字段名（avatar_style）
+        val seedField: String,                     // 编号字段名（avatar_seed）
+        val styles: List<Pair<String, String>>,    // 风格选项 value → 标签
+        val currentStyle: String,
+        val currentSeed: String,
+        val base: String,                          // 头像基址（data-avatar-base，如 /app/avatars/）
+    )
+
     data class ProfilePageData(
         val avatarUrl: String = "",
         val info: List<Pair<String, String>> = emptyList(),  // 用户名/UID/邮箱/注册时间/积分等
         val forms: List<ProfileFormData> = emptyList(),
+        val avatarPicker: AvatarPickerData? = null,
     )
 
     /** label.grid > span / aria-label / placeholder / 字段名映射 */
@@ -653,6 +664,24 @@ object HtmlParser {
         // 头像
         val avatar = main.selectFirst(".user-avatar-big img, .profile-avatar img")?.attr("src")
             ?: main.selectFirst("img.avatar-img, img[src*='avatar']")?.attr("src") ?: ""
+
+        // 预置头像选择器：风格下拉 + 编号输入 + 头像基址（与源站 index.js 的 .avatar-picker 结构对应）
+        val pickerEl = main.selectFirst(".avatar-picker")
+        val styleSel = pickerEl?.selectFirst("select[name=avatar_style]")
+        val seedInput = pickerEl?.selectFirst("input[name=avatar_seed]")
+        val avatarPicker = if (pickerEl != null && styleSel != null && seedInput != null) {
+            AvatarPickerData(
+                styleField = styleSel.attr("name").ifBlank { "avatar_style" },
+                seedField = seedInput.attr("name").ifBlank { "avatar_seed" },
+                styles = styleSel.select("option")
+                    .map { it.attr("value") to it.text().trim() }
+                    .filter { it.first.isNotBlank() },
+                currentStyle = styleSel.selectFirst("option[selected]")?.attr("value")?.ifBlank { null }
+                    ?: styleSel.selectFirst("option")?.attr("value") ?: "",
+                currentSeed = seedInput.attr("value").trim(),
+                base = pickerEl.attr("data-avatar-base").trim(),
+            )
+        } else null
 
         // 信息键值对：label.grid（span + 控件值）→ dl dt/dd → 正文正则兜底
         val info = linkedMapOf<String, String>()
@@ -733,7 +762,7 @@ object HtmlParser {
                 submitText = f.selectFirst("button[type=submit], input[type=submit]")?.text()?.trim()?.takeIf { it.isNotBlank() } ?: "保存",
             )
         }
-        return ProfilePageData(absUrl(avatar), info.toList(), forms)
+        return ProfilePageData(absUrl(avatar), info.toList(), forms, avatarPicker)
     }
 
     // ---------------- 保释所 ----------------

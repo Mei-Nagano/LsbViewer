@@ -49,7 +49,7 @@ fun MeScreen(session: Session, nav: NavHostController) {
                 ) {
                     Column(Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Avatar(state.avatarUrl, 60, userId = state.userId)
+                            Avatar(state.avatarUrl, 60)
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(state.username, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)

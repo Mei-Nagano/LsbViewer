@@ -99,18 +99,6 @@ import sb.linux.client.LsbApp
 val LocalLinkHandler = staticCompositionLocalOf<((String) -> Unit)?> { null }
 
 /**
- * 默认头像池：源站对未上传头像用户显示程序生成的 SVG（DiceBear 风格池，每家族 48 张），
- * 同一用户按 ID 确定性分配到同一张（源站 index.js avatarSeed：编号 = seed % 48，余 0 取 48）。
- * 家族默认 bottts-neutral（实测首页 24/24 吻合）；dylan 为用户可在头像选择器自选的另一风格家族，
- * 自选用户（含站长 uid=1 的 bottts-neutral_32）编号与公式无关，但其真实 URL 已由 HTML 解析给出。
- */
-private fun defaultAvatarUrl(userId: Long, seed: String = ""): String {
-    val base = if (userId != 0L) userId else seed.hashCode().toLong()
-    val n = ((base % 48) + 48) % 48
-    return Endpoints.abs("/app/avatars/bottts-neutral_${if (n == 0L) 48 else n}.svg")
-}
-
-/**
  * 帖子卡片元素级自定义颜色（外观设置 → 实时预览点按改色）。
  * Session 加载/保存时同步；TopicCardView 渲染时读取，未覆盖元素跟随主题。
  */
@@ -132,17 +120,18 @@ object CardColorOverrides {
 fun onColorFor(bg: Color): Color =
     if (bg.luminance() > 0.5f) Color.Black else Color.White
 
-/** 头像 */
+/**
+ * 头像：一律显示服务端给出的 URL（HTML 解析结果），不做任何公式推导；
+ * URL 为空（解析失败/服务端未提供）时显示占位图标。
+ */
 @Composable
-fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, userId: Long = 0, seed: String = "") {
+fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val app = context.applicationContext as LsbApp
-    val target = remember(url, userId, seed) {
-        if (url.isBlank()) defaultAvatarUrl(userId, seed) else url
-    }
+    val target = url.trim()
     val bytes by produceState<ByteArray?>(null, target) {
-        value = withContext(Dispatchers.IO) {
+        value = if (target.isEmpty()) null else withContext(Dispatchers.IO) {
             runCatching { app.client.fetchBytes(target) }.getOrNull()
         }
     }
@@ -178,14 +167,19 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, userId: L
             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         contentAlignment = Alignment.Center
     ) {
-        // loading / error 均显示兜底图标，避免解码失败时"显示一下就没影"
-        SubcomposeAsyncImage(
-            model = model,
-            contentDescription = null,
-            modifier = Modifier.size(size.dp),
-            loading = { fallback() },
-            error = { fallback() }
-        )
+        if (target.isEmpty()) {
+            // 服务端未提供头像 URL：直接显示占位图标
+            fallback()
+        } else {
+            // loading / error 均显示兜底图标，避免解码失败时"显示一下就没影"
+            SubcomposeAsyncImage(
+                model = model,
+                contentDescription = null,
+                modifier = Modifier.size(size.dp),
+                loading = { fallback() },
+                error = { fallback() }
+            )
+        }
     }
 }
 
@@ -240,7 +234,7 @@ fun TopicCardView(
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             if (!compact) {
-                Avatar(card.avatarUrl, 42, userId = card.authorId)
+                Avatar(card.avatarUrl, 42)
                 Spacer(Modifier.width(12.dp))
             }
             Column(Modifier.weight(1f)) {

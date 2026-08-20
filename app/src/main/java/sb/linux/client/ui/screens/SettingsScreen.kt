@@ -149,7 +149,6 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
                                     p.info.firstOrNull { it.first.contains("用户") }?.second ?: ""
                                 },
                                 info = p.info,
-                                userId = session.loginState.userId,
                             )
                         }
                         // ---------- 屏蔽词管理 ----------
@@ -182,12 +181,14 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
                                 busy = busy,
                                 context = context,
                                 session = session,
+                                avatarPicker = p.avatarPicker,
                                 onSubmit = { fields, file, mime, done ->
                                     scope.launch {
                                         busy = true; msg = null
                                         try {
                                             val csrf = session.client.csrf()
-                                            val all = fields + ("_csrf" to csrf) + form.hidden
+                                            // payload 在后：预置头像选择器更新过的 avatar_style/avatar_seed 覆盖解析原值
+                                            val all = form.hidden + fields + ("_csrf" to csrf)
                                             val resp = if (file != null && form.hasFile)
                                                 session.client.postMultipart(form.action, all, form.fileFieldName, file, mime)
                                             else session.client.postForm(form.action, all)
@@ -216,7 +217,7 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
 // ---------------- 个人资料卡 ----------------
 
 @Composable
-private fun ProfileHeaderCard(avatarUrl: String, username: String, info: List<Pair<String, String>>, userId: Long = 0) {
+private fun ProfileHeaderCard(avatarUrl: String, username: String, info: List<Pair<String, String>>) {
     Surface(
         Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -224,7 +225,7 @@ private fun ProfileHeaderCard(avatarUrl: String, username: String, info: List<Pa
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(avatarUrl, 64, userId = userId, seed = username)
+                Avatar(avatarUrl, 64)
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text(username.ifBlank { "未命名" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -259,6 +260,7 @@ private fun ProfileFormCard(
     busy: Boolean,
     context: android.content.Context,
     session: Session,
+    avatarPicker: HtmlParser.AvatarPickerData?,
     onSubmit: (Map<String, String>, File?, String, () -> Unit) -> Unit,
 ) {
     // 各字段当前值（初始为解析值）
@@ -269,9 +271,12 @@ private fun ProfileFormCard(
     var pickedFile by remember(form) { mutableStateOf<File?>(null) }
     var pickedMime by remember(form) { mutableStateOf("image/jpeg") }
     var localBusy by remember(form) { mutableStateOf(false) }
-    // 源站预置头像：选中的序号（点击即下载为本地文件，随表单一起上传）
-    var pickedPreset by remember(form) { mutableStateOf(0) }
-    val scope = rememberCoroutineScope()
+    // 源站预置头像：选中的「风格_编号」（写回表单字段随表单提交，与源站行为一致）
+    var pickedPreset by remember(form) { mutableStateOf<String?>(null) }
+    // 选择器只挂在含头像字段的表单上
+    val picker = avatarPicker?.takeIf { p ->
+        form.fields.any { it.name == p.seedField || it.name == p.styleField }
+    }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -284,31 +289,25 @@ private fun ProfileFormCard(
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     f.outputStream().use { input.copyTo(it) }
                 }
-                pickedFile = f; pickedMime = mime; pickedPreset = 0
+                pickedFile = f; pickedMime = mime; pickedPreset = null
             } catch (_: Exception) {
                 session.showToast("读取图片失败")
             }
         }
     }
 
-    // 下载源站预置头像到本地缓存，作为头像文件上传
-    fun pickPreset(n: Int) {
-        if (localBusy) return
-        localBusy = true
-        scope.launch {
-            try {
-                val url = Endpoints.abs("/app/avatars/bottts-neutral_$n.svg")
-                val bytes = session.client.fetchBytes(url)
-                if (bytes.isNotEmpty()) {
-                    val f = File(context.cacheDir, "avatar_preset_$n.svg")
-                    f.writeBytes(bytes)
-                    pickedFile = f; pickedMime = "image/svg+xml"; pickedPreset = n
-                    session.showToast("已选择预置头像 $n")
-                } else session.showToast("预置头像下载失败")
-            } catch (e: Exception) {
-                session.showToast("预置头像下载失败：${e.message}")
-            } finally { localBusy = false }
-        }
+    // 预置头像 URL：基址来自服务端 data-avatar-base；无基址时回退 DiceBear CDN（源站远程模式）
+    fun presetUrl(style: String, n: Int): String = when {
+        picker!!.base.startsWith("http") -> picker.base + "${style}_$n.svg"
+        picker.base.isNotBlank() -> Endpoints.abs(picker.base + "${style}_$n.svg")
+        else -> "https://api.dicebear.com/10.x/$style/svg?seed=$n"
+    }
+
+    fun pickPreset(style: String, n: Int) {
+        values[picker!!.seedField] = n.toString()
+        values[picker.styleField] = style
+        pickedPreset = "${style}_$n"
+        session.showToast("已选择预置头像 $pickedPreset")
     }
 
     Surface(
@@ -336,30 +335,47 @@ private fun ProfileFormCard(
                     }
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        if (pickedFile == null) "未选择图片时提交不修改头像"
-                        else if (pickedPreset > 0) "已选择预置头像 ${pickedPreset}"
-                        else "已选择：${pickedFile?.name}",
+                        when {
+                            pickedFile != null -> "已选择：${pickedFile?.name}"
+                            pickedPreset != null -> "已选择预置头像 $pickedPreset"
+                            else -> "未选择时提交不修改头像"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                // 源站预置头像：横向选择列表（与源站默认头像池一致）
+            }
+
+            // 源站预置头像选择器：风格与编号均来自服务端解析（.avatar-picker），选中写回表单字段提交
+            if (picker != null && picker.styles.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "或选择源站预置头像",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // 风格切换（dylan / bottts-neutral…选项由服务端下发）
+                val currentStyle = values[picker.styleField] ?: picker.currentStyle
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(picker.styles) { (value, label) ->
+                        FilterChip(
+                            selected = currentStyle == value,
+                            onClick = { values[picker.styleField] = value },
+                            label = { Text(label.ifBlank { value }) },
+                        )
+                    }
+                }
+                // 当前风格的 48 个预置头像
+                val currentSeed = values[picker.seedField] ?: picker.currentSeed
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items((1..46).toList()) { n ->
-                        val url = Endpoints.abs("/app/avatars/bottts-neutral_$n.svg")
-                        val selected = pickedPreset == n
+                    items((1..48).toList()) { n ->
+                        val selected = currentSeed == n.toString()
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.clickable(enabled = !localBusy) { pickPreset(n) }
+                            modifier = Modifier.clickable(enabled = !localBusy) { pickPreset(currentStyle, n) }
                         ) {
                             Box(
                                 Modifier
@@ -374,7 +390,7 @@ private fun ProfileFormCard(
                                     )
                             ) {
                                 AsyncImage(
-                                    model = url,
+                                    model = presetUrl(currentStyle, n),
                                     contentDescription = "预置头像 $n",
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
@@ -393,10 +409,12 @@ private fun ProfileFormCard(
                 }
             }
 
-            // 普通字段（text/email/number/select/textarea/checkbox…）
-            form.visibles.forEach { f ->
-                FieldInput(f, values[f.name] ?: f.value) { values[f.name] = it }
-            }
+            // 普通字段（text/email/number/select/textarea/checkbox…）；头像字段已由上方选择器承载，不再重复渲染
+            form.visibles
+                .filterNot { f -> picker != null && (f.name == picker.seedField || f.name == picker.styleField) }
+                .forEach { f ->
+                    FieldInput(f, values[f.name] ?: f.value) { values[f.name] = it }
+                }
 
             // 密码字段：点击"修改密码"展开
             if (form.passwords.isNotEmpty()) {
@@ -424,9 +442,9 @@ private fun ProfileFormCard(
             Button(
                 onClick = {
                     localBusy = true
-                    val payload = form.fields.filter { it.type != "hidden" }
-                        .associate { it.name to (values[it.name] ?: it.value) }
-                    onSubmit(payload, pickedFile, pickedMime) { localBusy = false; pickedFile = null; pickedPreset = 0 }
+                    // 全量字段（含 hidden）：预置头像选择器会把新值写入 avatar_style/avatar_seed
+                    val payload = form.fields.associate { it.name to (values[it.name] ?: it.value) }
+                    onSubmit(payload, pickedFile, pickedMime) { localBusy = false; pickedFile = null; pickedPreset = null }
                 },
                 enabled = !busy && !localBusy,
                 shape = RoundedCornerShape(14.dp),
