@@ -861,14 +861,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             exit = slideOutVertically { -it } + fadeOut(),
         ) {
             TopAppBar(
-                title = {
-                    Text(
-                        data?.title ?: "帖子",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
+                // 顶栏不再显示标题：完整标题已在正文头部信息块展示，重复显示冗余
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")

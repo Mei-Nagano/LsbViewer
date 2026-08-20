@@ -21,7 +21,10 @@ import sb.linux.client.ui.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(session: Session, nav: NavHostController) {
-    var query by remember { mutableStateOf("") }
+    // 支持从首页顶栏搜索条带入关键词（search?q=…）
+    val entry = nav.currentBackStackEntry
+    val initialQuery = entry?.arguments?.getString("q").orEmpty()
+    var query by remember { mutableStateOf(initialQuery) }
     var field by remember { mutableStateOf("title") }
     var results by remember { mutableStateOf<List<TopicCard>?>(null) }
     var page by remember { mutableIntStateOf(1) }

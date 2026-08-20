@@ -72,6 +72,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -235,22 +236,25 @@ fun TopicCardView(
                 if (onElementClick != null) onElementClick(CardColorOverrides.BACKGROUND) else onClick()
             }),
     ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
             if (!compact) {
-                Avatar(card.avatarUrl, 42)
-                Spacer(Modifier.width(12.dp))
+                Avatar(card.avatarUrl, 34)
+                Spacer(Modifier.width(10.dp))
             }
             Column(Modifier.weight(1f)) {
-                // 帖子标签（置顶/热/精华/未读/抽奖/发卡）置于标题前面
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.let { m ->
-                        if (onElementClick != null)
-                            m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TAG) }
-                        else m
-                    }
-                ) {
+                // 顶行：标题（含标签）占左侧，板块标识固定在卡片右上角
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(1f)) {
+                        // 帖子标签（置顶/热/精华/未读/抽奖/发卡）置于标题前面
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            modifier = Modifier.let { m ->
+                                if (onElementClick != null)
+                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TAG) }
+                                else m
+                            }
+                        ) {
                     if (tagColor != null) {
                         // 自定义标签色：统一应用（前景自动黑/白）
                         val fg = onColorFor(tagColor)
@@ -283,96 +287,96 @@ fun TopicCardView(
                         }
                     }
                 }
-                Spacer(Modifier.size(6.dp))
-                Text(
-                    card.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (card.pinned || card.featured) FontWeight.Bold else FontWeight.SemiBold,
-                    // 标题颜色不可自定义，仅保留源站解析出的彩色标题
-                    color = titleColor ?: Color.Unspecified,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.12f,
-                )
-                Spacer(Modifier.size(8.dp))
-                // 用户名 / 时间 / 评论数：不使用分隔点
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
                     Text(
-                        card.authorName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = userOverride ?: MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f, fill = false)
-                            .let { m ->
-                                if (onElementClick != null)
-                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.USER) }
-                                else m
-                            }
+                        card.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = if (card.pinned || card.featured) FontWeight.Bold else FontWeight.SemiBold,
+                        // 标题颜色不可自定义，仅保留源站解析出的彩色标题
+                        color = titleColor ?: Color.Unspecified,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.1f,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
-                    Text(
-                        card.timeText,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.let { m ->
-                            if (onElementClick != null)
-                                m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TIME) }
-                            else m
-                        }
-                    )
-                    if (!compact) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    Spacer(Modifier.size(4.dp))
+                    // 用户名 / 时间 / 评论数：不使用分隔点
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            card.authorName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = userOverride ?: MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .let { m ->
+                                    if (onElementClick != null)
+                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.USER) }
+                                    else m
+                                }
+                        )
+                        Text(
+                            card.timeText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.let { m ->
                                 if (onElementClick != null)
-                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.COMMENTS) }
+                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TIME) }
                                 else m
                             }
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Chat, null,
-                                modifier = Modifier.size(13.dp),
-                                tint = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                "${card.replies}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        )
+                        if (!compact) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                modifier = Modifier.let { m ->
+                                    if (onElementClick != null)
+                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.COMMENTS) }
+                                    else m
+                                }
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Chat, null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "${card.replies}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
-                Spacer(Modifier.size(4.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
-                        onClick = {
-                            if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
-                            else onForumClick(card.forumId)
-                        }
-                    ) {
-                        Text(
-                            card.forumName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = forumOverride?.let { onColorFor(it) }
-                                ?: MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
+                Spacer(Modifier.width(6.dp))
+                // 板块标识：固定在卡片右上角（与标题顶部对齐）
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                    onClick = {
+                        if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
+                        else onForumClick(card.forumId)
                     }
+                ) {
+                    Text(
+                        card.forumName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = forumOverride?.let { onColorFor(it) }
+                            ?: MaterialTheme.colorScheme.onSecondaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
                 }
             }
         }
     }
+}
 }
 
 /** 分页条：MD3 双侧图标按钮 + 页码胶囊 */
@@ -532,6 +536,9 @@ private data class ContentBlock(
     val isCode: Boolean = false,
     val isDivider: Boolean = false,
     val isHeading: Boolean = false,
+    val headingLevel: Int = 0,     // 标题级别 1~4，用于排版字号缩放
+    val isList: Boolean = false,   // 列表项：悬挂缩进展示（对应源站 <ul>/<ol>）
+    val indent: Int = 0,           // 嵌套列表层级
 )
 
 /**
@@ -543,7 +550,8 @@ private data class ContentBlock(
 @Composable
 fun HtmlContent(html: String, modifier: Modifier = Modifier, onFloor: (Int) -> Unit = {}) {
     val linkColor = MaterialTheme.colorScheme.primary
-    val blocks = remember(html) { parseHtmlToBlocks(html, linkColor) }
+    val codeBg = MaterialTheme.colorScheme.surfaceContainerHighest
+    val blocks = remember(html) { parseHtmlToBlocks(html, linkColor, codeBg) }
     val uriHandler = LocalUriHandler.current
     // 常规设置「打开链接方式」处理入口（3.20）：未提供时回退外部浏览器
     val linkHandler = LocalLinkHandler.current
@@ -558,7 +566,7 @@ fun HtmlContent(html: String, modifier: Modifier = Modifier, onFloor: (Int) -> U
     val bodyStyle = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp)
     val quoteStyle = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp)
     Column(modifier) {
-        blocks.forEach { b ->
+        blocks.forEachIndexed { idx, b ->
             when {
                 b.imageUrls.size > 1 -> ImagePager(b.imageUrls, Modifier.padding(vertical = 4.dp)) { viewer = b.imageUrls to it }
                 b.imageUrl != null -> {
@@ -608,14 +616,28 @@ fun HtmlContent(html: String, modifier: Modifier = Modifier, onFloor: (Int) -> U
                     }
                 }
                 b.annotated != null && b.annotated.text.isNotBlank() -> {
+                    val (txtStyle, fontWeight) = when {
+                        b.isHeading -> headingStyle(b.headingLevel) to FontWeight.Bold
+                        b.isList -> bodyStyle.copy(
+                            lineHeight = 24.sp,
+                            textIndent = TextIndent(firstLine = 0.sp, restLine = 22.sp)
+                        ) to FontWeight.Normal
+                        else -> bodyStyle to FontWeight.Normal
+                    }
+                    val base = when {
+                        b.isHeading -> Modifier.padding(top = 6.dp, bottom = 2.dp)
+                        b.isList -> Modifier.padding(start = (6 * b.indent).dp, bottom = 1.dp)
+                        // 相邻段落之间留出源站间距，避免正文连成一片
+                        idx > 0 -> Modifier.padding(top = 4.dp)
+                        else -> Modifier
+                    }
                     LinkText(
                         text = b.annotated,
                         onOpenUrl = ::open,
                         onFloor = onFloor,
-                        style = if (b.isHeading) MaterialTheme.typography.titleSmall
-                        else bodyStyle,
-                        fontWeight = if (b.isHeading) FontWeight.Bold else null,
-                        modifier = if (b.isHeading) Modifier.padding(top = 4.dp, bottom = 2.dp) else Modifier
+                        style = txtStyle,
+                        fontWeight = fontWeight,
+                        modifier = base
                     )
                 }
             }
@@ -625,6 +647,18 @@ fun HtmlContent(html: String, modifier: Modifier = Modifier, onFloor: (Int) -> U
     viewer?.let { (urls, idx) ->
         ZoomImageViewer(urls = urls, initialIndex = idx) { viewer = null }
     }
+}
+
+/** 标题按级别缩放字号，还原源站 Markdown 标题层级视觉效果 */
+@Composable
+private fun headingStyle(level: Int): androidx.compose.ui.text.TextStyle {
+    val t = MaterialTheme.typography
+    return when (level) {
+        1 -> t.headlineMedium
+        2 -> t.headlineSmall
+        3 -> t.titleLarge
+        else -> t.titleMedium
+    }.copy(lineHeight = 28.sp)
 }
 
 /**
@@ -961,11 +995,11 @@ private fun ZoomableImage(url: String, onSingleTap: () -> Unit, onLongPress: () 
     }
 }
 
-private fun parseHtmlToBlocks(html: String, linkColor: Color): List<ContentBlock> {
+private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): List<ContentBlock> {
     val root = runCatching { Jsoup.parseBodyFragment(html).body() }.getOrNull() ?: return emptyList()
     val blocks = mutableListOf<ContentBlock>()
 
-    fun renderInlineTo(el: Element): AnnotatedString = renderInline(el, linkColor)
+    fun renderInlineTo(el: Element): AnnotatedString = renderInline(el, linkColor, codeBg)
 
     /** 去掉图片占位符"[图片]"后的文本（图片会单独成块展示） */
     fun cleanImgPlaceholder(sb: AnnotatedString): AnnotatedString =
@@ -995,26 +1029,49 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color): List<ContentBlock
         }
     }
 
+    /** 递归收集列表项，支持无序/有序及嵌套，保留层级缩进 */
+    fun collectList(listEl: Element, level: Int) {
+        val ordered = listEl.tagName().lowercase() == "ol"
+        listEl.children().forEachIndexed { i, child ->
+            if (child.tagName().lowercase() == "li") {
+                // 渲染列表项文本时去掉内嵌子列表，仅保留该项自身内容
+                val liCopy = child.clone()
+                liCopy.select("ul, ol").remove()
+                val imgs = liCopy.select("img")
+                val raw = renderInlineTo(liCopy)
+                val sb = if (imgs.isNotEmpty()) cleanImgPlaceholder(raw) else raw
+                if (sb.text.isNotBlank()) {
+                    val bullet = if (ordered) "${i + 1}." else "•"
+                    blocks.add(
+                        ContentBlock(
+                            annotated = buildAnnotatedString { append(bullet); append(" "); append(sb) },
+                            isList = true, indent = level
+                        )
+                    )
+                }
+                imgs.forEach { blocks.add(ContentBlock(imageUrl = abs(it))) }
+                // 嵌套子列表（源站 markdown 缩进层级）
+                child.children().forEach { sub ->
+                    if (sub.tagName().lowercase() in setOf("ul", "ol")) collectList(sub, level + 1)
+                }
+            }
+        }
+    }
+
     fun collect(el: Element) {
         el.children().forEach { c ->
             when (c.tagName().lowercase()) {
                 "p", "div", "section" -> renderBlock(c)?.let { blocks.add(it) }
                 "blockquote", "pre", "hr" -> renderBlock(c)?.let { blocks.add(it) }
-                "ul", "ol" -> {
-                    c.select("> li").forEachIndexed { i, li ->
-                        val bullet = if (c.tagName().lowercase() == "ol") "${i + 1}. " else "• "
-                        val raw = renderInlineTo(li)
-                        val sb = if (li.select("img").isNotEmpty()) cleanImgPlaceholder(raw) else raw
-                        if (sb.text.isNotBlank()) blocks.add(
-                            ContentBlock(annotated = buildAnnotatedString { append(bullet); append(sb) })
-                        )
-                        li.select("img").forEach { blocks.add(ContentBlock(imageUrl = abs(it))) }
-                    }
-                }
+                "ul", "ol" -> collectList(c, 0)
                 "h1", "h2", "h3", "h4", "h5" -> {
                     val sb = renderInlineTo(c)
                     if (sb.text.isNotBlank()) blocks.add(
-                        ContentBlock(annotated = sb, isHeading = true)
+                        ContentBlock(
+                            annotated = sb,
+                            isHeading = true,
+                            headingLevel = c.tagName().substring(1).toIntOrNull() ?: 1
+                        )
                     )
                 }
                 "img" -> blocks.add(ContentBlock(imageUrl = abs(c)))
@@ -1109,7 +1166,7 @@ private fun annotateFloors(s: AnnotatedString): AnnotatedString {
 private fun abs(el: Element): String =
     el.attr("abs:src").ifBlank { el.attr("src") }.let { if (it.startsWith("http")) it else Endpoints.abs(it) }
 
-private fun renderInline(el: Element, linkColor: Color): AnnotatedString = buildAnnotatedString {
+private fun renderInline(el: Element, linkColor: Color, codeBg: Color): AnnotatedString = buildAnnotatedString {
     fun appendNode(node: Node, bold: Boolean, italic: Boolean, strike: Boolean, code: Boolean, link: String?) {
         when (node) {
             is TextNode -> {
@@ -1122,6 +1179,7 @@ private fun renderInline(el: Element, linkColor: Color): AnnotatedString = build
                             fontStyle = if (italic) FontStyle.Italic else null,
                             textDecoration = if (strike) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                             fontFamily = if (code) FontFamily.Monospace else null,
+                            background = if (code) codeBg else Color.Unspecified,
                             color = if (link != null) linkColor else Color.Unspecified,
                         )
                     ) { append(text) }

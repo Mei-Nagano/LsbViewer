@@ -374,15 +374,9 @@ object HtmlParser {
         // rank 形如 "饼友 · 积分 1324"：拆出用户组与积分
         val group = rank.substringBefore("·").trim()
         val points = Regex("""积分\s*([\d.,kw万K W]+)""", RegexOption.IGNORE_CASE).find(rank)?.groupValues?.get(1) ?: ""
-        // 简介保留源站格式：<br> 与块级元素转换行，避免全部压成一行
-        val bio = d.selectFirst(".sidebar-bio")?.let { el ->
-            val html = el.html()
-                .replace(Regex("(?i)<br\\s*/?>"), "\n")
-                .replace(Regex("(?i)</(p|div|li|blockquote|pre)>"), "\n")
-            org.jsoup.Jsoup.parse(html).wholeText()
-                .replace(Regex("\n{3,}"), "\n\n")
-                .trim()
-        } ?: ""
+        // 简介保留源站格式：直接取原始 HTML（含 markdown 渲染后的 <strong>/<a>/<br>/<pre> 等），
+        // 交由 HtmlContent 渲染，保留加粗、链接、换行与代码块等排版
+        val bio = d.selectFirst(".sidebar-bio")?.html()?.trim() ?: ""
         val stats = d.select(".sidebar-card .stat-row, .sidebar .card").mapNotNull { c ->
             val t = c.selectFirst(".quick-title")?.text() ?: return@mapNotNull null
             val v = c.selectFirst(".quick-value, .sidebar-value")?.text() ?: ""

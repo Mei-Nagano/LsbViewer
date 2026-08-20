@@ -217,7 +217,10 @@ fun LsbApp(session: Session) {
         ) {
             composable("home") { HomeScreen(session, nav) }
             composable("forums") { ForumListScreen(session, nav) }
-            composable("search") { SearchScreen(session, nav) }
+            composable(
+                "search?q={q}",
+                arguments = listOf(navArgument("q") { type = androidx.navigation.NavType.StringType; defaultValue = "" })
+            ) { SearchScreen(session, nav) }
             composable("me") { MeScreen(session, nav) }
             composable("login") { LoginScreen(session, nav) }
             composable(

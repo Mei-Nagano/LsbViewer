@@ -25,7 +25,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,6 +85,19 @@ fun UserScreen(session: Session, nav: NavHostController) {
     }
 
     LaunchedEffect(uid) { load(tab) }
+
+    // 点进该用户主页即刷新其头像缓存：清掉 Coil 内存/磁盘里该 URL 的旧图，
+    // 大头像随后以新拉取的字节解码，侧栏等处的旧头像也能随之更新。
+    val context = LocalContext.current
+    LaunchedEffect(profile?.avatarUrl) {
+        val url = profile?.avatarUrl ?: return@LaunchedEffect
+        if (url.isNotBlank()) {
+            val loader = coil.Coil.imageLoader(context)
+            val memCache = loader.memoryCache
+            memCache?.keys?.filter { it.key == url }?.forEach { key -> memCache.remove(key) }
+            loader.diskCache?.remove(url)
+        }
+    }
 
     val tabs = buildList {
         add("topics" to "主题")
@@ -158,19 +173,26 @@ fun UserScreen(session: Session, nav: NavHostController) {
                             }
                             if (p.bio.isNotBlank()) {
                                 Spacer(Modifier.height(12.dp))
-                                // 过长简介默认折叠，可展开/收起；不长的正常展示且不显示按钮
-                                val bioIsLong = p.bio.length > 80
-                                var bioExpanded by remember(p.bio) { mutableStateOf(!bioIsLong) }
-                                Text(
-                                    p.bio,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = if (bioExpanded) Int.MAX_VALUE else 3,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                // 过长简介默认折叠，可展开/收起；不长的正常展示且不显示按钮。
+                                // 简介为源站 HTML（markdown 渲染结果），用 HtmlContent 渲染以保留原文格式
+                                val plainLen = org.jsoup.Jsoup.parse(p.bio).text().length
+                                val bioIsLong = plainLen > 80
+                                var bioExpanded by remember(plainLen) { mutableStateOf(!bioIsLong) }
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .then(if (bioIsLong && !bioExpanded) Modifier.height(96.dp) else Modifier)
+                                        .then(if (bioIsLong && !bioExpanded) Modifier.clipToBounds() else Modifier)
+                                ) {
+                                    HtmlContent(
+                                        p.bio,
+                                        Modifier.fillMaxWidth(),
+                                        onFloor = {}
+                                    )
+                                }
                                 if (bioIsLong) {
                                     TextButton(onClick = { bioExpanded = !bioExpanded }) {
-                                        Text(if (bioExpanded) "收起" else "展开")
+                                        Text(if (bioExpanded) "收起" else "展开/收起")
                                     }
                                 }
                             }

@@ -1,24 +1,34 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -35,14 +45,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import kotlinx.coroutines.launch
 import sb.linux.client.data.ForumCount
 import sb.linux.client.data.HomeSidebar
@@ -87,6 +103,26 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     var error by remember { mutableStateOf<String?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    // 顶栏搜索态（t10）：搜索时整条顶栏变为搜索框；退出 / 失焦恢复
+    var searchActive by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    // 排序抽屉（t8）：(全部/仅抽奖/仅发卡) 上方的 (新评论/新帖子/精华) 折叠区
+    var sortDrawerOpen by remember { mutableStateOf(true) }
+    // 通知红点（t10）：回到首页且登录时查询是否有新通知
+    var hasNotifications by remember { mutableStateOf(false) }
+    val backEntry by nav.currentBackStackEntryAsState()
+    val onHomeRoute = backEntry?.destination?.route == "home"
+    LaunchedEffect(onHomeRoute, session.loginState.loggedIn, session.loginState.userId) {
+        if (onHomeRoute && session.loginState.loggedIn) {
+            hasNotifications = runCatching {
+                val r = session.client.get("/user/${session.loginState.userId}?tab=notifications")
+                HtmlParser.parseNotifications(r.html).isNotEmpty()
+            }.getOrDefault(false)
+        } else if (!session.loginState.loggedIn) {
+            hasNotifications = false
+        }
+    }
 
     // 源站首页侧板数据（与首次首页请求同步解析，并本地永久缓存，避免每次访问源站）
     var sidebar by remember { mutableStateOf<HomeSidebar?>(session.loadHomeSidebar()) }
@@ -271,6 +307,14 @@ fun HomeScreen(session: Session, nav: NavHostController) {
         load(1)
     }
 
+    // 顶栏搜索提交：带回显关键词跳转搜索页
+    fun submitTopSearch() {
+        if (searchQuery.isBlank()) { searchActive = false; return }
+        val q = java.net.URLEncoder.encode(searchQuery.trim(), "UTF-8")
+        nav.navigate("search?q=$q")
+        searchQuery = ""; searchActive = false
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
@@ -296,110 +340,213 @@ fun HomeScreen(session: Session, nav: NavHostController) {
             // 沉浸式顶栏：往下滚动时隐藏，回到顶部时显示（TopAppBar 不再自带状态栏 insets）
             AnimatedVisibility(visible = topBarVisible) {
                 Column {
-                    TopAppBar(
-                        windowInsets = WindowInsets(0, 0, 0, 0),
-                        title = { Text("烧饼社区") },
-                        navigationIcon = {
-                            IconButton(onClick = { openDrawer() }) {
-                                Icon(Icons.Filled.Menu, "侧板")
+                    // 顶栏：正常态 / 搜索态 二选一
+                    if (searchActive) {
+                        // 搜索态：整条顶栏变成搜索输入框 + 右侧搜索按钮；失焦后恢复
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { searchActive = false; searchQuery = "" }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "取消搜索")
                             }
-                        },
-                        actions = {
-                            // 三点菜单：搜索 / 刷新 / 切换滚动模式（刷新也可下拉触发）
-                            Box {
-                                IconButton(onClick = { menuOpen = true }) {
-                                    Icon(Icons.Filled.MoreVert, "菜单")
-                                }
-                                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                    DropdownMenuItem(
-                                        text = { Text("搜索") },
-                                        leadingIcon = { Icon(Icons.Filled.Search, null) },
-                                        onClick = { menuOpen = false; nav.navigate("search") }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("刷新") },
-                                        leadingIcon = { Icon(Icons.Filled.Refresh, null) },
-                                        onClick = { menuOpen = false; refresh() }
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(if (homeInfinite) "切换为翻页模式" else "切换为无限滚动")
-                                        },
-                                        leadingIcon = { Icon(Icons.Filled.SwapVert, null) },
-                                        onClick = {
-                                            menuOpen = false
-                                            session.saveInfiniteScroll(!homeInfinite)
-                                            if (homeInfinite) {
-                                                // 切回无限滚动：页码回到源站页
-                                                current.page = current.sourcePage
-                                                current.totalPages = current.sourceTotalPages
-                                            } else {
-                                                // 切到翻页模式：回到本地第一页
-                                                current.page = 1
-                                            }
-                                            scope.launch { listState.scrollToItem(0) }
-                                            session.showToast(
-                                                if (homeInfinite) "已切换为无限滚动" else "已切换为翻页模式"
-                                            )
-                                        }
-                                    )
-                                }
+                            Surface(
+                                shape = RoundedCornerShape(22.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Text,
+                                        imeAction = ImeAction.Search
+                                    ),
+                                    keyboardActions = KeyboardActions(onSearch = { submitTopSearch() }),
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp)
+                                        .height(40.dp)
+                                        .onFocusChanged { if (!it.isFocused && searchQuery.isBlank()) searchActive = false },
+                                )
+                            }
+                            IconButton(onClick = { submitTopSearch() }) {
+                                Icon(Icons.Filled.Search, "搜索")
                             }
                         }
-                    )
-                    // 源站排序 tab：新评论/新帖子/精华（有层次感的圆角矩形）
+                    } else {
+                        TopAppBar(
+                            windowInsets = WindowInsets(0, 0, 0, 0),
+                            title = { Text("烧饼社区") },
+                            navigationIcon = {
+                                IconButton(onClick = { openDrawer() }) {
+                                    Icon(Icons.Filled.Menu, "侧板")
+                                }
+                            },
+                            actions = {
+                                // 通知：有未读通知时右上角显示小红点
+                                Box {
+                                    IconButton(
+                                        onClick = { hasNotifications = false; nav.navigate("notifications") }
+                                    ) {
+                                        Icon(Icons.Filled.Notifications, "通知")
+                                    }
+                                    if (hasNotifications) {
+                                        Box(
+                                            Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(top = 8.dp, end = 3.dp)
+                                                .size(9.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.error)
+                                        )
+                                    }
+                                }
+                                // 搜索：点击展开为顶栏搜索框
+                                IconButton(onClick = { searchActive = true }) {
+                                    Icon(Icons.Filled.Search, "搜索")
+                                }
+                                // 三点菜单：搜索 / 刷新 / 切换滚动模式（刷新也可下拉触发）
+                                Box {
+                                    IconButton(onClick = { menuOpen = true }) {
+                                        Icon(Icons.Filled.MoreVert, "菜单")
+                                    }
+                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text("搜索") },
+                                            leadingIcon = { Icon(Icons.Filled.Search, null) },
+                                            onClick = { menuOpen = false; searchActive = true }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("刷新") },
+                                            leadingIcon = { Icon(Icons.Filled.Refresh, null) },
+                                            onClick = { menuOpen = false; refresh() }
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(if (homeInfinite) "切换为翻页模式" else "切换为无限滚动")
+                                            },
+                                            leadingIcon = { Icon(Icons.Filled.SwapVert, null) },
+                                            onClick = {
+                                                menuOpen = false
+                                                session.saveInfiniteScroll(!homeInfinite)
+                                                if (homeInfinite) {
+                                                    // 切回无限滚动：页码回到源站页
+                                                    current.page = current.sourcePage
+                                                    current.totalPages = current.sourceTotalPages
+                                                } else {
+                                                    // 切到翻页模式：回到本地第一页
+                                                    current.page = 1
+                                                }
+                                                scope.launch { listState.scrollToItem(0) }
+                                                session.showToast(
+                                                    if (homeInfinite) "已切换为无限滚动" else "已切换为翻页模式"
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    // 组合过滤（全部/仅抽奖/仅发卡）移到上方，并作为（新评论/新帖子/精华）的抽屉容器
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(18.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 2.dp,
                         shadowElevation = 1.dp,
                     ) {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            SORTS.forEachIndexed { i, (_, label) ->
-                                val selected = tabIndex == i
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (selected) MaterialTheme.colorScheme.secondaryContainer
-                                    else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    shadowElevation = if (selected) 2.dp else 0.dp,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { session.homeTabIndex = i; session.homeCombo = 0 }
-                                ) {
-                                    Text(
-                                        label,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center,
+                        Column {
+                            // 组合过滤行（质感样式）
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 8.dp, end = 4.dp, top = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("全部" to 0, "仅抽奖" to 1, "仅发卡" to 2).forEachIndexed { _, (label, c) ->
+                                    val selected = combo == c
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (selected) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.surfaceContainerHigh,
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 9.dp)
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { session.homeCombo = c }
+                                    ) {
+                                        Text(
+                                            label,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp)
+                                        )
+                                    }
+                                }
+                                // 折叠 / 展开 排序抽屉按钮
+                                FilledTonalIconButton(
+                                    onClick = { sortDrawerOpen = !sortDrawerOpen },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(
+                                        if (sortDrawerOpen) Icons.Filled.KeyboardArrowUp
+                                        else Icons.Filled.KeyboardArrowDown,
+                                        if (sortDrawerOpen) "收起排序" else "展开排序",
+                                        Modifier.size(20.dp)
                                     )
                                 }
                             }
-                        }
-                    }
-                    // 组合过滤：全部 / 仅抽奖 / 仅发卡
-                    SingleChoiceSegmentedButtonRow(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        listOf("全部" to 0, "仅抽奖" to 1, "仅发卡" to 2).forEachIndexed { index, (label, c) ->
-                            SegmentedButton(
-                                selected = combo == c,
-                                onClick = { session.homeCombo = c },
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
+                            // 排序 tab（新评论/新帖子/精华）做成下拉抽屉，横向可滑动
+                            AnimatedVisibility(
+                                visible = sortDrawerOpen,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
                             ) {
-                                Text(label)
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(horizontal = 8.dp, vertical = 7.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    SORTS.forEachIndexed { i, (_, label) ->
+                                        val selected = tabIndex == i
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            shadowElevation = if (selected) 2.dp else 0.dp,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable { session.homeTabIndex = i; session.homeCombo = 0 }
+                                        ) {
+                                            Text(
+                                                label,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -702,14 +849,21 @@ private fun HomeSidebarDrawer(
                 // 板块（来自源站侧边栏解析 + 本地永久缓存，点击进入才请求该板块内容）
                 if (sb?.forums?.isNotEmpty() == true) {
                     item { DrawerTitle("板块") }
-                    val forumRows =
-                        if (session.sidebarTwoColumns) sb.forums.chunked(2) else sb.forums.map { listOf(it) }
-                    items(forumRows, key = { "f-${it.first().id}" }) { row: List<ForumCount> ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { f: ForumCount ->
-                                ForumEntryRow(f, onOpenForum, Modifier.weight(1f))
+                    val twoCol = session.sidebarTwoColumns
+                    if (twoCol) {
+                        val forumRows = sb.forums.chunked(2)
+                        items(forumRows, key = { "f-${it.first().id}" }) { row: List<ForumCount> ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                row.forEach { f: ForumCount ->
+                                    ForumEntryRow(f, onOpenForum, Modifier.weight(1f))
+                                }
+                                if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    } else {
+                        // 单列展示：每条横跨整行（避免右侧留白），并在右侧展示帖子数量
+                        items(sb.forums, key = { "f2-${it.id}" }) { f: ForumCount ->
+                            ForumEntryRow(f, onOpenForum, Modifier.fillMaxWidth(), showCount = true)
                         }
                     }
                 }
@@ -926,20 +1080,47 @@ private fun HotTopicRow(t: sb.linux.client.data.HotTopic, onOpenTopic: (Long) ->
     }
 }
 
-/** 侧板版块条目：仅名称（数量框已移除） */
+/** 侧板版块条目：名称 +（单列展示时的）帖子数量角标 */
 @Composable
-private fun ForumEntryRow(f: ForumCount, onOpenForum: (Long) -> Unit, modifier: Modifier = Modifier) {
+private fun ForumEntryRow(
+    f: ForumCount,
+    onOpenForum: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    showCount: Boolean = false,
+) {
     Surface(
         onClick = { onOpenForum(f.id) },
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier.padding(vertical = 2.dp),
     ) {
-        Text(
-            f.name, style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                f.name, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            // 单列展示时在板块右侧显示帖量（源站侧边栏的版块主题数）
+            if (showCount && f.count.isNotBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                ) {
+                    Text(
+                        f.count,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
     }
 }
