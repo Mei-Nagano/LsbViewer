@@ -8,7 +8,9 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * 检查更新（3.18 / 3.20）：查询 GitHub Releases 最新版本并与本地版本比较。
+ * 检查更新（3.18 / 3.20）：优先经 Cloudflare Worker 代理查询 GitHub 最新 Release
+ * （规避官方 API 60 次/小时/IP 的速率限制与国内无法直连 api.github.com 的问题），
+ * Worker 不可用时回退直连官方 API。与本地版本比较判断是否有新版。
  */
 object UpdateChecker {
 
@@ -17,6 +19,11 @@ object UpdateChecker {
     const val PROJECT_URL = "https://github.com/$REPO"
     const val RELEASES_URL = "$PROJECT_URL/releases"
     const val LICENSE_URL = "$PROJECT_URL/blob/main/LICENSE"
+
+    // 检查更新代理（worker/update-worker.js 部署后的地址）：
+    // 替换为实际 *.workers.dev 地址后生效；不可用时自动回退 GitHub API
+    private const val WORKER_URL = "https://lsb-update.YOUR-SUBDOMAIN.workers.dev"
+    private const val GITHUB_API_URL = "https://api.github.com/repos/$REPO/releases/latest"
 
     data class UpdateInfo(
         val tag: String,
@@ -30,28 +37,31 @@ object UpdateChecker {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    /** 拉取最新 Release；无 Release（仓库未公开/未发布）或网络失败返回 null */
+    /** 拉取最新 Release：Worker 优先，失败回退 GitHub API；均失败或无 Release 返回 null */
     suspend fun latestRelease(): UpdateInfo? = withContext(Dispatchers.IO) {
-        runCatching {
-            val req = Request.Builder()
-                .url("https://api.github.com/repos/$REPO/releases/latest")
-                .header("Accept", "application/vnd.github+json")
-                .build()
-            http.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return@runCatching null
-                val body = resp.body?.string() ?: return@runCatching null
-                val o = JSONObject(body)
-                val tag = o.optString("tag_name")
-                if (tag.isBlank()) return@runCatching null
-                UpdateInfo(
-                    tag = tag,
-                    name = o.optString("name").ifBlank { tag },
-                    url = o.optString("html_url").ifBlank { RELEASES_URL },
-                    notes = o.optString("body"),
-                )
-            }
-        }.getOrNull()
+        fetchFrom(WORKER_URL) ?: fetchFrom(GITHUB_API_URL)
     }
+
+    /** 请求指定端点并解析（Worker 与官方 API 返回同构字段：tag_name/name/html_url/body） */
+    private fun fetchFrom(url: String): UpdateInfo? = runCatching {
+        val req = Request.Builder()
+            .url(url)
+            .header("Accept", "application/vnd.github+json")
+            .build()
+        http.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) return@runCatching null
+            val body = resp.body?.string() ?: return@runCatching null
+            val o = JSONObject(body)
+            val tag = o.optString("tag_name")
+            if (tag.isBlank()) return@runCatching null
+            UpdateInfo(
+                tag = tag,
+                name = o.optString("name").ifBlank { tag },
+                url = o.optString("html_url").ifBlank { RELEASES_URL },
+                notes = o.optString("body"),
+            )
+        }
+    }.getOrNull()
 
     /** 比较版本号（忽略 v 前缀，按点分段数字逐段比较）：latest > current 时为 true */
     fun isNewer(latest: String, current: String): Boolean {
