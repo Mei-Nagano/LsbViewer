@@ -20,9 +20,9 @@ object UpdateChecker {
     const val RELEASES_URL = "$PROJECT_URL/releases"
     const val LICENSE_URL = "$PROJECT_URL/blob/main/LICENSE"
 
-    // 检查更新代理（worker/update-worker.js 部署后的地址）：
-    // 替换为实际 *.workers.dev 地址后生效；不可用时自动回退 GitHub API
-    private const val WORKER_URL = "https://lsb-update.YOUR-SUBDOMAIN.workers.dev"
+    // 检查更新代理（worker/update-worker.js 部署在自定义域名，
+    // workers.dev 域名在国内被污染不可用）；不可用时自动回退 GitHub API
+    private const val WORKER_URL = "https://vercheck.060510.xyz"
     private const val GITHUB_API_URL = "https://api.github.com/repos/$REPO/releases/latest"
 
     data class UpdateInfo(

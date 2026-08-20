@@ -15,6 +15,12 @@ const REPO = "Mei-Nagano/LsbViewer";
 const UPSTREAM = `https://api.github.com/repos/${REPO}/releases/latest`;
 const CACHE_SECONDS = 600; // 10 分钟
 
+// 部署后必配（Settings → Variables and Secrets → Add，Type 选 Secret）：
+//   GH_TOKEN = GitHub PAT（Fine-grained，Public repositories 只读即可，无需勾选任何权限）
+// 不配会因 Cloudflare 共享出口 IP 被 GitHub 403（匿名限额 60 次/小时/IP 被全球用户共用）
+// 配置后限额 5000 次/小时/token，配合缓存绰绰有余。
+// 该 Token 只存在 Worker Secret 里，不会进入 App 或仓库。
+
 const RESP_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
@@ -30,12 +36,12 @@ export default {
     let status = 502;
     let data = { error: "upstream_unavailable" };
     try {
-      const resp = await fetch(UPSTREAM, {
-        headers: {
-          "User-Agent": "LsbViewer-update-worker",
-          "Accept": "application/vnd.github+json",
-        },
-      });
+      const headers = {
+        "User-Agent": "LsbViewer-update-worker",
+        "Accept": "application/vnd.github+json",
+      };
+      if (env.GH_TOKEN) headers["Authorization"] = `Bearer ${env.GH_TOKEN}`;
+      const resp = await fetch(UPSTREAM, { headers });
       status = resp.status;
       if (resp.ok) {
         // 只透传 App 需要的字段，响应体更小
