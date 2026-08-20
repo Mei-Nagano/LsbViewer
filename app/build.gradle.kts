@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -41,18 +43,26 @@ android {
         }
     }
 
+    // 本地签名材料读根目录 keystore.properties（已 gitignore 不入库）；
+    // 优先级：-P 参数（CI 用）> 环境变量 > keystore.properties（本地）> 兜底默认值
+    val ksProps = rootProject.file("keystore.properties").takeIf { it.exists() }
+        ?.inputStream()?.use { Properties().apply { load(it) } }
+
     signingConfigs {
         create("release") {
-            // 优先读 gradle.properties / -P 参数 / 环境变量，默认用仓库内 keystore
             storeFile = rootProject.file(
-                (project.findProperty("LSB_STORE_FILE") as String?) ?: "lsb-release.jks"
+                (project.findProperty("LSB_STORE_FILE") as String?)
+                    ?: ksProps?.getProperty("storeFile") ?: "lsb-release.jks"
             )
             storePassword = (project.findProperty("LSB_STORE_PASSWORD") as String?)
-                ?: System.getenv("LSB_STORE_PASSWORD") ?: "lsb123456"
+                ?: System.getenv("LSB_STORE_PASSWORD")
+                ?: ksProps?.getProperty("storePassword") ?: "lsb123456"
             keyAlias = (project.findProperty("LSB_KEY_ALIAS") as String?)
-                ?: System.getenv("LSB_KEY_ALIAS") ?: "lsb"
+                ?: System.getenv("LSB_KEY_ALIAS")
+                ?: ksProps?.getProperty("keyAlias") ?: "lsb"
             keyPassword = (project.findProperty("LSB_KEY_PASSWORD") as String?)
-                ?: System.getenv("LSB_KEY_PASSWORD") ?: "lsb123456"
+                ?: System.getenv("LSB_KEY_PASSWORD")
+                ?: ksProps?.getProperty("keyPassword") ?: "lsb123456"
         }
     }
 
