@@ -126,7 +126,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var showExportDialog by remember { mutableStateOf(false) }
     var exportBusy by remember { mutableStateOf<String?>(null) }
 
-    // 评论区排序：0 = 默认（原样跟随源站页面顺序，源站按什么算法排 app 就显示什么），1 = 正序（楼层号升序）；记住上次选择
+    // 评论区排序：0 = 热度（楼主正文固定首位 + 其余按点赞数降序，同赞按楼层号升序保证稳定），1 = 正序（楼层号升序）；记住上次选择
     var sortOrder by remember { mutableIntStateOf(session.commentSortOrder) }
 
     // 打赏弹幕：数据 + 每帖开关（默认跟随全局设置）
@@ -159,16 +159,16 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var aiBusy by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
 
-    // 排序后的楼层列表：默认档原样呈现源站页面顺序（源站排序算法自动跟随，含点赞置顶等）；
-    // 正序档楼主正文固定首位 + 其余按楼层号升序
+    // 排序后的楼层列表（楼主正文固定首位）：热度档按点赞数降序（同赞按楼层号，顺序稳定）；
+    // 正序档按楼层号升序（源站页面顺序）。未登录时源站不输出点赞计数（全 0），热度档自然退化为正序
     val sortedPosts = remember(data, sortOrder) {
         val d = data ?: return@remember emptyList()
-        if (sortOrder == 0) d.posts
-        else {
-            val main = d.posts.firstOrNull()
-            val rest = d.posts.drop(1).sortedBy { it.floor }
-            if (main != null) listOf(main) + rest else rest
-        }
+        val main = d.posts.firstOrNull()
+        val rest = if (sortOrder == 1) d.posts.drop(1).sortedBy { it.floor }
+        else d.posts.drop(1).sortedWith(
+            compareByDescending<PostEntry> { it.likeCount }.thenBy { it.floor }
+        )
+        if (main != null) listOf(main) + rest else rest
     }
     val mainPost = sortedPosts.firstOrNull()
 
@@ -271,7 +271,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 val resp = session.client.get("/topic/$tid?floor=$floor")
                 val p = Regex("""[?&]p=(\d+)""").find(resp.url)?.groupValues?.get(1)?.toIntOrNull() ?: 1
                 data = HtmlParser.parseTopicPage(resp.html, tid)
-                sortOrder = 0
+                sortOrder = 1 // 跨页跳楼层需按楼层序渲染，data.posts 索引才能对上滚动位置
                 localReplyPage = 1
                 loading = false
                 // 滚动到目标楼层附近并高亮
@@ -690,7 +690,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                             .padding(2.dp)
                                     ) {
-                                        listOf("默认" to 0, "正序" to 1).forEach { (label, idx) ->
+                                        listOf("热度" to 0, "正序" to 1).forEach { (label, idx) ->
                                             val sel = sortOrder == idx
                                             Text(
                                                 label,
