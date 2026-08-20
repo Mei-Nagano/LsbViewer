@@ -333,7 +333,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     page++
                 }
 
-                fun refsOf(p: PostEntry): Set<Int> = HtmlParser.floorRefs(p.contentHtml).toSet()
+                fun refsOf(p: PostEntry): Set<Int> = p.referencedFloors.toSet()
 
                 val byFloor = all.filter { it.floor > 0 }.associateBy { it.floor }
                 // 链内楼层集合：从起点楼层 + 起点回溯引用开始
@@ -341,20 +341,21 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 val queue = ArrayDeque<Int>()
                 if (startPost.floor > 0) { chain.add(startPost.floor); queue.add(startPost.floor) }
                 queue.add(startRefFloor)
-                // 向上回溯（直接引用链）
+                // 向上回溯（直接引用链）；引用楼层已删除时也保留楼层号在链内，
+                // 让"引用了该楼层"的其他回复仍能被向下扩展收进链
                 val visited = mutableSetOf(startRefFloor)
                 while (queue.isNotEmpty()) {
                     val f = queue.removeFirst()
                     if (f <= 0 || !visited.add(f) && f != startRefFloor) continue
-                    val p = byFloor[f] ?: continue
                     chain.add(f)
+                    val p = byFloor[f] ?: continue
                     refsOf(p).forEach { r -> if (r !in visited) { visited.add(r); queue.add(r) } }
                 }
-                // 向下扩展：收集引用了链内楼层的后续回复（迭代 3 轮，覆盖间接引用）
-                repeat(3) {
+                // 向下扩展：迭代到不动点（此前固定 3 轮，长链会漏掉后继楼层）
+                while (true) {
                     val add = all.filter { it.floor > 0 && it.floor !in chain && refsOf(it).any { r -> r in chain } }
                         .map { it.floor }
-                    if (add.isEmpty()) return@repeat
+                    if (add.isEmpty()) break
                     chain.addAll(add)
                 }
                 val posts = all.filter { it.floor > 0 && it.floor in chain }
@@ -1469,8 +1470,9 @@ private fun PostCardContent(
             }
         }
         // #N 引用：串联整条对话链，弹窗展示（不直接跳转）
-        val refFloor = HtmlParser.floorRefs(post.contentHtml).firstOrNull()
-        if (refFloor != null && refFloor > 0) {
+        val refFloors = post.referencedFloors.filter { it > 0 }
+        val refFloor = refFloors.firstOrNull()
+        if (refFloor != null) {
             Spacer(Modifier.height(6.dp))
             Surface(
                 shape = RoundedCornerShape(50),
@@ -1489,7 +1491,8 @@ private fun PostCardContent(
                         tint = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Text(
-                        "查看 #$refFloor 对话",
+                        if (refFloors.size > 1) "查看 ${refFloors.joinToString(" ") { "#$it" }} 对话"
+                        else "查看 #$refFloor 对话",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )

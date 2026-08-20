@@ -189,6 +189,8 @@ object HtmlParser {
                 editInfo = editInfo,
                 editUserId = editUserId,
                 editUserName = editUserName,
+                // 整楼 HTML 提取引用（?floor=N 链接 / 纯文本 #N），覆盖正文外的引用块
+                referencedFloors = floorRefs(li.html()).filter { it > 0 }.distinct(),
                 likeCount = likeBtn?.selectFirst(".like-coin-count")?.text()?.filter { it.isDigit() }?.toIntOrNull()
                     ?: likeForm?.selectFirst(".like-coin-count")?.text()?.filter { it.isDigit() }?.toIntOrNull() ?: 0,
                 liked = likeBtn?.attr("data-like-coin-liked") == "1",

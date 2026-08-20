@@ -50,6 +50,7 @@ data class PostEntry(
     val editInfo: String = "",       // 最后编辑信息（从正文中拆出，与正文有分割线区分）
     val editUserId: Long = 0,        // 最后编辑人用户 ID（>0 时点击可跳转其主页）
     val editUserName: String = "",   // 最后编辑人用户名（editInfo 中高亮可点击部分）
+    val referencedFloors: List<Int> = emptyList(), // 本楼引用的楼层（整楼 HTML 解析，含正文外的引用块）
 )
 
 data class TopicPageData(

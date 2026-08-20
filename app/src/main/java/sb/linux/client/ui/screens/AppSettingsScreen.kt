@@ -2004,7 +2004,7 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                 }
             }
 
-            // ---------- 对比度（3.16：滑条单独一行，两端与中间圆点刻度 + 轻吸附） ----------
+            // ---------- 对比度（滑条 + 三档标签，两端与中间可点选，靠近档位时轻吸附） ----------
             item { GroupLabel("对比度") }
             item {
                 GroupCard {
@@ -2021,66 +2021,53 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                         )
                         Spacer(Modifier.weight(1f))
                         Text(
-                            when {
-                                session.themeContrast < -0.05f -> "低"
-                                session.themeContrast > 0.05f -> "高"
-                                else -> "标准"
-                            },
+                            "拖动滑条或点选档位",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    // 滑条行：两端与中间圆点刻度，靠近刻度时轻吸附
                     val snapPoints = listOf(-1f, 0f, 1f)
                     var dragging by remember { mutableStateOf(false) }
                     var dragValue by remember { mutableStateOf(session.themeContrast) }
-                    Box(
-                        Modifier
+                    Slider(
+                        value = if (dragging) dragValue else session.themeContrast,
+                        onValueChange = { dragging = true; dragValue = it },
+                        onValueChangeFinished = {
+                            dragging = false
+                            // 轻吸附：距离档位 0.25 以内时吸附到档位
+                            val snapped = snapPoints
+                                .filter { kotlin.math.abs(it - dragValue) <= 0.25f }
+                                .minByOrNull { kotlin.math.abs(it - dragValue) }
+                                ?: dragValue
+                            session.saveThemeContrast(snapped)
+                        },
+                        valueRange = -1f..1f,
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 18.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Slider(
-                            value = if (dragging) dragValue else session.themeContrast,
-                            onValueChange = { dragging = true; dragValue = it },
-                            onValueChangeFinished = {
-                                dragging = false
-                                // 轻吸附：距离刻度 0.25 以内时吸附到刻度
-                                val snapped = snapPoints
-                                    .filter { kotlin.math.abs(it - dragValue) <= 0.25f }
-                                    .minByOrNull { kotlin.math.abs(it - dragValue) }
-                                    ?: dragValue
-                                session.saveThemeContrast(snapped)
-                            },
-                            valueRange = -1f..1f,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        // 圆点刻度：滑条轨道两端与中间（水平内缩 10dp = thumb 半径，与轨道端点对齐）
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            repeat(3) {
-                                Box(
-                                    Modifier
-                                        .size(4.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.outline)
-                                )
-                            }
-                        }
-                    }
+                            .padding(horizontal = 18.dp)
+                    )
+                    // 三档标签：点击直达（左中右三个特殊值的表达），当前档位高亮
+                    val current = if (dragging) dragValue else session.themeContrast
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 18.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("低", style = MaterialTheme.typography.bodySmall)
-                        Text("标准", style = MaterialTheme.typography.bodySmall)
-                        Text("高", style = MaterialTheme.typography.bodySmall)
+                        listOf("低" to -1f, "标准" to 0f, "高" to 1f).forEach { (label, value) ->
+                            val active = kotlin.math.abs(current - value) < 0.01f
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (active) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { dragging = false; session.saveThemeContrast(value) }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                     Text(
                         "仅对「主题色」派生方案生效，动态取色（跟随系统壁纸）不受此影响",
