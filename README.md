@@ -15,7 +15,7 @@
 
 ## 下载
 
-前往 [Releases](https://github.com/Mei-Nagano/LinuxSB/releases) 下载最新版本：
+前往 [Releases](https://github.com/Mei-Nagano/LsbViewer/releases) 下载最新版本：
 
 | 文件名 | 适用设备 |
 | --- | --- |
