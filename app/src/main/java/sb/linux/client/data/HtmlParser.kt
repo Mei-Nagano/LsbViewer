@@ -148,8 +148,9 @@ object HtmlParser {
             val meta = li.selectFirst(".post-meta")
             val timeText = meta?.selectFirst("span[data-performance-time]")?.attr("data-performance-time")?.toLongOrNull()
                 ?.let { TimeFmt.rel(it) } ?: meta?.selectFirst("span")?.text() ?: ""
-            val likeBtn = li.selectFirst("[data-like-coin-action]")
-            val likeForm = li.selectFirst("form.like-coin-form")
+            // 源站 v8.6+ 点赞改版：like-coin-* → donate-reaction-*（按钮 data-liked/data-coined/计数 span + 表单 donate-reaction-form）
+            val likeBtn = li.selectFirst("[data-donate-reaction]")
+            val likeForm = li.selectFirst("form.donate-reaction-form")
             // 正文：把"最后编辑"信息从正文拆出，单独用分割线展示
             val contentEl = li.selectFirst(".post-content")
             var editInfo = ""
@@ -194,12 +195,11 @@ object HtmlParser {
                 // 必须过滤本楼楼层号：源站每楼自带 <a class="post-floor" href="?floor=N">#N</a> 徽标，
                 // 不过滤会导致每条评论都出现"查看对话"按钮且指向自己
                 referencedFloors = floorRefs(li.html()).filter { it > 0 && it != floorNum }.distinct(),
-                likeCount = likeBtn?.selectFirst(".like-coin-count")?.text()?.filter { it.isDigit() }?.toIntOrNull()
-                    ?: likeForm?.selectFirst(".like-coin-count")?.text()?.filter { it.isDigit() }?.toIntOrNull() ?: 0,
-                liked = likeBtn?.attr("data-like-coin-liked") == "1",
-                coined = likeBtn?.attr("data-like-coin-coined") == "1",
-                likeCoinType = likeForm?.selectFirst("input[name=like_coin_type]")?.attr("value") ?: "",
-                canLike = likeForm != null,
+                likeCount = likeBtn?.selectFirst(".donate-reaction-count")?.text()?.filter { it.isDigit() }?.toIntOrNull() ?: 0,
+                liked = likeBtn?.attr("data-liked") == "1",
+                coined = likeBtn?.attr("data-coined") == "1",
+                likeCoinType = "", // 举报类型由调用方按楼层默认（主楼 topic / 回复 reply）
+                canLike = likeForm != null, // 未登录/主楼无表单：不显示点赞投币（与源站一致）
                 isOp = li.selectFirst(".quick-reply-main-action") != null || li.selectFirst("form.topic-favorites-action") != null,
             )
         }

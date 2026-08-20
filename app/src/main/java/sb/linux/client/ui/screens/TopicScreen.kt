@@ -366,17 +366,17 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
+    /** 点赞/投币：源站 v8.6+ 统一走 /donate_reply_reaction（points=0 仅点赞，>0 为投币积分，理由选填） */
     fun doLike(post: PostEntry, points: Int, reason: String = "") {
         scope.launch {
             try {
                 val d = data ?: return@launch
                 val json = session.client.postAjax(
-                    "/lsb_like_coin", mapOf(
+                    "/donate_reply_reaction", mapOf(
                         "_csrf" to d.csrf,
-                        "like_coin_type" to post.likeCoinType,
-                        "like_coin_id" to post.id.toString(),
-                        "like_coin_points" to points.toString(),
-                        "like_coin_reason" to reason,
+                        "donate_reaction_reply_id" to post.id.toString(),
+                        "donate_reaction_points" to points.toString(),
+                        "donate_reaction_reason" to reason,
                     )
                 )
                 session.showToast(json.optString("message", if (json.optInt("ok") == 1) "已点赞" else "操作失败"))
@@ -1052,32 +1052,14 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         )
     }
 
-    // 投币弹窗（默认金额 1/5/10/20，可自定义，理由选填）
+    // 投币弹窗（档位跟随源站 data-tiers：1/5/10/50，可自定义，理由选填）
     coinTarget?.let { target ->
         CoinDialog(
             onDismiss = { coinTarget = null },
-            tiers = listOf(1, 5, 10, 20),
+            tiers = listOf(1, 5, 10, 50),
             onConfirm = { points, reason ->
-                scope.launch {
-                    try {
-                        val d = data ?: return@launch
-                        val json = session.client.postAjax(
-                            "/lsb_like_coin", mapOf(
-                                "_csrf" to d.csrf,
-                                "like_coin_type" to target.likeCoinType,
-                                "like_coin_id" to target.id.toString(),
-                                "like_coin_points" to points.toString(),
-                                "like_coin_reason" to reason,
-                            )
-                        )
-                        session.showToast(json.optString("message", "操作完成"))
-                        coinTarget = null
-                        load(d.page)
-                        if (points > 0) loadDanmaku()
-                    } catch (e: Exception) {
-                        session.showToast(e.message ?: "操作失败")
-                    }
-                }
+                coinTarget = null
+                doLike(target, points, reason)
             }
         )
     }
@@ -1519,13 +1501,15 @@ private fun PostCardContent(
                     iconTint = if (post.liked) MaterialTheme.colorScheme.primary else null
                 )
             }
-            // 投币（金额可自定义，理由选填）
-            PostAction(
-                icon = Icons.Filled.Paid,
-                label = if (post.coined) "已投币" else "投币",
-                onClick = { if (loggedIn) onCoin() },
-                iconTint = if (post.coined) MaterialTheme.colorScheme.primary else null
-            )
+            // 投币（金额可自定义，理由选填）：与点赞共用 donate-reaction 表单，主楼/未登录无表单时不显示
+            if (post.canLike) {
+                PostAction(
+                    icon = Icons.Filled.Paid,
+                    label = if (post.coined) "已投币" else "投币",
+                    onClick = { if (loggedIn) onCoin() },
+                    iconTint = if (post.coined) MaterialTheme.colorScheme.primary else null
+                )
+            }
             PostAction(icon = Icons.Filled.Flag, label = "举报", onClick = onReport)
             if (showFloorBadge) {
                 // 回复的操作行：点赞 / 打赏 / 举报 / 回复（原"引用"统一为回复）
