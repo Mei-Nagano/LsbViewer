@@ -645,6 +645,11 @@ class LsbClient(private val context: Context) {
         get("/")
         val page = get("/login")
         val d = Jsoup.parse(page.html, Endpoints.BASE)
+        // 已登录时源站把 /login 302 到首页（最终 URL 不再含 /login），无验证码组件可解析：
+        // 给出明确提示而非笼统的"解析失败"（访客页也有 .user-name"访客"，不能用作登录态判定）
+        if (!page.url.contains("/login")) {
+            throw LsbException("已是登录状态，无需重复登录（请先退出登录）")
+        }
         val widget = d.selectFirst("[data-native-captcha]")
         val csrf = d.selectFirst("input[name=_csrf]")?.attr("value")
             ?: Regex("""name="_csrf" value="([^"]+)"""").find(page.html)?.groupValues?.get(1)
@@ -704,9 +709,9 @@ class LsbClient(private val context: Context) {
         if (resp.url.contains("form_error")) {
             throw LsbException(HtmlParser.extractError(resp.html).ifBlank { "登录被拒绝，验证码答案可能有误" })
         }
-        if (!resp.html.contains(username) && !resp.html.contains("/logout")) {
-            throw LsbException("登录失败：用户名或密码错误")
-        }
+        // 成功判定：实测源站登录成功 302 → 首页，失败（密码错/验证码错）→ /form_error，非 form_error 即成功。
+        // 此前用 contains(username) 兜底判定：邮箱登录时页面只显示用户名而非邮箱，导致实际登录
+        // 成功却误报"用户名或密码错误"（cookie 已写入，再次刷新验证码还会因已登录 302 首页而静默失败）
         "登录成功"
     }
 

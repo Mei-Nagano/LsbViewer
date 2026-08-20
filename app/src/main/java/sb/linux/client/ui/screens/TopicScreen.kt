@@ -126,7 +126,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var showExportDialog by remember { mutableStateOf(false) }
     var exportBusy by remember { mutableStateOf<String?>(null) }
 
-    // 评论区排序：0 = 正序（楼层号升序，源站默认），1 = 倒序（最新在前）；记住上次选择
+    // 评论区排序：0 = 默认（原样跟随源站页面顺序，源站按什么算法排 app 就显示什么），1 = 正序（楼层号升序）；记住上次选择
     var sortOrder by remember { mutableIntStateOf(session.commentSortOrder) }
 
     // 打赏弹幕：数据 + 每帖开关（默认跟随全局设置）
@@ -159,12 +159,16 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var aiBusy by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
 
-    // 排序后的楼层列表（楼主正文固定首位；源站页面顺序即楼层正序，倒序按楼层号降序）
+    // 排序后的楼层列表：默认档原样呈现源站页面顺序（源站排序算法自动跟随，含点赞置顶等）；
+    // 正序档楼主正文固定首位 + 其余按楼层号升序
     val sortedPosts = remember(data, sortOrder) {
         val d = data ?: return@remember emptyList()
-        val main = d.posts.firstOrNull()
-        val rest = if (sortOrder == 1) d.posts.drop(1).sortedByDescending { it.floor } else d.posts.drop(1)
-        if (main != null) listOf(main) + rest else rest
+        if (sortOrder == 0) d.posts
+        else {
+            val main = d.posts.firstOrNull()
+            val rest = d.posts.drop(1).sortedBy { it.floor }
+            if (main != null) listOf(main) + rest else rest
+        }
     }
     val mainPost = sortedPosts.firstOrNull()
 
@@ -686,7 +690,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                             .padding(2.dp)
                                     ) {
-                                        listOf("正序" to 0, "倒序" to 1).forEach { (label, idx) ->
+                                        listOf("默认" to 0, "正序" to 1).forEach { (label, idx) ->
                                             val sel = sortOrder == idx
                                             Text(
                                                 label,
