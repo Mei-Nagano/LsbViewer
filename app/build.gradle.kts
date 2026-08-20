@@ -14,8 +14,8 @@ android {
         applicationId = "sb.linux.client"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8
+        versionName = "1.0.7"
     }
 
     // 4.1 CI 构建 armv8a / armv7a / 通用版三个 APK
