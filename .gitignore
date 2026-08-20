@@ -1,0 +1,58 @@
+# Gradle / Kotlin caches and generated output
+.gradle/
+**/.gradle/
+.kotlin/
+build/
+**/build/
+app/release/
+captures/
+.cxx/
+.externalNativeBuild/
+
+# Android build artifacts
+*.apk
+*.apk.*
+*.aab
+*.ap_
+*.idsig
+
+# Signing material
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+signing.properties
+
+#jks
+lsb-release.jks
+lsb-release.b64
+
+# Local SDK and machine-specific configuration
+/local.properties
+*.local
+.env
+*.env
+
+# IDE / editor files
+.idea/
+*.iml
+.vscode/
+.fleet/
+
+# Local tool metadata
+.codeartsdoer/
+.codegraph/
+
+# OS and temporary files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.hprof
+*.tmp
+
+# Local task checklist (not tracked)
+checklist.md
+
+#

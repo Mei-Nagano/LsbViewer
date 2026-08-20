@@ -1,0 +1,67 @@
+name: Build Release APK
+
+# 触发：推送 v* 标签时构建并发布 Release；也可在 Actions 页面手动触发
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: 签名构建
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 配置 Gradle（含缓存）
+        uses: gradle/actions/setup-gradle@v4
+
+      # 签名材料来自仓库 Secrets（不入库）：
+      # LSB_KEYSTORE_BASE64 —— keystore 文件内容的 base64
+      # LSB_STORE_PASSWORD / LSB_KEY_ALIAS / LSB_KEY_PASSWORD —— 口令与别名
+      - name: 还原 keystore
+        env:
+          LSB_KEYSTORE_BASE64: ${{ secrets.LSB_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$LSB_KEYSTORE_BASE64" ]; then
+            echo "::error::缺少 Secret LSB_KEYSTORE_BASE64，请先在仓库 Settings → Secrets → Actions 中配置"
+            exit 1
+          fi
+          printf '%s' "$LSB_KEYSTORE_BASE64" | tr -d '\r\n \t' | base64 --decode > "$RUNNER_TEMP/lsb-release.jks"
+          test -s "$RUNNER_TEMP/lsb-release.jks" || { echo "::error::keystore 解码结果为空"; exit 1; }
+
+      - name: 构建签名 APK
+        env:
+          LSB_STORE_PASSWORD: ${{ secrets.LSB_STORE_PASSWORD }}
+          LSB_KEY_ALIAS: ${{ secrets.LSB_KEY_ALIAS }}
+          LSB_KEY_PASSWORD: ${{ secrets.LSB_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease \
+            -PLSB_STORE_FILE="$RUNNER_TEMP/lsb-release.jks" \
+            --no-daemon --stacktrace
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: LinuxSB-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      # 标签触发时：创建 GitHub Release 并附带三个 ABI 的 APK
+      - name: 发布 Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            app/build/outputs/apk/release/*.apk \
+            --title "LinuxSB $GITHUB_REF_NAME" \
+            --generate-notes
