@@ -44,6 +44,8 @@ jobs:
           LSB_KEY_ALIAS: ${{ secrets.LSB_KEY_ALIAS }}
           LSB_KEY_PASSWORD: ${{ secrets.LSB_KEY_PASSWORD }}
         run: |
+          # 兜底：Windows 提交可能丢失 gradlew 执行位（exit 126）
+          chmod +x gradlew
           ./gradlew assembleRelease \
             -PLSB_STORE_FILE="$RUNNER_TEMP/lsb-release.jks" \
             --no-daemon --stacktrace
