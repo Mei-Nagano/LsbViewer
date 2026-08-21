@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -716,19 +715,6 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                         val showBackTop by remember {
                             derivedStateOf { listState.firstVisibleItemIndex > 2 }
                         }
-                        // 接近列表底部（最后一条帖子或翻页条/加载更多进入视口）时按钮上移，
-                        // 避免悬浮在右下角遮挡最后一条帖子和翻页按钮（两者高度区间与按钮重叠）
-                        val nearBottom by remember {
-                            derivedStateOf {
-                                val info = listState.layoutInfo
-                                val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
-                                info.totalItemsCount > 0 && last >= info.totalItemsCount - 2
-                            }
-                        }
-                        val backTopBottom by animateDpAsState(
-                            targetValue = if (nearBottom) 92.dp else 24.dp,
-                            label = "backTopBottom"
-                        )
                         val backTopScale by animateFloatAsState(
                             targetValue = if (showBackTop) 1f else 0f,
                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -739,7 +725,7 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 onClick = { scope.launch { listState.animateScrollToItem(0) } },
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .padding(end = 16.dp, bottom = backTopBottom)
+                                    .padding(end = 16.dp, bottom = 24.dp)
                                     .graphicsLayer {
                                         scaleX = backTopScale
                                         scaleY = backTopScale
