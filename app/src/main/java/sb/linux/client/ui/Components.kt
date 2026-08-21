@@ -1097,6 +1097,17 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
         }
     }
 
+    /** 去掉首尾空白（含 <br> 换行、图片内联占位空格）：
+     *  段落中的图片抽离成独立块后，原本分隔文字与图片的空白失去意义，
+     *  保留会在文字下方、图片上方留出大段异常空白（如 topic/14468） */
+    fun trimEdges(sb: AnnotatedString): AnnotatedString {
+        val text = sb.text
+        val s = text.indexOfFirst { !it.isWhitespace() }
+        if (s < 0) return AnnotatedString("")
+        val e = text.indexOfLast { !it.isWhitespace() } + 1
+        return if (s == 0 && e == text.length) sb else sb.subSequence(s, e)
+    }
+
     fun renderBlock(el: Element): ContentBlock? {
         val tag = el.tagName().lowercase()
         return when {
@@ -1110,7 +1121,8 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
             else -> {
                 val imgs = el.select("img")
                 val raw = renderInlineTo(el)
-                val sb = if (imgs.isNotEmpty()) cleanImgPlaceholder(raw) else raw
+                // 图片抽离成独立块：文本首尾的 <br>/占位空格一并去掉，避免文字与图片间异常留白
+                val sb = if (imgs.isNotEmpty()) trimEdges(cleanImgPlaceholder(raw)) else raw
                 if (sb.text.isNotBlank() && imgs.isEmpty()) ContentBlock(annotated = sb)
                 else null.also {
                     // 有图片的段落：先文本后图片
@@ -1131,7 +1143,8 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
                 liCopy.select("ul, ol").remove()
                 val imgs = liCopy.select("img")
                 val raw = renderInlineTo(liCopy)
-                val sb = if (imgs.isNotEmpty()) cleanImgPlaceholder(raw) else raw
+                // 列表项同理：图片抽离后去掉文本首尾的 <br>/占位空格
+                val sb = if (imgs.isNotEmpty()) trimEdges(cleanImgPlaceholder(raw)) else raw
                 if (sb.text.isNotBlank()) {
                     val bullet = if (ordered) "${i + 1}." else "•"
                     blocks.add(
