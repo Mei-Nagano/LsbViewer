@@ -61,6 +61,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -996,14 +997,16 @@ private fun ZoomableImage(url: String, onSingleTap: () -> Unit, onLongPress: () 
             // 捏合/平移手势（自研，兼容 Pager 翻页）：每次手势都从当前缩放继续，可反复捏合缩放
             .pointerInput(url) {
                 awaitEachGesture {
-                    val down = awaitFirstDown()
+                    // requireUnconsumed=false：即使父级 Pager 已消费首按，也允许我们读取事件以便接管
+                    val down = awaitFirstDown(requireUnconsumed = false)
                     var multi = false                       // 本手势内是否出现多指
                     val startScale = scale
                     var lastScale = startScale
                     var lastOffset = offset
                     var lastCentroid = down.position
                     while (true) {
-                        val event = awaitPointerEvent()
+                        // Final pass：子节点先于祖先处理并消费，才能阻止父级 HorizontalPager 抢走手势翻页
+                        val event = awaitPointerEvent(PointerEventPass.Final)
                         val pressed = event.changes.filter { it.pressed }
                         if (pressed.size >= 2) multi = true
 

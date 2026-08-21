@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -475,6 +476,10 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                         },
                         enabled = items.isNotEmpty() && anyUnread,
                     ) { Text("标记已读") }
+                    // 刷新：重新请求源站通知列表
+                    IconButton(onClick = { load() }, enabled = !loading) {
+                        Icon(Icons.Filled.Refresh, "刷新")
+                    }
                 }
             )
         }

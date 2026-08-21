@@ -441,21 +441,27 @@ object HtmlParser {
         val d = doc(html)
         return d.select("li.notification-item").map { li ->
             val typeText = li.selectFirst(".notification-kind")?.text() ?: "通知"
+            val content = li.selectFirst(".notification-content")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: ""
             val link = li.selectFirst(".notification-content a[href]")?.attr("href") ?: ""
-            // 只有真正指向帖子的通知才关联帖子；私信/系统等非帖子通知一律不关联，避免「私信串到某个帖子」。
-            val isTopic = Regex("""/topic/\d+""").containsMatchIn(link)
+            // 私信类通知优先按「类型名」识别：即便其内容链接里混入了 /topic/，也绝不是帖子，
+            // 不能跳转帖子，也不能把发送者取成帖子标题。
+            val isPm = Regex(
+                """私信|私聊|站内信|短消息|聊天|私讯|回信|pm|conversation"""
+            , RegexOption.IGNORE_CASE).containsMatchIn(typeText)
+            // 只有「确为帖子类」通知才关联帖子（类型名非私信 且 链接确为 /topic/{id}）
+            val isTopic = !isPm && Regex("""/topic/\d+""").containsMatchIn(link)
             NotificationItem(
-                // 帖子通知的 .post-title 是帖子标题；非帖子通知没有帖子，若取 .post-title 会串到无关帖子，
-                // 改为取内容里的用户/发送者文本，取不到则回落到类型名。
+                // 帖子通知用 .post-title 作为来源标题；私信/系统通知取真实发送者，避免串到无关帖子
                 fromUser = if (isTopic) li.selectFirst(".post-title")?.text()
                             ?: li.selectFirst(".notification-content a[href]")?.text()
                             ?: "系统"
-                           else li.selectFirst(".notification-content a[href]")?.text()
+                           else li.selectFirst(".notification-content img[alt]")?.attr("alt")
+                                ?: li.selectFirst(".notification-content a[href*=\"/user/\"]")?.text()
                                 ?: li.selectFirst(".notification-content strong")?.text()
                                 ?: typeText,
                 typeText = typeText,
                 timeText = li.selectFirst(".post-meta span")?.text() ?: "",
-                content = li.selectFirst(".notification-content")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: "",
+                content = content,
                 link = link,
                 unread = li.classNames().contains("unread") || li.selectFirst(".notification-unread") != null,
                 isTopic = isTopic,
