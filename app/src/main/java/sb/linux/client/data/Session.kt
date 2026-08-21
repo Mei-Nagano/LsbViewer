@@ -82,6 +82,10 @@ class Session(app: Application) : AndroidViewModel(app) {
 
     // 应用设置（可变状态，改动即时生效）
     var infiniteScroll by mutableStateOf(true)
+    // 各分类（home/forum/topic）滚动模式覆盖的 Compose 响应式镜像。
+    // settings.scrollModeOverrides 存于 SharedPreferences（非 Compose 状态），
+    // 若直接写它不会触发 UI 重组，导致切换翻页/无限滚动后仍按旧模式渲染（需刷新才生效、底部滑动错乱）。
+    var scrollModeOverrides by mutableStateOf<Map<String, Boolean>>(emptyMap())
     var homeCacheEnabled by mutableStateOf(false)
     var danmakuOn by mutableStateOf(true)
     var sidebarTwoColumns by mutableStateOf(true)
@@ -139,6 +143,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         cardColors = parseCardColors(prefs.getString("card_colors", ""))
         sb.linux.client.ui.CardColorOverrides.map = cardColors
         infiniteScroll = settings.infiniteScroll
+        scrollModeOverrides = settings.scrollModeOverrides
         homeCacheEnabled = settings.homeKeepCache
         danmakuOn = settings.danmakuOn
         homeSortDrawerOpen = settings.homeSortDrawerOpen
@@ -244,7 +249,19 @@ class Session(app: Application) : AndroidViewModel(app) {
 
     /** 某分类生效的滚动模式（3.13）：分类覆盖优先，否则全局开关 */
     fun effectiveInfiniteScroll(scope: String): Boolean =
-        settings.scrollModeOverrides[scope] ?: infiniteScroll
+        scrollModeOverrides[scope] ?: infiniteScroll
+
+    /** 设置某分类的滚动模式覆盖值：即时更新 Compose 镜像并持久化 */
+    fun saveScrollModeOverride(scope: String, infinite: Boolean) {
+        scrollModeOverrides = scrollModeOverrides + (scope to infinite)
+        settings.scrollModeOverrides = scrollModeOverrides
+    }
+
+    /** 清除全部分类覆盖：恢复跟随全局开关 */
+    fun clearScrollModeOverrides() {
+        scrollModeOverrides = emptyMap()
+        settings.scrollModeOverrides = emptyMap()
+    }
 
     // ---------------- 分类重置（3.9） ----------------
 
@@ -272,6 +289,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun resetBrowseSettings() {
         settings.resetBrowse()
         infiniteScroll = settings.infiniteScroll
+        scrollModeOverrides = settings.scrollModeOverrides
         homeCacheEnabled = settings.homeKeepCache
         danmakuOn = settings.danmakuOn
         homeSortDrawerOpen = settings.homeSortDrawerOpen

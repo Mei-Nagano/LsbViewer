@@ -589,7 +589,6 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
     var resetTick by remember { mutableStateOf(0) }
     // 滚动模式生效分类（3.13）：all / home / forum / topic
     var applyScope by remember { mutableStateOf("all") }
-    val overrides = session.settings.scrollModeOverrides
     val homeInf = session.effectiveInfiniteScroll("home")
     val forumInf = session.effectiveInfiniteScroll("forum")
     val topicInf = session.effectiveInfiniteScroll("topic")
@@ -610,12 +609,12 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
 
     fun applyScrollMode(infinite: Boolean) {
         when (applyScope) {
-            "home" -> session.settings.scrollModeOverrides = overrides + ("home" to infinite)
-            "forum" -> session.settings.scrollModeOverrides = overrides + ("forum" to infinite)
-            "topic" -> session.settings.scrollModeOverrides = overrides + ("topic" to infinite)
+            "home" -> session.saveScrollModeOverride("home", infinite)
+            "forum" -> session.saveScrollModeOverride("forum", infinite)
+            "topic" -> session.saveScrollModeOverride("topic", infinite)
             else -> {
                 session.saveInfiniteScroll(infinite)
-                session.settings.scrollModeOverrides = emptyMap()
+                session.clearScrollModeOverrides()
             }
         }
     }

@@ -1008,8 +1008,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     onClick = {
                         menuOpen = false
                         // 仅覆盖帖子分类的滚动模式（3.13），不影响其他分类
-                        session.settings.scrollModeOverrides =
-                            session.settings.scrollModeOverrides + ("topic" to !topicInfinite)
+                        session.saveScrollModeOverride("topic", !topicInfinite)
                         localReplyPage = 1
                         replyModeTick++    // 见 replyModeTick 注释：强制重组使新模式即时生效
                         // 切换后回到顶部（参考首页切换逻辑）

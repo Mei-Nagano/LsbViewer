@@ -164,10 +164,19 @@ fun HomeScreen(session: Session, nav: NavHostController) {
         scope.launch { drawerState.open() }
     }
 
-    // 先执行导航/刷新，再关闭抽屉。避免 invokeOnCompletion 在协程取消时不执行回调导致白屏
+    // 先让抽屉完成关闭动画，再执行导航/刷新。
+    // 若在导航后才启动关闭，rememberCoroutineScope 会随主页离开组合而被取消，
+    // 抽屉（ModalDrawerSheet 是 Popup）的关闭动画被中断、收尾不完整，返回时残留半透明层盖住首页表现为白屏。
+    // 在协程内先挂起等 drawerState.close() 结束，再执行 action()；此时主页尚未导航离开，作用域仍存活，回调必定执行。
     fun closeDrawer(action: () -> Unit = {}) {
-        action()
-        scope.launch { drawerState.close() }
+        if (drawerState.isClosed) {
+            action()
+        } else {
+            scope.launch {
+                drawerState.close()
+                action()
+            }
+        }
     }
 
     // 源站屏蔽词 + 屏蔽用户过滤（服务端生效，本地兜底）+ 分类组合过滤

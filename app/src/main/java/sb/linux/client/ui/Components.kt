@@ -498,7 +498,7 @@ fun PaginationBar(page: Int, totalPages: Int, onPage: (Int) -> Unit) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(horizontal = 22.dp)
+                modifier = Modifier.padding(horizontal = 34.dp)
             ) {
                 Text(
                     "$page",
@@ -1051,11 +1051,70 @@ private suspend fun saveImageToGallery(context: android.content.Context, url: St
         }.getOrDefault(false)
     }
 
+/**
+ * 全屏查看单张头像大图。SVG 头像走 androidsvg 归一化渲染（coil-svg 对 uid=1 / 20903 等
+ * bottts 默认头像解码失败），位图头像走 Coil；支持缩放 / 双击放大 / 单击关闭。
+ * @param url 头像绝对地址（相对地址请先经 Endpoints.abs / HtmlParser.absUrl 归一化）
+ */
+@Composable
+fun AvatarViewer(url: String, onDismiss: () -> Unit) {
+    val target = url.trim()
+    // null=加载中；空数组=获取失败；否则字节就绪（仅以 target 为键，避免 onDismiss 闭包身份变化触发重复拉取）
+    val fetch by produceState<ByteArray?>(null, target) {
+        if (target.isEmpty()) value = ByteArray(0)
+        else value = withContext(Dispatchers.IO) {
+            val app = (LocalContext.current.applicationContext as LsbApp)
+            runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
+        }
+    }
+    val px = with(LocalDensity.current) { 512.dp.roundToPx() }
+    val svgBitmap by produceState<android.graphics.Bitmap?>(null, target, fetch, px) {
+        val b = fetch
+        value = if (b != null && b.isNotEmpty() && isSvgContents(b)) {
+            withContext(Dispatchers.IO) { renderSvgToBitmap(b, px) }
+        } else null
+    }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clipToBounds()
+                .background(Color.Black)
+        ) {
+            ZoomableImage(
+                url = target,
+                onSingleTap = onDismiss,
+                onLongPress = onDismiss,
+                bitmap = svgBitmap,
+            )
+            Surface(
+                shape = CircleShape,
+                color = Color(0x66000000),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, "关闭", tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
 /** 支持双指缩放 / 双击放大 / 单击关闭 / 长按保存的单张图片。
  *  使用 detectTransformGestures 处理缩放+平移，自动消费双指手势避免父级 HorizontalPager 误翻页；
  *  未缩放（scale≈1）时单指左右滑动交给 Pager 翻页，双指捏合时接管缩放（可缩小到 0.5x、放大到 6x）。 */
 @Composable
-private fun ZoomableImage(url: String, onSingleTap: () -> Unit, onLongPress: () -> Unit = {}) {
+private fun ZoomableImage(
+    url: String,
+    onSingleTap: () -> Unit,
+    onLongPress: () -> Unit = {},
+    bitmap: android.graphics.Bitmap? = null,   // 非空时直接渲染（SVG 头像经 androidsvg 归一化后的结果，绕开 coil-svg 解码失败）
+) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
 
@@ -1099,15 +1158,25 @@ private fun ZoomableImage(url: String, onSingleTap: () -> Unit, onLongPress: () 
                 translationY = offset.y
             }
     ) {
-        AsyncImage(
-            model = coil.request.ImageRequest.Builder(LocalContext.current)
-                .data(url)
-                .crossfade(true)
-                .build(),
-            contentDescription = "放大图片",
-            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-            modifier = Modifier.fillMaxSize()
-        )
+        val bmp = bitmap
+        if (bmp != null) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = "放大图片",
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            AsyncImage(
+                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                    .data(url)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = "放大图片",
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }
 

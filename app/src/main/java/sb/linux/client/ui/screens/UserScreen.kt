@@ -47,7 +47,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
-    var showPm by remember { mutableStateOf(false) }
+    var showAvatar by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val userListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
 
@@ -134,7 +134,13 @@ fun UserScreen(session: Session, nav: NavHostController) {
                 },
                 actions = {
                     if (session.loginState.loggedIn && !isSelf) {
-                        IconButton(onClick = { showPm = true }) {
+                        IconButton(onClick = {
+                            // 进入「通知-私信」同一套聊天界面（本地聚合会话 + 输入框直接回复源站）
+                            nav.navigate(
+                                "chat/$uid?name=${android.net.Uri.encode(profile?.username ?: "")}" +
+                                    "&avatar=${android.net.Uri.encode(profile?.avatarUrl ?: "")}"
+                            )
+                        }) {
                             Icon(Icons.AutoMirrored.Filled.Send, "私信")
                         }
                     }
@@ -155,7 +161,10 @@ fun UserScreen(session: Session, nav: NavHostController) {
                     ) {
                         Column(Modifier.padding(18.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Avatar(p.avatarUrl, 60, online = p.online)
+                                Avatar(
+                                    p.avatarUrl, 60, online = p.online,
+                                    modifier = Modifier.clickable { showAvatar = true }
+                                )
                                 Spacer(Modifier.width(14.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(p.username, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -447,36 +456,10 @@ fun UserScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    if (showPm) {
-        ReplyDialog(
-            initial = "",
-            captcha = null,
-            onDismiss = { showPm = false },
-            onSubmit = { text, _, onDone ->
-                scope.launch {
-                    try {
-                        val csrf = session.client.csrf()
-                        val resp = session.client.postForm(
-                            "/notify/$uid", mapOf(
-                                "_csrf" to csrf,
-                                "content" to text,
-                            )
-                        )
-                        if (resp.url.contains("form_error")) {
-                            session.showToast(HtmlParser.extractError(resp.html).ifBlank { "发送失败" })
-                        } else {
-                            session.showToast("私信已发送")
-                            showPm = false
-                        }
-                    } catch (e: Exception) {
-                        session.showToast(e.message ?: "发送失败")
-                    } finally { onDone() }
-                }
-            },
-            title = "私信该用户",
-            submitLabel = "发送",
-            showToolbar = false,
-        )
+    // 点击头像后全屏查看大图（SVG 头像走 androidsvg 归一化渲染，避免 coil-svg 解码失败）
+    if (showAvatar) {
+        val a = profile?.avatarUrl
+        if (!a.isNullOrBlank()) AvatarViewer(a) { showAvatar = false }
     }
 }
 
