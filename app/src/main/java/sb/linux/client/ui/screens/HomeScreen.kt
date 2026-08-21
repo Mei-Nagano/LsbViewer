@@ -651,8 +651,6 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 )
                             }
                     ) {
-                        Column(Modifier.fillMaxSize()) {
-                            Box(Modifier.weight(1f).fillMaxWidth()) {
                         // 单列列表 + 顶部下拉刷新（按源站解析的标题正常展示）
                         PullToRefreshBox(
                             isRefreshing = loading && current.topics.isNotEmpty(),
@@ -691,19 +689,15 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                                 }
                                             }
                                         }
-                                        // 无限滚动为悬浮按钮留出空间
-                                        Spacer(Modifier.height(64.dp))
+                                    } else {
+                                        // 翻页模式：翻页条在内容最底部，跟随列表滚动
+                                        PaginationBar(current.page, localTotalPages) { goLocalPage(it) }
                                     }
-                                    // 翻页模式：翻页条固定显示在内容区底部（见 Column 底部），列表在此结束即可
+                                    // 底部留白：为悬浮按钮和底栏留出空间
+                                    Spacer(Modifier.height(64.dp))
                                 }
                             }
-                            }   // close PullToRefreshBox
-                            }   // close Box(weight 1f) 列表区
-                            // 翻页模式：页条固定显示在内容区底部，无需频繁滚动即可看到/点击翻页按钮
-                            if (!homeInfinite) {
-                                PaginationBar(current.page, localTotalPages) { goLocalPage(it) }
-                            }
-                        }   // close Column
+                        }
                         // 回到顶部按钮：列表滚过前几条后出现（缩放动画，不用 AnimatedVisibility 避免嵌套作用域限制）
                         val showBackTop by remember {
                             derivedStateOf { listState.firstVisibleItemIndex > 2 }
@@ -718,7 +712,7 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 onClick = { scope.launch { listState.animateScrollToItem(0) } },
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .padding(end = 16.dp, bottom = if (homeInfinite) 24.dp else 80.dp)
+                                    .padding(end = 16.dp, bottom = 24.dp)
                                     .graphicsLayer {
                                         scaleX = backTopScale
                                         scaleY = backTopScale
