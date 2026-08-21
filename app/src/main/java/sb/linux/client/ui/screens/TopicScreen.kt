@@ -317,9 +317,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     }
 
     /**
-     * #N 对话串联：拉取帖子全部页（上限 10 页），提取「当前楼层所在的线性对话链」：
-     * 向上回溯本楼引用的楼层（含间接引用），向下沿引用边收集引用了链内楼层的后续回复。
-     * 只保留当前楼层对话路径上的帖子，平行分支（同样引用了祖先楼层的其他回复）不收进来。
+     * #N 对话串联：拉取帖子全部页（上限 10 页），提取「当前楼层相关的完整对话树」：
+     * 向上回溯本楼引用的楼层（含间接引用），向下从链内全部楼层出发收集引用了它们的后续回复，
+     * 兄弟分支（同一楼层的不同回复，如 #6、#7 都回复 #3）也一并串起来。
      */
     fun openThread(startPost: PostEntry) {
         scope.launch {
@@ -348,9 +348,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     val p = byFloor[up.removeFirst()] ?: continue
                     p.referencedFloors.forEach { r -> if (r > 0 && chain.add(r)) up.add(r) }
                 }
-                // 向下：从本楼出发沿引用边收集后续回复（仅引用了链内楼层的，不含平行分支）
-                val down = ArrayDeque<Int>()
-                if (start > 0) down.add(start)
+                // 向下：从链内全部楼层（含祖先）出发收集后续回复，
+                // 这样兄弟分支（同样回复了链内楼层的其他楼层）也能串进来
+                val down = ArrayDeque(chain)
                 while (down.isNotEmpty()) {
                     val f = down.removeFirst()
                     all.forEach { p ->
