@@ -907,19 +907,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     IconButton(onClick = { scrollToComments() }) {
                         Icon(Icons.AutoMirrored.Filled.Chat, "直达评论区")
                     }
-                    // 评论滚动模式快速切换（与首页样式切换一致：顶栏常驻图标直接切换，3.14）
-                    IconButton(onClick = {
-                        session.settings.scrollModeOverrides =
-                            session.settings.scrollModeOverrides + ("topic" to !topicInfinite)
-                        localReplyPage = 1
-                        replyModeTick++    // 强制重组使新模式即时生效
-                        session.showToast(if (!topicInfinite) "已切换为无限滚动" else "已切换为翻页模式")
-                    }) {
-                        Icon(
-                            Icons.Filled.SwapVert,
-                            if (topicInfinite) "切换为翻页" else "切换为无限滚动"
-                        )
-                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
@@ -1019,6 +1006,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             session.settings.scrollModeOverrides + ("topic" to !topicInfinite)
                         localReplyPage = 1
                         replyModeTick++    // 见 replyModeTick 注释：强制重组使新模式即时生效
+                        // 切换后回到顶部（参考首页切换逻辑）
+                        scope.launch { listState.scrollToItem(0) }
                         session.showToast(
                             if (!topicInfinite) "已切换为无限滚动" else "已切换为翻页模式"
                         )

@@ -59,9 +59,14 @@ object HtmlParser {
             ?: el.selectFirst("img[src*='avatar']")?.attr("src")
             ?: el.selectFirst("img")?.attr("src") ?: ""
 
-    /** 元素内头像是否带源站在线标记（online-users-dot / online-users-host） */
+    /** 元素内头像是否带源站在线标记：
+     *  online-users-dot 是子元素（<span class="online-users-dot">），
+     *  online-users-host 是直接加在头像链接 class 上（class="avatar-profile-link online-users-host"） */
     private fun onlineOf(el: Element): Boolean =
-        el.selectFirst(".online-users-dot") != null || el.selectFirst(".online-users-host") != null
+        el.selectFirst(".online-users-dot") != null ||
+            el.selectFirst(".online-users-host") != null ||
+            el.selectFirst("a.online-users-host") != null ||
+            el.classNames().contains("online-users-host")
 
     /** 收集表单隐藏字段（兑换/参与时随 _csrf 一起提交） */
     private fun hiddenFields(form: Element?): Map<String, String> =

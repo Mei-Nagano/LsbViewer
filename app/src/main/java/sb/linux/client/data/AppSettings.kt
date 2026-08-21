@@ -204,6 +204,16 @@ class AppSettings(context: Context) {
         return streak to total
     }
 
+    /** 清除签到缓存（切换账号时调用，避免显示旧账号的签到信息） */
+    fun clearCheckinCache() {
+        prefs.edit()
+            .remove("last_checkin")
+            .remove("last_checkin_date")
+            .remove("last_checkin_streak")
+            .remove("last_checkin_total")
+            .apply()
+    }
+
     // ---------------- 记住密码（登录页） ----------------
 
     var rememberPassword: Boolean

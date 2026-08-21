@@ -623,6 +623,10 @@ class Session(app: Application) : AndroidViewModel(app) {
         blockedWords = emptySet()
         blockedUsers = emptySet()
         notifUnreadCount = 0
+        checkinText = ""
+        checkinCheckedToday = false
+        // 清除签到缓存，避免切换账号后显示旧账号的签到信息
+        settings.clearCheckinCache()
         viewModelScope.launch { client.logout() }
     }
 }
