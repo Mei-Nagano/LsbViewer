@@ -662,82 +662,79 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 )
                             }
                     ) {
-                        Column(Modifier.fillMaxSize()) {
-                            Box(Modifier.weight(1f).fillMaxWidth()) {
-                                PullToRefreshBox(
-                                    isRefreshing = loading && current.topics.isNotEmpty(),
-                                    onRefresh = { load(1) },
-                                    modifier = Modifier.fillMaxSize(),
-                                ) {
-                                    LazyColumn(
-                                        state = listState,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentPadding = PaddingValues(vertical = 8.dp)
-                                    ) {
-                                        items(
-                                            pagedTopics,
-                                            key = { t -> t.topicId },
-                                        ) { t ->
-                                            TopicCardView(
-                                                t,
-                                                views = session.getTopicViews(t.topicId),
-                                                onClick = { nav.navigate("topic/${t.topicId}") },
-                                                onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
-                                            )
-                                        }
-                                        if (homeInfinite) {
-                                            item {
-                                                // 无限滚动：移动到最下面帖子后出现「加载更多」按钮
-                                                if (current.page < current.totalPages) {
-                                                    Box(
-                                                        Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(12.dp),
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        if (loadingMore) CircularProgressIndicator(Modifier.size(22.dp))
-                                                        else Button(onClick = { load(current.page + 1, append = true) }) {
-                                                            Text("加载更多")
-                                                        }
-                                                    }
+                        // 翻页模式：翻页条作为列表最后一个 item，滚动到底部即可看到
+                        PullToRefreshBox(
+                            isRefreshing = loading && current.topics.isNotEmpty(),
+                            onRefresh = { load(1) },
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(vertical = 8.dp)
+                            ) {
+                                items(
+                                    pagedTopics,
+                                    key = { t -> t.topicId },
+                                ) { t ->
+                                    TopicCardView(
+                                        t,
+                                        views = session.getTopicViews(t.topicId),
+                                        onClick = { nav.navigate("topic/${t.topicId}") },
+                                        onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
+                                    )
+                                }
+                                if (homeInfinite) {
+                                    item {
+                                        // 无限滚动：移动到最下面帖子后出现「加载更多」按钮
+                                        if (current.page < current.totalPages) {
+                                            Box(
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (loadingMore) CircularProgressIndicator(Modifier.size(22.dp))
+                                                else Button(onClick = { load(current.page + 1, append = true) }) {
+                                                    Text("加载更多")
                                                 }
-                                                // 底部留白：为悬浮按钮和底栏留出空间
-                                                Spacer(Modifier.height(64.dp))
                                             }
                                         }
+                                        // 底部留白：为悬浮按钮和底栏留出空间
+                                        Spacer(Modifier.height(64.dp))
                                     }
-                                }
-                                // 回到顶部按钮：列表滚过前几条后出现（缩放动画，不用 AnimatedVisibility 避免嵌套作用域限制）
-                                val showBackTop by remember {
-                                    derivedStateOf { listState.firstVisibleItemIndex > 2 }
-                                }
-                                val backTopScale by animateFloatAsState(
-                                    targetValue = if (showBackTop) 1f else 0f,
-                                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                    label = "backTop"
-                                )
-                                if (backTopScale > 0.01f) {
-                                    SmallFloatingActionButton(
-                                        onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .padding(end = 16.dp, bottom = 12.dp)
-                                            .graphicsLayer {
-                                                scaleX = backTopScale
-                                                scaleY = backTopScale
-                                                alpha = backTopScale
-                                            },
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                                        contentColor = MaterialTheme.colorScheme.onSurface,
-                                    ) {
-                                        Icon(Icons.Filled.KeyboardArrowUp, "回到顶部")
+                                } else {
+                                    // 翻页模式：翻页条紧贴最后一项（前面不留大段空白），滑到底即完整露出，无需再多次滑动
+                                    item {
+                                        PaginationBar(current.page, localTotalPages) { goLocalPage(it) }
                                     }
                                 }
                             }
-                            // 固定底部翻页条：仅翻页模式且有多页时显示，始终处于屏幕底部，
-                            // 不随列表滚动，滑到底即见翻页按钮，无需额外滑动。
-                            if (!homeInfinite && localTotalPages > 1) {
-                                PaginationBar(current.page, localTotalPages) { goLocalPage(it) }
+                        }
+                        // 回到顶部按钮：列表滚过前几条后出现（缩放动画，不用 AnimatedVisibility 避免嵌套作用域限制）
+                        val showBackTop by remember {
+                            derivedStateOf { listState.firstVisibleItemIndex > 2 }
+                        }
+                        val backTopScale by animateFloatAsState(
+                            targetValue = if (showBackTop) 1f else 0f,
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            label = "backTop"
+                        )
+                        if (backTopScale > 0.01f) {
+                            SmallFloatingActionButton(
+                                onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(end = 16.dp, bottom = 24.dp)
+                                    .graphicsLayer {
+                                        scaleX = backTopScale
+                                        scaleY = backTopScale
+                                        alpha = backTopScale
+                                    },
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ) {
+                                Icon(Icons.Filled.KeyboardArrowUp, "回到顶部")
                             }
                         }
                     }
