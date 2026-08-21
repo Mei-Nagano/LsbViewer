@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import sb.linux.client.data.ForumCount
 import sb.linux.client.data.HomeSidebar
@@ -120,15 +121,29 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // 沉浸式顶栏：列表滚出首条时隐藏顶栏，回到顶部时重新显示
+    // 沉浸式顶栏：向下滚动时隐藏，向上滚动（或回到顶部）时重新显示
     var topBarVisible by remember { mutableStateOf(true) }
-    val derivedTopVisible by remember {
-        derivedStateOf {
-            val info = listState.layoutInfo
-            (info.visibleItemsInfo.firstOrNull()?.index ?: 0) == 0
+    LaunchedEffect(listState) {
+        var lastIdx = listState.firstVisibleItemIndex
+        var lastOff = listState.firstVisibleItemScrollOffset
+        snapshotFlow {
+            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        }.collect { (idx, off) ->
+            val atTop = idx == 0 && off <= 0
+            // 换行：索引增大为向下；同一项内：像素偏移增大为向下
+            val scrolledDown = when {
+                idx != lastIdx -> idx > lastIdx
+                off != lastOff -> off > lastOff
+                else -> false
+            }
+            // 反向滚动即为向上（回顶也显示）；无位移时不改变，避免抖动
+            when {
+                atTop || !scrolledDown -> topBarVisible = true
+                else -> topBarVisible = false
+            }
+            lastIdx = idx; lastOff = off
         }
     }
-    LaunchedEffect(derivedTopVisible) { topBarVisible = derivedTopVisible }
 
     // 分类（全部/仅抽奖/仅发卡）或排序 tab 切换后回到列表顶部。
     // 在点击回调里直接 scrollToItem 会与切换后的新数据布局竞争：LazyList 以 item key 锚定滚动位置，
@@ -264,6 +279,15 @@ fun HomeScreen(session: Session, nav: NavHostController) {
         }
     }
 
+    // 翻页模式：切换分类（全部/仅抽奖/仅发卡）时是「本地过滤」已加载的帖子，可能不足一页。
+    // 这里切到第一页并自动补足到设定的每页条数，避免切换后只显示寥寥几个帖子。
+    LaunchedEffect(combo, homeInfinite) {
+        if (!homeInfinite) {
+            withFrameNanos { }
+            goLocalPage(1)
+        }
+    }
+
     // 首次进入分类：设置了"启动不刷新"且有缓存 → 直接用缓存，不发请求；
     // 否则正常加载
     LaunchedEffect(tabIndex) {
@@ -296,8 +320,22 @@ fun HomeScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    // 无限滚动：按源站行为，移动到最下面的帖子后出现「加载更多」按钮，点击继续加载
-    // （不再接近末尾自动加载）
+    // 无限滚动：滚动接近末尾时自动加载下一页（一次只加载一页，避免一次性拉太多，降低对服务器压力）；
+    // 到达底部仍会显示「加载更多」按钮，供自动加载未触发时手动兜底。
+    LaunchedEffect(listState, homeInfinite, visibleTopics.size, current.sourceTotalPages, loadingMore, loading) {
+        if (!homeInfinite || loadingMore || loading || current.topics.isEmpty()) return@LaunchedEffect
+        val nearEnd = 2 // 列表还剩约 2 个帖子时触发
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
+            .distinctUntilChanged()
+            .collect { lastIdx ->
+                if (!loadingMore && !loading &&
+                    lastIdx >= visibleTopics.size - nearEnd &&
+                    current.sourcePage < current.sourceTotalPages
+                ) {
+                    load(current.sourcePage + 1, append = true)
+                }
+            }
+    }
 
     fun refresh() {
         current.topics = emptyList()
@@ -457,16 +495,16 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                                 menuOpen = false
                                                 session.saveInfiniteScroll(!homeInfinite)
                                                 if (homeInfinite) {
-                                                    // 切回无限滚动：页码回到源站页
+                                                    // 离开无限滚动 → 切到翻页模式：回到本地第一页
+                                                    current.page = 1
+                                                } else {
+                                                    // 离开翻页模式 → 切到无限滚动：页码回到已加载的源站页
                                                     current.page = current.sourcePage
                                                     current.totalPages = current.sourceTotalPages
-                                                } else {
-                                                    // 切到翻页模式：回到本地第一页
-                                                    current.page = 1
                                                 }
                                                 scope.launch { listState.scrollToItem(0) }
                                                 session.showToast(
-                                                    if (homeInfinite) "已切换为无限滚动" else "已切换为翻页模式"
+                                                    if (homeInfinite) "已切换为翻页模式" else "已切换为无限滚动"
                                                 )
                                             }
                                         )
