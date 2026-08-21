@@ -178,6 +178,12 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 翻页模式：按设置的每页评论数本地切片分页（3.11）
     var localReplyPage by remember { mutableIntStateOf(1) }
     val replies = sortedPosts.drop(1)
+    // 楼号 -> 回复它的楼层数量：决定评论区是否显示该楼的「对话串联」入口
+    val threadReplyCount = remember(sortedPosts) {
+        val m = mutableMapOf<Int, Int>()
+        sortedPosts.forEach { p -> p.referencedFloors.forEach { r -> if (r > 0) m[r] = (m[r] ?: 0) + 1 } }
+        m
+    }
     val repliesPer = session.settings.commentsPerPage.coerceAtLeast(1)
     val pagedReplies = if (topicInfinite) replies
     else replies.drop((localReplyPage - 1) * repliesPer).take(repliesPer)
@@ -658,6 +664,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 onReport = { nav.navigate("report/${main.likeCoinType.ifBlank { "topic" }}/${main.id}") },
                                 onFloor = { f -> jumpToFloor(f) },
                                 onThread = { openThread(main) },
+                                threadReplyCount = threadReplyCount[main.floor] ?: 0,
                                 onCopy = { copyPost = main },
                                 onDonate = if (d.donateUrl != null) ({ nav.navigate("donate/$tid") }) else null,
                                 onEditUser = { uid -> nav.navigate("user/$uid") },
@@ -745,6 +752,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             onReport = { nav.navigate("report/${post.likeCoinType.ifBlank { "reply" }}/${post.id}") },
                             onFloor = { f -> jumpToFloor(f) },
                             onThread = { openThread(post) },
+                            threadReplyCount = threadReplyCount[post.floor] ?: 0,
                             onCopy = { copyPost = post },
                             onEditUser = { uid -> nav.navigate("user/$uid") },
                         )
@@ -1306,6 +1314,7 @@ fun PostCard(
     onCopy: () -> Unit = {},
     onDonate: (() -> Unit)? = null,
     onEditUser: (Long) -> Unit = {},
+    threadReplyCount: Int = 0,
 ) {
     if (isMainPost) {
         // ---------- 楼主正文：正文长按为系统原生文本选择，不再弹功能菜单（2.6） ----------
@@ -1325,6 +1334,7 @@ fun PostCard(
                 onCopy = onCopy,
                 onDonate = onDonate,
                 onEditUser = onEditUser,
+                threadReplyCount = threadReplyCount,
             )
         }
     } else {
@@ -1366,6 +1376,7 @@ fun PostCard(
                     onCopy = onCopy,
                     onDonate = onDonate,
                     onEditUser = onEditUser,
+                    threadReplyCount = threadReplyCount,
                 )
             }
         }
@@ -1391,6 +1402,7 @@ private fun PostCardContent(
     onCopy: () -> Unit = {},
     onDonate: (() -> Unit)? = null,
     onEditUser: (Long) -> Unit = {},
+    threadReplyCount: Int = 0,
 ) {
     Column(modifier) {
         // 作者行：头像 + 名称/徽章 + 元信息，楼层号固定右上角
@@ -1459,9 +1471,9 @@ private fun PostCardContent(
                 HtmlContent(post.contentHtml, onFloor = onFloor)
             }
         }
-        // #N 引用：仅在本楼真实引用了其他楼层时展示（自身楼层徽标已在解析层过滤）
+        // 对话串联入口：本楼引用了其他楼层、或被其他楼层回复时显示
         val refFloors = post.referencedFloors.filter { it > 0 }
-        if (refFloors.isNotEmpty()) {
+        if (refFloors.isNotEmpty() || threadReplyCount > 0) {
             Spacer(Modifier.height(6.dp))
             Surface(
                 shape = RoundedCornerShape(50),
@@ -1480,8 +1492,16 @@ private fun PostCardContent(
                         tint = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Text(
-                        if (refFloors.size > 1) "查看 ${refFloors.joinToString(" ") { "#$it" }} 对话"
-                        else "查看 #${refFloors.first()} 对话",
+                        when {
+                            refFloors.size > 1 ->
+                                "查看 ${refFloors.joinToString(" ") { "#$it" }} 对话"
+                            refFloors.size == 1 ->
+                                "查看 #${refFloors.first()} 对话"
+                            post.floor > 0 ->
+                                "查看 #${post.floor} 的对话"
+                            else ->
+                                "查看楼主对话"
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )

@@ -84,6 +84,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     // 首页状态保持：当前分类 / 组合过滤 / 各分类列表与滚动位置
     var homeTabIndex by mutableIntStateOf(0)
     var homeCombo by mutableIntStateOf(0)
+    var homeSortDrawerOpen by mutableStateOf(true)   // 排序抽屉折叠状态（持久化）
     val homeTabs = List(5) { HomeTabState() }
 
     // 已读通知键集合（本地）。通知红点据此判断：仅有「不在已读集合」的新通知时才亮。
@@ -127,6 +128,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         infiniteScroll = settings.infiniteScroll
         homeCacheEnabled = settings.homeKeepCache
         danmakuOn = settings.danmakuOn
+        homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
         autoCheckin = settings.autoCheckin
         topicsPerPage = settings.topicsPerPage
@@ -236,6 +238,12 @@ class Session(app: Application) : AndroidViewModel(app) {
         settings.infiniteScroll = v
     }
 
+    /** 持久化首页排序抽屉折叠状态 */
+    fun saveHomeSortDrawerOpen(v: Boolean) {
+        homeSortDrawerOpen = v
+        settings.homeSortDrawerOpen = v
+    }
+
     /** 某分类生效的滚动模式（3.13）：分类覆盖优先，否则全局开关 */
     fun effectiveInfiniteScroll(scope: String): Boolean =
         settings.scrollModeOverrides[scope] ?: infiniteScroll
@@ -268,6 +276,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         infiniteScroll = settings.infiniteScroll
         homeCacheEnabled = settings.homeKeepCache
         danmakuOn = settings.danmakuOn
+        homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
         autoCheckin = settings.autoCheckin
         topicsPerPage = settings.topicsPerPage

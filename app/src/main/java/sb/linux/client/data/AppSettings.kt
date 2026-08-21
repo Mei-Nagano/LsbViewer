@@ -56,6 +56,11 @@ class AppSettings(context: Context) {
         get() = prefs.getInt("comments_per_page", 20)
         set(v) = prefs.edit().putInt("comments_per_page", v.coerceIn(5, 100)).apply()
 
+    /** 首页排序抽屉（全部/仅抽奖/仅发卡 上方的 新评论/新帖子/精华）折叠状态：true = 展开，false = 折叠 */
+    var homeSortDrawerOpen: Boolean
+        get() = prefs.getBoolean("home_sort_drawer_open", true)
+        set(v) = prefs.edit().putBoolean("home_sort_drawer_open", v).apply()
+
     /** 无限滚动/翻页模式的分类覆盖（3.13）：key = home / forum / topic，值为该分类的无限滚动开关；
      *  未配置的分类跟随全局 infiniteScroll。 */
     var scrollModeOverrides: Map<String, Boolean>
@@ -118,7 +123,7 @@ class AppSettings(context: Context) {
         .remove("infinite_scroll").remove("home_keep_cache").remove("danmaku_on")
         .remove("sidebar_two_columns").remove("auto_checkin").remove("topics_per_page")
         .remove("comment_sort_order").remove("comments_per_page")
-        .remove("scroll_mode_overrides")
+        .remove("scroll_mode_overrides").remove("home_sort_drawer_open")
         .apply()
 
     /** 重置 AI 设置 */
@@ -309,6 +314,7 @@ class AppSettings(context: Context) {
         o.put("comment_sort_order", commentSortOrder)
         o.put("comments_per_page", commentsPerPage)
         o.put("scroll_mode_overrides", JSONObject(scrollModeOverrides))
+        o.put("home_sort_drawer_open", homeSortDrawerOpen)
         o.put("link_open_mode", linkOpenMode)
         o.put("update_check_mode", updateCheckMode)
         o.put("update_check_interval_hours", updateCheckIntervalHours)
@@ -341,6 +347,7 @@ class AppSettings(context: Context) {
             if (o.has("comment_sort_order")) p.putInt("comment_sort_order", o.optInt("comment_sort_order", 0).coerceIn(0, 1))
             if (o.has("comments_per_page")) p.putInt("comments_per_page", o.optInt("comments_per_page", 20).coerceIn(5, 100))
             if (o.has("scroll_mode_overrides")) p.putString("scroll_mode_overrides", o.getJSONObject("scroll_mode_overrides").toString())
+            if (o.has("home_sort_drawer_open")) p.putBoolean("home_sort_drawer_open", o.getBoolean("home_sort_drawer_open"))
             if (o.has("link_open_mode")) p.putInt("link_open_mode", o.optInt("link_open_mode", 0).coerceIn(0, 1))
             if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 1))
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))

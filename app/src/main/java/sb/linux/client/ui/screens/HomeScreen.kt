@@ -113,8 +113,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     LaunchedEffect(searchActive) {
         if (searchActive) searchFocus.requestFocus()
     }
-    // 排序抽屉（t8）：(全部/仅抽奖/仅发卡) 上方的 (新评论/新帖子/精华) 折叠区
-    var sortDrawerOpen by remember { mutableStateOf(true) }
+    // 排序抽屉（t8）：(全部/仅抽奖/仅发卡) 上方的 (新评论/新帖子/精华) 折叠区，状态持久化
+    var sortDrawerOpen by remember { mutableStateOf(session.homeSortDrawerOpen) }
     // 通知红点（t10）：回到首页且登录时查询源站，仅当存在「未读」新通知时才亮。
     // 是否未读依据本地已读集合判断（通知-标记已读 后会记录；新通知才会亮）。
     var hasNotifications by remember { mutableStateOf(false) }
@@ -472,8 +472,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 10.dp, vertical = 6.dp)
-                            // 折叠时在底部多留白，避免「全部/仅抽奖/仅发卡」贴住下边缘
-                            .padding(bottom = if (sortDrawerOpen) 0.dp else 10.dp),
+                            // 仅折叠时在底部多留白，避免「全部/仅抽奖/仅发卡」贴住下边缘；展开时排序区自带底部间距
+                            .padding(bottom = if (sortDrawerOpen) 0.dp else 12.dp),
                         shape = RoundedCornerShape(18.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 2.dp,
@@ -512,9 +512,12 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                         )
                                     }
                                 }
-                                // 折叠 / 展开 排序抽屉按钮
+                                // 折叠 / 展开 排序抽屉按钮（状态持久化）
                                 FilledTonalIconButton(
-                                    onClick = { sortDrawerOpen = !sortDrawerOpen },
+                                    onClick = {
+                                        sortDrawerOpen = !sortDrawerOpen
+                                        session.saveHomeSortDrawerOpen(sortDrawerOpen)
+                                    },
                                     modifier = Modifier.size(34.dp)
                                 ) {
                                     Icon(
