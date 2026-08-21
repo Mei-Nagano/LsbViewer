@@ -162,9 +162,16 @@ object HtmlParser {
             var editUserId = 0L
             var editUserName = ""
             if (contentEl != null) {
-                // 编辑信息节点：专用类名优先；兜底查找正文内任意含「最后编辑」的尾部元素
+                // 源站「展开全文」折叠长内容（针对长图/超长帖占位修复）：本应用直接展示全文，
+                // 忽略折叠。移除展开按钮（long-content-fold-actions）并解包折叠容器
+                // （long-content-fold-content），避免正文里混入「展开全文」字样，也让编辑标注
+                // 恢复为正文的直接子节点，便于下方提取。
+                contentEl.select(".long-content-fold-actions").remove()
+                contentEl.select(".long-content-fold-content").forEach { it.unwrap() }
+                // 编辑信息节点：专用类名优先（含源站新类 sb-limit-edit-time-note）；
+                // 兜底查找正文内任意含「最后编辑」的尾部元素
                 // （包括深层嵌套，如 blockquote 内的编辑标注），避免残留在正文中显示在分隔线上方
-                val editEl = contentEl.selectFirst(".post-edit-info, .edit-info, .post-last-edit")
+                val editEl = contentEl.selectFirst(".post-edit-info, .edit-info, .post-last-edit, .sb-limit-edit-time-note")
                     ?: contentEl.select("p, div, span, small, em, footer")
                         .lastOrNull { el ->
                             val t = el.ownText().ifBlank { el.text() }
