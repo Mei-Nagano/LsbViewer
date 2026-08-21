@@ -3,7 +3,9 @@ package sb.linux.client.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitPointerEvent
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -63,6 +65,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
@@ -957,27 +960,87 @@ private suspend fun saveImageToGallery(context: android.content.Context, url: St
     }
 
 /** 支持双指缩放 / 双击放大 / 单击关闭 / 长按保存的单张图片。
- *  scale=1 时不消费拖拽事件，让父级 HorizontalPager 正常翻页；scale>1 时消费拖拽做平移。 */
+ *  未缩放（scale=1）时：纯单指滑动不消费，交给父级 HorizontalPager 翻页；
+ *  一旦出现双指捏合或已处于缩放态，则接管缩放与平移，保证第一下捏合即可缩放。 */
 @Composable
 private fun ZoomableImage(url: String, onSingleTap: () -> Unit, onLongPress: () -> Unit = {}) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    // 屏幕像素尺寸：用作缩放后平移的边界（约等于图片展示区尺寸）
+    val screenPx: Pair<Float, Float> = with(LocalDensity.current) {
+        Pair(
+            LocalConfiguration.current.screenWidthDp.dp.toPx(),
+            LocalConfiguration.current.screenHeightDp.dp.toPx()
+        )
+    }
+    // 应用缩放并把平移钳制在可视范围内；缩回 1 时归零让图片完整居中显示
+    fun settle(ns: Float, off: androidx.compose.ui.geometry.Offset): androidx.compose.ui.geometry.Offset {
+        scale = ns
+        if (ns <= 1f) {
+            offset = androidx.compose.ui.geometry.Offset.Zero
+            return androidx.compose.ui.geometry.Offset.Zero
+        }
+        val maxX = (ns - 1f) * screenPx.first / 2f
+        val maxY = (ns - 1f) * screenPx.second / 2f
+        val clamped = androidx.compose.ui.geometry.Offset(
+            off.x.coerceIn(-maxX, maxX),
+            off.y.coerceIn(-maxY, maxY)
+        )
+        offset = clamped
+        return clamped
+    }
     Box(
         Modifier
             .fillMaxSize()
             .clipToBounds()
-            // 缩放手势：scale=1 时不拦截拖拽，让 HorizontalPager 翻页
-            .pointerInput(url, scale) {
-                if (scale > 1f) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 5f)
-                        if (scale <= 1f) { scale = 1f; offset = androidx.compose.ui.geometry.Offset.Zero }
-                        else {
-                            offset = androidx.compose.ui.geometry.Offset(
-                                (offset.x + pan.x).coerceIn(-800f, 800f),
-                                (offset.y + pan.y).coerceIn(-800f, 800f)
-                            )
+            // 捏合/平移手势（自研，兼容 Pager 翻页）：第一下双指捏合即可缩放
+            .pointerInput(url) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    var multi = false                       // 本手势内是否出现多指
+                    val startScale = scale
+                    var lastScale = startScale
+                    var lastOffset = offset
+                    var lastCentroid = down.position
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.filter { it.pressed }
+                        if (pressed.size >= 2) multi = true
+
+                        // 取多指质心（当前/上一步）与质心间距（估算缩放因子）
+                        val curCentroid =
+                            if (pressed.isNotEmpty()) centroid(pressed, usePrevious = false)
+                            else lastCentroid
+                        val prevCentroid =
+                            if (pressed.isNotEmpty()) centroid(pressed, usePrevious = true)
+                            else lastCentroid
+                        var gestureZoom = 1f
+                        if (pressed.size >= 2) {
+                            val prevDist = pairDist(pressed, usePrevious = true)
+                            val curDist = pairDist(pressed, usePrevious = false)
+                            if (prevDist > 0f) gestureZoom = curDist / prevDist
                         }
+                        val pan = curCentroid - prevCentroid
+
+                        val handled = when {
+                            // 双指：缩放 + 平移
+                            multi && pressed.size >= 2 -> {
+                                val ns = (lastScale * gestureZoom).coerceIn(1f, 5f)
+                                lastScale = ns
+                                lastOffset = settle(ns, lastOffset + pan)
+                                true
+                            }
+                            // 缩放态单指平移（未缩放态单指滑动留给 Pager 翻页）
+                            pressed.size == 1 && lastScale > 1f -> {
+                                lastOffset = settle(lastScale, lastOffset + pan)
+                                true
+                            }
+                            else -> false
+                        }
+                        // 已接管的手势要消费事件，避免父级 HorizontalPager 误判为横滑翻页
+                        if (handled) event.changes.forEach { it.consume() }
+                        lastCentroid = curCentroid
+                        if (pressed.isEmpty()) break
                     }
                 }
             }
@@ -1013,6 +1076,32 @@ private fun ZoomableImage(url: String, onSingleTap: () -> Unit, onLongPress: () 
                 }
         )
     }
+}
+
+// 多指质心（usePrevious=true 用上一步位置，用于计算本帧位移 pan）
+private fun centroid(
+    changes: List<androidx.compose.ui.input.pointer.PointerInputChange>,
+    usePrevious: Boolean
+): androidx.compose.ui.geometry.Offset {
+    if (changes.isEmpty()) return androidx.compose.ui.geometry.Offset.Zero
+    var x = 0f; var y = 0f
+    for (c in changes) {
+        val p = if (usePrevious) c.previousPosition else c.position
+        x += p.x; y += p.y
+    }
+    val n = changes.size
+    return androidx.compose.ui.geometry.Offset(x / n, y / n)
+}
+
+// 两指间距（估算捏合缩放因子）：取前两个按下的指针
+private fun pairDist(
+    changes: List<androidx.compose.ui.input.pointer.PointerInputChange>,
+    usePrevious: Boolean
+): Float {
+    if (changes.size < 2) return 0f
+    val a = if (usePrevious) changes[0].previousPosition else changes[0].position
+    val b = if (usePrevious) changes[1].previousPosition else changes[1].position
+    return (a - b).getDistance()
 }
 
 private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): List<ContentBlock> {
