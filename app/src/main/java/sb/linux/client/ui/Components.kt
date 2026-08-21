@@ -1231,7 +1231,9 @@ private fun renderInline(el: Element, linkColor: Color, codeBg: Color): Annotate
                     return
                 }
                 if (tag == "img") {
-                    append("[图片] ")
+                    // 内联图片只占一个空格位，图片本体由 select("img") 另行成块展示；
+                    // 不再写入 "[图片]" 占位文本，避免未被清理的路径把占位符露出来。
+                    append(" ")
                     return
                 }
                 val newLink = if (tag == "a") node.attr("abs:href").ifBlank { node.attr("href") }.ifBlank { null } else link

@@ -471,7 +471,9 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            // 折叠时在底部多留白，避免「全部/仅抽奖/仅发卡」贴住下边缘
+                            .padding(bottom = if (sortDrawerOpen) 0.dp else 10.dp),
                         shape = RoundedCornerShape(18.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 2.dp,
