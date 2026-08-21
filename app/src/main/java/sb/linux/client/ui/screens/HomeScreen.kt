@@ -704,10 +704,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                         Spacer(Modifier.height(64.dp))
                                     }
                                 } else {
-                                    // 翻页模式：翻页条作为真正的最后一项，滑到底即可完整露出，
-                                    // 上方留白避免被悬浮返回顶部按钮遮挡。
+                                    // 翻页模式：翻页条紧贴最后一项（前面不留大段空白），滑到底即完整露出，无需再多次滑动
                                     item {
-                                        Spacer(Modifier.height(64.dp))
                                         PaginationBar(current.page, localTotalPages) { goLocalPage(it) }
                                     }
                                 }
