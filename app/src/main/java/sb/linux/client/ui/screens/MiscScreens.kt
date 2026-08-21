@@ -86,6 +86,95 @@ fun WebScreen(session: Session, nav: NavHostController) {
     }
 }
 
+// ---------------- 已导出帖子的应用内查看 ----------------
+
+/** 本地导出 HTML 查看页：读取 filesDir/exports 下的导出文件并在 WebView 中离线展示 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExportedHtmlScreen(session: Session, nav: NavHostController) {
+    val entry = nav.currentBackStackEntry ?: return
+    val rawPath = entry.arguments?.getString("path").orEmpty()
+    var title by remember { mutableStateOf("已导出的帖子") }
+    var html by remember(rawPath) { mutableStateOf<String?>(null) }
+    var error by remember(rawPath) { mutableStateOf<String?>(null) }
+    // 重试计数：文件读取失败后可重新读取（如文件刚被恢复）
+    var retryKey by remember(rawPath) { mutableStateOf(0) }
+
+    LaunchedEffect(rawPath, retryKey) {
+        if (rawPath.isBlank()) {
+            error = "文件路径为空"
+            return@LaunchedEffect
+        }
+        runCatching {
+            val f = java.io.File(rawPath)
+            if (!f.isFile) throw IllegalStateException("文件不存在或已被删除")
+            html = f.readText()
+        }.onFailure { error = it.message ?: "读取失败" }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                }
+            )
+        }
+    ) { pad ->
+        Box(Modifier.padding(pad).fillMaxSize()) {
+            when {
+                error != null -> ErrorBox(error!!) { html = null; error = null; retryKey++ }
+                html == null -> LoadingBox()
+                else -> AndroidView(
+                    factory = { ctx ->
+                        android.webkit.WebView(ctx).apply {
+                            settings.javaScriptEnabled = false
+                            // baseUrl 指向导出目录：导出 HTML 若引用同目录相对资源可正常加载
+                            loadDataWithBaseURL(
+                                java.io.File(rawPath).parentFile?.toURI()?.toString() ?: null,
+                                html,
+                                "text/html",
+                                "utf-8",
+                                null
+                            )
+                            webViewClient = object : android.webkit.WebViewClient() {
+                                override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                    val t = view?.title?.takeIf { it.isNotBlank() } ?: return
+                                    if (t.startsWith("file:")) title = java.io.File(rawPath).nameWithoutExtension
+                                    else title = t
+                                }
+                            }
+                        }
+                    },
+                    update = { w ->
+                        // 配置变更重建后重新注入内容（html 只读一次，重载保证显示）
+                        if (w.url == null || w.url.startsWith("about:blank")) {
+                            w.loadDataWithBaseURL(
+                                java.io.File(rawPath).parentFile?.toURI()?.toString(),
+                                html,
+                                "text/html",
+                                "utf-8",
+                                null
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
 // ---------------- 每日签到 ----------------
 
 @OptIn(ExperimentalMaterial3Api::class)

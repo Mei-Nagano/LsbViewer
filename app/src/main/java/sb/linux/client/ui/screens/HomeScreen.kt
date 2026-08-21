@@ -130,6 +130,21 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     }
     LaunchedEffect(derivedTopVisible) { topBarVisible = derivedTopVisible }
 
+    // 分类（全部/仅抽奖/仅发卡）或排序 tab 切换后回到列表顶部。
+    // 在点击回调里直接 scrollToItem 会与切换后的新数据布局竞争：LazyList 以 item key 锚定滚动位置，
+    // 若当前首条可见项在新过滤结果中仍存在，先发的 scrollToItem(0) 会被随后的重布局覆盖回原位。
+    // 这里在重组完成后等一帧（新列表已布局），再显式滚到 0，保证生效。
+    // 记录上次值跳过首次执行：从帖子返回时保留列表位置（rememberSaveable 恢复的滚动不能被清掉）
+    var lastCombo by remember { mutableStateOf(combo) }
+    var lastTabIdx by remember { mutableStateOf(tabIndex) }
+    LaunchedEffect(combo, tabIndex) {
+        if (combo != lastCombo || tabIndex != lastTabIdx) {
+            lastCombo = combo; lastTabIdx = tabIndex
+            withFrameNanos { }
+            listState.scrollToItem(0)
+        }
+    }
+
     fun openDrawer() {
         scope.launch { drawerState.open() }
     }
@@ -491,8 +506,7 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                             .clip(RoundedCornerShape(12.dp))
                                             .clickable {
                                                 session.homeCombo = c
-                                                // 各分类帖子数量不同，切换后回到顶部
-                                                scope.launch { listState.scrollToItem(0) }
+                                                // 回到顶部由下方 LaunchedEffect(combo) 统一处理
                                             }
                                     ) {
                                         Text(
@@ -547,8 +561,7 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .clickable {
                                                     session.homeTabIndex = i; session.homeCombo = 0
-                                                    // 各分类帖子数量不同，切换后回到顶部
-                                                    scope.launch { listState.scrollToItem(0) }
+                                                    // 回到顶部由下方 LaunchedEffect(combo, tabIndex) 统一处理
                                                 }
                                         ) {
                                             Text(
@@ -593,9 +606,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                         }
                                         totalX = 0f
                                         if (next != c) {
+                                            // 回到顶部由下方 LaunchedEffect(combo) 统一处理
                                             session.homeCombo = next
-                                            // 各分类帖子数量不同，左右滑切换后回到顶部
-                                            scope.launch { listState.scrollToItem(0) }
                                         }
                                     },
                                     onDragCancel = { totalX = 0f },

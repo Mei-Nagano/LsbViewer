@@ -2318,18 +2318,8 @@ fun ExportedTopicsScreen(session: Session, nav: NavHostController) {
     LaunchedEffect(Unit) { refresh() }
 
     fun openFile(f: java.io.File) {
-        runCatching {
-            val uri = androidx.core.content.FileProvider.getUriForFile(
-                context, "${context.packageName}.fileprovider", f
-            )
-            context.startActivity(
-                android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply {
-                    setDataAndType(uri, "text/html")
-                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            )
-        }.onFailure { session.showToast("打开失败：${it.message}") }
+        // 应用内查看（3.21）：直接路由到本地 HTML 查看页，不再调起系统浏览器
+        nav.navigate("exportedHtml?path=${android.net.Uri.encode(f.absolutePath)}")
     }
 
     Scaffold(

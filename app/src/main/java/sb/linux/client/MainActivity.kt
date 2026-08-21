@@ -278,6 +278,12 @@ fun LsbApp(session: Session) {
             composable("transferSettings") { TransferSettingsScreen(session, nav) }
             composable("themeSettings") { ThemeSettingsScreen(session, nav) }
             composable("exportedTopics") { ExportedTopicsScreen(session, nav) }
+            composable(
+                "exportedHtml?path={path}",
+                arguments = listOf(
+                    navArgument("path") { type = androidx.navigation.NavType.StringType; defaultValue = "" }
+                )
+            ) { ExportedHtmlScreen(session, nav) }
             composable("about") { AboutScreen(session, nav) }
             composable(
                 "web?url={url}",
