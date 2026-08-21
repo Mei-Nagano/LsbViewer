@@ -645,7 +645,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                                 }
                                                 val resp = session.client.postForm(lp.joinAction, form)
                                                 session.showToast(if (resp.url.contains("form_error")) HtmlParser.extractError(resp.html).ifBlank { "参与失败" } else "已参与抽奖")
-                                                load(d.page)
+                                                load(d.page, force = true)
                                             } catch (e: Exception) { session.showToast(e.message ?: "失败") }
                                         }
                                     },
@@ -666,7 +666,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                                 val resp = session.client.postForm(vc.buyAction, form)
                                                 val ok = !resp.url.contains("form_error")
                                                 session.showToast(if (ok) "兑换成功，卡片见本帖购买记录" else HtmlParser.extractError(resp.html).ifBlank { "兑换失败" })
-                                                if (ok) load(d.page)
+                                                if (ok) load(d.page, force = true)
                                             } catch (e: Exception) { session.showToast(e.message ?: "失败") }
                                         }
                                     }
