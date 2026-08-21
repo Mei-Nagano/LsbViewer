@@ -1059,11 +1059,12 @@ private suspend fun saveImageToGallery(context: android.content.Context, url: St
 @Composable
 fun AvatarViewer(url: String, onDismiss: () -> Unit) {
     val target = url.trim()
+    // LocalContext 属 Composable 作用域，须在协程块外捕获，否则编译报错
+    val app = (LocalContext.current.applicationContext as LsbApp)
     // null=加载中；空数组=获取失败；否则字节就绪（仅以 target 为键，避免 onDismiss 闭包身份变化触发重复拉取）
     val fetch by produceState<ByteArray?>(null, target) {
         if (target.isEmpty()) value = ByteArray(0)
         else value = withContext(Dispatchers.IO) {
-            val app = (LocalContext.current.applicationContext as LsbApp)
             runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
         }
     }
