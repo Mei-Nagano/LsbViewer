@@ -169,7 +169,12 @@ fun LsbApp(session: Session) {
         AlertDialog(
             onDismissRequest = { updateTip = null },
             title = { Text("发现新版本") },
-            text = { Text("${rel.name} 已发布，是否前往下载？") },
+            text = {
+                Text(
+                    "${rel.name} 已发布，是否前往下载？\n\n" +
+                        "（自动检查当前为「每次启动」。可前往 设置 → 常规设置 → 检查更新时机 关闭或改为按间隔）"
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     updateTip = null

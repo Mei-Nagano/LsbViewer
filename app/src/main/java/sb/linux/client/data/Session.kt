@@ -35,6 +35,16 @@ data class PendingVerification(
     val deferred: CompletableDeferred<Boolean>,
 )
 
+/** 搜索结果缓存条目（带时间戳，超时后失效重搜） */
+data class SearchResultCache(
+    val query: String,
+    val field: String,
+    val page: Int,
+    val totalPages: Int,
+    val results: List<TopicCard>,
+    val time: Long,
+)
+
 /**
  * 全局会话状态：登录态、当前用户、主题偏好、应用设置。
  */
@@ -98,6 +108,9 @@ class Session(app: Application) : AndroidViewModel(app) {
     val topicPageCache = mutableStateMapOf<String, TopicPageData>()
     val aiSummaryCache = mutableStateMapOf<Long, String>()
     val danmakuCache = mutableStateMapOf<Long, List<DanmakuItem>>()
+
+    // 搜索结果缓存：从结果页进入帖子再返回时直接复用，避免重新搜索再次消耗积分
+    var searchCache: SearchResultCache? by mutableStateOf(null)
 
     // 签到信息（连续/累计天数，登录后从源站解析）
     var checkinText by mutableStateOf("")

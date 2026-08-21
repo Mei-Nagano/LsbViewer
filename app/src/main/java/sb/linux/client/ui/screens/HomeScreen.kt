@@ -366,27 +366,41 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                             Surface(
                                 shape = RoundedCornerShape(22.dp),
                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp)
                             ) {
-                                BasicTextField(
-                                    value = searchQuery,
-                                    onValueChange = { searchQuery = it },
-                                    singleLine = true,
-                                    textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Text,
-                                        imeAction = ImeAction.Search
-                                    ),
-                                    keyboardActions = KeyboardActions(onSearch = { submitTopSearch() }),
-                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp)
-                                        .height(40.dp)
-                                        .focusRequester(searchFocus),
-                                )
+                                Box(
+                                    Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            "搜索全站…",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            modifier = Modifier.padding(start = 16.dp)
+                                        )
+                                    }
+                                    BasicTextField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        singleLine = true,
+                                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.Text,
+                                            imeAction = ImeAction.Search
+                                        ),
+                                        keyboardActions = KeyboardActions(onSearch = { submitTopSearch() }),
+                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 16.dp, end = 16.dp)
+                                            .focusRequester(searchFocus),
+                                    )
+                                }
                             }
                             IconButton(onClick = { submitTopSearch() }) {
                                 Icon(Icons.Filled.Search, "搜索")
@@ -424,17 +438,12 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 IconButton(onClick = { searchActive = true }) {
                                     Icon(Icons.Filled.Search, "搜索")
                                 }
-                                // 三点菜单：搜索 / 刷新 / 切换滚动模式（刷新也可下拉触发）
+                                // 三点菜单：刷新 / 切换滚动模式（刷新也可下拉触发）
                                 Box {
                                     IconButton(onClick = { menuOpen = true }) {
                                         Icon(Icons.Filled.MoreVert, "菜单")
                                     }
                                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                        DropdownMenuItem(
-                                            text = { Text("搜索") },
-                                            leadingIcon = { Icon(Icons.Filled.Search, null) },
-                                            onClick = { menuOpen = false; searchActive = true }
-                                        )
                                         DropdownMenuItem(
                                             text = { Text("刷新") },
                                             leadingIcon = { Icon(Icons.Filled.Refresh, null) },
@@ -471,15 +480,14 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                            // 仅折叠时在底部多留白，避免「全部/仅抽奖/仅发卡」贴住下边缘；展开时排序区自带底部间距
-                            .padding(bottom = if (sortDrawerOpen) 0.dp else 12.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(18.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 2.dp,
                         shadowElevation = 1.dp,
                     ) {
-                        Column {
+                        // 仅折叠时在底部多留白，避免「全部/仅抽奖/仅发卡」贴住下边缘；展开时排序区自带底部间距
+                        Column(Modifier.padding(bottom = if (sortDrawerOpen) 0.dp else 14.dp)) {
                             // 组合过滤行（质感样式）
                             Row(
                                 Modifier
@@ -497,7 +505,11 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .clickable { session.homeCombo = c }
+                                            .clickable {
+                                                session.homeCombo = c
+                                                // 各分类帖子数量不同，切换后回到顶部
+                                                scope.launch { listState.scrollToItem(0) }
+                                            }
                                     ) {
                                         Text(
                                             label,
@@ -549,7 +561,11 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                             shadowElevation = if (selected) 2.dp else 0.dp,
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .clickable { session.homeTabIndex = i; session.homeCombo = 0 }
+                                                .clickable {
+                                                    session.homeTabIndex = i; session.homeCombo = 0
+                                                    // 各分类帖子数量不同，切换后回到顶部
+                                                    scope.launch { listState.scrollToItem(0) }
+                                                }
                                         ) {
                                             Text(
                                                 label,
@@ -592,7 +608,11 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                             else -> c
                                         }
                                         totalX = 0f
-                                        if (next != c) session.homeCombo = next
+                                        if (next != c) {
+                                            session.homeCombo = next
+                                            // 各分类帖子数量不同，左右滑切换后回到顶部
+                                            scope.launch { listState.scrollToItem(0) }
+                                        }
                                     },
                                     onDragCancel = { totalX = 0f },
                                 )

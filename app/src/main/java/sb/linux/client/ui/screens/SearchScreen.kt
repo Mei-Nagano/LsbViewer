@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.data.HtmlParser
+import sb.linux.client.data.SearchResultCache
 import sb.linux.client.data.Session
 import sb.linux.client.data.TopicCard
 import sb.linux.client.ui.*
@@ -24,13 +25,17 @@ fun SearchScreen(session: Session, nav: NavHostController) {
     // 支持从首页顶栏搜索条带入关键词（search?q=…）
     val entry = nav.currentBackStackEntry
     val initialQuery = entry?.arguments?.getString("q").orEmpty()
+    // 复用会话内最近一次搜索结果：短时间内从结果页返回不重复搜索（避免再次消耗积分）
+    val cached = remember(initialQuery) {
+        session.searchCache?.takeIf { it.query == initialQuery && System.currentTimeMillis() - it.time < 30 * 60_000L }
+    }
     var query by remember { mutableStateOf(initialQuery) }
-    var field by remember { mutableStateOf("title") }
-    var results by remember { mutableStateOf<List<TopicCard>?>(null) }
-    var page by remember { mutableIntStateOf(1) }
-    var totalPages by remember { mutableIntStateOf(1) }
-    var lastQuery by remember { mutableStateOf("") }
-    var lastField by remember { mutableStateOf("title") }
+    var field by remember { mutableStateOf(cached?.field ?: "title") }
+    var results by remember { mutableStateOf(cached?.results) }
+    var page by remember { mutableIntStateOf(cached?.page ?: 1) }
+    var totalPages by remember { mutableIntStateOf(cached?.totalPages ?: 1) }
+    var lastQuery by remember { mutableStateOf(cached?.query ?: "") }
+    var lastField by remember { mutableStateOf(cached?.field ?: "title") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -58,6 +63,8 @@ fun SearchScreen(session: Session, nav: NavHostController) {
                 val resp = session.client.get("/index.php?q=${java.net.URLEncoder.encode(query, "UTF-8")}&field=$field&p=$p")
                 val (items, pg) = HtmlParser.parseTopicList(resp.html)
                 results = items; page = pg.first; totalPages = pg.second
+                // 保存到会话缓存，返回时直接复用
+                session.searchCache = SearchResultCache(query, field, page, totalPages, items, System.currentTimeMillis())
             } catch (e: Exception) {
                 error = e.message ?: "搜索失败"
             } finally { loading = false }

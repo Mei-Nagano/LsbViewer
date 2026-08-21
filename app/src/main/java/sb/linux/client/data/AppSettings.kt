@@ -85,7 +85,7 @@ class AppSettings(context: Context) {
 
     /** 检查更新时机：0 = 每次打开应用，1 = 按间隔，2 = 从不 */
     var updateCheckMode: Int
-        get() = prefs.getInt("update_check_mode", 1)
+        get() = prefs.getInt("update_check_mode", 0)
         set(v) = prefs.edit().putInt("update_check_mode", v).apply()
 
     /** 检查更新间隔（小时，默认 24） */

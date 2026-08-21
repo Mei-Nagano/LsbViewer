@@ -2188,7 +2188,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
             // ---------- 打开链接方式 ----------
             GroupCard {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
-                    Text("打开链接方式", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Text("打开外部链接方式", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "帖子内的外部链接与网页的打开方式；站内跳转（楼层、主页）始终在应用内进行",
