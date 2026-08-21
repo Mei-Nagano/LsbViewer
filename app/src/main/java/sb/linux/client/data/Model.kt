@@ -81,7 +81,20 @@ data class NativeCaptcha(
     val powZeros: Int = 3,
 )
 
-/** 抽奖帖面板（community-lottery-*） */
+/** 抽奖中奖人：用户 + 奖品名 +（仅本人可见的）兑换码 */
+data class LotteryWinner(
+    val user: String,
+    val prize: String,
+    val code: String = "",      // 登录者本人中奖时源站下发，其余人为空
+)
+
+/** 发卡帖「我的购买记录」条目 */
+data class CardOrder(
+    val code: String,           // 兑换码
+    val time: String,           // 例如 "3天前"
+    val price: String,          // 例如 "140 积分"
+)
+
 data class LotteryPanel(
     val status: String = "",                // 抽奖中 / 已开奖
     val note: String = "",                  // 参与说明（回复满 5 字即参与…）
@@ -89,7 +102,7 @@ data class LotteryPanel(
     val prizes: List<String> = emptyList(), // 奖品列表
     val condition: String = "",             // 开奖条件（满 150 人自动开奖）
     val result: String = "",                // 开奖结果（实际中奖 5 人）
-    val winners: List<String> = emptyList(),// 中奖名单（用户 · 奖品）
+    val winners: List<LotteryWinner> = emptyList(), // 中奖名单
     val rules: String = "",                 // 规则说明
     val joinAction: String = "",            // 参与表单 action，空 = 不可参与
     val joinFields: Map<String, String> = emptyMap(), // 参与表单隐藏字段
@@ -113,9 +126,10 @@ data class VirtualCard(
     val priceText: String,       // 例如 "1 积分 / 张"
     val tip: String,
     val footText: String,        // 例如 "已兑换 6 张 · 每人限购 1 张"
-    val buyAction: String,       // 兑换表单 action，空 = 不可兑换（未登录无表单）
+    val buyAction: String,            // 兑换表单 action，空 = 不可兑换（未登录无表单）
     val buyFields: Map<String, String> = emptyMap(), // 兑换表单隐藏字段
     val inStock: Boolean,
+    val orders: List<CardOrder> = emptyList(), // 我的购买记录（登录且兑换过才有）
 )
 
 data class ForumInfo(

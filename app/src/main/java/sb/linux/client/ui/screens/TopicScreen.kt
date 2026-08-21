@@ -599,6 +599,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 LotteryPanelView(
                                     lp = lp,
                                     loggedIn = session.loginState.loggedIn,
+                                    selfName = session.loginState.username,
                                     onJoin = { quoteText = ""; showReply = true },
                                     onJoinForm = { option ->
                                         scope.launch {
@@ -1638,7 +1639,7 @@ fun LotteryPanelView(
 ) {
     val drawn = lp.status.contains("开奖") || lp.result.isNotBlank() || lp.winners.isNotEmpty()
     // 已开奖：默认折叠中奖名单；自己中奖则默认展开并高亮
-    val selfWon = selfName.isNotBlank() && lp.winners.any { it.startsWith(selfName) }
+    val selfWon = selfName.isNotBlank() && lp.winners.any { it.user.startsWith(selfName) }
     var expanded by remember(lp) { mutableStateOf(!drawn || selfWon) }
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -1703,13 +1704,18 @@ fun LotteryPanelView(
                 if (expanded) {
                     if (lp.result.isNotBlank()) Text(lp.result, style = MaterialTheme.typography.bodySmall)
                     lp.winners.forEach { w ->
-                        val isSelf = selfName.isNotBlank() && w.startsWith(selfName)
+                        val isSelf = selfName.isNotBlank() && w.user.startsWith(selfName)
                         Text(
-                            "· $w",
+                            "· ${w.user}${if (w.prize.isNotBlank()) " · ${w.prize}" else ""}",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (isSelf) MaterialTheme.colorScheme.primary else Color.Unspecified,
                             fontWeight = if (isSelf) FontWeight.Bold else FontWeight.Normal,
                         )
+                        // 兑换码（仅本人可见）：用代码块单独成行展示，方便一键复制
+                        if (w.code.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            CodeBlockView(w.code)
+                        }
                     }
                 }
             }
@@ -1830,6 +1836,23 @@ fun VirtualCardView(vc: VirtualCard, loggedIn: Boolean, onBuy: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
+            // 我的购买记录：兑换码用代码块单独成行展示，方便一键复制
+            if (vc.orders.isNotEmpty()) {
+                Text("我的购买记录", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                vc.orders.forEach { o ->
+                    Column {
+                        CodeBlockView(o.code)
+                        val meta = listOf(o.time, o.price).filter { it.isNotBlank() }
+                        if (meta.isNotEmpty()) {
+                            Text(
+                                meta.joinToString(" · "),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+            }
             if (vc.buyAction.isNotBlank() && vc.inStock) {
                 Button(
                     onClick = onBuy,
