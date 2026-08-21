@@ -457,12 +457,14 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
             try {
                 val resp = session.client.get("/user/$uid?tab=notifications")
                 items = HtmlParser.parseNotifications(resp.html)
-                // 本地聚合私信：把「收到的私信通知」记入本地会话（按内容去重），聊天界面据此离线展示
-                items.forEach { n ->
+                // 本地聚合私信：把「收到的私信通知」记入本地会话（按内容去重），聊天界面据此离线展示。
+                // 通知列表最新在前：倒序写入并带上解析到的消息时间，保证会话按时间正序、时间显示准确
+                items.asReversed().forEach { n ->
                     if (n.partnerId > 0 && n.content.isNotBlank()) {
                         session.settings.addPmMessage(
                             partnerId = n.partnerId, partnerName = n.fromUser,
                             avatarUrl = n.partnerAvatar, incoming = true, content = n.content,
+                            ts = HtmlParser.parseRelativeTime(n.timeText),
                         )
                     }
                 }
@@ -699,7 +701,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     }
 }
 
-/** 单条气泡：对方靠左带头像，我方靠右，气泡着色区分 */
+/** 单条气泡：对方靠左、头像在消息左侧，我方靠右无头像，气泡着色区分 */
 @Composable
 private fun ChatBubble(m: sb.linux.client.data.PmMessage) {
     val mine = !m.incoming
@@ -708,7 +710,8 @@ private fun ChatBubble(m: sb.linux.client.data.PmMessage) {
         horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
-        if (mine) Spacer(Modifier.width(40.dp))   // 与对方头像粗细对齐
+        // 对方头像固定在消息左侧（QQ/微信式），我方不显示头像
+        if (!mine) { Avatar(m.avatarUrl, 32); Spacer(Modifier.width(8.dp)) }
         Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
@@ -722,10 +725,11 @@ private fun ChatBubble(m: sb.linux.client.data.PmMessage) {
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
-            Spacer(Modifier.height(2.dp))
-            Text(m.timeText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            if (m.timeText.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(m.timeText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            }
         }
-        if (!mine) { Spacer(Modifier.width(8.dp)); Avatar(m.avatarUrl, 32) }
     }
 }
 
@@ -883,12 +887,33 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoritesScreen(session: Session, nav: NavHostController) {
-    // 本地收藏：收藏帖子时写入本地快照，纯本地筛选，不额外访问源站（3.15）
+    // 本地收藏：收藏帖子时写入本地快照，纯本地筛选（3.15）；
+    // 进入页面时从源站合并一次收藏（本地已有快照的不覆盖），之后全部本地展示
     var topics by remember { mutableStateOf(session.settings.favoriteList()) }
     var showClearDialog by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var syncing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     fun refresh() { topics = session.settings.favoriteList() }
+
+    // 同步源站收藏：合并进本地，静默失败（本地快照仍可正常展示）
+    fun syncFromSource() {
+        val uid = session.loginState.userId
+        if (!session.loginState.loggedIn || uid <= 0 || syncing) return
+        scope.launch {
+            syncing = true
+            try {
+                val resp = session.client.get("/user/$uid?tab=favorites")
+                session.settings.mergeFavorites(HtmlParser.parseTopicList(resp.html).first)
+                refresh()
+            } catch (_: Exception) {
+            } finally { syncing = false }
+        }
+    }
+
+    // 每次进入页面同步一次（之后搜索/浏览全部走本地，不再访问源站）
+    LaunchedEffect(Unit) { syncFromSource() }
 
     Scaffold(
         topBar = {
@@ -900,7 +925,9 @@ fun FavoritesScreen(session: Session, nav: NavHostController) {
                     }
                 },
                 actions = {
-                    TextButton(onClick = { refresh() }) { Text("刷新") }
+                    TextButton(onClick = { syncFromSource() }, enabled = !syncing) {
+                        Text(if (syncing) "同步中…" else "刷新")
+                    }
                     TextButton(
                         onClick = { showClearDialog = true },
                         enabled = topics.isNotEmpty(),
@@ -933,7 +960,8 @@ fun FavoritesScreen(session: Session, nav: NavHostController) {
             if (topics.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "收藏的帖子会显示在这里（在帖子右上角菜单里点「收藏」即可）",
+                        if (syncing) "正在从源站同步收藏…"
+                        else "收藏的帖子会显示在这里（在帖子菜单里点「收藏」，登录后进入本页会自动同步源站收藏）",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(24.dp)
                     )

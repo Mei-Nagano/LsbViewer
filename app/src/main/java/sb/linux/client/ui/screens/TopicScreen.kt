@@ -117,6 +117,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var error by remember { mutableStateOf<String?>(null) }
     var showReply by remember { mutableStateOf(false) }
     var quoteText by remember { mutableStateOf("") }
+    // 回复弹窗「换一题」后的人机验证（覆盖页面初始解析的那个；重新打开弹窗时重置）
+    var captchaOverride by remember { mutableStateOf<sb.linux.client.data.NativeCaptcha?>(null) }
     var coinTarget by remember { mutableStateOf<PostEntry?>(null) }
     var copyPost by remember { mutableStateOf<PostEntry?>(null) }
     // 长按菜单 → 查看该用户在本帖的所有回复
@@ -1027,11 +1029,27 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    // 回复弹窗（带人机验证时需用户作答）
+    // 回复弹窗（带人机验证时需用户作答，可「换一题」刷新验证码）
     if (showReply) {
+        LaunchedEffect(Unit) { captchaOverride = null }
+        val activeCaptcha = captchaOverride ?: data?.replyCaptcha
         ReplyDialog(
             initial = quoteText,
-            captcha = data?.replyCaptcha,
+            captcha = activeCaptcha,
+            onRefreshCaptcha = {
+                scope.launch {
+                    try {
+                        // 重新拉取帖子页：源站每次渲染都会签发新的题目与 token
+                        val resp = session.client.get("/topic/$tid?page=${data?.page ?: 1}")
+                        val c = HtmlParser.parseNativeCaptcha(resp.html)
+                        if (c != null) {
+                            captchaOverride = c
+                        } else session.showToast("未找到人机验证")
+                    } catch (e: Exception) {
+                        session.showToast(e.message ?: "刷新失败")
+                    }
+                }
+            },
             onDismiss = { showReply = false },
             onSubmit = { body, captchaAnswer, onDone ->
                 scope.launch {
@@ -1041,8 +1059,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             put("_csrf", csrf)
                             put("topic_id", tid.toString())
                             put("body", body)
-                            // 人机验证：用户答案 + 客户端计算 PoW
-                            data?.replyCaptcha?.let { c ->
+                            // 人机验证：用户答案 + 客户端计算 PoW（用弹窗当前展示的那份，而非页面初始解析的）
+                            activeCaptcha?.let { c ->
                                 put("native_captcha_token", c.token)
                                 put("native_captcha_answer", captchaAnswer)
                                 put("native_captcha_pow", sb.linux.client.data.LsbClient.solvePow(c.powPrefix, c.powZeros))
@@ -1051,6 +1069,13 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         val resp = session.client.postForm("/reply_edit", form)
                         if (resp.url.contains("form_error")) {
                             session.showToast(HtmlParser.extractError(resp.html).ifBlank { "回复失败" })
+                            // 验证码 token 多半已失效：自动换一题，用户重填即可
+                            if (activeCaptcha != null) {
+                                runCatching {
+                                    val r2 = session.client.get("/topic/$tid?page=${data?.page ?: 1}")
+                                    HtmlParser.parseNativeCaptcha(r2.html)?.let { captchaOverride = it }
+                                }
+                            }
                         } else {
                             session.showToast("回复成功")
                             showReply = false
@@ -2112,11 +2137,14 @@ fun ReplyDialog(
     title: String = "发表回复",
     submitLabel: String = "发布",
     showToolbar: Boolean = true,
+    onRefreshCaptcha: (() -> Unit)? = null,
 ) {
     var body by remember { mutableStateOf(TextFieldValue(initial)) }
     var answer by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     val canSubmit = body.text.isNotBlank() && !busy && (captcha == null || answer.isNotBlank())
+    // 换题后清空旧答案，避免带着上一题的答案提交
+    LaunchedEffect(captcha) { if (answer.isNotBlank()) answer = "" }
 
     // Markdown 工具栏：在光标处插入/包裹，与源站编辑器一致
     fun insert(before: String, after: String = before, placeholder: String = "") {
@@ -2180,8 +2208,9 @@ fun ReplyDialog(
                     .heightIn(min = 150.dp),
                 shape = RoundedCornerShape(14.dp)
             )
-            // 人机验证（抽奖帖等）：题目展示，答案由用户填写
+            // 人机验证（抽奖帖等）：题目展示，答案由用户填写；提供「换一题」刷新按钮
             if (captcha != null) {
+                val refreshCap = onRefreshCaptcha
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = answer,
@@ -2190,6 +2219,13 @@ fun ReplyDialog(
                     shape = RoundedCornerShape(14.dp),
                     label = { Text("人机验证：${captcha.question}") },
                     singleLine = true,
+                    trailingIcon = if (refreshCap != null) {
+                        {
+                            IconButton(onClick = refreshCap) {
+                                Icon(Icons.Filled.Refresh, "换一题")
+                            }
+                        }
+                    } else null,
                 )
             }
             Spacer(Modifier.height(24.dp))

@@ -326,7 +326,7 @@ class AppSettings(context: Context) {
         prefs.edit().putString("local_favorites", out.toString()).apply()
     }
 
-    /** 本地收藏内容（最新收藏在前） */
+    /** 本地收藏内容（最新收藏在前；源站同步来的条目沿用源站时间/回复数） */
     fun favoriteList(): List<sb.linux.client.data.TopicCard> {
         val arr = favoriteArray()
         val fmt = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
@@ -342,15 +342,41 @@ class AppSettings(context: Context) {
                         authorName = o.optString("authorName"),
                         forumId = o.optLong("forumId"),
                         forumName = o.optString("forumName"),
-                        replies = 0,
+                        replies = o.optInt("replies", 0),
                         lastReplier = "",
-                        timeText = if (at > 0) fmt.format(java.util.Date(at)) else "",
+                        timeText = if (at > 0) fmt.format(java.util.Date(at)) else o.optString("timeText"),
                         avatarUrl = o.optString("avatarUrl"),
                         titleColor = o.optString("titleColor"),
                     )
                 )
             }
         }
+    }
+
+    /** 合并源站收藏（用户页 tab=favorites 解析结果）：本地没有的追加到末尾，已有的不覆盖 */
+    fun mergeFavorites(cards: List<TopicCard>) {
+        if (cards.isEmpty()) return
+        val old = favoriteArray()
+        val have = buildSet {
+            for (i in 0 until old.length()) add(old.optJSONObject(i)?.optLong("topicId") ?: -1L)
+        }
+        val out = JSONArray()
+        for (i in 0 until old.length()) out.put(old.optJSONObject(i))
+        cards.forEach { c ->
+            if (c.topicId > 0 && c.topicId !in have) {
+                out.put(
+                    JSONObject()
+                        .put("topicId", c.topicId).put("title", c.title)
+                        .put("authorId", c.authorId).put("authorName", c.authorName)
+                        .put("forumId", c.forumId).put("forumName", c.forumName)
+                        .put("avatarUrl", c.avatarUrl).put("titleColor", c.titleColor)
+                        .put("at", 0L)
+                        .put("timeText", c.timeText)
+                        .put("replies", c.replies)
+                )
+            }
+        }
+        prefs.edit().putString("local_favorites", out.toString()).apply()
     }
 
     fun removeFavorite(topicId: Long) {
@@ -370,37 +396,63 @@ class AppSettings(context: Context) {
     private fun pmArray(): JSONArray =
         runCatching { JSONArray(prefs.getString("local_pm_messages", "[]") ?: "[]") }.getOrDefault(JSONArray())
 
-    /** 追加一条私信消息，仅保留最近 300 条；与已存在的「对方+方向+内容」重复时跳过（通知页会反复拉全量） */
-    fun addPmMessage(partnerId: Long, partnerName: String, avatarUrl: String, incoming: Boolean, content: String) {
+    /** 追加一条私信消息，仅保留最近 300 条；收到的私信按「对方+内容」去重，
+     *  命中时用本次解析到的更准确时间/资料回填（修正历史消息的顺序与时间） */
+    fun addPmMessage(
+        partnerId: Long, partnerName: String, avatarUrl: String,
+        incoming: Boolean, content: String, ts: Long = 0L,
+    ) {
         if (partnerId <= 0) return
-        val ts = System.currentTimeMillis()
+        val t = if (ts > 0) ts else System.currentTimeMillis()
         val old = pmArray()
-        // 去重只针对「收到的私信」（通知页会反复拉全量导致重复）；我发出的总是追加
-        if (incoming) {
-            for (i in 0 until old.length()) {
-                val o = old.optJSONObject(i) ?: continue
-                if (o.optLong("partnerId") == partnerId && o.optString("content") == content) return
-            }
+        val rest = JSONArray()
+        var updated = false
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            // 去重只针对「收到的私信」（通知页会反复拉全量导致重复）；我发出的总是追加
+            if (incoming && !updated && o.optLong("partnerId") == partnerId && o.optString("content") == content) {
+                rest.put(
+                    JSONObject(o.toString())
+                        .put("ts", t)
+                        .put("partnerName", partnerName.ifBlank { o.optString("partnerName") })
+                        .put("avatarUrl", avatarUrl.ifBlank { o.optString("avatarUrl") })
+                )
+                updated = true
+            } else rest.put(o)
         }
         val out = JSONArray()
-        out.put(
-            JSONObject()
-                .put("partnerId", partnerId).put("partnerName", partnerName)
-                .put("avatarUrl", avatarUrl).put("incoming", incoming)
-                .put("content", content).put("ts", ts)
-                .put("read", incoming)   // 我发出的始终视为已读；对方发来的以此作为标记（markPmRead 会翻成 true）
-        )
-        for (i in 0 until old.length()) {
+        if (!updated) {
+            out.put(
+                JSONObject()
+                    .put("partnerId", partnerId).put("partnerName", partnerName)
+                    .put("avatarUrl", avatarUrl).put("incoming", incoming)
+                    .put("content", content).put("ts", t)
+                    .put("read", incoming)   // 我发出的始终视为已读；对方发来的以此作为标记（markPmRead 会翻成 true）
+            )
+        }
+        for (i in 0 until rest.length()) {
             if (out.length() >= 300) break
-            out.put(old.optJSONObject(i))
+            out.put(rest.optJSONObject(i))
         }
         prefs.edit().putString("local_pm_messages", out.toString()).apply()
+    }
+
+    /** 时间戳 → 源站式相对时间（几小时前），过久回退为日期 */
+    private fun relativeTimeText(ts: Long): String {
+        if (ts <= 0) return ""
+        val diff = System.currentTimeMillis() - ts
+        return when {
+            diff < 60_000L -> "刚刚"
+            diff < 3_600_000L -> "${diff / 60_000L}分钟前"
+            diff < 86_400_000L -> "${diff / 3_600_000L}小时前"
+            diff < 30L * 86_400_000L -> "${diff / 86_400_000L}天前"
+            else -> java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(ts))
+        }
     }
 
     /** 与某人的私信线程（时间正序，用于聊天界面） */
     fun pmThread(partnerId: Long): List<sb.linux.client.data.PmMessage> {
         val arr = pmArray()
-        val fmt = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
         return buildList {
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue
@@ -413,7 +465,7 @@ class AppSettings(context: Context) {
                         avatarUrl = o.optString("avatarUrl"),
                         incoming = o.optBoolean("incoming"),
                         content = o.optString("content"),
-                        timeText = if (ts > 0) fmt.format(java.util.Date(ts)) else "",
+                        timeText = relativeTimeText(ts),
                         ts = ts,
                     )
                 )

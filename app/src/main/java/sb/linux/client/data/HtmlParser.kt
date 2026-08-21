@@ -492,6 +492,57 @@ object HtmlParser {
         doc(html).selectFirst(".nav-mine .notify-badge:not(.home-keyword-filter-count)")
             ?.text()?.trim()?.toIntOrNull() ?: 0
 
+    /** 单独解析页面里的人机验证组件（回复弹窗「换一题」用，无需解析整个帖子） */
+    fun parseNativeCaptcha(html: String): NativeCaptcha? {
+        val w = doc(html).selectFirst("[data-native-captcha]") ?: return null
+        val q = w.selectFirst(".native-captcha-question")?.text()?.trim() ?: ""
+        val token = w.selectFirst("input[name=native_captcha_token]")?.attr("value") ?: ""
+        return if (q.isNotBlank() && token.isNotBlank()) NativeCaptcha(
+            question = q,
+            token = token,
+            powPrefix = w.attr("data-pow-prefix"),
+            powZeros = w.attr("data-pow-zeroes").toIntOrNull() ?: 3,
+        ) else null
+    }
+
+    /** 源站相对时间 → 时间戳：支持「刚刚/N秒/N分钟/N小时/N天前」与常见日期格式；解析失败返回 0 */
+    fun parseRelativeTime(text: String): Long {
+        val t = text.trim()
+        if (t.isBlank()) return 0L
+        val now = System.currentTimeMillis()
+        Regex("""(\d+)\s*秒前""").find(t)?.let { return now - it.groupValues[1].toLong() * 1000L }
+        Regex("""(\d+)\s*分钟前""").find(t)?.let { return now - it.groupValues[1].toLong() * 60_000L }
+        Regex("""(\d+)\s*小时前""").find(t)?.let { return now - it.groupValues[1].toLong() * 3_600_000L }
+        Regex("""(\d+)\s*天前""").find(t)?.let { return now - it.groupValues[1].toLong() * 86_400_000L }
+        if (t.contains("刚刚") || t.contains("刚才")) return now
+        // 日期格式：yyyy-MM-dd( HH:mm) / MM-dd( HH:mm，跨年自动回退一年)
+        runCatching {
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA).parse(t)?.time
+        }.getOrNull()?.let { return it }
+        runCatching {
+            java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.CHINA).parse(t)
+        }.getOrNull()?.let { p ->
+            val cal = java.util.Calendar.getInstance()
+            cal.time = p
+            cal.set(java.util.Calendar.YEAR, java.util.Calendar.getInstance().get(java.util.Calendar.YEAR))
+            if (cal.timeInMillis > now) cal.add(java.util.Calendar.YEAR, -1)
+            return cal.timeInMillis
+        }
+        runCatching {
+            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA).parse(t.substringBefore(" "))?.time
+        }.getOrNull()?.let { return it }
+        runCatching {
+            java.text.SimpleDateFormat("MM-dd", java.util.Locale.CHINA).parse(t.substringBefore(" "))
+        }.getOrNull()?.let { p ->
+            val cal = java.util.Calendar.getInstance()
+            cal.time = p
+            cal.set(java.util.Calendar.YEAR, java.util.Calendar.getInstance().get(java.util.Calendar.YEAR))
+            if (cal.timeInMillis > now) cal.add(java.util.Calendar.YEAR, -1)
+            return cal.timeInMillis
+        }
+        return 0L
+    }
+
     // ---------------- 榜单 ----------------
 
     fun parseLeaderboard(html: String): List<LeaderRow> {

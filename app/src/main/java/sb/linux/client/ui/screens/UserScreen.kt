@@ -54,6 +54,8 @@ fun UserScreen(session: Session, nav: NavHostController) {
     var topicCards by remember { mutableStateOf<List<sb.linux.client.data.TopicCard>>(emptyList()) }
     var replies by remember { mutableStateOf<List<sb.linux.client.data.ReplyItem>>(emptyList()) }
     var pointRows by remember { mutableStateOf<List<sb.linux.client.data.PointRow>>(emptyList()) }
+    // 通知（仅本人主页）：私信/帖子/系统通知，不能按主题列表解析否则私信会被当成帖子
+    var notifications by remember { mutableStateOf<List<sb.linux.client.data.NotificationItem>>(emptyList()) }
     val isSelf = session.loginState.userId == uid
 
     fun load(t: String) {
@@ -66,20 +68,34 @@ fun UserScreen(session: Session, nav: NavHostController) {
                 when (t) {
                     "replies" -> {
                         replies = runCatching { HtmlParser.parseReplyList(resp.html) }.getOrDefault(emptyList())
-                        topicCards = emptyList(); pointRows = emptyList()
+                        topicCards = emptyList(); pointRows = emptyList(); notifications = emptyList()
                     }
                     "points_rewards" -> {
                         pointRows = runCatching { HtmlParser.parsePointRows(resp.html) }.getOrDefault(emptyList())
-                        replies = emptyList(); topicCards = emptyList()
+                        replies = emptyList(); topicCards = emptyList(); notifications = emptyList()
+                    }
+                    "notifications" -> {
+                        notifications = runCatching { HtmlParser.parseNotifications(resp.html) }.getOrDefault(emptyList())
+                        // 与「我的通知」页一致：倒序写入并带上解析到的消息时间，保证会话按时间正序
+                        notifications.asReversed().forEach { n ->
+                            if (n.partnerId > 0 && n.content.isNotBlank()) {
+                                session.settings.addPmMessage(
+                                    partnerId = n.partnerId, partnerName = n.fromUser,
+                                    avatarUrl = n.partnerAvatar, incoming = true, content = n.content,
+                                    ts = HtmlParser.parseRelativeTime(n.timeText),
+                                )
+                            }
+                        }
+                        replies = emptyList(); topicCards = emptyList(); pointRows = emptyList()
                     }
                     else -> {
                         topicCards = runCatching { HtmlParser.parseTopicList(resp.html).first }.getOrDefault(emptyList())
-                        replies = emptyList(); pointRows = emptyList()
+                        replies = emptyList(); pointRows = emptyList(); notifications = emptyList()
                     }
                 }
             } catch (e: Exception) {
                 error = e.message ?: "加载失败"
-                replies = emptyList(); topicCards = emptyList(); pointRows = emptyList()
+                replies = emptyList(); topicCards = emptyList(); pointRows = emptyList(); notifications = emptyList()
             } finally { loading = false }
         }
     }
@@ -338,6 +354,66 @@ fun UserScreen(session: Session, nav: NavHostController) {
                                         )
                                     }
                                 )
+                            }
+                            "notifications" -> if (notifications.isEmpty()) {
+                                item { EmptyBox("暂无通知") }
+                            } else itemsIndexed(notifications, key = { i, n -> "notif-${n.partnerId}-${n.link}-$i" }) { _, n ->
+                                Surface(
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                                ) {
+                                    Column(Modifier.padding(14.dp)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                n.fromUser,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.weight(1f),
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (n.unread) {
+                                                Text(
+                                                    "未读",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onError,
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(MaterialTheme.colorScheme.error)
+                                                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(n.content, style = MaterialTheme.typography.bodyMedium, maxLines = 4,
+                                            overflow = TextOverflow.Ellipsis)
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(n.timeText, style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        // 操作入口：帖子通知 → 打开主题；私信通知 → 打开聊天界面（QQ/微信式）
+                                        val topicId = Regex("""/topic/(\d+)""").find(n.link)?.groupValues?.get(1)
+                                        when {
+                                            topicId != null -> TextButton(
+                                                onClick = { nav.navigate("topic/$topicId") }
+                                            ) { Text("查看主题") }
+                                            else -> {
+                                                val pid = n.partnerId.takeIf { it > 0 }
+                                                    ?: Regex("""/notify/(\d+)""").find(n.link)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+                                                if (pid > 0) TextButton(
+                                                    onClick = {
+                                                        nav.navigate("chat/$pid?name=${android.net.Uri.encode(n.fromUser)}&avatar=${android.net.Uri.encode(n.partnerAvatar)}")
+                                                    }
+                                                ) { Text("回复") }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             else -> if (topicCards.isEmpty()) {
                                 item {
