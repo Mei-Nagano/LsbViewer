@@ -111,6 +111,8 @@ dependencies {
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-svg:2.7.0")
+    // androidsvg：直接解码 SVG 头像为 Bitmap（coil-svg 对部分默认/bottts 头像解码失败）
+    implementation("com.caverock:androidsvg-aar:1.4")
 
     // ColorBlendr 同款 HCT 主题引擎（material-color-utilities 的 Kotlin 封装）
     implementation("com.materialkolor:material-kolor:2.0.2")

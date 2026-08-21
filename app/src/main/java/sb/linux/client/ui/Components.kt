@@ -79,6 +79,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.RectF
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import kotlinx.coroutines.launch
@@ -126,12 +131,50 @@ fun onColorFor(bg: Color): Color =
  * 单通道加载：先走 fetchBytes（内存/磁盘缓存 + 并发去重 + 魔数校验），失败才回退 URL 直载；
  * 兜底直载禁用 Coil 磁盘缓存——验证盾可能返回 200 HTML，写入后会永久毒化该缓存键。
  */
+/**
+ * SVG 字节嗅探：<svg 开头，或 <?xml 声明且前 1KB 内含 <svg（与 Coil SvgDecoder 规则一致）。
+ * 用于判定头像字节是否需要走 androidsvg 直接渲染。
+ */
+private fun isSvgContents(b: ByteArray): Boolean {
+    val head = String(b, 0, minOf(1024, b.size), Charsets.UTF_8).trimStart()
+    return head.startsWith("<svg") || (head.startsWith("<?xml") && head.contains("<svg"))
+}
+
+/**
+ * 兼容性归一化：androidsvg(1.4) 的 `<use>`/`<image>` 只识别 xlink 命名空间的 href，
+ * 不解析 SVG2 的裸 href。DiceBear bottts 头像正是用裸 `<use href="#id">` 引用 defs，
+ * 若不改写，整张头像会因引用失败而渲染成空白。
+ * 改写为 xlink:href 并补 xmlns:xlink 声明（已含 xlink:href 则原样返回）。
+ */
+private fun normalizeSvgHref(raw: String): String {
+    if (!raw.contains("href=") || raw.contains("xlink:href")) return raw
+    val svg = if (raw.contains("xmlns:xlink")) raw
+    else raw.replaceFirst(
+        Regex("""<svg\b"""),
+        """<svg xmlns:xlink="http://www.w3.org/1999/xlink""""
+    )
+    return svg.replace("href=", "xlink:href=")
+}
+
+/**
+ * 用 androidsvg 把 SVG 头像字节直接渲染成 px×px 的 Bitmap。
+ * 绕开 coil-svg 的解码瓶颈——部分默认/bottts 头像（如 uid=1）在 coil-svg 下解码失败。
+ * 渲染失败返回 null（调用方回退 Coil 原路径）。
+ */
+private fun renderSvgToBitmap(svg: ByteArray, px: Int): Bitmap? = runCatching {
+    val txt = String(svg, Charsets.UTF_8)
+    val doc = com.caverock.androidsvg.SVG.getFromInputStream(normalizeSvgHref(txt).byteInputStream())
+    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    doc.renderToCanvas(Canvas(bmp), RectF(0f, 0f, px.toFloat(), px.toFloat()))
+    bmp
+}.getOrNull()
+
 @Composable
 fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: Boolean = false) {
     val context = LocalContext.current
-    val density = LocalDensity.current
     val app = context.applicationContext as LsbApp
     val target = url.trim()
+    val px = with(LocalDensity.current) { size.dp.roundToPx() }
     // null=加载中；空数组=fetchBytes 失败（转 URL 兜底）；非空=字节就绪
     val fetch by produceState<ByteArray?>(null, target) {
         value = withContext(Dispatchers.IO) {
@@ -140,7 +183,12 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
         }
     }
     val b = fetch
-    val px = with(density) { size.dp.roundToPx() }
+    // SVG 头像：直接用 androidsvg 渲染成 Bitmap，不走 Coil；非 SVG / 未就绪为 null
+    val svgBitmap by produceState<Bitmap?>(null, target, b, px) {
+        value = if (b != null && b.isNotEmpty() && isSvgContents(b)) {
+            withContext(Dispatchers.IO) { renderSvgToBitmap(b, px) }
+        } else null
+    }
     // 加载中（b==null）不发起图片请求；字节就绪用字节渲染，fetchBytes 失败才用 URL 直载
     val model = remember(target, px, b) {
         if (target.isEmpty() || b == null) null
@@ -171,7 +219,14 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         contentAlignment = Alignment.Center
     ) {
-        if (model == null) {
+        val svg = svgBitmap
+        if (svg != null) {
+            Image(
+                bitmap = svg.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.size(size.dp)
+            )
+        } else if (model == null) {
             // 加载中 / 服务端未提供头像 URL：显示占位图标
             fallback()
         } else {
