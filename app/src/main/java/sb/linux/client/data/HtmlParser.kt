@@ -927,8 +927,9 @@ object HtmlParser {
                 null
             } else {
                 // 优先取外观上的码文本；剔除按钮/图标文字，避免把「复制」等混进码里
-                val code = li.selectFirst(".invite-code")?.ownText()?.ifBlank { it.text() }
-                    ?: li.selectFirst(".invite-code")?.text()
+                val codeEl = li.selectFirst(".invite-code")
+                val code = codeEl?.ownText()?.ifBlank { codeEl.text() }
+                    ?: codeEl?.text()
                     ?: li.clone().let { c ->
                         c.select("button, [data-invite-copy], .invite-code-actions").remove()
                         c.text()

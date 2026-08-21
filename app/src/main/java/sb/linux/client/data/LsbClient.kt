@@ -37,7 +37,7 @@ class LsbClient(private val context: Context) {
     private val prefs = context.getSharedPreferences("lsb_session", Context.MODE_PRIVATE)
 
     private val cookieJar = object : CookieJar {
-        private fun store(): MutableMap<String, Cookie> {
+        fun store(): MutableMap<String, Cookie> {
             val map = mutableMapOf<String, Cookie>()
             val set = prefs.getStringSet("cookies", emptySet()) ?: emptySet()
             for (s in set) {
