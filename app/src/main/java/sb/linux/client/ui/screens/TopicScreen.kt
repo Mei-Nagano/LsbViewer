@@ -177,6 +177,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     val topicInfinite = session.effectiveInfiniteScroll("topic")
     // 翻页模式：按设置的每页评论数本地切片分页（3.11）
     var localReplyPage by remember { mutableIntStateOf(1) }
+    // 滚动模式切换的触发标记：scrollModeOverrides 存于 SharedPreferences（非 Compose 状态），
+    // 切换后靠此标记强制重组，让 topicInfinite 从源设置重新读取，菜单选项与分页即时同步。
+    var replyModeTick by remember { mutableIntStateOf(0) }
     val replies = sortedPosts.drop(1)
     // 楼号 -> 回复它的楼层数量：决定评论区是否显示该楼的「对话串联」入口
     val threadReplyCount = remember(sortedPosts) {
@@ -766,7 +769,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             )
                         }
                     }
-                    item(key = "pagination") {
+                    item(key = "pagination-$replyModeTick") {
                         if (topicInfinite) {
                             if ((d.page ?: 1) < (d.totalPages ?: 1)) {
                                 Box(
@@ -983,6 +986,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         session.settings.scrollModeOverrides =
                             session.settings.scrollModeOverrides + ("topic" to !topicInfinite)
                         localReplyPage = 1
+                        replyModeTick++    // 见 replyModeTick 注释：强制重组使新模式即时生效
                         session.showToast(
                             if (!topicInfinite) "已切换为无限滚动" else "已切换为翻页模式"
                         )

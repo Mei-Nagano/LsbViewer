@@ -850,9 +850,16 @@ private fun ZoomImageViewer(urls: List<String>, initialIndex: Int, onDismiss: ()
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        // Dialog 默认按内容包裹，fillMaxSize 可能不会铺满整个屏幕；
+        // 显式把容器设为屏幕尺寸，确保 ContentScale.Fit 真正按屏幕比例适配。
+        val density = LocalDensity.current
+        val cfg = LocalConfiguration.current
+        val screenW = with(density) { cfg.screenWidthDp.dp }
+        val screenH = with(density) { cfg.screenHeightDp.dp }
         Box(
             Modifier
-                .fillMaxSize()
+                .size(width = screenW, height = screenH)
+                .clipToBounds()
                 .background(Color.Black)
         ) {
             androidx.compose.foundation.pager.HorizontalPager(
