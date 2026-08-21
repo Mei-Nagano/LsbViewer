@@ -86,6 +86,10 @@ class Session(app: Application) : AndroidViewModel(app) {
     var homeCombo by mutableIntStateOf(0)
     val homeTabs = List(5) { HomeTabState() }
 
+    // 已读通知键集合（本地）。通知红点据此判断：仅有「不在已读集合」的新通知时才亮。
+    var readNotifKeys by mutableStateOf<Set<Long>>(emptySet())
+        private set
+
     // 帖子阅读量缓存（详情页解析后回填，首页卡片展示）
     val topicViews = mutableStateMapOf<Long, Int>()
 
@@ -129,6 +133,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         commentSortOrder = settings.commentSortOrder
         blockedWords = settings.blockedWords
         blockedUsers = settings.blockedUsers
+        readNotifKeys = loadNotifReadKeys(prefs)
         client.verificationUi = { url, html -> verifyWithUi(url, html) }
         loadViewsCache()
         refreshSession()
@@ -136,6 +141,28 @@ class Session(app: Application) : AndroidViewModel(app) {
 
     private fun themePrefs() =
         getApplication<Application>().getSharedPreferences("lsb_prefs", android.content.Context.MODE_PRIVATE)
+
+    // ---------------- 通知已读状态 ----------------
+
+    private fun loadNotifReadKeys(prefs: android.content.SharedPreferences): Set<Long> =
+        prefs.getStringSet("notif_read_keys", emptySet())
+            ?.mapNotNull { it.toLongOrNull() }
+            ?.toSet() ?: emptySet()
+
+    /** 将当前通知列表全部标记为已读（写入已读键集合并持久化） */
+    fun markNotificationsRead(items: List<sb.linux.client.data.NotificationItem>) {
+        if (items.isEmpty()) return
+        // 追加新键，避免误清除其它历史已读记录
+        var merged = readNotifKeys + items.map { it.key }
+        // 防止无限累积：超出上限时丢弃最旧（任意）多余键
+        if (merged.size > 800) merged = merged.takeLast(600).toSet()
+        readNotifKeys = merged
+        themePrefs().edit().putStringSet("notif_read_keys", merged.map { it.toString() }.toSet()).apply()
+    }
+
+    /** 判断列表里是否存在未读（不在已读集合）的新通知 */
+    fun hasUnreadNotifications(items: List<sb.linux.client.data.NotificationItem>): Boolean =
+        items.any { it.key !in readNotifKeys }
 
     fun saveTheme(mode: ThemeModePref, dyn: Boolean, colorKey: String = themeColorKey) {
         themeMode = mode
@@ -356,6 +383,16 @@ class Session(app: Application) : AndroidViewModel(app) {
 
     fun getTopicPage(topicId: Long, page: Int): TopicPageData? = topicPageCache["$topicId-$page"]
 
+    /** 清除指定帖子的全部分页缓存（刷新时强制重新抓源站） */
+    fun clearTopicPageCache(topicId: Long) {
+        if (topicPageCache.isEmpty()) return
+        val keys = topicPageCache.keys.filter { it.substringBefore("-") == topicId.toString() }
+        keys.forEach { topicPageCache.remove(it) }
+    }
+
+    /** 清除全部帖子分页缓存（主页刷新后让帖子内容随之更新） */
+    fun clearAllTopicPageCache() = topicPageCache.clear()
+
     fun saveAiSummary(topicId: Long, summary: String) {
         if (summary.isNotBlank()) aiSummaryCache[topicId] = summary
     }
@@ -517,11 +554,13 @@ class Session(app: Application) : AndroidViewModel(app) {
                     loginState = HtmlParser.parseMySidebar(home.html)
                     if (loginState.loggedIn) {
                         refreshKeywordFilter()
-                        // 每日首次打开自动签到（POST），完成后立刻刷新签到状态（侧边栏/我的页同步）
+                        // 每日首次打开自动签到（POST），完成后其响应已更新状态并持久化，无需再查询签到页
                         if (autoCheckin && !settings.checkinDoneToday()) {
                             autoCheckinOnce()
+                        } else {
+                            // 今日已处理：优先用本地缓存摘要，避免每次启动重复查询源站
+                            loadCheckinInfo()
                         }
-                        loadCheckinInfo()
                     }
                 }
                 // 登录态发生变化：清空帖子页缓存（未登录时抓的帖子看不到评论区，登录后需重新抓取）
@@ -576,10 +615,24 @@ class Session(app: Application) : AndroidViewModel(app) {
                 append("累计 ${info.total} 天")
             }
         }
+        // 持久化摘要，供今日后续启动直接使用本地缓存，避免重复查询源站
+        settings.saveCheckinSummary(info.streak, info.total)
     }
 
     /** 解析签到页的连续/累计签到天数，供侧边栏展示（公开：签到完成后手动刷新缓存） */
-    fun loadCheckinInfo() {
+    fun loadCheckinInfo(force: Boolean = false) {
+        // 今日已签到且有本地缓存摘要时直接使用，不发源站请求
+        if (!force) {
+            settings.checkinSummaryToday()?.let { (streak, total) ->
+                applyCheckinInfo(
+                    HtmlParser.CheckinInfo(
+                        streak = streak, total = total,
+                        canCheckin = false, checkedToday = true,
+                    )
+                )
+                return
+            }
+        }
         viewModelScope.launch {
             try {
                 val resp = client.get("/daily_checkin")

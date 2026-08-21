@@ -378,6 +378,17 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
+                },
+                actions = {
+                    // 标记已读：记录当前列表为已读，通知红点不再亮（新通知才会再亮）
+                    val anyUnread = session.hasUnreadNotifications(items)
+                    TextButton(
+                        onClick = {
+                            session.markNotificationsRead(items)
+                            session.showToast("已标记为已读")
+                        },
+                        enabled = items.isNotEmpty() && anyUnread,
+                    ) { Text("标记已读") }
                 }
             )
         }

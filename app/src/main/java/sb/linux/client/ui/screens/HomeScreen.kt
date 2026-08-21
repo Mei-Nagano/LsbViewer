@@ -10,13 +10,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -45,11 +44,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
@@ -107,18 +108,25 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     // 顶栏搜索态（t10）：搜索时整条顶栏变为搜索框；退出 / 失焦恢复
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    val searchFocus = remember { FocusRequester() }
+    // 进入搜索态时自动聚焦输入框（否则输入框一出现就因「未失焦且为空」被立刻关闭，表现为闪现）
+    LaunchedEffect(searchActive) {
+        if (searchActive) searchFocus.requestFocus()
+    }
     // 排序抽屉（t8）：(全部/仅抽奖/仅发卡) 上方的 (新评论/新帖子/精华) 折叠区
     var sortDrawerOpen by remember { mutableStateOf(true) }
-    // 通知红点（t10）：回到首页且登录时查询是否有新通知
+    // 通知红点（t10）：回到首页且登录时查询源站，仅当存在「未读」新通知时才亮。
+    // 是否未读依据本地已读集合判断（通知-标记已读 后会记录；新通知才会亮）。
     var hasNotifications by remember { mutableStateOf(false) }
     val backEntry by nav.currentBackStackEntryAsState()
     val onHomeRoute = backEntry?.destination?.route == "home"
-    LaunchedEffect(onHomeRoute, session.loginState.loggedIn, session.loginState.userId) {
+    LaunchedEffect(onHomeRoute, session.loginState.loggedIn, session.loginState.userId, session.readNotifKeys) {
         if (onHomeRoute && session.loginState.loggedIn) {
-            hasNotifications = runCatching {
+            val items = runCatching {
                 val r = session.client.get("/user/${session.loginState.userId}?tab=notifications")
-                HtmlParser.parseNotifications(r.html).isNotEmpty()
-            }.getOrDefault(false)
+                HtmlParser.parseNotifications(r.html)
+            }.getOrDefault(emptyList())
+            hasNotifications = session.hasUnreadNotifications(items)
         } else if (!session.loginState.loggedIn) {
             hasNotifications = false
         }
@@ -303,6 +311,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
         current.scrollOffset = 0
         sidebar = null
         session.clearHomeCache()
+        // 主页刷新同时清空帖子分页缓存，保证进入帖子时重新抓最新内容
+        session.clearAllTopicPageCache()
         scope.launch { listState.scrollToItem(0) }
         load(1)
     }
@@ -317,7 +327,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = drawerState.isOpen,
+        // 仅「全部」分类下启用抽屉边缘手势：向左边缘划可拉出侧边栏（其它组合切换交给列表横向滑动）
+        gesturesEnabled = session.homeCombo == 0,
         drawerContent = {
             HomeSidebarDrawer(
                 session = session,
@@ -374,7 +385,7 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                         .fillMaxWidth()
                                         .padding(horizontal = 14.dp)
                                         .height(40.dp)
-                                        .onFocusChanged { if (!it.isFocused && searchQuery.isBlank()) searchActive = false },
+                                        .focusRequester(searchFocus),
                                 )
                             }
                             IconButton(onClick = { submitTopSearch() }) {
@@ -391,10 +402,10 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 }
                             },
                             actions = {
-                                // 通知：有未读通知时右上角显示小红点
+                                // 通知：未读时右上角显示小红点（是否未读由「标记已读」决定）
                                 Box {
                                     IconButton(
-                                        onClick = { hasNotifications = false; nav.navigate("notifications") }
+                                        onClick = { nav.navigate("notifications") }
                                     ) {
                                         Icon(Icons.Filled.Notifications, "通知")
                                     }
@@ -521,7 +532,6 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 Row(
                                     Modifier
                                         .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState())
                                         .padding(horizontal = 8.dp, vertical = 7.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
@@ -560,7 +570,29 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                         if (session.blockedWords.isEmpty() && session.blockedUsers.isEmpty()) "暂无帖子"
                         else "暂无帖子（已按源站屏蔽规则过滤）"
                     )
-                    else -> Box(Modifier.fillMaxSize()) {
+                    else -> Box(
+                        Modifier
+                            .fillMaxSize()
+                            // 主页左右滑动在（全部/仅抽奖/仅发卡）之间切换；垂直滚动不受影响
+                            .pointerInput(Unit) {
+                                var totalX = 0f
+                                val threshold = 60.dp.toPx()
+                                detectHorizontalDragGestures(
+                                    onHorizontalDrag = { _, dragAmount -> totalX += dragAmount },
+                                    onDragEnd = {
+                                        val c = session.homeCombo
+                                        val next = when {
+                                            totalX <= -threshold -> (c + 1) % 3  // 左滑 → 下一个
+                                            totalX >= threshold -> (c + 2) % 3  // 右滑 → 上一个
+                                            else -> c
+                                        }
+                                        totalX = 0f
+                                        if (next != c) session.homeCombo = next
+                                    },
+                                    onDragCancel = { totalX = 0f },
+                                )
+                            }
+                    ) {
                         // 单列列表 + 顶部下拉刷新（按源站解析的标题正常展示）
                         PullToRefreshBox(
                             isRefreshing = loading && current.topics.isNotEmpty(),

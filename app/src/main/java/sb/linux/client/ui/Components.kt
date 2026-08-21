@@ -1001,9 +1001,41 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
 
     fun renderInlineTo(el: Element): AnnotatedString = renderInline(el, linkColor, codeBg)
 
-    /** 去掉图片占位符"[图片]"后的文本（图片会单独成块展示） */
-    fun cleanImgPlaceholder(sb: AnnotatedString): AnnotatedString =
-        AnnotatedString(sb.text.replace("[图片]", "").replace(Regex("\\s{2,}"), " ").trim())
+    /** 去掉图片占位符"[图片]"（图片会单独成块展示）。
+     *  删除时保留原有样式/链接注解与 <br> 产生的换行，避免正文被压成一行或链接失效。 */
+    fun cleanImgPlaceholder(sb: AnnotatedString): AnnotatedString {
+        val text = sb.text
+        if (!text.contains("[图片]")) return sb
+        val ph = "[图片]"
+        val kept = StringBuilder(text.length)
+        // oldIndex -> newIndex（被删除的占位符字符记为 -1）
+        val newPos = IntArray(text.length) { -1 }
+        var i = 0
+        while (i < text.length) {
+            if (text.startsWith(ph, i)) {
+                i += ph.length
+            } else {
+                newPos[i] = kept.length
+                kept.append(text[i])
+                i++
+            }
+        }
+        val out = kept.toString()
+        if (out.isBlank()) return sb
+        return buildAnnotatedString {
+            append(out)
+            sb.spanStyles.forEach { s ->
+                val st = newPos.getOrNull(s.start) ?: return@forEach
+                val en = newPos.getOrNull(s.end - 1)?.plus(1) ?: return@forEach
+                if (st < en) addStyle(s.item, st, en)
+            }
+            sb.getStringAnnotations(0, sb.length).forEach { a ->
+                val st = newPos.getOrNull(a.start) ?: return@forEach
+                val en = newPos.getOrNull(a.end - 1)?.plus(1) ?: return@forEach
+                if (st < en) addStringAnnotation(a.tag, a.item, st, en)
+            }
+        }
+    }
 
     fun renderBlock(el: Element): ContentBlock? {
         val tag = el.tagName().lowercase()

@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -198,10 +199,12 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    fun load(p: Int, append: Boolean = false) {
+    fun load(p: Int, append: Boolean = false, force: Boolean = false) {
         scope.launch {
             if (append) loadingMore = true else { loading = true; error = null }
             try {
+                // 强制刷新：先清掉本帖分页缓存，确保下面的 getTopicPage 命中为 null 而从源站重抓
+                if (force) session.clearTopicPageCache(tid)
                 val d = session.getTopicPage(tid, p) ?: run {
                     val resp = session.client.get(if (p <= 1) "/topic/$tid" else "/topic/$tid?p=$p")
                     HtmlParser.parseTopicPage(resp.html, tid).also { session.saveTopicPage(tid, p, it) }
@@ -280,7 +283,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     highlightPostId = data?.posts?.get(idx)?.id
                     scope.launch {
                         listState.animateScrollToItem(idx + 1)
-                        delay(2200)
+                        delay(1500)
                         highlightPostId = null
                     }
                 }
@@ -299,7 +302,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             highlightPostId = posts[idx].id
             scope.launch {
                 listState.animateScrollToItem(idx + 1)
-                delay(2200)
+                delay(1500)
                 highlightPostId = null
             }
         } else {
@@ -958,7 +961,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 DropdownMenuItem(
                     text = { Text("刷新") },
                     leadingIcon = { Icon(Icons.Filled.Refresh, null) },
-                    onClick = { menuOpen = false; load(data?.page ?: 1); loadDanmaku() }
+                    onClick = { menuOpen = false; load(data?.page ?: 1, force = true); loadDanmaku() }
                 )
                 DropdownMenuItem(
                     text = {
@@ -1325,11 +1328,18 @@ fun PostCard(
         }
     } else {
         // ---------- 回复：单独卡片容器，长按弹功能菜单；高亮 = 楼层定位（2.13） ----------
+        // 背景色 + 描边同时作为定位提示，让被定位楼层一眼可见
         val bg by animateColorAsState(
-            targetValue = if (highlight) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+            targetValue = if (highlight) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f)
             else MaterialTheme.colorScheme.surfaceContainer,
             animationSpec = tween(400),
             label = "postBg"
+        )
+        val borderColor by animateColorAsState(
+            targetValue = if (highlight) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0f),
+            animationSpec = tween(400),
+            label = "postBorder"
         )
         Surface(
             shape = RoundedCornerShape(16.dp),
@@ -1339,6 +1349,11 @@ fun PostCard(
                 .padding(horizontal = 12.dp, vertical = 4.dp)
                 // 先裁剪再挂手势，长按遮罩与圆角容器完全贴合（2.17）
                 .clip(RoundedCornerShape(16.dp))
+                .border(
+                    width = if (highlight) 2.dp else 0.dp,
+                    color = borderColor,
+                    shape = RoundedCornerShape(16.dp),
+                )
                 .combinedClickable(onClick = {}, onLongClick = onCopy)
         ) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {

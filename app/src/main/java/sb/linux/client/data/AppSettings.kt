@@ -186,6 +186,24 @@ class AppSettings(context: Context) {
 
     fun markCheckinDone() = prefs.edit().putString("last_checkin", todayKey).apply()
 
+    /** 缓存本次签到摘要（连续/累计天数），跨天或未缓存时返回 null；用于避免每次启动重复查询源站 */
+    fun saveCheckinSummary(streak: Int, total: Int) {
+        prefs.edit()
+            .putString("last_checkin_date", todayKey)
+            .putInt("last_checkin_streak", streak)
+            .putInt("last_checkin_total", total)
+            .apply()
+    }
+
+    /** 今日已签到时的本地签到摘要；跨天或从未缓存返回 null */
+    fun checkinSummaryToday(): Pair<Int, Int>? {
+        if (!checkinDoneToday() || prefs.getString("last_checkin_date", "") != todayKey) return null
+        val streak = prefs.getInt("last_checkin_streak", 0)
+        val total = prefs.getInt("last_checkin_total", 0)
+        if (streak == 0 && total == 0) return null
+        return streak to total
+    }
+
     // ---------------- 记住密码（登录页） ----------------
 
     var rememberPassword: Boolean
