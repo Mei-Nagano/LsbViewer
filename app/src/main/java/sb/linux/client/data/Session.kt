@@ -87,7 +87,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     var sidebarTwoColumns by mutableStateOf(true)
     // 翻页模式下每页展示的帖子条数（默认 15）
     var topicsPerPage by mutableIntStateOf(15)
-    // 评论区排序：0 = 默认顺序，1 = 按 # 楼层顺序（记住上次选择）
+    // 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择）
     var commentSortOrder by mutableIntStateOf(0)
 
     // 首页状态保持：当前分类 / 组合过滤 / 各分类列表与滚动位置
@@ -305,9 +305,9 @@ class Session(app: Application) : AndroidViewModel(app) {
         settings.topicsPerPage = topicsPerPage
     }
 
-    /** 评论区排序：0 = 默认顺序，1 = 按 # 楼层顺序（持久化，记住上次选择） */
+    /** 评论区排序：0 = 热度，1 = 正序，2 = 倒序（持久化，记住上次选择） */
     fun saveCommentSortOrder(v: Int) {
-        commentSortOrder = v.coerceIn(0, 1)
+        commentSortOrder = v.coerceIn(0, 2)
         settings.commentSortOrder = commentSortOrder
     }
 

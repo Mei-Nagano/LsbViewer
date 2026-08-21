@@ -299,7 +299,6 @@ fun LsbApp(session: Session) {
             ) { LeaderboardScreen(session, nav) }
             composable("notifications") { NotificationsScreen(session, nav) }
             composable("footprint") { FootprintScreen(session, nav) }
-            composable("bail") { BailScreen(session, nav) }
             composable(
                 "donate/{tid}",
                 arguments = listOf(navArgument("tid") { type = androidx.navigation.NavType.LongType })

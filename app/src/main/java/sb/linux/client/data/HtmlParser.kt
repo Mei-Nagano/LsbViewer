@@ -840,36 +840,6 @@ object HtmlParser {
         return ProfilePageData(absUrl(avatar), info.toList(), forms, avatarPicker)
     }
 
-    // ---------------- 保释所 ----------------
-
-    data class BailRow(val helperName: String, val text: String, val timeText: String)
-
-    fun parseBail(html: String): Pair<String, List<BailRow>> {
-        val d = doc(html)
-        val myPoints = d.selectFirst(".community-bail-balance strong")?.text()
-            ?: Regex("""我的积分[:：]?\s*([\d.kw万]+)""").find(d.selectFirst("main")?.text() ?: "")
-                ?.groupValues?.get(1) ?: ""
-        val rows = d.select("li.community-bail-record, .bail-release-item").map {
-            BailRow(
-                it.selectFirst("a")?.text() ?: "",
-                it.selectFirst("p")?.text()?.replace(Regex("""\s+"""), " ")?.trim()
-                    ?: it.text().replace(Regex("""\s+"""), " ").trim(),
-                it.selectFirst("time")?.text()
-                    ?: it.selectFirst("span[data-performance-time]")?.attr("data-performance-time")?.toLongOrNull()
-                        ?.let { t -> TimeFmt.rel(t) } ?: "",
-            )
-        }
-        return myPoints to rows
-    }
-
-    // ---------------- main 文本（签到页等） ----------------
-
-    fun mainText(html: String): String {
-        val d = doc(html)
-        val main = d.selectFirst("main") ?: return ""
-        return main.text().replace(Regex("""\s+"""), " ").trim()
-    }
-
     /** 签到页结构化信息 */
     data class CheckinInfo(
         val streak: Int = 0,           // 连续签到天数（0 = 未知）

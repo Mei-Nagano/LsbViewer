@@ -41,7 +41,7 @@ class AppSettings(context: Context) {
         get() = prefs.getInt("topics_per_page", 15)
         set(v) = prefs.edit().putInt("topics_per_page", v.coerceIn(5, 50)).apply()
 
-    /** 评论区排序：0 = 默认顺序，1 = 按 # 楼层顺序（记住上次选择） */
+    /** 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择） */
     var commentSortOrder: Int
         get() = prefs.getInt("comment_sort_order", 0)
         set(v) = prefs.edit().putInt("comment_sort_order", v).apply()
@@ -337,7 +337,7 @@ class AppSettings(context: Context) {
             if (o.has("sidebar_two_columns")) p.putBoolean("sidebar_two_columns", o.getBoolean("sidebar_two_columns"))
             if (o.has("home_keep_cache")) p.putBoolean("home_keep_cache", o.getBoolean("home_keep_cache"))
             if (o.has("topics_per_page")) p.putInt("topics_per_page", o.optInt("topics_per_page", 15).coerceIn(5, 50))
-            if (o.has("comment_sort_order")) p.putInt("comment_sort_order", o.optInt("comment_sort_order", 0).coerceIn(0, 1))
+            if (o.has("comment_sort_order")) p.putInt("comment_sort_order", o.optInt("comment_sort_order", 0).coerceIn(0, 2))
             if (o.has("comments_per_page")) p.putInt("comments_per_page", o.optInt("comments_per_page", 20).coerceIn(5, 100))
             if (o.has("scroll_mode_overrides")) p.putString("scroll_mode_overrides", o.getJSONObject("scroll_mode_overrides").toString())
             if (o.has("home_sort_drawer_open")) p.putBoolean("home_sort_drawer_open", o.getBoolean("home_sort_drawer_open"))

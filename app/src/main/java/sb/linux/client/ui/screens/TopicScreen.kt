@@ -127,7 +127,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var showExportDialog by remember { mutableStateOf(false) }
     var exportBusy by remember { mutableStateOf<String?>(null) }
 
-    // 评论区排序：0 = 热度（楼主正文固定首位 + 其余按点赞数降序，同赞按楼层号升序保证稳定），1 = 正序（楼层号升序）；记住上次选择
+    // 评论区排序：0 = 热度（楼主正文固定首位 + 其余按点赞数降序，同赞按楼层号升序保证稳定），
+    //           1 = 正序（楼层号升序），2 = 倒序（楼层号降序）；记住上次选择
     var sortOrder by remember { mutableIntStateOf(session.commentSortOrder) }
 
     // 打赏弹幕：数据 + 每帖开关（默认跟随全局设置）
@@ -165,10 +166,14 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     val sortedPosts = remember(data, sortOrder) {
         val d = data ?: return@remember emptyList()
         val main = d.posts.firstOrNull()
-        val rest = if (sortOrder == 1) d.posts.drop(1).sortedBy { it.floor }
-        else d.posts.drop(1).sortedWith(
-            compareByDescending<PostEntry> { it.likeCount }.thenBy { it.floor }
-        )
+        val rest = when (sortOrder) {
+            1 -> d.posts.drop(1).sortedBy { it.floor }
+            // 倒序：楼层号降序
+            2 -> d.posts.drop(1).sortedByDescending { it.floor }
+            else -> d.posts.drop(1).sortedWith(
+                compareByDescending<PostEntry> { it.likeCount }.thenBy { it.floor }
+            )
+        }
         if (main != null) listOf(main) + rest else rest
     }
     val mainPost = sortedPosts.firstOrNull()
@@ -704,7 +709,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                             .padding(2.dp)
                                     ) {
-                                        listOf("热度" to 0, "正序" to 1).forEach { (label, idx) ->
+                                        listOf("热度" to 0, "正序" to 1, "倒序" to 2).forEach { (label, idx) ->
                                             val sel = sortOrder == idx
                                             Text(
                                                 label,

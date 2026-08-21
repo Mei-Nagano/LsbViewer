@@ -376,7 +376,6 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                 onOpenTopic = { tid -> closeDrawer { if (tid > 0) nav.navigate("topic/$tid") } },
                 onOpenUser = { uid -> closeDrawer { if (uid > 0) nav.navigate("user/$uid") } },
                 onOpenLeaderboard = { closeDrawer { nav.navigate("leaderboard?type=points") } },
-                onOpenBail = { closeDrawer { nav.navigate("bail") } },
                 onLogin = { closeDrawer { nav.navigate("login") } },
                 onNavigate = { route -> closeDrawer { nav.navigate(route) } },
             )
@@ -742,7 +741,6 @@ private fun HomeSidebarDrawer(
     onOpenTopic: (Long) -> Unit,
     onOpenUser: (Long) -> Unit,
     onOpenLeaderboard: () -> Unit,
-    onOpenBail: () -> Unit,
     onLogin: () -> Unit,
     onNavigate: (String) -> Unit,
 ) {
@@ -915,7 +913,6 @@ private fun HomeSidebarDrawer(
                     "每日签到" to { onNavigate("checkin") },
                     "我的通知" to { onNavigate("notifications") },
                     "浏览足迹" to { onNavigate("footprint") },
-                    "社区保释所" to { onOpenBail() },
                     "用户榜单" to { onOpenLeaderboard() },
                     "应用设置" to { onNavigate("appSettings") },
                     "关于应用" to { onNavigate("about") },
