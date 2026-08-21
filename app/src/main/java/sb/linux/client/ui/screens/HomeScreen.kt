@@ -121,29 +121,16 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // 沉浸式顶栏：向下滚动时隐藏，向上滚动（或回到顶部）时重新显示
+    // 沉浸式顶栏：滚出首条时隐藏，回到顶部时重新显示。
+    // 不能按"滚动方向"判定显隐：那样列表任意位置的轻微上滑（含手势起始抖动）都会展开顶栏，
+    // 列表视口高度随之伸缩；翻页模式底部内容固定，视口一缩最下面的帖子和翻页条就被顶出屏幕，
+    // 且下滑 fling 与视口伸缩竞争会提前停住——表现为到底后要再滑几次才能露出翻页条。
+    // 按位置判定后，列表滚出首条起视口稳定不变，一次滑动即可到达翻页条。
     var topBarVisible by remember { mutableStateOf(true) }
-    LaunchedEffect(listState) {
-        var lastIdx = listState.firstVisibleItemIndex
-        var lastOff = listState.firstVisibleItemScrollOffset
-        snapshotFlow {
-            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-        }.collect { (idx, off) ->
-            val atTop = idx == 0 && off <= 0
-            // 换行：索引增大为向下；同一项内：像素偏移增大为向下
-            val scrolledDown = when {
-                idx != lastIdx -> idx > lastIdx
-                off != lastOff -> off > lastOff
-                else -> false
-            }
-            // 反向滚动即为向上（回顶也显示）；无位移时不改变，避免抖动
-            when {
-                atTop || !scrolledDown -> topBarVisible = true
-                else -> topBarVisible = false
-            }
-            lastIdx = idx; lastOff = off
-        }
+    val derivedTopVisible by remember {
+        derivedStateOf { listState.firstVisibleItemIndex == 0 }
     }
+    LaunchedEffect(derivedTopVisible) { topBarVisible = derivedTopVisible }
 
     // 分类（全部/仅抽奖/仅发卡）或排序 tab 切换后回到列表顶部。
     // 在点击回调里直接 scrollToItem 会与切换后的新数据布局竞争：LazyList 以 item key 锚定滚动位置，
