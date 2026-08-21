@@ -858,7 +858,8 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
                             t,
                             onClick = { nav.navigate("topic/${t.topicId}") },
                             onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
-                            showComments = false,   // 浏览历史只展示浏览时间，不显示评论数（板块照常显示）
+                            showComments = false,   // 浏览历史只展示浏览时间，不显示评论数
+                            showForum = false,      // 浏览历史不显示所属板块
                         )
                     }
                     }

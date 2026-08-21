@@ -229,7 +229,8 @@ fun TopicCardView(
     onForumClick: (Long) -> Unit = {},
     compact: Boolean = false,
     views: Int = -1,
-    showComments: Boolean = true,   // false 时不显示评论数（浏览历史只展示浏览时间，板块照常显示）
+    showComments: Boolean = true,   // false 时不显示评论数（浏览历史只展示浏览时间）
+    showForum: Boolean = true,      // false 时不显示板块徽标（浏览历史）
     onElementClick: ((key: String) -> Unit)? = null,
 ) {
     val titleColor = remember(card.titleColor) {
@@ -374,25 +375,27 @@ fun TopicCardView(
                         }
                     }
                 }
-                Spacer(Modifier.width(6.dp))
                 // 板块标识：固定在卡片右上角（与标题顶部对齐）
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
-                    onClick = {
-                        if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
-                        else onForumClick(card.forumId)
+                if (showForum) {
+                    Spacer(Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                        onClick = {
+                            if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
+                            else onForumClick(card.forumId)
+                        }
+                    ) {
+                        Text(
+                            card.forumName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = forumOverride?.let { onColorFor(it) }
+                                ?: MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
                     }
-                ) {
-                    Text(
-                        card.forumName,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = forumOverride?.let { onColorFor(it) }
-                            ?: MaterialTheme.colorScheme.onSecondaryContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
                 }
             }
         }
