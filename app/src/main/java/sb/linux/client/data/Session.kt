@@ -155,7 +155,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         // 追加新键，避免误清除其它历史已读记录
         var merged = readNotifKeys + items.map { it.key }
         // 防止无限累积：超出上限时丢弃最旧（任意）多余键
-        if (merged.size > 800) merged = merged.takeLast(600).toSet()
+        if (merged.size > 800) merged = merged.toList().takeLast(600).toSet()
         readNotifKeys = merged
         themePrefs().edit().putStringSet("notif_read_keys", merged.map { it.toString() }.toSet()).apply()
     }
