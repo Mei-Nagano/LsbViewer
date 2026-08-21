@@ -759,12 +759,6 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = { session.saveSidebarTwoColumns(it) }
                 )
                 SwitchRow(
-                    "自动签到",
-                    "每天首次打开应用自动签到并提示结果",
-                    checked = session.autoCheckin,
-                    onCheckedChange = { session.saveAutoCheckin(it) }
-                )
-                SwitchRow(
                     "显示打赏弹幕",
                     "帖子顶部滚动展示打赏信息，可在帖子菜单中单独开关",
                     checked = session.danmakuOn,

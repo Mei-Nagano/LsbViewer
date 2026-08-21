@@ -85,7 +85,6 @@ class Session(app: Application) : AndroidViewModel(app) {
     var homeCacheEnabled by mutableStateOf(false)
     var danmakuOn by mutableStateOf(true)
     var sidebarTwoColumns by mutableStateOf(true)
-    var autoCheckin by mutableStateOf(false)
     // 翻页模式下每页展示的帖子条数（默认 15）
     var topicsPerPage by mutableIntStateOf(15)
     // 评论区排序：0 = 默认顺序，1 = 按 # 楼层顺序（记住上次选择）
@@ -144,7 +143,6 @@ class Session(app: Application) : AndroidViewModel(app) {
         danmakuOn = settings.danmakuOn
         homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
-        autoCheckin = settings.autoCheckin
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
         blockedWords = settings.blockedWords
@@ -278,7 +276,6 @@ class Session(app: Application) : AndroidViewModel(app) {
         danmakuOn = settings.danmakuOn
         homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
-        autoCheckin = settings.autoCheckin
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
     }
@@ -300,11 +297,6 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun saveSidebarTwoColumns(v: Boolean) {
         sidebarTwoColumns = v
         settings.sidebarTwoColumns = v
-    }
-
-    fun saveAutoCheckin(v: Boolean) {
-        autoCheckin = v
-        settings.autoCheckin = v
     }
 
     /** 翻页模式下每页展示的帖子条数（5..50） */
@@ -566,13 +558,8 @@ class Session(app: Application) : AndroidViewModel(app) {
                     notifUnreadCount = HtmlParser.parseNotifyBadgeCount(home.html)
                     if (loginState.loggedIn) {
                         refreshKeywordFilter()
-                        // 每日首次打开自动签到（POST），完成后其响应已更新状态并持久化，无需再查询签到页
-                        if (autoCheckin && !settings.checkinDoneToday()) {
-                            autoCheckinOnce()
-                        } else {
-                            // 今日已处理：优先用本地缓存摘要，避免每次启动重复查询源站
-                            loadCheckinInfo()
-                        }
+                        // 签到摘要：优先用本地缓存，避免每次启动重复查询源站
+                        loadCheckinInfo()
                     }
                 }
                 // 登录态发生变化：清空帖子页缓存（未登录时抓的帖子看不到评论区，登录后需重新抓取）
@@ -584,36 +571,6 @@ class Session(app: Application) : AndroidViewModel(app) {
             } finally {
                 booting = false
             }
-        }
-    }
-
-    /** 自动签到一次：成功后 Toast 提示连续/累计天数，并同步签到状态缓存 */
-    private suspend fun autoCheckinOnce() {
-        try {
-            val csrf = client.csrf()
-            val resp = client.postForm("/daily_checkin", mapOf("_csrf" to csrf))
-            if (!resp.url.contains("form_error") && resp.html.isNotBlank()) {
-                settings.markCheckinDone()
-                // 直接用签到响应页更新状态（避免再请求一次签到页）
-                applyCheckinInfo(HtmlParser.parseCheckin(resp.html))
-                val txt = HtmlParser.mainText(resp.html)
-                if (txt.contains("签到成功") || txt.contains("已连续签到")) {
-                    val streak = Regex("""连续签到\s*(\d+)\s*天""").find(txt)?.groupValues?.get(1)
-                    val gained = Regex("""获得\s*(\d+)\s*积分""").find(txt)?.groupValues?.get(1)
-                    showToast(
-                        buildString {
-                            append("已自动签到")
-                            if (gained != null) append("，获得 $gained 积分")
-                            if (streak != null) append("，连续 $streak 天")
-                        }
-                    )
-                }
-            } else {
-                // 服务端拒绝（如已签到），同样标记今日已处理，避免每次启动重复请求
-                settings.markCheckinDone()
-            }
-        } catch (_: Exception) {
-            // 网络失败不标记，下次启动重试
         }
     }
 
