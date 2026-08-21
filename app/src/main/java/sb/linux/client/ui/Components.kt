@@ -959,8 +959,9 @@ private suspend fun saveImageToGallery(context: android.content.Context, url: St
     }
 
 /** 支持双指缩放 / 双击放大 / 单击关闭 / 长按保存的单张图片。
+ *  每次手势都用当前 scale 作为起始，因此任意多次双指捏合都能继续缩放（不只首次）；
  *  未缩放（scale=1）时：纯单指滑动不消费，交给父级 HorizontalPager 翻页；
- *  一旦出现双指捏合或已处于缩放态，则接管缩放与平移，保证第一下捏合即可缩放。 */
+ *  一旦出现双指捏合或已处于缩放态，则接管缩放与平移。 */
 @Composable
 private fun ZoomableImage(url: String, onSingleTap: () -> Unit, onLongPress: () -> Unit = {}) {
     var scale by remember { mutableStateOf(1f) }
@@ -992,7 +993,7 @@ private fun ZoomableImage(url: String, onSingleTap: () -> Unit, onLongPress: () 
         Modifier
             .fillMaxSize()
             .clipToBounds()
-            // 捏合/平移手势（自研，兼容 Pager 翻页）：第一下双指捏合即可缩放
+            // 捏合/平移手势（自研，兼容 Pager 翻页）：每次手势都从当前缩放继续，可反复捏合缩放
             .pointerInput(url) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
