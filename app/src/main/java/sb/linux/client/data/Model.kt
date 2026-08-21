@@ -21,6 +21,7 @@ data class TopicCard(
     val lotteryStatus: String = "",    // 抽奖帖状态：抽奖中 / 已开奖
     val cardStatus: String = "",       // 发卡帖状态：发卡中 / 发卡结束
     val views: Int = -1,               // 阅读量（源站首页列表无此数据，-1 = 未浏览过；来自详情页缓存）
+    val online: Boolean = false,       // 作者在线（源站头像上的 online-users-dot）
 )
 
 data class PageResult<T>(
@@ -51,6 +52,7 @@ data class PostEntry(
     val editUserId: Long = 0,        // 最后编辑人用户 ID（>0 时点击可跳转其主页）
     val editUserName: String = "",   // 最后编辑人用户名（editInfo 中高亮可点击部分）
     val referencedFloors: List<Int> = emptyList(), // 本楼引用的楼层（整楼 HTML 解析，含正文外的引用块）
+    val online: Boolean = false,     // 作者在线（源站头像上的 online-users-dot）
 )
 
 data class TopicPageData(
@@ -148,6 +150,7 @@ data class UserProfile(
     val points: String = "",    // 例如 "1324"
     val bio: String = "",
     val stats: List<Pair<String, String>>, // 侧栏统计
+    val online: Boolean = false, // 用户当前在线（主页大头像上的 online-users-dot）
 )
 
 data class NotificationItem(
@@ -166,6 +169,7 @@ data class LeaderRow(
     val userGroup: String,
     val valueText: String,
     val avatarUrl: String = "",
+    val online: Boolean = false,   // 用户当前在线
 )
 
 data class PointRow(
@@ -191,6 +195,20 @@ data class HomeSidebar(
     val hotTopics: List<HotTopic> = emptyList(),     // 每日热帖
     val statsText: String = "",                      // 站点统计
     val newUsers: List<NewUser> = emptyList(),       // 最新用户
+    val onlineUsers: OnlineUsers = OnlineUsers(),    // 当前在线
+)
+
+/** 首页侧板「当前在线」卡片 */
+data class OnlineUsers(
+    val count: String = "",                          // 例如 "137 人"
+    val items: List<OnlineUser> = emptyList(),       // 源站展示的在线用户（头像 + 用户名）
+    val moreText: String = "",                       // 例如 "还有 120 人在线"
+)
+
+data class OnlineUser(
+    val userId: Long,
+    val username: String,
+    val avatarUrl: String = "",
 )
 
 data class ForumCount(

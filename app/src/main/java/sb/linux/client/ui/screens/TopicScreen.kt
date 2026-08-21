@@ -1407,7 +1407,7 @@ private fun PostCardContent(
     Column(modifier) {
         // 作者行：头像 + 名称/徽章 + 元信息，楼层号固定右上角
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(post.avatarUrl, avatarSize, Modifier.clickable(onClick = onUser))
+            Avatar(post.avatarUrl, avatarSize, Modifier.clickable(onClick = onUser), online = post.online)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Row(
@@ -1997,7 +1997,7 @@ private fun ThreadPostItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Avatar(post.avatarUrl, 28, Modifier.clickable(onClick = onUser))
+            Avatar(post.avatarUrl, 28, Modifier.clickable(onClick = onUser), online = post.online)
             Text(
                 post.authorName,
                 style = MaterialTheme.typography.titleSmall,

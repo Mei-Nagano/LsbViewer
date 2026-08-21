@@ -300,7 +300,7 @@ fun LeaderboardScreen(session: Session, nav: NavHostController) {
                                                 Text(medal, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = cardFg)
                                             }
                                             Spacer(Modifier.height(8.dp))
-                                            Avatar(r.avatarUrl, 40)
+                                            Avatar(r.avatarUrl, 40, online = r.online)
                                             Spacer(Modifier.height(6.dp))
                                             Text(
                                                 r.username,
@@ -332,7 +332,7 @@ fun LeaderboardScreen(session: Session, nav: NavHostController) {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.width(26.dp)
                                     )
-                                    Avatar(r.avatarUrl, 38)
+                                    Avatar(r.avatarUrl, 38, online = r.online)
                                 }
                             },
                             headlineContent = { Text(r.username, style = MaterialTheme.typography.bodyLarge) },

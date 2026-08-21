@@ -59,6 +59,10 @@ object HtmlParser {
             ?: el.selectFirst("img[src*='avatar']")?.attr("src")
             ?: el.selectFirst("img")?.attr("src") ?: ""
 
+    /** 元素内头像是否带源站在线标记（online-users-dot / online-users-host） */
+    private fun onlineOf(el: Element): Boolean =
+        el.selectFirst(".online-users-dot") != null || el.selectFirst(".online-users-host") != null
+
     /** 收集表单隐藏字段（兑换/参与时随 _csrf 一起提交） */
     private fun hiddenFields(form: Element?): Map<String, String> =
         form?.select("input[type=hidden]")?.mapNotNull { i ->
@@ -106,6 +110,7 @@ object HtmlParser {
                 pages = li.select(".topic-pages a").mapNotNull { it.text().toIntOrNull() },
                 lotteryStatus = li.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: "",
                 cardStatus = li.selectFirst(".virtual-card-title-status")?.text()?.trim() ?: "",
+                online = onlineOf(li),
             )
         }
         return items to parsePagination(d)
@@ -201,6 +206,7 @@ object HtmlParser {
                 likeCoinType = "", // 举报类型由调用方按楼层默认（主楼 topic / 回复 reply）
                 canLike = likeForm != null, // 未登录/主楼无表单：不显示点赞投币（与源站一致）
                 isOp = li.selectFirst(".quick-reply-main-action") != null || li.selectFirst("form.topic-favorites-action") != null,
+                online = onlineOf(li),
             )
         }
         val favForm = d.selectFirst("form.topic-favorites-action")
@@ -410,6 +416,8 @@ object HtmlParser {
             points = points,
             bio = bio,
             stats = stats,
+            // 主页大头像带在线标记（a.user-avatar-big.online-users-host / .online-users-dot）
+            online = d.selectFirst("a.user-avatar-big")?.let { onlineOf(it) } ?: false,
         )
     }
 
@@ -467,6 +475,7 @@ object HtmlParser {
                     userGroup = a.selectFirst(".leaderboard-podium-group")?.text() ?: "",
                     valueText = a.selectFirst(".leaderboard-podium-count")?.text() ?: "",
                     avatarUrl = absUrl(a.selectFirst("img")?.attr("src") ?: ""),
+                    online = onlineOf(a),
                 )
             )
         }
@@ -480,6 +489,7 @@ object HtmlParser {
                     userGroup = a.selectFirst(".leaderboard-group")?.text() ?: "",
                     valueText = a.selectFirst(".leaderboard-count")?.text() ?: "",
                     avatarUrl = absUrl(a.selectFirst("img")?.attr("src") ?: ""),
+                    online = onlineOf(a),
                 )
             )
         }
@@ -546,12 +556,32 @@ object HtmlParser {
             )
         }.distinctBy { it.userId }
 
+        // 当前在线卡片（.online-users-card）：在线总数 + 头像/用户名网格 + 「还有 N 人在线」
+        val onlineCard = aside.selectFirst(".online-users-card")
+        val onlineUsers = if (onlineCard != null) {
+            OnlineUsers(
+                count = onlineCard.selectFirst(".online-users-count")?.text()?.trim() ?: "",
+                items = onlineCard.select("a.online-users-item").mapNotNull { a ->
+                    val uid = idFrom(a.attr("href"))
+                    if (uid <= 0) null else OnlineUser(
+                        userId = uid,
+                        username = a.attr("title").ifBlank {
+                            a.selectFirst(".online-users-name")?.text()?.trim() ?: ""
+                        },
+                        avatarUrl = absUrl(avatarOf(a)),
+                    )
+                }.distinctBy { it.userId },
+                moreText = onlineCard.selectFirst(".online-users-more")?.text()?.trim() ?: "",
+            )
+        } else OnlineUsers()
+
         return HomeSidebar(
             forums = forums,
             recentForums = recent,
             hotTopics = hot,
             statsText = stats,
             newUsers = newUsers,
+            onlineUsers = onlineUsers,
         )
     }
 

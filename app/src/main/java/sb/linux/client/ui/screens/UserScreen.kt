@@ -139,7 +139,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
                     ) {
                         Column(Modifier.padding(18.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Avatar(p.avatarUrl, 60)
+                                Avatar(p.avatarUrl, 60, online = p.online)
                                 Spacer(Modifier.width(14.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(p.username, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)

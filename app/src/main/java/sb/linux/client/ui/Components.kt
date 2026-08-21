@@ -127,7 +127,7 @@ fun onColorFor(bg: Color): Color =
  * 兜底直载禁用 Coil 磁盘缓存——验证盾可能返回 200 HTML，写入后会永久毒化该缓存键。
  */
 @Composable
-fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier) {
+fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: Boolean = false) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val app = context.applicationContext as LsbApp
@@ -184,8 +184,28 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier) {
                 error = { fallback() }
             )
         }
+        // 源站在线状态：右下角绿点（带描边，与源站头像上的 online-users-dot 一致）
+        if (online) {
+            val dot = (size * 0.30f).dp
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(dot + 2.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(dot)
+                        .background(OnlineDotColor, CircleShape)
+                )
+            }
+        }
     }
 }
+
+/** 在线状态绿点颜色（源站在线徽标同色系） */
+val OnlineDotColor = Color(0xFF34C759)
 
 @Composable
 fun Badge(text: String, bg: Color, fg: Color) {
@@ -238,7 +258,7 @@ fun TopicCardView(
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
             if (!compact) {
-                Avatar(card.avatarUrl, 34)
+                Avatar(card.avatarUrl, 34, online = card.online)
                 Spacer(Modifier.width(10.dp))
             }
             Column(Modifier.weight(1f)) {

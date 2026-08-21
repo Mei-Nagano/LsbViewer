@@ -950,6 +950,60 @@ private fun HomeSidebarDrawer(
                     }
                 }
 
+                // 当前在线（源站侧栏 online-users-card）：在线总数 + 头像网格 + 「还有 N 人在线」
+                if (!sb?.onlineUsers?.count.isNullOrBlank() || sb?.onlineUsers?.items?.isNotEmpty() == true) {
+                    item { DrawerTitle("当前在线${sb!!.onlineUsers.count.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""}") }
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.padding(vertical = 2.dp),
+                        ) {
+                            Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                                val online = sb!!.onlineUsers
+                                // 头像 + 用户名网格（每行 4 个，点击进入用户主页）
+                                online.items.chunked(4).forEach { row ->
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        row.forEach { u ->
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .clickable { onOpenUser(u.userId) }
+                                                    .padding(vertical = 3.dp),
+                                            ) {
+                                                Avatar(u.avatarUrl, 36, online = true)
+                                                Spacer(Modifier.height(3.dp))
+                                                Text(
+                                                    u.username,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(horizontal = 2.dp),
+                                                )
+                                            }
+                                        }
+                                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                }
+                                if (online.moreText.isNotBlank()) {
+                                    Text(
+                                        online.moreText,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (sb == null) {
                     item {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
