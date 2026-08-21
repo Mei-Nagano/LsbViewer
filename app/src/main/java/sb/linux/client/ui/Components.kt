@@ -1021,7 +1021,9 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
             }
         }
         val out = kept.toString()
-        if (out.isBlank()) return sb
+        // 清理后只剩空白（整段都是图片占位）：返回空串，
+        // 让调用方 isNotBlank() 判空跳过；不能返回原串，否则占位符又漏回正文
+        if (out.isBlank()) return AnnotatedString("")
         return buildAnnotatedString {
             append(out)
             sb.spanStyles.forEach { s ->
