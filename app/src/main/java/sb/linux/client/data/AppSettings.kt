@@ -365,6 +365,74 @@ class AppSettings(context: Context) {
 
     fun clearFavorites() = prefs.edit().remove("local_favorites").apply()
 
+    // ---------------- 本地聚合私信（收信来自通知，去信为发送记录；纯本地，不额外访问源站） ----------------
+
+    private fun pmArray(): JSONArray =
+        runCatching { JSONArray(prefs.getString("local_pm_messages", "[]") ?: "[]") }.getOrDefault(JSONArray())
+
+    /** 追加一条私信消息，仅保留最近 300 条；与已存在的「对方+方向+内容」重复时跳过（通知页会反复拉全量） */
+    fun addPmMessage(partnerId: Long, partnerName: String, avatarUrl: String, incoming: Boolean, content: String) {
+        if (partnerId <= 0) return
+        val ts = System.currentTimeMillis()
+        val old = pmArray()
+        // 去重只针对「收到的私信」（通知页会反复拉全量导致重复）；我发出的总是追加
+        if (incoming) {
+            for (i in 0 until old.length()) {
+                val o = old.optJSONObject(i) ?: continue
+                if (o.optLong("partnerId") == partnerId && o.optString("content") == content) return
+            }
+        }
+        val out = JSONArray()
+        out.put(
+            JSONObject()
+                .put("partnerId", partnerId).put("partnerName", partnerName)
+                .put("avatarUrl", avatarUrl).put("incoming", incoming)
+                .put("content", content).put("ts", ts)
+                .put("read", incoming)   // 我发出的始终视为已读；对方发来的以此作为标记（markPmRead 会翻成 true）
+        )
+        for (i in 0 until old.length()) {
+            if (out.length() >= 300) break
+            out.put(old.optJSONObject(i))
+        }
+        prefs.edit().putString("local_pm_messages", out.toString()).apply()
+    }
+
+    /** 与某人的私信线程（时间正序，用于聊天界面） */
+    fun pmThread(partnerId: Long): List<sb.linux.client.data.PmMessage> {
+        val arr = pmArray()
+        val fmt = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                if (o.optLong("partnerId") != partnerId) continue
+                val ts = o.optLong("ts", 0L)
+                add(
+                    sb.linux.client.data.PmMessage(
+                        partnerId = partnerId,
+                        partnerName = o.optString("partnerName"),
+                        avatarUrl = o.optString("avatarUrl"),
+                        incoming = o.optBoolean("incoming"),
+                        content = o.optString("content"),
+                        timeText = if (ts > 0) fmt.format(java.util.Date(ts)) else "",
+                        ts = ts,
+                    )
+                )
+            }
+        }.sortedBy { it.ts }
+    }
+
+    /** 把某人的未读私信标记为已读 */
+    fun markPmRead(partnerId: Long) {
+        val arr = pmArray()
+        val out = JSONArray()
+        for (i in 0 until arr.length()) {
+            val o = JSONObject(arr.optJSONObject(i).toString())
+            if (o.optLong("partnerId") == partnerId && !o.optBoolean("read", false)) o.put("read", true)
+            out.put(o)
+        }
+        prefs.edit().putString("local_pm_messages", out.toString()).apply()
+    }
+
     // ---------------- 设置导出 / 导入 ----------------
 
     fun exportJson(): String {

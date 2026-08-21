@@ -6,9 +6,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,6 +19,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -452,6 +457,15 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
             try {
                 val resp = session.client.get("/user/$uid?tab=notifications")
                 items = HtmlParser.parseNotifications(resp.html)
+                // 本地聚合私信：把「收到的私信通知」记入本地会话（按内容去重），聊天界面据此离线展示
+                items.forEach { n ->
+                    if (n.partnerId > 0 && n.content.isNotBlank()) {
+                        session.settings.addPmMessage(
+                            partnerId = n.partnerId, partnerName = n.fromUser,
+                            avatarUrl = n.partnerAvatar, incoming = true, content = n.content,
+                        )
+                    }
+                }
                 // 源站机制：GET 通知页即把全部通知标记为已读（已读状态同步到源站），红点随之清除
                 session.updateNotifUnread(0)
             } catch (e: Exception) { error = e.message } finally { loading = false }
@@ -556,17 +570,21 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                             Text(n.content, style = MaterialTheme.typography.bodyMedium, maxLines = 4)
                             // 操作入口：
                             // 帖子/系统通知带 /topic/ 链接 → 原生打开主题
-                            // 私信通知带 /notify/ 回复入口 → 用内置浏览器打开对话（配合登录 cookie 可看并回复）
+                            // 私信通知带识别到的对方 uid → 打开聊天界面（本地聚合 + 可直接发送）
                             val topicId = Regex("""/topic/(\d+)""").find(n.link)?.groupValues?.get(1)
                             when {
                                 topicId != null -> {
                                     Spacer(Modifier.height(4.dp))
                                     TextButton(onClick = { nav.navigate("topic/$topicId") }) { Text("查看主题") }
                                 }
-                                n.link.contains("/notify/") -> {
-                                    Spacer(Modifier.height(4.dp))
-                                    TextButton(onClick = { nav.navigate("web?url=${android.net.Uri.encode(n.link)}") }) {
-                                        Text("回复")
+                                n.partnerId > 0 || n.link.contains("/notify/") -> {
+                                    val pid = n.partnerId.takeIf { it > 0 }
+                                        ?: Regex("""/notify/(\d+)""").find(n.link)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+                                    if (pid > 0) {
+                                        Spacer(Modifier.height(4.dp))
+                                        TextButton(onClick = {
+                                            nav.navigate("chat/$pid?name=${android.net.Uri.encode(n.fromUser)}&avatar=${android.net.Uri.encode(n.partnerAvatar)}")
+                                        }) { Text("回复") }
                                     }
                                 }
                             }
@@ -575,6 +593,139 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                 }
             }
         }
+    }
+}
+
+// ---------------- 本地聚合私信聊天（QQ/微信式） ----------------
+
+/** 私信聊天界面：本地聚合会话（收到的私信通知 + 我发出的记录），气泡左右分列，输入框直接回复源站 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatScreen(session: Session, nav: NavHostController) {
+    val entry = nav.currentBackStackEntry ?: return
+    val partnerId = entry.arguments?.getString("userId")?.toLongOrNull() ?: 0L
+    var name by remember { mutableStateOf(entry.arguments?.getString("name") ?: "") }
+    var avatarUrl by remember { mutableStateOf(entry.arguments?.getString("avatar") ?: "") }
+    var msgs by remember { mutableStateOf(session.settings.pmThread(partnerId)) }
+    var text by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+
+    fun refresh() { msgs = session.settings.pmThread(partnerId) }
+
+    // 进入即标记该会话已读
+    LaunchedEffect(partnerId) { if (partnerId > 0) session.settings.markPmRead(partnerId) }
+    // 消息变化自动滚到底部
+    LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.scrollToItem(msgs.size - 1) }
+
+    fun send() {
+        val body = text.trim()
+        if (body.isBlank() || partnerId <= 0 || sending) return
+        sending = true
+        scope.launch {
+            try {
+                val csrf = session.client.csrf()
+                val resp = session.client.postForm("/notify/$partnerId", mapOf("_csrf" to csrf, "content" to body))
+                if (resp.url.contains("form_error")) {
+                    session.showToast(HtmlParser.extractError(resp.html).ifBlank { "发送失败" })
+                } else {
+                    session.settings.addPmMessage(partnerId, name, avatarUrl, incoming = false, content = body)
+                    text = ""
+                    refresh()
+                    session.showToast("已发送")
+                }
+            } catch (e: Exception) { session.showToast(e.message ?: "发送失败") }
+            finally { sending = false }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Avatar(avatarUrl, 30)
+                        Text(name.ifBlank { "用户 $partnerId" }, style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                }
+            )
+        },
+        bottomBar = {
+            Surface(shadowElevation = 6.dp) {
+                Row(
+                    Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = text, onValueChange = { text = it },
+                        placeholder = { Text("输入私信内容") },
+                        modifier = Modifier.weight(1f),
+                        maxLines = 4,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { send() }),
+                        shape = RoundedCornerShape(20.dp),
+                    )
+                    FilledIconButton(onClick = { send() }, enabled = text.isNotBlank() && !sending && partnerId > 0) {
+                        Icon(Icons.Filled.Send, "发送")
+                    }
+                }
+            }
+        }
+    ) { pad ->
+        when {
+            partnerId <= 0 -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { Text("无效的会话") }
+            msgs.isEmpty() -> Column(
+                Modifier.padding(pad).fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
+            ) {
+                Text("还没有消息", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(6.dp))
+                Text("在这里发送第一条，或对方发来私信后，往来消息会显示在此", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            else -> LazyColumn(
+                Modifier.padding(pad).fillMaxSize(),
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                items(msgs) { m -> ChatBubble(m) }
+            }
+        }
+    }
+}
+
+/** 单条气泡：对方靠左带头像，我方靠右，气泡着色区分 */
+@Composable
+private fun ChatBubble(m: sb.linux.client.data.PmMessage) {
+    val mine = !m.incoming
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Top
+    ) {
+        if (mine) Spacer(Modifier.width(40.dp))   // 与对方头像粗细对齐
+        Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = if (mine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.widthIn(max = 280.dp)
+            ) {
+                Text(
+                    m.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (mine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(m.timeText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+        }
+        if (!mine) { Spacer(Modifier.width(8.dp)); Avatar(m.avatarUrl, 32) }
     }
 }
 
@@ -705,6 +856,7 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
                     }
                 }
             }
+        }
         }
     }
 

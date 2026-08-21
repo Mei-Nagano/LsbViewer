@@ -161,6 +161,19 @@ data class NotificationItem(
     val link: String,
     val unread: Boolean = false,   // 源站未读状态（li.unread / span.notification-unread）
     val isTopic: Boolean = true,   // 是否确为帖子类通知（link 为 /topic/{id}）；私信等非帖子通知为 false
+    val partnerId: Long = 0,       // 私信对方 uid（/notify/{uid} 或 /user/{uid}）；非私信为 0
+    val partnerAvatar: String = "",// 私信对方头像 URL
+)
+
+/** 本地聚合的一条私信消息（收信来自通知，去信为本地发送记录） */
+data class PmMessage(
+    val partnerId: Long,
+    val partnerName: String,   // 对方用户名
+    val avatarUrl: String = "",//
+    val incoming: Boolean,     // true = 对方发来；false = 我发出去的
+    val content: String,
+    val timeText: String,      // MM-dd HH:mm
+    val ts: Long = 0L,
 )
 
 data class LeaderRow(

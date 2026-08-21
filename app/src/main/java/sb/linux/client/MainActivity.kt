@@ -302,6 +302,14 @@ fun LsbApp(session: Session) {
             composable("footprint") { FootprintScreen(session, nav) }
             composable("favorites") { FavoritesScreen(session, nav) }
             composable(
+                "chat/{userId}?name={name}&avatar={avatar}",
+                arguments = listOf(
+                    navArgument("userId") { type = androidx.navigation.NavType.StringType },
+                    navArgument("name") { type = androidx.navigation.NavType.StringType; defaultValue = "" },
+                    navArgument("avatar") { type = androidx.navigation.NavType.StringType; defaultValue = "" },
+                )
+            ) { ChatScreen(session, nav) }
+            composable(
                 "donate/{tid}",
                 arguments = listOf(navArgument("tid") { type = androidx.navigation.NavType.LongType })
             ) { DonateScreen(session, nav) }

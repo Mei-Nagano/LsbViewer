@@ -463,6 +463,12 @@ object HtmlParser {
             val sender = li.selectFirst(".post-title")?.text()
                 ?: li.selectFirst(".notification-content img[alt]")?.attr("alt")
                 ?: li.selectFirst(".notification-content a[href*=\"/user/\"]")?.text()
+            // 私信对方 uid 与头像：优先 /notify/{uid} 回复入口，其次头像链接 /user/{uid} 与头像 src
+            val partnerId = Regex("""/notify/(\d+)""").find(replyAction)
+                ?.groupValues?.get(1)?.toLongOrNull()
+                ?: (li.selectFirst(".post-avatar a[href*=\"/user/\"]")?.attr("href")
+                    ?.let { Regex("""/user/(\d+)""").find(it)?.groupValues?.get(1)?.toLongOrNull() } ?: 0)
+            val partnerAvatar = li.selectFirst(".post-avatar img[src]")?.attr("src") ?: ""
             NotificationItem(
                 fromUser = if (isTopic) li.selectFirst(".post-title")?.text() ?: (sender ?: "系统")
                            else sender ?: typeText,
@@ -472,6 +478,8 @@ object HtmlParser {
                 link = link,
                 unread = li.classNames().contains("unread") || li.selectFirst(".notification-unread") != null,
                 isTopic = isTopic,
+                partnerId = if (isPm) partnerId else 0,
+                partnerAvatar = if (isPm) partnerAvatar else "",
             )
         }
     }
