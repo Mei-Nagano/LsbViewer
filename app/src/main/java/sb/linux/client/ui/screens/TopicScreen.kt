@@ -1485,6 +1485,7 @@ private fun PostCardContent(
                             MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
+                    post.titleBadge?.let { TitleBadgeView(it) }
                 }
                 Text(
                     buildString {

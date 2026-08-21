@@ -68,6 +68,33 @@ object HtmlParser {
             el.selectFirst("a.online-users-host") != null ||
             el.classNames().contains("online-users-host")
 
+    /**
+     * 源站在线用户 ID 集合。v8.6.5+ 源站不再把在线标记写进静态 HTML，
+     * 而是通过 <span class="online-users-boot" data-online-users-ids="id,id,..."> 下发在线用户，
+     * 由前端 JS 动态给头像加绿点。应用解析原始 HTML 需要自己读这个集合来判定某用户是否在线。
+     */
+    private fun onlineIdsOf(d: Document): Set<Long> =
+        d.selectFirst("span.online-users-boot[data-online-users-ids]")?.attr("data-online-users-ids")
+            ?.split(",")
+            ?.mapNotNull { it.trim().toLongOrNull() }
+            ?.toSet() ?: emptySet()
+
+    /**
+     * 解析元素（或其子节点）内首个源站称号徽章 a.gacha-title-badge：
+     * icon（emoji）、name（称号名）、rarity（稀有度，取自类名 gacha-title-<x>，兜底文本）。
+     * 无称号徽章返回 null。
+     */
+    private fun gachaTitleOf(el: Element): TitleBadge? {
+        val badge = el.selectFirst("a.gacha-title-badge") ?: return null
+        val rare = Regex("""gacha-title-(n|r|sr|ssr|ur|ur\+)""")
+            .find(badge.className())?.groupValues?.get(1)?.uppercase()
+        return TitleBadge(
+            icon = badge.selectFirst(".gacha-title-icon")?.text()?.trim() ?: "",
+            name = badge.selectFirst(".gacha-title-name")?.text()?.trim() ?: "",
+            rarity = rare ?: badge.selectFirst(".gacha-title-rarity")?.text()?.trim() ?: "",
+        ).takeIf { it.name.isNotBlank() || it.icon.isNotBlank() }
+    }
+
     /** 收集表单隐藏字段（兑换/参与时随 _csrf 一起提交） */
     private fun hiddenFields(form: Element?): Map<String, String> =
         form?.select("input[type=hidden]")?.mapNotNull { i ->
@@ -79,6 +106,7 @@ object HtmlParser {
 
     fun parseTopicList(html: String): Pair<List<TopicCard>, Pair<Int, Int>> {
         val d = doc(html)
+        val onlineIds = onlineIdsOf(d)
         val items = d.select("ul.post-list > li.post-item").mapNotNull { li ->
             val titleA = li.selectFirst("a.post-title") ?: return@mapNotNull null
             val topicId = idFrom(titleA.attr("href"))
@@ -96,10 +124,11 @@ object HtmlParser {
             val timeSpan = meta?.selectFirst("span[data-performance-time]")
             val timeText = timeSpan?.attr("data-performance-time")?.toLongOrNull()
                 ?.let { TimeFmt.rel(it) } ?: (timeSpan?.text() ?: "")
+            val authorId = idFrom(userLink?.attr("href"))
             TopicCard(
                 topicId = topicId,
                 title = titleA.text(),
-                authorId = idFrom(userLink?.attr("href")),
+                authorId = authorId,
                 authorName = userLink?.text() ?: "",
                 forumId = idFrom(forumLink?.attr("href")),
                 forumName = forumLink?.text() ?: "",
@@ -115,7 +144,8 @@ object HtmlParser {
                 pages = li.select(".topic-pages a").mapNotNull { it.text().toIntOrNull() },
                 lotteryStatus = li.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: "",
                 cardStatus = li.selectFirst(".virtual-card-title-status")?.text()?.trim() ?: "",
-                online = onlineOf(li),
+                online = authorId in onlineIds || onlineOf(li),
+                titleBadge = gachaTitleOf(meta ?: li),
             )
         }
         return items to parsePagination(d)
@@ -137,6 +167,7 @@ object HtmlParser {
 
     fun parseTopicPage(html: String, fallbackId: Long): TopicPageData {
         val d = doc(html)
+        val onlineIds = onlineIdsOf(d)
         val csrf = d.selectFirst("input[name=_csrf]")?.attr("value") ?: ""
         val realTitle = d.selectFirst("h1.post-content-title")?.text()
             ?: d.selectFirst("h1.topic-title")?.text()
@@ -218,7 +249,8 @@ object HtmlParser {
                 likeCoinType = "", // 举报类型由调用方按楼层默认（主楼 topic / 回复 reply）
                 canLike = likeForm != null, // 未登录/主楼无表单：不显示点赞投币（与源站一致）
                 isOp = li.selectFirst(".quick-reply-main-action") != null || li.selectFirst("form.topic-favorites-action") != null,
-                online = onlineOf(li),
+                online = idFrom(authorA?.attr("href")) in onlineIds || onlineOf(li),
+                titleBadge = gachaTitleOf(li),
             )
         }
         val favForm = d.selectFirst("form.topic-favorites-action")
@@ -399,6 +431,7 @@ object HtmlParser {
 
     fun parseUserProfile(html: String): UserProfile {
         val d = doc(html)
+        val onlineIds = onlineIdsOf(d)
         val name = d.selectFirst("a.user-name")?.text()
             ?: d.selectFirst(".user-name")?.text()
             ?: d.selectFirst(".profile-toolbar")?.previousElementSibling()?.text()
@@ -428,8 +461,10 @@ object HtmlParser {
             points = points,
             bio = bio,
             stats = stats,
-            // 主页大头像带在线标记（a.user-avatar-big.online-users-host / .online-users-dot）
-            online = d.selectFirst("a.user-avatar-big")?.let { onlineOf(it) } ?: false,
+            // 在线：源站 data-online-users-ids 在线集合命中，兜底静态标记
+            online = idFrom(uidHref) in onlineIds ||
+                d.selectFirst("a.user-avatar-big")?.let { onlineOf(it) } == true,
+            titleBadge = gachaTitleOf(d),
         )
     }
 
@@ -552,6 +587,7 @@ object HtmlParser {
 
     fun parseLeaderboard(html: String): List<LeaderRow> {
         val d = doc(html)
+        val onlineIds = onlineIdsOf(d)
         val out = mutableListOf<LeaderRow>()
         // 前三名领奖台
         d.select("a.leaderboard-podium-col").forEach { a ->
@@ -563,7 +599,8 @@ object HtmlParser {
                     userGroup = a.selectFirst(".leaderboard-podium-group")?.text() ?: "",
                     valueText = a.selectFirst(".leaderboard-podium-count")?.text() ?: "",
                     avatarUrl = absUrl(a.selectFirst("img")?.attr("src") ?: ""),
-                    online = onlineOf(a),
+                    online = idFrom(a.attr("href")) in onlineIds || onlineOf(a),
+                    titleBadge = gachaTitleOf(a),
                 )
             )
         }
@@ -577,7 +614,8 @@ object HtmlParser {
                     userGroup = a.selectFirst(".leaderboard-group")?.text() ?: "",
                     valueText = a.selectFirst(".leaderboard-count")?.text() ?: "",
                     avatarUrl = absUrl(a.selectFirst("img")?.attr("src") ?: ""),
-                    online = onlineOf(a),
+                    online = idFrom(a.attr("href")) in onlineIds || onlineOf(a),
+                    titleBadge = gachaTitleOf(a),
                 )
             )
         }

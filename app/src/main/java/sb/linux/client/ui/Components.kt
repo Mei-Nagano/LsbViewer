@@ -94,6 +94,7 @@ import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 import sb.linux.client.data.Endpoints
+import sb.linux.client.data.TitleBadge
 import sb.linux.client.data.TopicCard
 import sb.linux.client.LsbApp
 
@@ -302,6 +303,56 @@ fun Badge(text: String, bg: Color, fg: Color) {
     }
 }
 
+/** 称号稀有度配色（对齐源站 gacha-title-* 的深浅配色风格） */
+fun titleRarityColor(rarity: String): Pair<Color, Color> {
+    val r = rarity.uppercase().trim()
+    return when {
+        r.contains("UR") -> Color(0xFFFF3D6E) to Color(0xFFFFE3EA)   // 红
+        r.contains("SSR") -> Color(0xFFFF8F00) to Color(0xFFFFF0D6)  // 橙金
+        r.contains("SR") -> Color(0xFF9C27B0) to Color(0xFFF3E5F5)   // 紫
+        r.contains("R") -> Color(0xFF1E88E5) to Color(0xFFE3F2FD)    // 蓝
+        else -> Color(0xFF6B7280) to Color(0xFFE9ECEF)               // 灰（N/默认）
+    }
+}
+
+/** 源站称号系统徽章：图标 + 名称（+ 稀有度），按稀有度配色 */
+@Composable
+fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier) {
+    val (fg, bg) = titleRarityColor(title.rarity)
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = bg,
+        modifier = modifier
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+        ) {
+            if (title.icon.isNotBlank()) {
+                Text(title.icon, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                Spacer(Modifier.width(2.dp))
+            }
+            Text(
+                title.name,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = fg,
+                maxLines = 1
+            )
+            if (title.rarity.isNotBlank()) {
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    title.rarity,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = fg.copy(alpha = 0.85f),
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
 /** 帖子卡片。compact = 单列精简模式：隐藏头像与回复数。
  *  onElementClick 非空时进入"预览改色"模式：点按各元素回调对应 CardColorOverrides key（标题不可改色）。 */
 @Composable
@@ -423,6 +474,11 @@ fun TopicCardView(
                                     else m
                                 }
                         )
+                        // 作者称号（源站称号系统徽章）
+                        card.titleBadge?.let {
+                            TitleBadgeView(it)
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(
                             card.timeText,
                             style = MaterialTheme.typography.labelSmall,

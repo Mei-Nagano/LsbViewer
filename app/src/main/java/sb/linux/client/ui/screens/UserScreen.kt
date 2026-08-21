@@ -168,19 +168,26 @@ fun UserScreen(session: Session, nav: NavHostController) {
                                 Spacer(Modifier.width(14.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(p.username, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                    if (p.userGroup.isNotBlank()) {
-                                        Spacer(Modifier.height(3.dp))
-                                        Surface(
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                                            color = MaterialTheme.colorScheme.secondaryContainer
-                                        ) {
-                                            Text(
-                                                p.userGroup,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
+                                    // 称号（源站称号系统徽章）+ 用户组
+                                    if (p.titleBadge != null || p.userGroup.isNotBlank()) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            p.titleBadge?.let { TitleBadgeView(it) }
+                                            if (p.userGroup.isNotBlank()) {
+                                                if (p.titleBadge != null) Spacer(Modifier.width(6.dp))
+                                                Surface(
+                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                                ) {
+                                                    Text(
+                                                        p.userGroup,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

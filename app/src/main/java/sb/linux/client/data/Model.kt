@@ -21,7 +21,8 @@ data class TopicCard(
     val lotteryStatus: String = "",    // 抽奖帖状态：抽奖中 / 已开奖
     val cardStatus: String = "",       // 发卡帖状态：发卡中 / 发卡结束
     val views: Int = -1,               // 阅读量（源站首页列表无此数据，-1 = 未浏览过；来自详情页缓存）
-    val online: Boolean = false,       // 作者在线（源站头像上的 online-users-dot）
+    val online: Boolean = false,       // 作者在线（源站 data-online-users-ids 在线集合）
+    val titleBadge: TitleBadge? = null, // 作者称号（源站 gacha-title-badge，仅展示不参与排序）
 )
 
 data class PageResult<T>(
@@ -52,7 +53,8 @@ data class PostEntry(
     val editUserId: Long = 0,        // 最后编辑人用户 ID（>0 时点击可跳转其主页）
     val editUserName: String = "",   // 最后编辑人用户名（editInfo 中高亮可点击部分）
     val referencedFloors: List<Int> = emptyList(), // 本楼引用的楼层（整楼 HTML 解析，含正文外的引用块）
-    val online: Boolean = false,     // 作者在线（源站头像上的 online-users-dot）
+    val online: Boolean = false,     // 作者在线（源站 data-online-users-ids 在线集合）
+    val titleBadge: TitleBadge? = null, // 作者称号（源站 gacha-title-badge）
 )
 
 data class TopicPageData(
@@ -150,7 +152,15 @@ data class UserProfile(
     val points: String = "",    // 例如 "1324"
     val bio: String = "",
     val stats: List<Pair<String, String>>, // 侧栏统计
-    val online: Boolean = false, // 用户当前在线（主页大头像上的 online-users-dot）
+    val online: Boolean = false, // 用户当前在线（源站 data-online-users-ids 在线集合）
+    val titleBadge: TitleBadge? = null, // 用户称号（源站 gacha-title-badge）
+)
+
+/** 源站称号系统徽章（gacha-title-badge：图标 + 名称 + 稀有度） */
+data class TitleBadge(
+    val icon: String = "",     // emoji 图标，如 🐉
+    val name: String = "",     // 称号名，如 传说之龙
+    val rarity: String = "",   // 稀有度，如 SSR（取自类名 gacha-title-<x>）
 )
 
 data class NotificationItem(
@@ -183,7 +193,8 @@ data class LeaderRow(
     val userGroup: String,
     val valueText: String,
     val avatarUrl: String = "",
-    val online: Boolean = false,   // 用户当前在线
+    val online: Boolean = false,   // 用户当前在线（源站 data-online-users-ids 在线集合）
+    val titleBadge: TitleBadge? = null, // 用户称号（源站 gacha-title-badge）
 )
 
 data class PointRow(
