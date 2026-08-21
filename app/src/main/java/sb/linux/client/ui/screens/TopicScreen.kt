@@ -563,11 +563,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             error != null -> ErrorBox(error!!) { load(initialPage) }
             d == null -> EmptyBox()
             else -> {
-                // Column 布局：评论列表在上（weight 1f），翻页条固定在底部始终可见
-                Column(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(top = 72.dp, bottom = 8.dp)
                 ) {
                     // ---------- 头部信息块（完整标题/统计/弹幕/AI/抽奖） ----------
@@ -795,26 +793,27 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         }
                     }
                     item(key = "pagination-$replyModeTick") {
-                        // 无限滚动模式：加载更多按钮在列表底部
-                        if (topicInfinite && (d.page ?: 1) < (d.totalPages ?: 1)) {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (loadingMore) CircularProgressIndicator(Modifier.size(22.dp))
-                                else TextButton(onClick = { load(d.page + 1, append = true) }) { Text("加载更多") }
+                        if (topicInfinite) {
+                            // 无限滚动模式：加载更多按钮在列表底部
+                            if ((d.page ?: 1) < (d.totalPages ?: 1)) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (loadingMore) CircularProgressIndicator(Modifier.size(22.dp))
+                                    else TextButton(onClick = { load(d.page + 1, append = true) }) { Text("加载更多") }
+                                }
                             }
+                        } else {
+                            // 翻页模式：翻页条在列表底部
+                            PaginationBar(localReplyPage, localReplyTotal) { goLocalReplyPage(it) }
                         }
                     }
-                    item(key = "footer") { Spacer(Modifier.height(12.dp)) }
+                    // 底部留白：为悬浮按钮和输入栏留出空间
+                    item(key = "footer") { Spacer(Modifier.height(64.dp)) }
                 }
-                // 翻页模式：翻页条固定在内容区底部（列表下方），始终可见无需滚动到底
-                if (!topicInfinite) {
-                    PaginationBar(localReplyPage, localReplyTotal) { goLocalReplyPage(it) }
-                }
-                }   // close Column
             }
             }
 
@@ -2160,8 +2159,10 @@ fun ReplyDialog(
     ModalBottomSheet(
         onDismissRequest = { if (!busy) onDismiss() },
         // 让 BottomSheet 的内容区感知 IME 空间，键盘弹出时自动上推输入框
-        windowInsets = androidx.compose.foundation.layout.WindowInsets.ime
-            .union(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+        contentWindowInsets = {
+            androidx.compose.foundation.layout.WindowInsets.ime
+                .union(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+        }
     ) {
         Column(
             Modifier

@@ -400,10 +400,12 @@ fun TopicCardView(
 }
 }
 
-/** 分页条：MD3 双侧图标按钮 + 页码胶囊 */
+/** 分页条：圆形前后翻页按钮 + 宽页码胶囊，三者同尺寸 */
 @Composable
 fun PaginationBar(page: Int, totalPages: Int, onPage: (Int) -> Unit) {
     if (totalPages <= 1) return
+    // 按钮与页码统一高度
+    val btnSize = 36.dp
     Row(
         Modifier
             .fillMaxWidth()
@@ -411,29 +413,62 @@ fun PaginationBar(page: Int, totalPages: Int, onPage: (Int) -> Unit) {
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FilledTonalIconButton(
+        // 上一页：圆形按钮，与页码同高
+        Surface(
             onClick = { onPage((page - 1).coerceAtLeast(1)) },
             enabled = page > 1,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.size(btnSize)
         ) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "上一页")
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    "上一页",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
+        // 页码胶囊：加宽背景容器
         Surface(
             shape = RoundedCornerShape(50),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.padding(horizontal = 14.dp)
+            modifier = Modifier
+                .padding(horizontal = 10.dp)
+                .height(btnSize)
         ) {
-            Text(
-                "$page / $totalPages",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(horizontal = 22.dp)
+            ) {
+                Text(
+                    "$page",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    " / $totalPages",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
-        FilledTonalIconButton(
+        // 下一页：圆形按钮，与页码同高
+        Surface(
             onClick = { onPage((page + 1).coerceAtMost(totalPages)) },
             enabled = page < totalPages,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.size(btnSize)
         ) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "下一页")
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    "下一页",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

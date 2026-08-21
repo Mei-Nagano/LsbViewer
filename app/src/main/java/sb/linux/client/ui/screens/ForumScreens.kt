@@ -213,10 +213,10 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                     loading -> LoadingBox()
                     error != null -> ErrorBox(error!!) { load(page) }
                     topics.isEmpty() -> EmptyBox("暂无帖子")
-                    else -> Column(Modifier.fillMaxSize()) {
+                    else -> {
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
                             items(topics, key = { "${it.topicId}-${it.pinned}" }) { t ->
@@ -226,8 +226,8 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                                     onForumClick = { /* 同板块 */ }
                                 )
                             }
-                            if (forumInfinite) {
-                                item {
+                            item {
+                                if (forumInfinite) {
                                     // 无限滚动：加载更多按钮，不足自动结束
                                     if (page < totalPages) {
                                         OutlinedButton(
@@ -239,13 +239,13 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                                         ) { Text(if (loadingMore) "加载中…" else "加载更多") }
                                     }
-                                    Spacer(Modifier.height(12.dp))
+                                } else {
+                                    // 翻页模式：翻页条在列表底部
+                                    PaginationBar(page, totalPages) { load(it) }
                                 }
+                                // 底部留白：为悬浮按钮和底栏留出空间
+                                Spacer(Modifier.height(64.dp))
                             }
-                        }
-                        // 翻页模式：翻页条固定在内容区底部，始终可见
-                        if (!forumInfinite) {
-                            PaginationBar(page, totalPages) { load(it) }
                         }
                     }
                 }
