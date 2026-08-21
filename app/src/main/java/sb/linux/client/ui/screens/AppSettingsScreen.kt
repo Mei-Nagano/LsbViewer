@@ -2119,14 +2119,15 @@ private fun rememberUpdateChecker(session: Session): Pair<(Boolean) -> Unit, Upd
             }
         }
     }
-    return check to UpdateUiState(checking, update, msg) { msg = null }
+    return check to UpdateUiState(checking, update, msg) { msg = null; update = null }
 }
 
 data class UpdateUiState(
     val checking: Boolean,
     val update: UpdateChecker.UpdateInfo?,
     val msg: String?,
-    val clearMsg: () -> Unit,
+    /** 关闭「发现新版本」弹窗（同时清掉提示文本） */
+    val dismiss: () -> Unit,
 )
 
 /** 常规设置子页面：打开链接方式 + 检查更新时机（3.20） */
@@ -2278,7 +2279,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
     // 发现新版本对话框
     updateState.update?.let { rel ->
         AlertDialog(
-            onDismissRequest = updateState.clearMsg,
+            onDismissRequest = updateState.dismiss,
             title = { Text("发现新版本") },
             text = {
                 Column {
@@ -2294,10 +2295,10 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { openExternal(rel.url); updateState.clearMsg() }) { Text("前往下载") }
+                TextButton(onClick = { openExternal(rel.url); updateState.dismiss() }) { Text("前往下载") }
             },
             dismissButton = {
-                TextButton(onClick = updateState.clearMsg) { Text("取消") }
+                TextButton(onClick = updateState.dismiss) { Text("取消") }
             }
         )
     }
@@ -2555,7 +2556,7 @@ fun AboutScreen(session: Session, nav: NavHostController) {
     // 发现新版本对话框
     updateState.update?.let { rel ->
         AlertDialog(
-            onDismissRequest = updateState.clearMsg,
+            onDismissRequest = updateState.dismiss,
             title = { Text("发现新版本") },
             text = {
                 Column {
@@ -2571,10 +2572,10 @@ fun AboutScreen(session: Session, nav: NavHostController) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { openExternal(rel.url); updateState.clearMsg() }) { Text("前往下载") }
+                TextButton(onClick = { openExternal(rel.url); updateState.dismiss() }) { Text("前往下载") }
             },
             dismissButton = {
-                TextButton(onClick = updateState.clearMsg) { Text("取消") }
+                TextButton(onClick = updateState.dismiss) { Text("取消") }
             }
         )
     }

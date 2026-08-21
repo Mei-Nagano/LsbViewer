@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -166,13 +168,16 @@ fun LsbApp(session: Session) {
         if (UpdateChecker.isNewer(rel.tag, cur)) updateTip = rel
     }
     updateTip?.let { rel ->
+        // 仅当检查时机为「每次启动」时提供「不再提示」：点击即把时机改为「从不」；
+        // 其他时机（按间隔）弹窗频率本就不高，不提供该按钮
+        val askNever = session.settings.updateCheckMode == 0
         AlertDialog(
             onDismissRequest = { updateTip = null },
             title = { Text("发现新版本") },
             text = {
                 Text(
-                    "${rel.name} 已发布，是否前往下载？\n\n" +
-                        "（自动检查当前为「每次启动」。可前往 设置 → 常规设置 → 检查更新时机 关闭或改为按间隔）"
+                    "${rel.name} 已发布，是否前往下载？" +
+                        if (!askNever) "\n\n（自动检查当前为「按间隔」。可前往 设置 → 常规设置 → 检查更新时机 调整）" else ""
                 )
             },
             confirmButton = {
@@ -188,7 +193,18 @@ fun LsbApp(session: Session) {
                     }
                 }) { Text("前往下载") }
             },
-            dismissButton = { TextButton(onClick = { updateTip = null }) { Text("取消") } }
+            dismissButton = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (askNever) {
+                        TextButton(onClick = {
+                            session.settings.updateCheckMode = 2
+                            updateTip = null
+                            session.showToast("已设置为不再提示更新")
+                        }) { Text("不再提示") }
+                    }
+                    TextButton(onClick = { updateTip = null }) { Text("取消") }
+                }
+            }
         )
     }
 
