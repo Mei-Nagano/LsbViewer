@@ -440,14 +440,25 @@ object HtmlParser {
     fun parseNotifications(html: String): List<NotificationItem> {
         val d = doc(html)
         return d.select("li.notification-item").map { li ->
+            val typeText = li.selectFirst(".notification-kind")?.text() ?: "通知"
+            val link = li.selectFirst(".notification-content a[href]")?.attr("href") ?: ""
+            // 只有真正指向帖子的通知才关联帖子；私信/系统等非帖子通知一律不关联，避免「私信串到某个帖子」。
+            val isTopic = Regex("""/topic/\d+""").containsMatchIn(link)
             NotificationItem(
-                fromUser = li.selectFirst(".post-title")?.text() ?: "系统",
-                typeText = li.selectFirst(".notification-kind")?.text() ?: "通知",
+                // 帖子通知的 .post-title 是帖子标题；非帖子通知没有帖子，若取 .post-title 会串到无关帖子，
+                // 改为取内容里的用户/发送者文本，取不到则回落到类型名。
+                fromUser = if (isTopic) li.selectFirst(".post-title")?.text()
+                            ?: li.selectFirst(".notification-content a[href]")?.text()
+                            ?: "系统"
+                           else li.selectFirst(".notification-content a[href]")?.text()
+                                ?: li.selectFirst(".notification-content strong")?.text()
+                                ?: typeText,
+                typeText = typeText,
                 timeText = li.selectFirst(".post-meta span")?.text() ?: "",
                 content = li.selectFirst(".notification-content")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: "",
-                link = li.selectFirst(".notification-content a[href]")?.attr("href") ?: "",
-                // 源站未读标记：li 带 unread 类，头部有「未读」标签
+                link = link,
                 unread = li.classNames().contains("unread") || li.selectFirst(".notification-unread") != null,
+                isTopic = isTopic,
             )
         }
     }

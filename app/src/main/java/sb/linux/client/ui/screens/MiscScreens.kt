@@ -545,12 +545,13 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                             }
                             Spacer(Modifier.height(10.dp))
                             Text(n.content, style = MaterialTheme.typography.bodyMedium, maxLines = 4)
-                            if (n.link.isNotBlank()) {
-                                Spacer(Modifier.height(4.dp))
-                                TextButton(onClick = {
-                                    val tid = Regex("""/topic/(\d+)""").find(n.link)?.groupValues?.get(1)
-                                    if (tid != null) nav.navigate("topic/$tid")
-                                }) { Text("查看详情") }
+                            // 仅帖子通知提供「查看详情」；私信等非帖子通知不跳帖子
+                            if (n.isTopic) {
+                                val tid = Regex("""/topic/(\d+)""").find(n.link)?.groupValues?.get(1)
+                                if (tid != null) {
+                                    Spacer(Modifier.height(4.dp))
+                                    TextButton(onClick = { nav.navigate("topic/$tid") }) { Text("查看详情") }
+                                }
                             }
                         }
                     }

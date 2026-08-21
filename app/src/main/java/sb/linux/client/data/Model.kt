@@ -160,6 +160,7 @@ data class NotificationItem(
     val content: String,
     val link: String,
     val unread: Boolean = false,   // 源站未读状态（li.unread / span.notification-unread）
+    val isTopic: Boolean = true,   // 是否确为帖子类通知（link 为 /topic/{id}）；私信等非帖子通知为 false
 )
 
 data class LeaderRow(
