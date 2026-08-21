@@ -213,34 +213,39 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                     loading -> LoadingBox()
                     error != null -> ErrorBox(error!!) { load(page) }
                     topics.isEmpty() -> EmptyBox("暂无帖子")
-                    else -> LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        items(topics, key = { "${it.topicId}-${it.pinned}" }) { t ->
-                            TopicCardView(
-                                t,
-                                onClick = { nav.navigate("topic/${t.topicId}") },
-                                onForumClick = { /* 同板块 */ }
-                            )
-                        }
-                        item {
-                            if (forumInfinite) {
-                                // 无限滚动：加载更多按钮，不足自动结束
-                                if (page < totalPages) {
-                                    OutlinedButton(
-                                        onClick = { load(page + 1, append = true) },
-                                        enabled = !loadingMore,
-                                        shape = RoundedCornerShape(50),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                                    ) { Text(if (loadingMore) "加载中…" else "加载更多") }
-                                }
-                            } else {
-                                PaginationBar(page, totalPages) { load(it) }
+                    else -> Column(Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            items(topics, key = { "${it.topicId}-${it.pinned}" }) { t ->
+                                TopicCardView(
+                                    t,
+                                    onClick = { nav.navigate("topic/${t.topicId}") },
+                                    onForumClick = { /* 同板块 */ }
+                                )
                             }
-                            Spacer(Modifier.height(12.dp))
+                            if (forumInfinite) {
+                                item {
+                                    // 无限滚动：加载更多按钮，不足自动结束
+                                    if (page < totalPages) {
+                                        OutlinedButton(
+                                            onClick = { load(page + 1, append = true) },
+                                            enabled = !loadingMore,
+                                            shape = RoundedCornerShape(50),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                        ) { Text(if (loadingMore) "加载中…" else "加载更多") }
+                                    }
+                                    Spacer(Modifier.height(12.dp))
+                                }
+                            }
+                        }
+                        // 翻页模式：翻页条固定在内容区底部，始终可见
+                        if (!forumInfinite) {
+                            PaginationBar(page, totalPages) { load(it) }
                         }
                     }
                 }

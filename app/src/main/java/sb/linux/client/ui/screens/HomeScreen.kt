@@ -651,31 +651,31 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 )
                             }
                     ) {
-                        // 单列列表 + 顶部下拉刷新（按源站解析的标题正常展示）
-                        PullToRefreshBox(
-                            isRefreshing = loading && current.topics.isNotEmpty(),
-                            onRefresh = { load(1) },
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            LazyColumn(
-                                state = listState,
+                        // 翻页模式：翻页条固定在内容区底部（列表下方），始终可见无需滚动到底
+                        if (homeInfinite) {
+                            // 无限滚动：列表填满剩余空间，底部加载更多按钮在列表内
+                            PullToRefreshBox(
+                                isRefreshing = loading && current.topics.isNotEmpty(),
+                                onRefresh = { load(1) },
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(vertical = 8.dp)
                             ) {
-                                items(
-                                    pagedTopics,
-                                    key = { t -> t.topicId },
-                                ) { t ->
-                                    TopicCardView(
-                                        t,
-                                        views = session.getTopicViews(t.topicId),
-                                        onClick = { nav.navigate("topic/${t.topicId}") },
-                                        onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
-                                    )
-                                }
-                                item {
-                                    if (homeInfinite) {
-                                        // 无限滚动：移动到最下面帖子后出现「加载更多」按钮，点击继续加载
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    items(
+                                        pagedTopics,
+                                        key = { t -> t.topicId },
+                                    ) { t ->
+                                        TopicCardView(
+                                            t,
+                                            views = session.getTopicViews(t.topicId),
+                                            onClick = { nav.navigate("topic/${t.topicId}") },
+                                            onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
+                                        )
+                                    }
+                                    item {
                                         if (current.page < current.totalPages) {
                                             Box(
                                                 Modifier
@@ -689,13 +689,37 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                                 }
                                             }
                                         }
-                                    } else {
-                                        // 翻页模式：翻页条在内容最底部，跟随列表滚动
-                                        PaginationBar(current.page, localTotalPages) { goLocalPage(it) }
+                                        Spacer(Modifier.height(64.dp))
                                     }
-                                    // 底部留白：为悬浮按钮和底栏留出空间
-                                    Spacer(Modifier.height(64.dp))
                                 }
+                            }
+                        } else {
+                            // 翻页模式：Column 布局，列表在上（weight 1f），翻页条固定在底部
+                            Column(Modifier.fillMaxSize()) {
+                                PullToRefreshBox(
+                                    isRefreshing = loading && current.topics.isNotEmpty(),
+                                    onRefresh = { load(1) },
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                ) {
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentPadding = PaddingValues(vertical = 8.dp)
+                                    ) {
+                                        items(
+                                            pagedTopics,
+                                            key = { t -> t.topicId },
+                                        ) { t ->
+                                            TopicCardView(
+                                                t,
+                                                views = session.getTopicViews(t.topicId),
+                                                onClick = { nav.navigate("topic/${t.topicId}") },
+                                                onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
+                                            )
+                                        }
+                                    }
+                                }
+                                PaginationBar(current.page, localTotalPages) { goLocalPage(it) }
                             }
                         }
                         // 回到顶部按钮：列表滚过前几条后出现（缩放动画，不用 AnimatedVisibility 避免嵌套作用域限制）
@@ -712,7 +736,7 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 onClick = { scope.launch { listState.animateScrollToItem(0) } },
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .padding(end = 16.dp, bottom = 24.dp)
+                                    .padding(end = 16.dp, bottom = if (homeInfinite) 24.dp else 80.dp)
                                     .graphicsLayer {
                                         scaleX = backTopScale
                                         scaleY = backTopScale
