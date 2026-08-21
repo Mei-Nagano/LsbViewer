@@ -2157,11 +2157,17 @@ fun ReplyDialog(
         body = TextFieldValue(newText, selection = TextRange(cursor))
     }
 
-    ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() }) {
+    ModalBottomSheet(
+        onDismissRequest = { if (!busy) onDismiss() },
+        // 让 BottomSheet 的内容区感知 IME 空间，键盘弹出时自动上推输入框
+        windowInsets = androidx.compose.foundation.layout.WindowInsets.ime
+            .union(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+    ) {
         Column(
             Modifier
                 .padding(horizontal = 20.dp)
                 .imePadding()
+                .navigationBarsPadding()
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

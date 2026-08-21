@@ -164,8 +164,10 @@ fun HomeScreen(session: Session, nav: NavHostController) {
         scope.launch { drawerState.open() }
     }
 
+    // 先执行导航/刷新，再关闭抽屉。避免 invokeOnCompletion 在协程取消时不执行回调导致白屏
     fun closeDrawer(action: () -> Unit = {}) {
-        scope.launch { drawerState.close() }.invokeOnCompletion { action() }
+        action()
+        scope.launch { drawerState.close() }
     }
 
     // 源站屏蔽词 + 屏蔽用户过滤（服务端生效，本地兜底）+ 分类组合过滤

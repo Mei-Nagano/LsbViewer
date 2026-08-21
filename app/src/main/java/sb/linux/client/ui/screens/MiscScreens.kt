@@ -195,6 +195,10 @@ fun CheckinScreen(session: Session, nav: NavHostController) {
             try {
                 val resp = session.client.get("/daily_checkin")
                 info = HtmlParser.parseCheckin(resp.html)
+                // 进入签到页即刷新全局签到缓存（侧边栏/我的页同步显示最新连续/累计天数）
+                info?.let { i ->
+                    session.applyCheckinInfoPublic(i)
+                }
             } catch (_: Exception) {
                 info = null
             } finally { loading = false }

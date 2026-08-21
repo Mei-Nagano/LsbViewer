@@ -575,6 +575,9 @@ class Session(app: Application) : AndroidViewModel(app) {
     }
 
     /** 把签到页解析结果应用到全局状态（侧边栏/我的页实时同步） */
+    fun applyCheckinInfoPublic(info: HtmlParser.CheckinInfo) = applyCheckinInfo(info)
+
+    /** 把签到页解析结果应用到全局状态（侧边栏/我的页实时同步） */
     private fun applyCheckinInfo(info: HtmlParser.CheckinInfo) {
         checkinCheckedToday = info.checkedToday || !info.canCheckin
         checkinText = buildString {
