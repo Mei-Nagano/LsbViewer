@@ -684,8 +684,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                         onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
                                     )
                                 }
-                                item {
-                                    if (homeInfinite) {
+                                if (homeInfinite) {
+                                    item {
                                         // 无限滚动：移动到最下面帖子后出现「加载更多」按钮
                                         if (current.page < current.totalPages) {
                                             Box(
@@ -700,12 +700,16 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                                 }
                                             }
                                         }
-                                    } else {
-                                        // 翻页模式：翻页条在列表底部
+                                        // 底部留白：为悬浮按钮和底栏留出空间
+                                        Spacer(Modifier.height(64.dp))
+                                    }
+                                } else {
+                                    // 翻页模式：翻页条作为真正的最后一项，滑到底即可完整露出，
+                                    // 上方留白避免被悬浮返回顶部按钮遮挡。
+                                    item {
+                                        Spacer(Modifier.height(64.dp))
                                         PaginationBar(current.page, localTotalPages) { goLocalPage(it) }
                                     }
-                                    // 底部留白：为悬浮按钮和底栏留出空间
-                                    Spacer(Modifier.height(64.dp))
                                 }
                             }
                         }
