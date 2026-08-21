@@ -364,6 +364,8 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
             try {
                 val resp = session.client.get("/user/$uid?tab=notifications")
                 items = HtmlParser.parseNotifications(resp.html)
+                // 源站机制：GET 通知页即把全部通知标记为已读（已读状态同步到源站），红点随之清除
+                session.updateNotifUnread(0)
             } catch (e: Exception) { error = e.message } finally { loading = false }
         }
     }
@@ -380,11 +382,12 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                     }
                 },
                 actions = {
-                    // 标记已读：记录当前列表为已读，通知红点不再亮（新通知才会再亮）
-                    val anyUnread = session.hasUnreadNotifications(items)
+                    // 标记已读：源站在打开通知页时已同步标记为已读，这里仅更新界面展示
+                    val anyUnread = items.any { it.unread }
                     TextButton(
                         onClick = {
-                            session.markNotificationsRead(items)
+                            items = items.map { it.copy(unread = false) }
+                            session.updateNotifUnread(0)
                             session.showToast("已标记为已读")
                         },
                         enabled = items.isNotEmpty() && anyUnread,
@@ -439,7 +442,21 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                                     )
                                 }
                                 Column(Modifier.weight(1f)) {
-                                    Text(n.fromUser, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(n.fromUser, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                                        // 源站未读标记（与源站「未读」标签一致）
+                                        if (n.unread) {
+                                            Text(
+                                                "未读",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onError,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(MaterialTheme.colorScheme.error)
+                                                    .padding(horizontal = 6.dp, vertical = 1.dp),
+                                            )
+                                        }
+                                    }
                                     Text(n.timeText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }

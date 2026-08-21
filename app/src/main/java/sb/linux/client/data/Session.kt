@@ -97,8 +97,9 @@ class Session(app: Application) : AndroidViewModel(app) {
     var homeSortDrawerOpen by mutableStateOf(true)   // 排序抽屉折叠状态（持久化）
     val homeTabs = List(5) { HomeTabState() }
 
-    // 已读通知键集合（本地）。通知红点据此判断：仅有「不在已读集合」的新通知时才亮。
-    var readNotifKeys by mutableStateOf<Set<Long>>(emptySet())
+    // 源站未读通知数（首页 .notify-badge 解析）。通知红点据此判断，完全跟随源站：
+    // 进入通知页时源站会自动把全部通知标记为已读，届时置 0。
+    var notifUnreadCount by mutableIntStateOf(0)
         private set
 
     // 帖子阅读量缓存（详情页解析后回填，首页卡片展示）
@@ -148,7 +149,8 @@ class Session(app: Application) : AndroidViewModel(app) {
         commentSortOrder = settings.commentSortOrder
         blockedWords = settings.blockedWords
         blockedUsers = settings.blockedUsers
-        readNotifKeys = loadNotifReadKeys(prefs)
+        // 清理旧版本地已读通知键（已改为源站未读数方案）
+        prefs.edit().remove("notif_read_keys").apply()
         client.verificationUi = { url, html -> verifyWithUi(url, html) }
         loadViewsCache()
         refreshSession()
@@ -157,27 +159,12 @@ class Session(app: Application) : AndroidViewModel(app) {
     private fun themePrefs() =
         getApplication<Application>().getSharedPreferences("lsb_prefs", android.content.Context.MODE_PRIVATE)
 
-    // ---------------- 通知已读状态 ----------------
+    // ---------------- 通知未读状态（跟随源站） ----------------
 
-    private fun loadNotifReadKeys(prefs: android.content.SharedPreferences): Set<Long> =
-        prefs.getStringSet("notif_read_keys", emptySet())
-            ?.mapNotNull { it.toLongOrNull() }
-            ?.toSet() ?: emptySet()
-
-    /** 将当前通知列表全部标记为已读（写入已读键集合并持久化） */
-    fun markNotificationsRead(items: List<sb.linux.client.data.NotificationItem>) {
-        if (items.isEmpty()) return
-        // 追加新键，避免误清除其它历史已读记录
-        var merged = readNotifKeys + items.map { it.key }
-        // 防止无限累积：超出上限时丢弃最旧（任意）多余键
-        if (merged.size > 800) merged = merged.toList().takeLast(600).toSet()
-        readNotifKeys = merged
-        themePrefs().edit().putStringSet("notif_read_keys", merged.map { it.toString() }.toSet()).apply()
+    /** 更新源站未读通知数（首页 .notify-badge 解析结果；进入通知页 GET 后源站已全部标记已读，置 0） */
+    fun updateNotifUnread(count: Int) {
+        notifUnreadCount = count.coerceAtLeast(0)
     }
-
-    /** 判断列表里是否存在未读（不在已读集合）的新通知 */
-    fun hasUnreadNotifications(items: List<sb.linux.client.data.NotificationItem>): Boolean =
-        items.any { it.key !in readNotifKeys }
 
     fun saveTheme(mode: ThemeModePref, dyn: Boolean, colorKey: String = themeColorKey) {
         themeMode = mode
@@ -571,9 +558,12 @@ class Session(app: Application) : AndroidViewModel(app) {
                     loginState = LoginState()
                     checkinText = ""
                     checkinCheckedToday = false
+                    notifUnreadCount = 0
                 } else {
                     val home = client.get("/")
                     loginState = HtmlParser.parseMySidebar(home.html)
+                    // 通知红点跟随源站：从首页顶栏 .notify-badge 解析未读数
+                    notifUnreadCount = HtmlParser.parseNotifyBadgeCount(home.html)
                     if (loginState.loggedIn) {
                         refreshKeywordFilter()
                         // 每日首次打开自动签到（POST），完成后其响应已更新状态并持久化，无需再查询签到页
@@ -675,6 +665,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         loginState = LoginState()
         blockedWords = emptySet()
         blockedUsers = emptySet()
+        notifUnreadCount = 0
         viewModelScope.launch { client.logout() }
     }
 }

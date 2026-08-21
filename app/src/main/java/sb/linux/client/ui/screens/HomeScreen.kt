@@ -59,7 +59,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.currentBackStackEntryAsState
 import kotlinx.coroutines.launch
 import sb.linux.client.data.ForumCount
 import sb.linux.client.data.HomeSidebar
@@ -115,23 +114,6 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     }
     // 排序抽屉（t8）：(全部/仅抽奖/仅发卡) 上方的 (新评论/新帖子/精华) 折叠区，状态持久化
     var sortDrawerOpen by remember { mutableStateOf(session.homeSortDrawerOpen) }
-    // 通知红点（t10）：回到首页且登录时查询源站，仅当存在「未读」新通知时才亮。
-    // 是否未读依据本地已读集合判断（通知-标记已读 后会记录；新通知才会亮）。
-    var hasNotifications by remember { mutableStateOf(false) }
-    val backEntry by nav.currentBackStackEntryAsState()
-    val onHomeRoute = backEntry?.destination?.route == "home"
-    LaunchedEffect(onHomeRoute, session.loginState.loggedIn, session.loginState.userId, session.readNotifKeys) {
-        if (onHomeRoute && session.loginState.loggedIn) {
-            val items = runCatching {
-                val r = session.client.get("/user/${session.loginState.userId}?tab=notifications")
-                HtmlParser.parseNotifications(r.html)
-            }.getOrDefault(emptyList())
-            hasNotifications = session.hasUnreadNotifications(items)
-        } else if (!session.loginState.loggedIn) {
-            hasNotifications = false
-        }
-    }
-
     // 源站首页侧板数据（与首次首页请求同步解析，并本地永久缓存，避免每次访问源站）
     var sidebar by remember { mutableStateOf<HomeSidebar?>(session.loadHomeSidebar()) }
 
@@ -202,6 +184,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                 val path = buildPath(currentSort, p)
                 val resp = session.client.get(path)
                 val (items, pg) = HtmlParser.parseTopicList(resp.html)
+                // 通知红点跟随源站：每次首页请求顺带解析顶栏未读通知数
+                session.updateNotifUnread(HtmlParser.parseNotifyBadgeCount(resp.html))
                 current.topics = if (append) (current.topics + items).distinctBy { it.topicId } else items
                 current.sourcePage = pg.first.coerceAtLeast(if (append) p else 1)
                 current.sourceTotalPages = pg.second
@@ -416,14 +400,14 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                                 }
                             },
                             actions = {
-                                // 通知：未读时右上角显示小红点（是否未读由「标记已读」决定）
+                                // 通知：源站有未读时右上角显示小红点（未读数来自首页 .notify-badge）
                                 Box {
                                     IconButton(
                                         onClick = { nav.navigate("notifications") }
                                     ) {
                                         Icon(Icons.Filled.Notifications, "通知")
                                     }
-                                    if (hasNotifications) {
+                                    if (session.notifUnreadCount > 0) {
                                         Box(
                                             Modifier
                                                 .align(Alignment.TopEnd)

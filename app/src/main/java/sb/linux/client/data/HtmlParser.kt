@@ -438,9 +438,19 @@ object HtmlParser {
                 timeText = li.selectFirst(".post-meta span")?.text() ?: "",
                 content = li.selectFirst(".notification-content")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: "",
                 link = li.selectFirst(".notification-content a[href]")?.attr("href") ?: "",
+                // 源站未读标记：li 带 unread 类，头部有「未读」标签
+                unread = li.classNames().contains("unread") || li.selectFirst(".notification-unread") != null,
             )
         }
     }
+
+    /**
+     * 首页顶栏未读通知数（.nav-mine 内的 .notify-badge）。
+     * 无未读时源站不渲染该元素；关键词过滤计数（.home-keyword-filter-count）不算在内。
+     */
+    fun parseNotifyBadgeCount(html: String): Int =
+        doc(html).selectFirst(".nav-mine .notify-badge:not(.home-keyword-filter-count)")
+            ?.text()?.trim()?.toIntOrNull() ?: 0
 
     // ---------------- 榜单 ----------------
 

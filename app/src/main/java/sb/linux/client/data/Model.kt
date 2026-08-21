@@ -156,11 +156,8 @@ data class NotificationItem(
     val timeText: String,
     val content: String,
     val link: String,
-) {
-    /** 稳定去重键（用于本地「已读」状态）：fromUser + timeText + link + content 前 64 字符 */
-    val key: Long
-        get() = ("$fromUser\u0001$typeText\u0001$timeText\u0001$link\u0001${content.take(64)}").hashCode().toLong()
-}
+    val unread: Boolean = false,   // 源站未读状态（li.unread / span.notification-unread）
+)
 
 data class LeaderRow(
     val rank: Int,
