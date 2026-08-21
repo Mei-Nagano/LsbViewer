@@ -135,41 +135,35 @@ fun ExportedHtmlScreen(session: Session, nav: NavHostController) {
             when {
                 error != null -> ErrorBox(error!!) { html = null; error = null; retryKey++ }
                 html == null -> LoadingBox()
-                else -> AndroidView(
-                    factory = { ctx ->
-                        android.webkit.WebView(ctx).apply {
-                            settings.javaScriptEnabled = false
-                            // baseUrl 指向导出目录：导出 HTML 若引用同目录相对资源可正常加载
-                            loadDataWithBaseURL(
-                                java.io.File(rawPath).parentFile?.toURI()?.toString() ?: null,
-                                html,
-                                "text/html",
-                                "utf-8",
-                                null
-                            )
-                            webViewClient = object : android.webkit.WebViewClient() {
-                                override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
-                                    val t = view?.title?.takeIf { it.isNotBlank() } ?: return
-                                    if (t.startsWith("file:")) title = java.io.File(rawPath).nameWithoutExtension
-                                    else title = t
+                else -> {
+                    // delegated property 不能 smart cast：先取局部非空变量
+                    val content = html ?: ""
+                    // baseUrl 指向导出目录：导出 HTML 若引用同目录相对资源可正常加载
+                    val baseUrl = java.io.File(rawPath).parentFile?.toURI()?.toString()
+                    AndroidView(
+                        factory = { ctx ->
+                            android.webkit.WebView(ctx).apply {
+                                settings.javaScriptEnabled = false
+                                loadDataWithBaseURL(baseUrl, content, "text/html", "utf-8", null)
+                                webViewClient = object : android.webkit.WebViewClient() {
+                                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                        val t = view?.title?.takeIf { it.isNotBlank() } ?: return
+                                        if (t.startsWith("file:")) title = java.io.File(rawPath).nameWithoutExtension
+                                        else title = t
+                                    }
                                 }
                             }
-                        }
-                    },
-                    update = { w ->
-                        // 配置变更重建后重新注入内容（html 只读一次，重载保证显示）
-                        if (w.url == null || w.url.startsWith("about:blank")) {
-                            w.loadDataWithBaseURL(
-                                java.io.File(rawPath).parentFile?.toURI()?.toString(),
-                                html,
-                                "text/html",
-                                "utf-8",
-                                null
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+                        },
+                        update = { w ->
+                            // 配置变更重建后重新注入内容（html 只读一次，重载保证显示）
+                            val u = w.url
+                            if (u == null || u.startsWith("about:blank")) {
+                                w.loadDataWithBaseURL(baseUrl, content, "text/html", "utf-8", null)
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }
