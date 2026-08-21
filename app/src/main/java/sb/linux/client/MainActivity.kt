@@ -293,12 +293,14 @@ fun LsbApp(session: Session) {
             ) { WebScreen(session, nav) }
             composable("blockWords") { BlockWordsScreen(session, nav) }
             composable("checkin") { CheckinScreen(session, nav) }
+            composable("inviteCenter") { InviteCenterScreen(session, nav) }
             composable(
                 "leaderboard?type={type}",
                 arguments = listOf(navArgument("type") { type = androidx.navigation.NavType.StringType; defaultValue = "points" })
             ) { LeaderboardScreen(session, nav) }
             composable("notifications") { NotificationsScreen(session, nav) }
             composable("footprint") { FootprintScreen(session, nav) }
+            composable("favorites") { FavoritesScreen(session, nav) }
             composable(
                 "donate/{tid}",
                 arguments = listOf(navArgument("tid") { type = androidx.navigation.NavType.LongType })

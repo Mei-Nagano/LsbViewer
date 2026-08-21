@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
@@ -161,6 +162,18 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
                                 Icon(Icons.Filled.Block, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("屏蔽词管理")
+                            }
+                        }
+                        // ---------- 邀请码管理 ----------
+                        item {
+                            OutlinedButton(
+                                onClick = { nav.navigate("inviteCenter") },
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Filled.ContentCopy, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("邀请码管理")
                             }
                         }
                         // ---------- 各表单卡片（上传头像/简介/密码…按源站实际动态渲染） ----------

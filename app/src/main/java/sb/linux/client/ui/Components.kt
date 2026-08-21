@@ -232,6 +232,7 @@ fun TopicCardView(
     onForumClick: (Long) -> Unit = {},
     compact: Boolean = false,
     views: Int = -1,
+    showComments: Boolean = true,   // false 时不显示评论数（浏览历史只展示浏览时间，板块照常显示）
     onElementClick: ((key: String) -> Unit)? = null,
 ) {
     val titleColor = remember(card.titleColor) {
@@ -352,7 +353,7 @@ fun TopicCardView(
                                 else m
                             }
                         )
-                        if (!compact) {
+                        if (!compact && showComments) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(2.dp),

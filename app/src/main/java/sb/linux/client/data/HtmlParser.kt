@@ -449,23 +449,23 @@ object HtmlParser {
         return d.select("li.notification-item").map { li ->
             val typeText = li.selectFirst(".notification-kind")?.text() ?: "通知"
             val content = li.selectFirst(".notification-content")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: ""
-            val link = li.selectFirst(".notification-content a[href]")?.attr("href") ?: ""
-            // 私信类通知优先按「类型名」识别：即便其内容链接里混入了 /topic/，也绝不是帖子，
-            // 不能跳转帖子，也不能把发送者取成帖子标题。
-            val isPm = Regex(
+            // 源站私信（站内信）必带「回复TA」→ /notify/{uid}，帖子/系统通知没有此入口。
+            // 用它作为私信强标志：即便私信正文里贴了 /topic/ 链接（旧逻辑会被骗去当帖子）也绝不串帖。
+            val replyAction = li.selectFirst(".notification-reply-action")?.attr("href") ?: ""
+            val isPm = replyAction.contains("/notify/") || Regex(
                 """私信|私聊|站内信|短消息|聊天|私讯|回信|pm|conversation"""
             , RegexOption.IGNORE_CASE).containsMatchIn(typeText)
-            // 只有「确为帖子类」通知才关联帖子（类型名非私信 且 链接确为 /topic/{id}）
+            // 主目标链接：私信用「回复TA」进对话，帖子/系统通知取正文里的「查看主题」链接
+            val link = replyAction.ifBlank { li.selectFirst(".notification-content a[href]")?.attr("href") ?: "" }
+            // 确为帖子类：非私信，且主链接确为 /topic/{id}
             val isTopic = !isPm && Regex("""/topic/\d+""").containsMatchIn(link)
+            // 发送者/来源：私信是发送者名；系统/帖子用 .post-title（可能为 <span>系统</span> 或帖子标题链接）
+            val sender = li.selectFirst(".post-title")?.text()
+                ?: li.selectFirst(".notification-content img[alt]")?.attr("alt")
+                ?: li.selectFirst(".notification-content a[href*=\"/user/\"]")?.text()
             NotificationItem(
-                // 帖子通知用 .post-title 作为来源标题；私信/系统通知取真实发送者，避免串到无关帖子
-                fromUser = if (isTopic) li.selectFirst(".post-title")?.text()
-                            ?: li.selectFirst(".notification-content a[href]")?.text()
-                            ?: "系统"
-                           else li.selectFirst(".notification-content img[alt]")?.attr("alt")
-                                ?: li.selectFirst(".notification-content a[href*=\"/user/\"]")?.text()
-                                ?: li.selectFirst(".notification-content strong")?.text()
-                                ?: typeText,
+                fromUser = if (isTopic) li.selectFirst(".post-title")?.text() ?: (sender ?: "系统")
+                           else sender ?: typeText,
                 typeText = typeText,
                 timeText = li.selectFirst(".post-meta span")?.text() ?: "",
                 content = content,
@@ -900,6 +900,59 @@ object HtmlParser {
             canCheckin = canCheckin,
             checkedToday = checkedToday,
             message = core,
+        )
+    }
+
+    /** 邀请中心（/invite_code）：兑换规则 + 可用邀请码 + 我邀请到的用户 */
+    fun parseInviteCenter(html: String): InviteCenter {
+        val d = doc(html)
+        if (d.selectFirst("form[action=/login], input[name=username]") != null) {
+            // 未登录
+            return InviteCenter()
+        }
+        val csrf = d.selectFirst("input[name=_csrf]")?.attr("value") ?: ""
+        val descEl = d.selectFirst(".invite-exchange-form p.muted")
+        // 可用邀请码：每个 <li> 为一枚码（空态直接展示占位文本，不纳入列表）
+        val codesEl = d.selectFirst("ul.invite-code-grid")
+        val codes = codesEl?.select("> li")?.mapNotNull { li ->
+            if (li.classNames().contains("empty-state")) {
+                null
+            } else {
+                // 优先取外观上的码文本；剔除按钮/图标文字，避免把「复制」等混进码里
+                val code = li.selectFirst(".invite-code")?.ownText()?.ifBlank { it.text() }
+                    ?: li.selectFirst(".invite-code")?.text()
+                    ?: li.clone().let { c ->
+                        c.select("button, [data-invite-copy], .invite-code-actions").remove()
+                        c.text()
+                    }
+                        ?.trim()
+                        ?: ""
+                if (code.isBlank()) null else InviteCode(code = code)
+            }
+        } ?: emptyList()
+        // 我邀请到的用户
+        val invitedEl = d.selectFirst("ul.admin-manage-list")
+        val invited = invitedEl?.select("> li")?.mapNotNull { li ->
+            if (li.classNames().contains("empty-state")) null
+            else {
+                val ua = li.selectFirst("a[href^=/user/]")
+                InvitedUser(
+                    userId = idFrom(ua?.attr("href")),
+                    username = ua?.text()?.trim() ?: li.ownText().trim(),
+                    avatarUrl = absUrl(avatarOf(li)),
+                    statusText = li.text().replace(Regex("""\s+"""), " ").trim(),
+                )
+            }
+        } ?: emptyList()
+        return InviteCenter(
+            subtitle = d.selectFirst(".admin-plugin-summary span")?.text()?.trim() ?: "",
+            description = descEl?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: "",
+            canExchange = d.selectFirst("form.invite-exchange-form, form[action=/invite_code]") != null,
+            csrf = csrf,
+            codes = codes,
+            invited = invited,
+            emptyCodesText = codesEl?.selectFirst("> li.empty-state")?.text()?.trim() ?: "",
+            emptyInvitedText = invitedEl?.selectFirst("> li.empty-state")?.text()?.trim() ?: "",
         )
     }
 

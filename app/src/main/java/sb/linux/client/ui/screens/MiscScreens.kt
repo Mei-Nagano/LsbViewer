@@ -12,8 +12,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -68,6 +70,8 @@ fun WebScreen(session: Session, nav: NavHostController) {
                 android.webkit.WebView(ctx).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    // 注入已保存的登录会话，私信等需要登录的页面在应用内即可直接看到（避免跳登录拦截）
+                    session.client.exportWebCookies()
                     webViewClient = object : android.webkit.WebViewClient() {
                         override fun doUpdateVisitedHistory(
                             view: android.webkit.WebView?,
@@ -550,12 +554,20 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                             }
                             Spacer(Modifier.height(10.dp))
                             Text(n.content, style = MaterialTheme.typography.bodyMedium, maxLines = 4)
-                            // 仅帖子通知提供「查看详情」；私信等非帖子通知不跳帖子
-                            if (n.isTopic) {
-                                val tid = Regex("""/topic/(\d+)""").find(n.link)?.groupValues?.get(1)
-                                if (tid != null) {
+                            // 操作入口：
+                            // 帖子/系统通知带 /topic/ 链接 → 原生打开主题
+                            // 私信通知带 /notify/ 回复入口 → 用内置浏览器打开对话（配合登录 cookie 可看并回复）
+                            val topicId = Regex("""/topic/(\d+)""").find(n.link)?.groupValues?.get(1)
+                            when {
+                                topicId != null -> {
                                     Spacer(Modifier.height(4.dp))
-                                    TextButton(onClick = { nav.navigate("topic/$tid") }) { Text("查看详情") }
+                                    TextButton(onClick = { nav.navigate("topic/$topicId") }) { Text("查看主题") }
+                                }
+                                n.link.contains("/notify/") -> {
+                                    Spacer(Modifier.height(4.dp))
+                                    TextButton(onClick = { nav.navigate("web?url=${android.net.Uri.encode(n.link)}") }) {
+                                        Text("回复")
+                                    }
                                 }
                             }
                         }
@@ -574,6 +586,7 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
     // 本地浏览历史：不再解析源站足迹，左划卡片可删除（3.2）
     var topics by remember { mutableStateOf(session.settings.historyList()) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
 
     fun refresh() { topics = session.settings.historyList() }
 
@@ -597,7 +610,6 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
                     }
                 },
                 actions = {
-                    TextButton(onClick = { refresh() }) { Text("刷新") }
                     TextButton(
                         onClick = { showClearDialog = true },
                         enabled = topics.isNotEmpty(),
@@ -606,17 +618,51 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
             )
         }
     ) { pad ->
-        if (topics.isEmpty()) {
-            Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    "暂无浏览历史",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(24.dp)
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            // 本地搜索（只过滤标题，纯本地无需访问源站）
+            if (topics.isNotEmpty()) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("搜索浏览历史") },
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    trailingIcon = {
+                        if (query.isNotBlank()) Icon(
+                            Icons.Filled.Close, "清空",
+                            Modifier.clickable { query = "" }
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
-        } else {
-            LazyColumn(Modifier.padding(pad), contentPadding = PaddingValues(vertical = 8.dp)) {
-                items(topics, key = { it.topicId }) { t ->
+            if (topics.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "暂无浏览历史",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+            } else {
+                val filtered = topics.filter {
+                    query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)
+                }
+                if (filtered.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "无匹配“${query}”的记录",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(24.dp)
+                        )
+                    }
+                } else {
+                    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                        items(filtered, key = { it.topicId }) { t ->
                     val state = rememberSwipeToDismissBoxState(
                         confirmValueChange = { v ->
                             if (v == SwipeToDismissBoxValue.EndToStart) {
@@ -653,7 +699,9 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
                             t,
                             onClick = { nav.navigate("topic/${t.topicId}") },
                             onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
+                            showComments = false,   // 浏览历史只展示浏览时间，不显示评论数（板块照常显示）
                         )
+                    }
                     }
                 }
             }
@@ -671,6 +719,144 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
                     refresh()
                     showClearDialog = false
                     session.showToast("浏览历史已清空")
+                }) { Text("清空") }
+            },
+            dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("取消") } }
+        )
+    }
+}
+
+// ---------------- 收藏内容（本地快照，收藏时更新，可本地搜索） ----------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FavoritesScreen(session: Session, nav: NavHostController) {
+    // 本地收藏：收藏帖子时写入本地快照，纯本地筛选，不额外访问源站（3.15）
+    var topics by remember { mutableStateOf(session.settings.favoriteList()) }
+    var showClearDialog by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+
+    fun refresh() { topics = session.settings.favoriteList() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("收藏内容") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    TextButton(onClick = { refresh() }) { Text("刷新") }
+                    TextButton(
+                        onClick = { showClearDialog = true },
+                        enabled = topics.isNotEmpty(),
+                    ) { Text("清空") }
+                }
+            )
+        }
+    ) { pad ->
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            if (topics.isNotEmpty()) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("搜索收藏内容") },
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    trailingIcon = {
+                        if (query.isNotBlank()) Icon(
+                            Icons.Filled.Close, "清空",
+                            Modifier.clickable { query = "" }
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+            if (topics.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "收藏的帖子会显示在这里（在帖子右上角菜单里点「收藏」即可）",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+            } else {
+                val filtered = topics.filter {
+                    query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)
+                }
+                if (filtered.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "无匹配“${query}”的收藏",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(24.dp)
+                        )
+                    }
+                } else {
+                    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                        items(filtered, key = { it.topicId }) { t ->
+                            val state = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { v ->
+                                    if (v == SwipeToDismissBoxValue.EndToStart) {
+                                        session.settings.removeFavorite(t.topicId)
+                                        refresh()
+                                        session.showToast("已取消收藏")
+                                        true
+                                    } else false
+                                }
+                            )
+                            SwipeToDismissBox(
+                                state = state,
+                                enableDismissFromStartToEnd = false,
+                                backgroundContent = {
+                                    Box(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 14.dp, vertical = 5.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.errorContainer,
+                                                RoundedCornerShape(18.dp)
+                                            ),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Delete, "取消收藏",
+                                            Modifier.padding(end = 22.dp),
+                                            tint = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+                            ) {
+                                TopicCardView(
+                                    t,
+                                    onClick = { nav.navigate("topic/${t.topicId}") },
+                                    onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("清空收藏内容") },
+            text = { Text("确定清空全部 ${topics.size} 条本地收藏记录吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    session.settings.clearFavorites()
+                    refresh()
+                    showClearDialog = false
+                    session.showToast("收藏内容已清空")
                 }) { Text("清空") }
             },
             dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("取消") } }

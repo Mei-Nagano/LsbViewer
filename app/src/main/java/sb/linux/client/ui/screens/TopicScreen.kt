@@ -415,7 +415,19 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         "topic_id" to d.topicId.toString(),
                     )
                 )
-                session.showToast(if (resp.url.contains("form_error")) "操作失败" else "收藏状态已更新")
+                if (resp.url.contains("form_error")) {
+                    session.showToast("操作失败")
+                } else {
+                    session.showToast("收藏状态已更新")
+                    // 本地收藏快照：收藏即记入本地「收藏内容」，供离线检索，不额外访问源站（3.15）
+                    val op = d.posts.firstOrNull { it.floor == 0 } ?: d.posts.firstOrNull()
+                    session.settings.addFavorite(
+                        topicId = d.topicId, title = d.title,
+                        authorId = op?.authorId ?: 0, authorName = op?.authorName ?: "",
+                        forumId = 0, forumName = "",
+                        avatarUrl = op?.avatarUrl ?: "", titleColor = "",
+                    )
+                }
                 load(d.page)
             } catch (e: Exception) { session.showToast(e.message ?: "失败") }
         }
@@ -892,6 +904,19 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     // 直达评论区（原跳转楼层按钮改为直接跳到评论区，2.10）
                     IconButton(onClick = { scrollToComments() }) {
                         Icon(Icons.AutoMirrored.Filled.Chat, "直达评论区")
+                    }
+                    // 评论滚动模式快速切换（与首页样式切换一致：顶栏常驻图标直接切换，3.14）
+                    IconButton(onClick = {
+                        session.settings.scrollModeOverrides =
+                            session.settings.scrollModeOverrides + ("topic" to !topicInfinite)
+                        localReplyPage = 1
+                        replyModeTick++    // 强制重组使新模式即时生效
+                        session.showToast(if (!topicInfinite) "已切换为无限滚动" else "已切换为翻页模式")
+                    }) {
+                        Icon(
+                            Icons.Filled.SwapVert,
+                            if (topicInfinite) "切换为翻页" else "切换为无限滚动"
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

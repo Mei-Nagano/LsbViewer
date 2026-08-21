@@ -296,6 +296,75 @@ class AppSettings(context: Context) {
 
     fun clearHistory() = prefs.edit().remove("local_history").apply()
 
+    // ---------------- 本地收藏内容（收藏时本地快照，不额外访问源站） ----------------
+
+    private fun favoriteArray(): JSONArray =
+        runCatching { JSONArray(prefs.getString("local_favorites", "[]") ?: "[]") }.getOrDefault(JSONArray())
+
+    /** 收藏一个帖子：同帖去重置顶，最多保留 500 条 */
+    fun addFavorite(
+        topicId: Long, title: String, authorId: Long, authorName: String,
+        forumId: Long, forumName: String, avatarUrl: String, titleColor: String,
+    ) {
+        if (topicId <= 0) return
+        val old = favoriteArray()
+        val out = JSONArray()
+        out.put(
+            JSONObject()
+                .put("topicId", topicId).put("title", title)
+                .put("authorId", authorId).put("authorName", authorName)
+                .put("forumId", forumId).put("forumName", forumName)
+                .put("avatarUrl", avatarUrl).put("titleColor", titleColor)
+                .put("at", System.currentTimeMillis())
+        )
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            if (o.optLong("topicId") == topicId) continue
+            out.put(o)
+        }
+        while (out.length() > 500) out.remove(out.length() - 1)
+        prefs.edit().putString("local_favorites", out.toString()).apply()
+    }
+
+    /** 本地收藏内容（最新收藏在前） */
+    fun favoriteList(): List<sb.linux.client.data.TopicCard> {
+        val arr = favoriteArray()
+        val fmt = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val at = o.optLong("at", 0L)
+                add(
+                    TopicCard(
+                        topicId = o.optLong("topicId"),
+                        title = o.optString("title"),
+                        authorId = o.optLong("authorId"),
+                        authorName = o.optString("authorName"),
+                        forumId = o.optLong("forumId"),
+                        forumName = o.optString("forumName"),
+                        replies = 0,
+                        lastReplier = "",
+                        timeText = if (at > 0) fmt.format(java.util.Date(at)) else "",
+                        avatarUrl = o.optString("avatarUrl"),
+                        titleColor = o.optString("titleColor"),
+                    )
+                )
+            }
+        }
+    }
+
+    fun removeFavorite(topicId: Long) {
+        val old = favoriteArray()
+        val out = JSONArray()
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            if (o.optLong("topicId") != topicId) out.put(o)
+        }
+        prefs.edit().putString("local_favorites", out.toString()).apply()
+    }
+
+    fun clearFavorites() = prefs.edit().remove("local_favorites").apply()
+
     // ---------------- 设置导出 / 导入 ----------------
 
     fun exportJson(): String {

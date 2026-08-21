@@ -257,6 +257,25 @@ class LsbClient(private val context: Context) {
         if (!cookies.isNullOrBlank()) cookieJar.saveRawCookies(url, cookies)
     }
 
+    /** 把 OkHttp 已保存的登录会话 Cookie 注入 WebView，应用内浏览器即可保持登录（如私信对话） */
+    fun exportWebCookies(): Boolean {
+        return try {
+            val map = cookieJar.store()
+            if (map.isEmpty()) return false
+            val jar = CookieManager.getInstance()
+            jar.setAcceptCookie(true)
+            for (c in map.values) {
+                val domain = c.domain.trimStart('.')
+                val path = c.path.ifBlank { "/" }
+                val pair = "${c.name}=${c.value}"
+                runCatching { jar.setCookie("https://$domain$path", pair) }
+                runCatching { jar.setCookie("http://$domain$path", pair) }
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 21) runCatching { jar.flush() }
+            true
+        } catch (_: Exception) { false }
+    }
+
     /** 尝试清空源站浏览足迹；返回是否找到可用的清空接口 */
     suspend fun clearFootprintHistory(): Boolean = withContext(Dispatchers.IO) {
         val csrf = runCatching { csrf() }.getOrNull() ?: return@withContext false
