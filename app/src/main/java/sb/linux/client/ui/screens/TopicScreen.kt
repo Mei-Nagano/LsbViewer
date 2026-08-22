@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Title
+import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -354,7 +355,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             try {
                 val all = mutableListOf<PostEntry>()
                 var page = 1
-                val totalPages = (data?.totalPages ?: 1).coerceAtMost(10)
+                // 拉取帖子全部页（上限 30 页）：大帖对话链可能跨到后面的页，
+                // 之前 10 页上限会导致串联对话「评论显示不完全」
+                val totalPages = (data?.totalPages ?: 1).coerceAtMost(30)
                 while (page <= totalPages) {
                     val d = session.getTopicPage(tid, page) ?: run {
                         val resp = if (page <= 1) session.client.get("/topic/$tid")
@@ -724,7 +727,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 onThread = { openThread(main) },
                                 threadReplyCount = threadReplyCount[main.floor] ?: 0,
                                 onCopy = { copyPost = main },
-                                onDonate = if (d.donateUrl != null) ({ nav.navigate("donate/$tid") }) else null,
+                                // 打赏按钮仅登录时显示（源站打赏页需登录），入口见操作行
+                                onDonate = if (d.donateUrl != null && session.loginState.loggedIn) ({ nav.navigate("donate/$tid") }) else null,
                                 onEditUser = { uid -> nav.navigate("user/$uid") },
                             )
                         }
@@ -1066,7 +1070,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 scope.launch {
                     try {
                         // 重新拉取帖子页：源站每次渲染都会签发新的题目与 token
-                        val resp = session.client.get("/topic/$tid?page=${data?.page ?: 1}")
+                        //（注意源站分页参数是 p，page 会被忽略）
+                        val resp = session.client.get("/topic/$tid?p=${data?.page ?: 1}")
                         val c = HtmlParser.parseNativeCaptcha(resp.html)
                         if (c != null) {
                             captchaOverride = c
@@ -1098,14 +1103,16 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             // 验证码 token 多半已失效：自动换一题，用户重填即可
                             if (activeCaptcha != null) {
                                 runCatching {
-                                    val r2 = session.client.get("/topic/$tid?page=${data?.page ?: 1}")
+                                    val r2 = session.client.get("/topic/$tid?p=${data?.page ?: 1}")
                                     HtmlParser.parseNativeCaptcha(r2.html)?.let { captchaOverride = it }
                                 }
                             }
                         } else {
                             session.showToast("回复成功")
                             showReply = false
-                            load(data?.totalPages ?: 1)
+                            // 强制刷新末页：清掉本帖分页缓存重抓，确保新回复立即显示
+                            //（否则命中旧缓存会表现为「评论显示不完全」）
+                            load(data?.totalPages ?: 1, force = true)
                         }
                     } catch (e: Exception) {
                         session.showToast(e.message ?: "回复失败")
@@ -1509,12 +1516,19 @@ private fun PostCardContent(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (post.authorUid > 0) {
-                        Text(
-                            "UID ${post.authorUid}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
+                        // UID 也使用胶囊样式，与组别/楼主徽章风格统一
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                "UID ${post.authorUid}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                     if (isOpAuthor) {
                         Badge("楼主", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
@@ -1532,7 +1546,7 @@ private fun PostCardContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    post.titleBadge?.let { TitleBadgeView(it) }
+                    post.titleBadge?.let { TitleBadgeView(it, small = true) }
                     Text(
                         buildString {
                             if (post.timeText.isNotBlank()) append(post.timeText)
@@ -1638,6 +1652,14 @@ private fun PostCardContent(
                     label = if (post.coined) "已投币" else "投币",
                     onClick = { if (loggedIn) onCoin() },
                     iconTint = if (post.coined) MaterialTheme.colorScheme.primary else null
+                )
+            }
+            // 打赏：源站的打赏入口不再解析进正文，集成在分割线下方的操作行（仅楼主正文）
+            onDonate?.let { donate ->
+                PostAction(
+                    icon = Icons.Filled.VolunteerActivism,
+                    label = "打赏",
+                    onClick = donate
                 )
             }
             PostAction(icon = Icons.Filled.Flag, label = "举报", onClick = onReport)

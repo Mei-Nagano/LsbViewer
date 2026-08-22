@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -325,10 +326,13 @@ fun titleRarityColor(rarity: String): Pair<Color, Color> {
     }
 }
 
-/** 源站称号系统徽章：图标 + 名称（+ 稀有度），按稀有度配色 */
+/** 源站称号系统徽章：图标 + 名称（+ 稀有度），按稀有度配色。
+ *  small=true 时缩小字号/内边距并收紧名称宽度，避免卡片/评论里称号过宽而换行。 */
 @Composable
-fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier) {
+fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Boolean = false) {
     val (fg, bg) = titleRarityColor(title.rarity)
+    val style = if (small) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
+    else MaterialTheme.typography.labelSmall
     Surface(
         shape = RoundedCornerShape(50),
         color = bg,
@@ -336,24 +340,30 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier) {
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+            modifier = Modifier.padding(
+                horizontal = if (small) 5.dp else 6.dp,
+                vertical = 1.dp
+            )
         ) {
             if (title.icon.isNotBlank()) {
-                Text(title.icon, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                Spacer(Modifier.width(2.dp))
+                Text(title.icon, style = style, maxLines = 1)
+                Spacer(Modifier.width(if (small) 1.dp else 2.dp))
             }
             Text(
                 title.name,
-                style = MaterialTheme.typography.labelSmall,
+                style = style,
                 fontWeight = FontWeight.Medium,
                 color = fg,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                // 小尺寸下收紧名称宽度，过长称号截断而不再撑大/换行
+                modifier = if (small) Modifier.widthIn(max = 64.dp) else Modifier
             )
             if (title.rarity.isNotBlank()) {
-                Spacer(Modifier.width(3.dp))
+                Spacer(Modifier.width(if (small) 2.dp else 3.dp))
                 Text(
                     title.rarity,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = style,
                     fontWeight = FontWeight.SemiBold,
                     color = fg.copy(alpha = 0.85f),
                     maxLines = 1
@@ -408,8 +418,8 @@ fun TopicCardView(
                 Spacer(Modifier.width(10.dp))
             }
             Column(Modifier.weight(1f)) {
-                // 顶行：标题（含标签）占左侧，板块标识固定在卡片右上角
-                Row(verticalAlignment = Alignment.Bottom) {
+                // 顶行：标题（含标签）占左侧，板块标识固定在卡片右上角，与置顶/热等标签同一行以节省高度
+                Row(verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f)) {
                         // 帖子标签（置顶/热/精华/未读/抽奖/发卡）置于标题前面
                         Row(
@@ -486,9 +496,9 @@ fun TopicCardView(
                                     else m
                                 }
                         )
-                        // 作者称号（源站称号系统徽章）
+                        // 作者称号（源站称号系统徽章）：用 small 缩小比例，避免过宽/换行
                         card.titleBadge?.let {
-                            TitleBadgeView(it)
+                            TitleBadgeView(it, small = true)
                         }
                         Text(
                             card.timeText,

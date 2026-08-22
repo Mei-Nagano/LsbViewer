@@ -204,6 +204,15 @@ object HtmlParser {
                 // 恢复为正文的直接子节点，便于下方提取。
                 contentEl.select(".long-content-fold-actions").remove()
                 contentEl.select(".long-content-fold-content").forEach { it.unwrap() }
+                // 非正文元素剥离：抽奖面板已单独解析到帖子顶部卡片（community-lottery-card
+                // 会渲染在 post-content 内）、发卡兑换卡同理；打赏区（donate-area，源站 JS 会
+                // 把它移入 post-content，登录态下可能直接渲染在正文里）与快速回复区改为
+                // 操作行按钮（分割线下方），不再混入正文重复展示
+                contentEl.select(
+                    ".community-lottery-card, .community-lottery-topic-panel, " +
+                        ".community-lottery-readonly-prize, .community-lottery-prize-row, " +
+                        ".donate-area, [data-donate-area], .quick-reply-main-action, .virtual-card-box"
+                ).remove()
                 // 编辑信息节点：专用类名优先（含源站新类 sb-limit-edit-time-note）；
                 // 兜底查找正文内任意含「最后编辑」的尾部元素
                 // （包括深层嵌套，如 blockquote 内的编辑标注），避免残留在正文中显示在分隔线上方
@@ -247,7 +256,10 @@ object HtmlParser {
                 liked = likeBtn?.attr("data-liked") == "1",
                 coined = likeBtn?.attr("data-coined") == "1",
                 likeCoinType = "", // 举报类型由调用方按楼层默认（主楼 topic / 回复 reply）
-                canLike = likeForm != null, // 未登录/主楼无表单：不显示点赞投币（与源站一致）
+                // 有表单或按钮即可互动：源站改版后表单类名可能变化/移出楼层，
+                // 但 [data-donate-reaction] 按钮仍在楼内；仅以按钮判断会漏，
+                // 两者任一存在即显示点赞投币（未登录时源站不渲染按钮与表单）
+                canLike = likeForm != null || likeBtn != null,
                 isOp = li.selectFirst(".quick-reply-main-action") != null || li.selectFirst("form.topic-favorites-action") != null,
                 online = idFrom(authorA?.attr("href")) in onlineIds || onlineOf(li),
                 titleBadge = gachaTitleOf(li),

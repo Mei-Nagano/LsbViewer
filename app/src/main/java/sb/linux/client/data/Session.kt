@@ -109,8 +109,17 @@ class Session(app: Application) : AndroidViewModel(app) {
     // 帖子阅读量缓存（详情页解析后回填，首页卡片展示）
     val topicViews = mutableStateMapOf<Long, Int>()
 
-    // 评论区解析缓存：同一次会话内不再重复请求源站
+    // 评论区解析缓存：同一次会话内不再重复请求源站；
+    // 写入时间用于 TTL 过期判定（见 getTopicPage）
     val topicPageCache = mutableStateMapOf<String, TopicPageData>()
+    private val topicPageCacheTimes = mutableMapOf<String, Long>()
+
+    companion object {
+        /** 帖子页缓存有效期：10 分钟。过期后重进帖子会重新抓取，
+         *  保证能看到源站新增的评论与页码变化。 */
+        private const val TOPIC_PAGE_CACHE_TTL_MS = 10 * 60 * 1000L
+    }
+
     val aiSummaryCache = mutableStateMapOf<Long, String>()
     val danmakuCache = mutableStateMapOf<Long, List<DanmakuItem>>()
 
@@ -405,20 +414,40 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun getTopicViews(topicId: Long): Int = topicViews[topicId] ?: -1
 
     fun saveTopicPage(topicId: Long, page: Int, data: TopicPageData) {
-        topicPageCache["$topicId-$page"] = data
+        val key = "$topicId-$page"
+        topicPageCache[key] = data
+        topicPageCacheTimes[key] = System.currentTimeMillis()
     }
 
-    fun getTopicPage(topicId: Long, page: Int): TopicPageData? = topicPageCache["$topicId-$page"]
+    /** 帖子页缓存读取：超过 TTL 视为过期并移除，回源重抓。
+     *  评论区持续有新回复，进程常驻时旧缓存会导致重进帖子看不到新评论
+     *  （表现为「评论显示不完全」、页码停留在旧值）。 */
+    fun getTopicPage(topicId: Long, page: Int): TopicPageData? {
+        val key = "$topicId-$page"
+        val savedAt = topicPageCacheTimes[key] ?: return null
+        if (System.currentTimeMillis() - savedAt > TOPIC_PAGE_CACHE_TTL_MS) {
+            topicPageCache.remove(key)
+            topicPageCacheTimes.remove(key)
+            return null
+        }
+        return topicPageCache[key]
+    }
 
     /** 清除指定帖子的全部分页缓存（刷新时强制重新抓源站） */
     fun clearTopicPageCache(topicId: Long) {
         if (topicPageCache.isEmpty()) return
         val keys = topicPageCache.keys.filter { it.substringBefore("-") == topicId.toString() }
-        keys.forEach { topicPageCache.remove(it) }
+        keys.forEach {
+            topicPageCache.remove(it)
+            topicPageCacheTimes.remove(it)
+        }
     }
 
     /** 清除全部帖子分页缓存（主页刷新后让帖子内容随之更新） */
-    fun clearAllTopicPageCache() = topicPageCache.clear()
+    fun clearAllTopicPageCache() {
+        topicPageCache.clear()
+        topicPageCacheTimes.clear()
+    }
 
     fun saveAiSummary(topicId: Long, summary: String) {
         if (summary.isNotBlank()) aiSummaryCache[topicId] = summary
