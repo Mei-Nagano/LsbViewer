@@ -468,7 +468,7 @@ fun TopicCardView(
                     // 用户名 / 时间 / 评论数：不使用分隔点。
                     // 用 FlowRow 让行内放不下时自动换行，避免称号徽章挤占导致用户名被截断
                     FlowRow(
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.Center,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {

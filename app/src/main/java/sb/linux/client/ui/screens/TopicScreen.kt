@@ -1498,7 +1498,7 @@ private fun PostCardContent(
                 // 用户信息行（源站格式）：名字后面直接跟 UID，随后是组别/楼主徽章。
                 // 用 FlowRow 在放不下时自动换行，避免徽章挤占导致用户名被截断
                 FlowRow(
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.Center,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Text(
