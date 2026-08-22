@@ -279,8 +279,14 @@ fun HomeScreen(session: Session, nav: NavHostController) {
 
     // 翻页模式：切换分类（全部/仅抽奖/仅发卡）时是「本地过滤」已加载的帖子，可能不足一页。
     // 这里切到第一页并自动补足到设定的每页条数，避免切换后只显示寥寥几个帖子。
+    // 用 rememberSaveable 记住上次 combo/homeInfinite：进帖返回时组合重建但这些值未变，
+    // 跳过 goLocalPage(1)，避免被重置回第一页并滚到顶部（否则每次返回都要重新翻页）。
+    var lastRetCombo by rememberSaveable { mutableStateOf(combo) }
+    var lastRetInfinite by rememberSaveable { mutableStateOf(homeInfinite) }
     LaunchedEffect(combo, homeInfinite) {
-        if (!homeInfinite) {
+        val changed = combo != lastRetCombo || homeInfinite != lastRetInfinite
+        lastRetCombo = combo; lastRetInfinite = homeInfinite
+        if (changed && !homeInfinite) {
             withFrameNanos { }
             goLocalPage(1)
         }
