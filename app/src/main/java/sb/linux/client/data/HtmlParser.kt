@@ -179,6 +179,91 @@ object HtmlParser {
                 if (t.contains(" - ")) t.substringBefore(" - ").trim() else t.trim()
             }
 
+        // 抽奖帖面板（源站 .community-lottery-card）：必须先于楼层解析——
+        // 下方解析楼层时会把 .community-lottery-card / .virtual-card-box 从 DOM 移除
+        // （避免混入正文），若放在其后将永远解析不到面板
+        val lottery = d.selectFirst(".community-lottery-card, .community-lottery-topic-panel")?.let { p ->
+            val joinForm = p.parents().firstOrNull { it.tagName() == "form" }
+                ?: p.selectFirst("form[action]")
+            val prizeLis = p.select(".community-lottery-prizes > li")
+            val winnersLis = p.select(".community-lottery-winners li")
+            LotteryPanel(
+                status = p.selectFirst(".community-lottery-status-pill")?.text()?.trim()
+                    ?: d.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: "",
+                note = p.selectFirst("header span")?.text()?.trim() ?: "",
+                participants = p.selectFirst(".community-lottery-card-side em")?.text()?.trim() ?: "",
+                prizes = if (prizeLis.isNotEmpty()) prizeLis.map { li ->
+                    val name = li.selectFirst("strong")?.text()?.trim() ?: ""
+                    val desc = li.selectFirst("span")?.text()?.trim() ?: ""
+                    listOf(name, desc).filter { it.isNotBlank() }.joinToString(" · ")
+                }.filter { it.isNotBlank() } else p.select(".community-lottery-readonly-prize, .community-lottery-prize-row")
+                    .map { it.text().trim() }.filter { it.isNotBlank() },
+                condition = p.selectFirst(".community-lottery-condition")?.text()?.trim() ?: "",
+                result = p.selectFirst(".community-lottery-result")?.text()?.trim() ?: "",
+                winners = if (winnersLis.isNotEmpty()) winnersLis.mapNotNull { li ->
+                    val u = li.selectFirst("a")?.text()?.trim() ?: return@mapNotNull null
+                    // 奖品名：span 文本去掉内嵌 <code>（本人条目形如 "13.14额度兑换码 · 兑换码：<code>…</code>"）
+                    val prize = li.selectFirst("span")?.let { s ->
+                        val clone = s.clone()
+                        clone.select("code").remove()
+                        clone.text().trim().replace(Regex("""\s*·?\s*兑换码[:：]?\s*$"""), "").trim()
+                    } ?: ""
+                    // 兑换码：code 文本形如 "奖品名<TAB>实际兑换码"；text() 会把 TAB 归一为空格，
+                    // 用 wholeText() 保留原始分隔后取最后一个长 token
+                    val codeRaw = li.selectFirst("code")?.wholeText()?.trim() ?: ""
+                    val code = codeRaw.split(Regex("\\s+")).lastOrNull { it.length >= 8 } ?: codeRaw
+                    LotteryWinner(user = u, prize = prize, code = code)
+                } else emptyList(),
+                rules = p.selectFirst(".community-lottery-rules, .community-lottery-rule-note")?.text()?.trim() ?: "",
+                joinAction = joinForm?.attr("action") ?: "",
+                joinFields = hiddenFields(joinForm),
+                options = p.select("input[type=radio], .community-lottery-topic-option").mapNotNull { el ->
+                    if (el.tagName() == "input") {
+                        val v = el.attr("value")
+                        if (v.isNotBlank()) v to (el.parent()?.text()?.trim() ?: v) else null
+                    } else {
+                        val v = el.attr("data-value")
+                        if (v.isNotBlank()) v to el.text().trim() else null
+                    }
+                },
+                joinedText = p.selectFirst(".community-lottery-pending-notice, .community-lottery-pending-reply")?.text()?.trim() ?: "",
+            )
+        }
+
+        // 发卡帖虚拟卡片：同理先于楼层解析（.virtual-card-box 会在楼层解析时被移除）
+        val card = d.selectFirst(".virtual-card-box.virtual-card-card")?.let { c ->
+            val status = c.selectFirst(".virtual-card-status")?.text() ?: ""
+            val price = buildString {
+                append(c.selectFirst(".virtual-card-price strong")?.text() ?: "")
+                val unit = c.selectFirst(".virtual-card-price span")?.text() ?: ""
+                if (unit.isNotBlank()) append(" $unit")
+            }
+            val buyForm = c.parents().firstOrNull { it.tagName() == "form" }
+                ?: c.selectFirst("form[action]")
+            VirtualCard(
+                kicker = c.selectFirst(".virtual-card-kicker")?.text() ?: "积分兑换",
+                title = c.selectFirst(".virtual-card-head strong")?.text() ?: "",
+                status = status,
+                priceText = price,
+                tip = c.selectFirst(".virtual-card-tip")?.text() ?: "",
+                footText = c.select(".virtual-card-foot span").eachText().joinToString(" · "),
+                buyAction = buyForm?.attr("action") ?: "",
+                buyFields = hiddenFields(buyForm),
+                inStock = Regex("""(\d+)""").find(status)?.groupValues?.get(1)?.toIntOrNull()?.let { it > 0 }
+                    ?: status.contains("有货"),
+                // 我的购买记录（登录且兑换过才有）：li > code=兑换码，small span=时间/积分
+                orders = c.select(".virtual-card-orders ul li").mapNotNull { li ->
+                    val code = li.selectFirst("code")?.text()?.trim() ?: return@mapNotNull null
+                    val meta = li.select("small span").eachText()
+                    CardOrder(
+                        code = code,
+                        time = meta.getOrNull(0) ?: "",
+                        price = meta.getOrNull(1) ?: "",
+                    )
+                },
+            )
+        }
+
         val posts = d.select("ul.topic-post-list > li.post-entry, ul.post-list.topic-post-list > li.post-entry").map { li ->
             val floorNum = li.attr("data-floor").toIntOrNull() ?: 0
             val authorA = li.selectFirst("a.post-author")
@@ -268,40 +353,6 @@ object HtmlParser {
         val favForm = d.selectFirst("form.topic-favorites-action")
         val (page, totalPages) = parsePagination(d)
 
-        // 发卡帖虚拟卡片
-        val card = d.selectFirst(".virtual-card-box.virtual-card-card")?.let { c ->
-            val status = c.selectFirst(".virtual-card-status")?.text() ?: ""
-            val price = buildString {
-                append(c.selectFirst(".virtual-card-price strong")?.text() ?: "")
-                val unit = c.selectFirst(".virtual-card-price span")?.text() ?: ""
-                if (unit.isNotBlank()) append(" $unit")
-            }
-            val buyForm = c.parents().firstOrNull { it.tagName() == "form" }
-                ?: c.selectFirst("form[action]")
-            VirtualCard(
-                kicker = c.selectFirst(".virtual-card-kicker")?.text() ?: "积分兑换",
-                title = c.selectFirst(".virtual-card-head strong")?.text() ?: "",
-                status = status,
-                priceText = price,
-                tip = c.selectFirst(".virtual-card-tip")?.text() ?: "",
-                footText = c.select(".virtual-card-foot span").eachText().joinToString(" · "),
-                buyAction = buyForm?.attr("action") ?: "",
-                buyFields = hiddenFields(buyForm),
-                inStock = Regex("""(\d+)""").find(status)?.groupValues?.get(1)?.toIntOrNull()?.let { it > 0 }
-                    ?: status.contains("有货"),
-                // 我的购买记录（登录且兑换过才有）：li > code=兑换码，small span=时间/积分
-                orders = c.select(".virtual-card-orders ul li").mapNotNull { li ->
-                    val code = li.selectFirst("code")?.text()?.trim() ?: return@mapNotNull null
-                    val meta = li.select("small span").eachText()
-                    CardOrder(
-                        code = code,
-                        time = meta.getOrNull(0) ?: "",
-                        price = meta.getOrNull(1) ?: "",
-                    )
-                },
-            )
-        }
-
         // 未登录时评论区隐藏
         val loginVisible = d.selectFirst(".replies-login-visible-count")?.text()?.toIntOrNull() ?: -1
         val quickAuthor = d.selectFirst("[data-quick-reply-topic-author]")?.attr("data-quick-reply-topic-author") ?: ""
@@ -311,55 +362,6 @@ object HtmlParser {
             ?.map { it.text().trim().filter { c -> c.isDigit() } } ?: emptyList()
         val viewsText = statsNums.getOrNull(0) ?: ""
         val repliesText = statsNums.getOrNull(1) ?: ""
-
-        // 抽奖帖面板（源站 .community-lottery-card）
-        val lottery = d.selectFirst(".community-lottery-card, .community-lottery-topic-panel")?.let { p ->
-            val joinForm = p.parents().firstOrNull { it.tagName() == "form" }
-                ?: p.selectFirst("form[action]")
-            val prizeLis = p.select(".community-lottery-prizes > li")
-            val winnersLis = p.select(".community-lottery-winners li")
-            LotteryPanel(
-                status = p.selectFirst(".community-lottery-status-pill")?.text()?.trim()
-                    ?: d.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: "",
-                note = p.selectFirst("header span")?.text()?.trim() ?: "",
-                participants = p.selectFirst(".community-lottery-card-side em")?.text()?.trim() ?: "",
-                prizes = if (prizeLis.isNotEmpty()) prizeLis.map { li ->
-                    val name = li.selectFirst("strong")?.text()?.trim() ?: ""
-                    val desc = li.selectFirst("span")?.text()?.trim() ?: ""
-                    listOf(name, desc).filter { it.isNotBlank() }.joinToString(" · ")
-                }.filter { it.isNotBlank() } else p.select(".community-lottery-readonly-prize, .community-lottery-prize-row")
-                    .map { it.text().trim() }.filter { it.isNotBlank() },
-                condition = p.selectFirst(".community-lottery-condition")?.text()?.trim() ?: "",
-                result = p.selectFirst(".community-lottery-result")?.text()?.trim() ?: "",
-                winners = if (winnersLis.isNotEmpty()) winnersLis.mapNotNull { li ->
-                    val u = li.selectFirst("a")?.text()?.trim() ?: return@mapNotNull null
-                    // 奖品名：span 文本去掉内嵌 <code>（本人条目形如 "13.14额度兑换码 · 兑换码：<code>…</code>"）
-                    val prize = li.selectFirst("span")?.let { s ->
-                        val clone = s.clone()
-                        clone.select("code").remove()
-                        clone.text().trim().replace(Regex("""\s*·?\s*兑换码[:：]?\s*$"""), "").trim()
-                    } ?: ""
-                    // 兑换码：code 文本形如 "奖品名<TAB>实际兑换码"；text() 会把 TAB 归一为空格，
-                    // 用 wholeText() 保留原始分隔后取最后一个长 token
-                    val codeRaw = li.selectFirst("code")?.wholeText()?.trim() ?: ""
-                    val code = codeRaw.split(Regex("\\s+")).lastOrNull { it.length >= 8 } ?: codeRaw
-                    LotteryWinner(user = u, prize = prize, code = code)
-                } else emptyList(),
-                rules = p.selectFirst(".community-lottery-rules, .community-lottery-rule-note")?.text()?.trim() ?: "",
-                joinAction = joinForm?.attr("action") ?: "",
-                joinFields = hiddenFields(joinForm),
-                options = p.select("input[type=radio], .community-lottery-topic-option").mapNotNull { el ->
-                    if (el.tagName() == "input") {
-                        val v = el.attr("value")
-                        if (v.isNotBlank()) v to (el.parent()?.text()?.trim() ?: v) else null
-                    } else {
-                        val v = el.attr("data-value")
-                        if (v.isNotBlank()) v to el.text().trim() else null
-                    }
-                },
-                joinedText = p.selectFirst(".community-lottery-pending-notice, .community-lottery-pending-reply")?.text()?.trim() ?: "",
-            )
-        }
 
         // 回复表单人机验证（抽奖帖等需要验证后才可回复）
         val replyCaptcha = d.selectFirst("[data-native-captcha]")?.let { w ->

@@ -1516,17 +1516,19 @@ private fun PostCardContent(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (post.authorUid > 0) {
-                        // UID 也使用胶囊样式，与组别/楼主徽章风格统一
+                        // UID 徽章与称号徽章（TitleBadgeView）采用同样格式：
+                        // 同胶囊容器、内边距与字号，仅配色保持中性
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
                                 "UID ${post.authorUid}",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                             )
                         }
                     }

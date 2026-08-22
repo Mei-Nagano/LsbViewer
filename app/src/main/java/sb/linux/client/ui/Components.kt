@@ -182,11 +182,18 @@ private fun sanitizeSvg(raw: ByteArray): String? = runCatching {
 /**
  * 用 androidsvg 把 SVG 头像字节直接渲染成 px×px 的 Bitmap。
  * 先经 [sanitizeSvg] 清洗以规避老版 AndroidSVG 的解析/渲染软肋。
+ * 渲染前强制把文档 width/height 设为 100%：AndroidSVG 的 renderDocument 会让根元素
+ * 的 width/height（绝对值，如 sanitize 补的 viewBox 尺寸或 SVG 自带像素值）覆盖传入的
+ * 目标视口，导致内容按用户单位 1:1 绘制——px 与文档尺寸不一致时只显示左上角一块
+ * （小头像被裁、全屏大图只占角落）。设为 100% 后视口保持 px×px，viewBox 正常缩放填充。
+ * 与 coil-svg 官方 SvgDecoder 的做法一致。
  * 渲染失败返回 null（调用方回退 Coil 原路径）。
  */
 private fun renderSvgToBitmap(svg: ByteArray, px: Int): Bitmap? = runCatching {
     val src = sanitizeSvg(svg) ?: return@runCatching null
     val doc = com.caverock.androidsvg.SVG.getFromInputStream(src.byteInputStream())
+    doc.setDocumentWidth("100%")
+    doc.setDocumentHeight("100%")
     val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
     doc.renderToCanvas(Canvas(bmp), RectF(0f, 0f, px.toFloat(), px.toFloat()))
     bmp
