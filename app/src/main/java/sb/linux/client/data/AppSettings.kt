@@ -36,6 +36,11 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("sidebar_two_columns", true)
         set(v) = prefs.edit().putBoolean("sidebar_two_columns", v).apply()
 
+    /** 侧边栏展示源站在线用户与人数 */
+    var sidebarShowOnlineUsers: Boolean
+        get() = prefs.getBoolean("sidebar_show_online_users", true)
+        set(v) = prefs.edit().putBoolean("sidebar_show_online_users", v).apply()
+
     /** 翻页模式下每页展示的帖子条数（默认 15） */
     var topicsPerPage: Int
         get() = prefs.getInt("topics_per_page", 15)
@@ -116,7 +121,7 @@ class AppSettings(context: Context) {
     /** 重置浏览设置 */
     fun resetBrowse() = prefs.edit()
         .remove("infinite_scroll").remove("home_keep_cache").remove("danmaku_on")
-        .remove("sidebar_two_columns").remove("topics_per_page")
+        .remove("sidebar_two_columns").remove("sidebar_show_online_users").remove("topics_per_page")
         .remove("comment_sort_order").remove("comments_per_page")
         .remove("scroll_mode_overrides").remove("home_sort_drawer_open")
         .apply()
@@ -502,6 +507,7 @@ class AppSettings(context: Context) {
         o.put("infinite_scroll", infiniteScroll)
         o.put("danmaku_on", danmakuOn)
         o.put("sidebar_two_columns", sidebarTwoColumns)
+        o.put("sidebar_show_online_users", sidebarShowOnlineUsers)
         o.put("home_keep_cache", homeKeepCache)
         o.put("topics_per_page", topicsPerPage)
         o.put("comment_sort_order", commentSortOrder)
@@ -534,6 +540,7 @@ class AppSettings(context: Context) {
             if (o.has("infinite_scroll")) p.putBoolean("infinite_scroll", o.getBoolean("infinite_scroll"))
             if (o.has("danmaku_on")) p.putBoolean("danmaku_on", o.getBoolean("danmaku_on"))
             if (o.has("sidebar_two_columns")) p.putBoolean("sidebar_two_columns", o.getBoolean("sidebar_two_columns"))
+            if (o.has("sidebar_show_online_users")) p.putBoolean("sidebar_show_online_users", o.getBoolean("sidebar_show_online_users"))
             if (o.has("home_keep_cache")) p.putBoolean("home_keep_cache", o.getBoolean("home_keep_cache"))
             if (o.has("topics_per_page")) p.putInt("topics_per_page", o.optInt("topics_per_page", 15).coerceIn(5, 50))
             if (o.has("comment_sort_order")) p.putInt("comment_sort_order", o.optInt("comment_sort_order", 0).coerceIn(0, 2))

@@ -89,6 +89,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     var homeCacheEnabled by mutableStateOf(false)
     var danmakuOn by mutableStateOf(true)
     var sidebarTwoColumns by mutableStateOf(true)
+    var showOnlineUsers by mutableStateOf(true)
     // 翻页模式下每页展示的帖子条数（默认 15）
     var topicsPerPage by mutableIntStateOf(15)
     // 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择）
@@ -150,6 +151,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         sidebarTwoColumns = settings.sidebarTwoColumns
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
+        showOnlineUsers = settings.sidebarShowOnlineUsers
         blockedWords = settings.blockedWords
         blockedUsers = settings.blockedUsers
         // 清理旧版本地已读通知键（已改为源站未读数方案）
@@ -296,6 +298,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         sidebarTwoColumns = settings.sidebarTwoColumns
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
+        showOnlineUsers = settings.sidebarShowOnlineUsers
     }
 
     /** 重置全部应用设置（一级菜单重置按钮） */
@@ -315,6 +318,11 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun saveSidebarTwoColumns(v: Boolean) {
         sidebarTwoColumns = v
         settings.sidebarTwoColumns = v
+    }
+
+    fun saveShowOnlineUsers(v: Boolean) {
+        showOnlineUsers = v
+        settings.sidebarShowOnlineUsers = v
     }
 
     /** 翻页模式下每页展示的帖子条数（5..50） */

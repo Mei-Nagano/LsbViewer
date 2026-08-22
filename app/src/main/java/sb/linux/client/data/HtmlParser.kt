@@ -682,22 +682,24 @@ object HtmlParser {
             )
         }.distinctBy { it.userId }
 
-        // 当前在线卡片（.online-users-card）：在线总数 + 头像/用户名网格 + 「还有 N 人在线」
-        val onlineCard = aside.selectFirst(".online-users-card")
-        val onlineUsers = if (onlineCard != null) {
+        // 当前在线（源站 v8.6.5+ 不再渲染 .online-users-card，改为 <span.online-users-boot data-online-users-ids>
+        // 由 JS 动态拼卡）。这里读取在线 ID 集：人数 = ID 数；在线用户项交叉匹配本页帖子作者
+        // （拿名字/头像），保证侧栏能把「当前在线的作者」展示出来，无数据时为空卡片不渲染。
+        val onlineIds = onlineIdsOf(d)
+        val onlineUsers = if (onlineIds.isNotEmpty()) {
+            val fromPage = d.select("ul.post-list > li.post-item").mapNotNull { li ->
+                val userLink = li.selectFirst(".post-meta a[href^=/user/]") ?: return@mapNotNull null
+                val uid = idFrom(userLink.attr("href"))
+                if (uid > 0 && uid in onlineIds) OnlineUser(
+                    userId = uid,
+                    username = userLink.text().trim(),
+                    avatarUrl = absUrl(avatarOf(li)),
+                ) else null
+            }.distinctBy { it.userId }
             OnlineUsers(
-                count = onlineCard.selectFirst(".online-users-count")?.text()?.trim() ?: "",
-                items = onlineCard.select("a.online-users-item").mapNotNull { a ->
-                    val uid = idFrom(a.attr("href"))
-                    if (uid <= 0) null else OnlineUser(
-                        userId = uid,
-                        username = a.attr("title").ifBlank {
-                            a.selectFirst(".online-users-name")?.text()?.trim() ?: ""
-                        },
-                        avatarUrl = absUrl(avatarOf(a)),
-                    )
-                }.distinctBy { it.userId },
-                moreText = onlineCard.selectFirst(".online-users-more")?.text()?.trim() ?: "",
+                count = "${onlineIds.size} 人",
+                items = fromPage,
+                moreText = "",
             )
         } else OnlineUsers()
 

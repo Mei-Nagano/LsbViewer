@@ -1006,7 +1006,7 @@ private fun HomeSidebarDrawer(
                 }
 
                 // 当前在线（源站侧栏 online-users-card）：在线总数 + 头像网格 + 「还有 N 人在线」
-                if (!sb?.onlineUsers?.count.isNullOrBlank() || sb?.onlineUsers?.items?.isNotEmpty() == true) {
+                if (session.showOnlineUsers && (!sb?.onlineUsers?.count.isNullOrBlank() || sb?.onlineUsers?.items?.isNotEmpty() == true)) {
                     item { DrawerTitle("当前在线${sb!!.onlineUsers.count.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""}") }
                     item {
                         Surface(

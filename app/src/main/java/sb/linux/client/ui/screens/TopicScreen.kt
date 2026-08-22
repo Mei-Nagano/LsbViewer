@@ -64,6 +64,7 @@ import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -182,8 +183,13 @@ fun TopicScreen(session: Session, nav: NavHostController) {
 
     // 帖子分类生效的滚动模式（浏览设置可按分类覆盖，3.13）
     val topicInfinite = session.effectiveInfiniteScroll("topic")
-    // 翻页模式：按设置的每页评论数本地切片分页（3.11）
-    var localReplyPage by remember { mutableIntStateOf(1) }
+    // 翻页模式：按设置的每页评论数本地切片分页（3.11）。
+    // 用 rememberSaveable 使其在跳转到用户主页后返回本帖时得以保留，
+    // 结合 loadedMaxPage 从缓存重建 data 即可恢复原来的评论滚动位置。
+    var localReplyPage by rememberSaveable(tid) { mutableIntStateOf(1) }
+    // 已载入 data 的源站分页范围（加载是顺序的，恒为 1..loadedMaxPage）。
+    // 保存后返回本帖时据此从缓存重建 data，避免只加载第一页导致滚动位置丢失。
+    var loadedMaxPage by rememberSaveable(tid) { mutableIntStateOf(1) }
     // 滚动模式切换的触发标记：scrollModeOverrides 存于 SharedPreferences（非 Compose 状态），
     // 切换后靠此标记强制重组，让 topicInfinite 从源设置重新读取，菜单选项与分页即时同步。
     var replyModeTick by remember { mutableIntStateOf(0) }
@@ -230,6 +236,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     page = d.page,
                     totalPages = d.totalPages,
                 ) else d
+                // 记录已载入的源站分页范围（1..loadedMaxPage）
+                loadedMaxPage = if (append) maxOf(loadedMaxPage, d.page.coerceAtLeast(1))
+                else d.page.coerceAtLeast(1)
                 // 重新加载（非追加）时重置本地评论分页页码（3.11）
                 if (!append) localReplyPage = 1
                 // 阅读量回填首页卡片缓存
@@ -270,6 +279,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         page = d.page,
                         totalPages = d.totalPages,
                     ) ?: d
+                    loadedMaxPage = maxOf(loadedMaxPage, d.page.coerceAtLeast(1))
                 } catch (e: Exception) {
                     session.showToast(e.message ?: "加载失败")
                     break
@@ -292,6 +302,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 data = HtmlParser.parseTopicPage(resp.html, tid)
                 sortOrder = 1 // 跨页跳楼层需按楼层序渲染，data.posts 索引才能对上滚动位置
                 localReplyPage = 1
+                loadedMaxPage = p.coerceAtLeast(1)
                 loading = false
                 // 滚动到目标楼层附近并高亮
                 val idx = data?.posts?.indexOfFirst { it.floor == floor } ?: -1
@@ -492,7 +503,28 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     }
 
     LaunchedEffect(tid) {
-        load(initialPage)
+        // 返回本帖（比如从用户主页 pop 回来）时，若之前在评论区翻到过较深位置，
+        // 用 topicPageCache 重建 1..loadedMaxPage 的全部 data，让 rememberLazyListState
+        // 恢复的滚动位置能落到对应的评论上；缓存缺失则退化为常规加载。
+        if (loadedMaxPage > 1) {
+            var built: TopicPageData? = null
+            var ok = true
+            for (p in 1..loadedMaxPage) {
+                val cached = session.getTopicPage(tid, p)
+                if (cached == null) { ok = false; break }
+                built = if (built == null) cached else built.copy(
+                    posts = (built.posts + cached.posts).distinctBy { it.id },
+                    page = cached.page,
+                    totalPages = cached.totalPages,
+                )
+            }
+            if (ok && built != null) {
+                loading = false
+                data = built
+            } else load(initialPage)
+        } else {
+            load(initialPage)
+        }
         loadDanmaku()
     }
 
@@ -1436,7 +1468,7 @@ fun PostCard(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun PostCardContent(
     post: PostEntry,
@@ -1463,7 +1495,9 @@ private fun PostCardContent(
             Avatar(post.avatarUrl, avatarSize, Modifier.clickable(onClick = onUser), online = post.online)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Row(
+                // 用户信息行（源站格式）：名字后面直接跟 UID，随后是组别/楼主徽章。
+                // 用 FlowRow 在放不下时自动换行，避免徽章挤占导致用户名被截断
+                FlowRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
@@ -1472,9 +1506,16 @@ private fun PostCardContent(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        overflow = TextOverflow.Ellipsis
                     )
+                    if (post.authorUid > 0) {
+                        Text(
+                            "UID ${post.authorUid}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
                     if (isOpAuthor) {
                         Badge("楼主", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
                     }
@@ -1485,22 +1526,27 @@ private fun PostCardContent(
                             MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
-                    post.titleBadge?.let { TitleBadgeView(it) }
                 }
-                Text(
-                    buildString {
-                        if (post.authorUid > 0) append("UID ${post.authorUid}")
-                        if (post.timeText.isNotBlank()) {
-                            if (isNotEmpty()) append(" · ")
-                            append(post.timeText)
-                        }
-                        if (post.ipLocation.isNotBlank()) append(" · ${post.ipLocation}")
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // 元信息行（源站格式）：称号徽章在发送时间前面显示
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    post.titleBadge?.let { TitleBadgeView(it) }
+                    Text(
+                        buildString {
+                            if (post.timeText.isNotBlank()) append(post.timeText)
+                            if (post.ipLocation.isNotBlank()) {
+                                if (isNotEmpty()) append(" · ")
+                                append(post.ipLocation)
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             if (showFloorBadge && post.floor > 0) {
                 Spacer(Modifier.width(8.dp))

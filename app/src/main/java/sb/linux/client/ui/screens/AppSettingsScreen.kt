@@ -758,6 +758,12 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = { session.saveSidebarTwoColumns(it) }
                 )
                 SwitchRow(
+                    "侧边栏展示在线用户",
+                    "在侧边栏展示源站在线用户及其人数",
+                    checked = session.showOnlineUsers,
+                    onCheckedChange = { session.saveShowOnlineUsers(it) }
+                )
+                SwitchRow(
                     "显示打赏弹幕",
                     "帖子顶部滚动展示打赏信息，可在帖子菜单中单独开关",
                     checked = session.danmakuOn,

@@ -9,6 +9,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -242,38 +244,46 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
     }
     Box(
         modifier = modifier
-            .size(size.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            .size(size.dp),
         contentAlignment = Alignment.Center
     ) {
-        val svg = svgBitmap
-        if (svg != null) {
-            Image(
-                bitmap = svg.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier.size(size.dp)
-            )
-        } else if (model == null) {
-            // 加载中 / 服务端未提供头像 URL：显示占位图标
-            fallback()
-        } else {
-            // loading / error 均显示兜底图标，避免解码失败时"显示一下就没影"
-            SubcomposeAsyncImage(
-                model = model,
-                contentDescription = null,
-                modifier = Modifier.size(size.dp),
-                loading = { fallback() },
-                error = { fallback() }
-            )
+        // 图片内容层：圆形裁剪只作用于图片本身，让在线点的描边能延伸到圆形外不被裁掉
+        Box(
+            Modifier
+                .matchParentSize()
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            contentAlignment = Alignment.Center
+        ) {
+            val svg = svgBitmap
+            if (svg != null) {
+                Image(
+                    bitmap = svg.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.size(size.dp)
+                )
+            } else if (model == null) {
+                // 加载中 / 服务端未提供头像 URL：显示占位图标
+                fallback()
+            } else {
+                // loading / error 均显示兜底图标，避免解码失败时"显示一下就没影"
+                SubcomposeAsyncImage(
+                    model = model,
+                    contentDescription = null,
+                    modifier = Modifier.size(size.dp),
+                    loading = { fallback() },
+                    error = { fallback() }
+                )
+            }
         }
         // 源站在线状态：右下角绿点（带描边，与源站头像上的 online-users-dot 一致）
+        // 置于圆形内容层的上一层，不受 CircleShape 裁剪，描边可完整显示在圆形容器外
         if (online) {
             val dot = (size * 0.30f).dp
             Box(
                 Modifier
                     .align(Alignment.BottomEnd)
-                    .size(dot + 2.dp)
+                    .size(dot + 3.dp)
                     .background(MaterialTheme.colorScheme.surface, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -355,6 +365,7 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier) {
 
 /** 帖子卡片。compact = 单列精简模式：隐藏头像与回复数。
  *  onElementClick 非空时进入"预览改色"模式：点按各元素回调对应 CardColorOverrides key（标题不可改色）。 */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TopicCardView(
     card: TopicCard,
@@ -454,8 +465,9 @@ fun TopicCardView(
                         modifier = Modifier.padding(top = 2.dp)
                     )
                     Spacer(Modifier.size(4.dp))
-                    // 用户名 / 时间 / 评论数：不使用分隔点
-                    Row(
+                    // 用户名 / 时间 / 评论数：不使用分隔点。
+                    // 用 FlowRow 让行内放不下时自动换行，避免称号徽章挤占导致用户名被截断
+                    FlowRow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -465,9 +477,9 @@ fun TopicCardView(
                             style = MaterialTheme.typography.labelSmall,
                             color = userOverride ?: MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
-                                .weight(1f, fill = false)
                                 .let { m ->
                                     if (onElementClick != null)
                                         m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.USER) }
@@ -477,7 +489,6 @@ fun TopicCardView(
                         // 作者称号（源站称号系统徽章）
                         card.titleBadge?.let {
                             TitleBadgeView(it)
-                            Spacer(Modifier.width(6.dp))
                         }
                         Text(
                             card.timeText,
