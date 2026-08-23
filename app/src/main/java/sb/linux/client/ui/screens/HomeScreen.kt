@@ -46,6 +46,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -378,11 +379,22 @@ fun HomeScreen(
     }
 
     ModalNavigationDrawer(
+        // 平板双栏：抽屉挂在主栏（左栏）内，而 ModalNavigationDrawer 的 Box 不裁剪内容——
+        // 关闭态抽屉 offset=-width，整个矩形滑到主栏左边界外，正好盖在左侧导航栏（首页/我的按钮）
+        // 上：视觉上"抽屉收不回去一直占着空间"，且拦截点击导致无法切换页面。
+        // clipToBounds 把抽屉绘制与点击都限制在主栏内，关闭后完全滑出（不可见不可点）。
+        // 手机模式抽屉本就滑出屏幕左缘外，此裁剪无副作用。
+        modifier = Modifier.clipToBounds(),
         drawerState = drawerState,
         // 边缘手势仅在「全部」分类启用（其它组合的横向滑动交给列表分类切换），
         // 但抽屉打开后必须恢复手势与遮罩点击——否则非「全部」分类下打开抽屉后无法关闭
         gesturesEnabled = drawerState.isOpen || session.homeCombo == 0,
         drawerContent = {
+            // 关闭空闲态不组合侧边栏内容（用户卡片/版块列表/统计等会随首页重组白白耗费性能），
+            // 用等宽占位符撑住抽屉宽度：ModalNavigationDrawer 以 drawerContent 实测宽度计算
+            // 关闭锚点（-width），占位宽度与 sheet 一致（min(屏宽, 300dp)）锚点不漂移；
+            // 打开/动画期间组合真实内容，滑入滑出动画正常
+            if (drawerState.isOpen || drawerState.isAnimationRunning) {
             HomeSidebarDrawer(
                 session = session,
                 sidebar = sidebar,
@@ -411,6 +423,10 @@ fun HomeScreen(
                     }
                 },
             )
+            } else {
+                // 等宽空占位：仅撑住 drawerContent 宽度，锚点不漂移（宽度和 sheet 一致）
+                Spacer(Modifier.fillMaxHeight().widthIn(min = 300.dp))
+            }
         }
     ) {
         // 状态栏空间常驻保留（不在 Scaffold topBar 槽内做显隐动画）：
