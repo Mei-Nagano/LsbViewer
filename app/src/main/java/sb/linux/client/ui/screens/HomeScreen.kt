@@ -782,9 +782,11 @@ private fun HomeSidebarDrawer(
     onNavigate: (String) -> Unit,
     showCloseButton: Boolean = false,
 ) {
-    // 背景容器用正常矩形（默认右上/右下为圆角）；宽度自适应：窄平板主栏不足 300dp 时不溢出
+    // 背景容器用正常矩形（默认右上/右下为圆角）。
+    // 宽度上限 300dp：不能 fillMaxWidth（会占满全屏，遮罩无处可点导致抽屉关不掉），
+    // 收窄后右侧留出的遮罩区域可点击关闭；窄屏/窄主栏时自动收缩不溢出。
     ModalDrawerSheet(
-        modifier = Modifier.fillMaxWidth().widthIn(max = 300.dp),
+        modifier = Modifier.widthIn(max = 300.dp),
         drawerShape = RectangleShape,
     ) {
         val sb = sidebar
