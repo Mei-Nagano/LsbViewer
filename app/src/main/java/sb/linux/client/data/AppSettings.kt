@@ -457,16 +457,29 @@ class AppSettings(context: Context) {
         prefs.edit().putString("local_pm_messages", out.toString()).apply()
     }
 
-    /** 时间戳 → 源站式相对时间（几小时前），过久回退为日期 */
+    /** 时间戳 → 聊天式时间（QQ/微信风格，固定不随查看时刻漂移）：
+     *  今天 HH:mm / 昨天 HH:mm / 今年 MM-dd HH:mm / 跨年 yyyy-MM-dd HH:mm */
     private fun relativeTimeText(ts: Long): String {
         if (ts <= 0) return ""
-        val diff = System.currentTimeMillis() - ts
+        val cal = java.util.Calendar.getInstance()
+        val now = java.util.Calendar.getInstance()
+        cal.timeInMillis = ts
+        val sameDay = cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR) &&
+            cal.get(java.util.Calendar.DAY_OF_YEAR) == now.get(java.util.Calendar.DAY_OF_YEAR)
+        val yesterday = run {
+            val y = java.util.Calendar.getInstance()
+            y.add(java.util.Calendar.DAY_OF_YEAR, -1)
+            cal.get(java.util.Calendar.YEAR) == y.get(java.util.Calendar.YEAR) &&
+                cal.get(java.util.Calendar.DAY_OF_YEAR) == y.get(java.util.Calendar.DAY_OF_YEAR)
+        }
+        val hm = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
         return when {
-            diff < 60_000L -> "刚刚"
-            diff < 3_600_000L -> "${diff / 60_000L}分钟前"
-            diff < 86_400_000L -> "${diff / 3_600_000L}小时前"
-            diff < 30L * 86_400_000L -> "${diff / 86_400_000L}天前"
-            else -> java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(ts))
+            sameDay -> hm
+            yesterday -> "昨天 $hm"
+            cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR) ->
+                java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
+            else ->
+                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
         }
     }
 

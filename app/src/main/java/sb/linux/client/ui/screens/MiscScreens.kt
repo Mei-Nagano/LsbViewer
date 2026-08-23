@@ -539,19 +539,24 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(9.dp)
                             ) {
-                                // 通知发起者头像占位（色调圆）
-                                Box(
-                                    Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        n.fromUser.take(1).ifBlank { "通" },
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
+                                // 通知发起者头像：解析到 URL 时加载真实头像（用户头像/系统 dylan），
+                                // 无头像时退回首字占位圆
+                                if (n.partnerAvatar.isNotBlank()) {
+                                    Avatar(n.partnerAvatar, 34)
+                                } else {
+                                    Box(
+                                        Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            n.fromUser.take(1).ifBlank { "通" },
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
                                 }
                                 Column(Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -651,7 +656,12 @@ fun ChatScreen(session: Session, nav: NavHostController) {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Avatar(avatarUrl, 30)
+                        // 顶栏对方头像同样可点击进入其个人主页
+                        Box(
+                            Modifier.clip(CircleShape).clickable(enabled = partnerId > 0) {
+                                nav.navigate("user/$partnerId")
+                            }
+                        ) { Avatar(avatarUrl, 30) }
                         Text(name.ifBlank { "用户 $partnerId" }, style = MaterialTheme.typography.titleMedium,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -699,23 +709,30 @@ fun ChatScreen(session: Session, nav: NavHostController) {
                 state = listState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
             ) {
-                items(msgs) { m -> ChatBubble(m) }
+                items(msgs) { m ->
+                    ChatBubble(m, onPartnerClick = { if (m.partnerId > 0) nav.navigate("user/${m.partnerId}") })
+                }
             }
         }
     }
 }
 
-/** 单条气泡：对方靠左、头像在消息左侧，我方靠右无头像，气泡着色区分 */
+/** 单条气泡：对方靠左、头像在消息左侧（可点头像进对方主页），我方靠右无头像，气泡着色区分 */
 @Composable
-private fun ChatBubble(m: sb.linux.client.data.PmMessage) {
+private fun ChatBubble(m: sb.linux.client.data.PmMessage, onPartnerClick: () -> Unit = {}) {
     val mine = !m.incoming
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
-        // 对方头像固定在消息左侧（QQ/微信式），我方不显示头像
-        if (!mine) { Avatar(m.avatarUrl, 32); Spacer(Modifier.width(8.dp)) }
+        // 对方头像固定在消息左侧（QQ/微信式），点击进入对方个人主页
+        if (!mine) {
+            Box(Modifier.clip(CircleShape).clickable(onClick = onPartnerClick)) {
+                Avatar(m.avatarUrl, 32)
+            }
+            Spacer(Modifier.width(8.dp))
+        }
         Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
