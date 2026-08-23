@@ -774,6 +774,12 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     checked = session.danmakuOn,
                     onCheckedChange = { session.saveDanmaku(it) }
                 )
+                SwitchRow(
+                    "对话串联",
+                    "源站已支持树形结构评论，此功能不再需要；开启后评论区显示「查看对话」入口",
+                    checked = session.settings.threadDialogEnabled,
+                    onCheckedChange = { session.settings.threadDialogEnabled = it }
+                )
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
                     // 本地缓存分析（饼图，3.12）
                     CacheAnalysisCard(session)

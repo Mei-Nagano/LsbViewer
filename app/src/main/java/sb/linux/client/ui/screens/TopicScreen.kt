@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.OpenInFull
@@ -199,6 +200,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 切换后靠此标记强制重组，让 topicInfinite 从源设置重新读取，菜单选项与分页即时同步。
     var replyModeTick by remember { mutableIntStateOf(0) }
     val replies = sortedPosts.drop(1)
+    // 「对话串联」开关（默认关闭）：源站已支持树形结构评论（data-quote-threads-parent-floor），
+    // 楼层卡直接展示「回复 #N」标识并支持点击跳转，引用链弹窗仅作兼容保留
+    val threadEnabled = session.settings.threadDialogEnabled
     // 楼号 -> 回复它的楼层数量：决定评论区是否显示该楼的「对话串联」入口
     val threadReplyCount = remember(sortedPosts) {
         val m = mutableMapOf<Int, Int>()
@@ -766,6 +770,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 onReport = { nav.navigate("report/${main.likeCoinType.ifBlank { "topic" }}/${main.id}") },
                                 onFloor = { f -> jumpToFloor(f) },
                                 onThread = { openThread(main) },
+                                threadEnabled = threadEnabled,
                                 threadReplyCount = threadReplyCount[main.floor] ?: 0,
                                 onCopy = { copyPost = main },
                                 // 打赏按钮仅登录时显示（源站打赏页需登录），入口见操作行
@@ -855,6 +860,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             onReport = { nav.navigate("report/${post.likeCoinType.ifBlank { "reply" }}/${post.id}") },
                             onFloor = { f -> jumpToFloor(f) },
                             onThread = { openThread(post) },
+                            threadEnabled = threadEnabled,
                             threadReplyCount = threadReplyCount[post.floor] ?: 0,
                             onCopy = { copyPost = post },
                             onEditUser = { uid -> nav.navigate("user/$uid") },
@@ -1447,6 +1453,7 @@ fun PostCard(
     onCopy: () -> Unit = {},
     onDonate: (() -> Unit)? = null,
     onEditUser: (Long) -> Unit = {},
+    threadEnabled: Boolean = true,
     threadReplyCount: Int = 0,
 ) {
     if (isMainPost) {
@@ -1467,6 +1474,7 @@ fun PostCard(
                 onCopy = onCopy,
                 onDonate = onDonate,
                 onEditUser = onEditUser,
+                threadEnabled = threadEnabled,
                 threadReplyCount = threadReplyCount,
             )
         }
@@ -1509,6 +1517,7 @@ fun PostCard(
                     onCopy = onCopy,
                     onDonate = onDonate,
                     onEditUser = onEditUser,
+                    threadEnabled = threadEnabled,
                     threadReplyCount = threadReplyCount,
                 )
             }
@@ -1535,6 +1544,7 @@ private fun PostCardContent(
     onCopy: () -> Unit = {},
     onDonate: (() -> Unit)? = null,
     onEditUser: (Long) -> Unit = {},
+    threadEnabled: Boolean = true,
     threadReplyCount: Int = 0,
 ) {
     Column(modifier) {
@@ -1618,6 +1628,36 @@ private fun PostCardContent(
             }
         }
         Spacer(Modifier.height(10.dp))
+        // 树形评论标识（源站 data-quote-threads-parent-floor）：本楼回复的是第 N 楼，
+        // 点击跳转目标楼层；楼主正文无此标识
+        if (post.parentFloor > 0) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .clickable { onFloor(post.parentFloor) }
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Reply,
+                        null,
+                        Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        "回复 #${post.parentFloor}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+        }
         // 正文：楼主正文支持系统原生长按选择文本（2.6）；#楼层号可点击跳转
         if (showFloorBadge) {
             HtmlContent(post.contentHtml, onFloor = onFloor)
@@ -1626,9 +1666,9 @@ private fun PostCardContent(
                 HtmlContent(post.contentHtml, onFloor = onFloor)
             }
         }
-        // 对话串联入口：本楼引用了其他楼层、或被其他楼层回复时显示
+        // 对话串联入口（默认关闭，设置中可开启）：本楼引用了其他楼层、或被其他楼层回复时显示
         val refFloors = post.referencedFloors.filter { it > 0 }
-        if (refFloors.isNotEmpty() || threadReplyCount > 0) {
+        if (threadEnabled && (refFloors.isNotEmpty() || threadReplyCount > 0)) {
             Spacer(Modifier.height(6.dp))
             Surface(
                 shape = RoundedCornerShape(50),

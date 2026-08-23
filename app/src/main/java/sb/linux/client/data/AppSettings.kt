@@ -31,6 +31,13 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("danmaku_on", true)
         set(v) = prefs.edit().putBoolean("danmaku_on", v).apply()
 
+    /** 评论「对话串联」(#N 引用链弹窗) 开关：源站已支持树形结构评论
+     *  (data-quote-threads-parent-floor)，应用改为直接展示回复目标楼层，
+     *  此功能默认关闭、仅作兼容保留 */
+    var threadDialogEnabled: Boolean
+        get() = prefs.getBoolean("thread_dialog_enabled", false)
+        set(v) = prefs.edit().putBoolean("thread_dialog_enabled", v).apply()
+
     /** 侧边栏双列显示（作用于快捷功能与版块列表） */
     var sidebarTwoColumns: Boolean
         get() = prefs.getBoolean("sidebar_two_columns", true)

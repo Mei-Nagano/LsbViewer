@@ -35,6 +35,7 @@ data class PageResult<T>(
 data class PostEntry(
     val id: Long,
     val floor: Int,            // 0 = 楼主
+    val parentFloor: Int = 0,  // 树形评论：本楼回复的楼层（源站 data-quote-threads-parent-floor）；0 = 无上级
     val authorId: Long,
     val authorName: String,
     val avatarUrl: String,

@@ -266,6 +266,9 @@ object HtmlParser {
 
         val posts = d.select("ul.topic-post-list > li.post-entry, ul.post-list.topic-post-list > li.post-entry").map { li ->
             val floorNum = li.attr("data-floor").toIntOrNull() ?: 0
+            // 树形评论（源站 v8.6.5+）：回复楼带 data-quote-threads-parent-floor="N"
+            // 标记本楼回复的是第 N 楼（正文开头同时渲染「@用户 #N」引用链接）
+            val parentFloorNum = li.attr("data-quote-threads-parent-floor").toIntOrNull() ?: 0
             val authorA = li.selectFirst("a.post-author")
             val groups = li.select(".post-user-group").map { it.text().trim() }.filter { it.isNotBlank() }
             val uidBadge = groups.firstOrNull { it.startsWith("UID") }
@@ -322,6 +325,7 @@ object HtmlParser {
             PostEntry(
                 id = (li.attr("id").removePrefix("post-").toLongOrNull() ?: 0L),
                 floor = floorNum,
+                parentFloor = parentFloorNum.takeIf { it > 0 && it != floorNum } ?: 0,
                 authorId = idFrom(authorA?.attr("href")),
                 authorName = authorA?.text() ?: "",
                 avatarUrl = absUrl(avatarOf(li)),
