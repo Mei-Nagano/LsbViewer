@@ -419,27 +419,29 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 return
             }
             // 已加载但不在当前本地页：向上找到顶层祖先，切到其所在页
-            val target = replies.firstOrNull { it.floor == floor }
-            if (target != null && !topicInfinite) {
-                var cur = target
-                while (true) {
-                    val parent = replies.firstOrNull { it.floor == cur.parentFloor } ?: break
-                    cur = parent
-                }
-                val topIdx = replyTree.indexOfFirst { it.post.floor == cur.floor }
-                if (topIdx >= 0) {
-                    val page = topIdx / repliesPer + 1
-                    val newFlat = flattenTree(
-                        replyTree.drop((page - 1) * repliesPer).take(repliesPer)
-                    )
-                    val ni = newFlat.indexOfFirst { it.first.floor == floor }
-                    if (ni >= 0) {
-                        localReplyPage = page
-                        scrollAndHighlight(ni + 3, target.id)
-                        return
+            // ?.let 的 lambda 参数保证非空，不依赖 target 的智能转换
+            replies.firstOrNull { it.floor == floor }
+                ?.takeIf { !topicInfinite }
+                ?.let { target ->
+                    var cur = target
+                    while (true) {
+                        val parent = replies.firstOrNull { it.floor == cur.parentFloor } ?: break
+                        cur = parent
+                    }
+                    val topIdx = replyTree.indexOfFirst { it.post.floor == cur.floor }
+                    if (topIdx >= 0) {
+                        val page = topIdx / repliesPer + 1
+                        val newFlat = flattenTree(
+                            replyTree.drop((page - 1) * repliesPer).take(repliesPer)
+                        )
+                        val ni = newFlat.indexOfFirst { it.first.floor == floor }
+                        if (ni >= 0) {
+                            localReplyPage = page
+                            scrollAndHighlight(ni + 3, target.id)
+                            return
+                        }
                     }
                 }
-            }
             jumpFloor(floor)
             return
         }
@@ -919,7 +921,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(start = depth.coerceAtMost(6) * 14.dp)
+                                .padding(start = (depth.coerceAtMost(6) * 14).dp)
                                 .drawBehind {
                                     if (depth > 0) drawLine(
                                         color = lineColor,
