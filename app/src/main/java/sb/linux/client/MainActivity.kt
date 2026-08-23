@@ -326,11 +326,17 @@ fun LsbApp(session: Session) {
                             scope.launch { homeDrawerState.open() }
                         },
                     )
-                    // 主栏：顶层页面与应用设置菜单；屏幕内容导航(detailNav)进右栏
+                    // 主栏：顶层页面与应用设置菜单；屏幕内容导航(detailNav)进右栏。
+                    // 固定比例 weight(1f) 在 600dp 级平板上只剩 ~173dp，首页抽屉
+                    // （material3 最小宽 240dp）被压到贴边且遮罩无处可点 →
+                    // 改为按屏宽 32% 动态计算并夹在 300~420dp：抽屉始终能完整展开，
+                    // 右栏吃剩余空间
+                    val screenWidth = LocalConfiguration.current.screenWidthDp
+                    val masterWidth = (screenWidth * 0.32f).coerceIn(300f, 420f).dp
                     NavHost(
                         navController = masterNav,
                         startDestination = "home",
-                        modifier = Modifier.weight(1f).fillMaxHeight()
+                        modifier = Modifier.fillMaxHeight().width(masterWidth)
                     ) {
                         masterRoutes(session, detailNav, homeDrawerState)
                     }

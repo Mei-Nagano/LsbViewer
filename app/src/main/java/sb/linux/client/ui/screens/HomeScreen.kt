@@ -379,14 +379,16 @@ fun HomeScreen(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        // 仅「全部」分类下启用抽屉边缘手势：向左边缘划可拉出侧边栏（其它组合切换交给列表横向滑动）
-        gesturesEnabled = session.homeCombo == 0,
+        // 边缘手势仅在「全部」分类启用（其它组合的横向滑动交给列表分类切换），
+        // 但抽屉打开后必须恢复手势与遮罩点击——否则非「全部」分类下打开抽屉后无法关闭
+        gesturesEnabled = drawerState.isOpen || session.homeCombo == 0,
         drawerContent = {
             HomeSidebarDrawer(
                 session = session,
                 sidebar = sidebar,
-                // 平板双栏：抽屉只覆盖左栏，点右栏无法关闭 → 提供悬浮关闭按钮
-                showCloseButton = masterNav != null,
+                // 悬浮关闭按钮：抽屉打开时任何模式都提供明确的关闭途径
+                // （平板抽屉只覆盖左栏点不到遮罩；手机窄屏/非「全部」分类时遮罩点击也失效）
+                showCloseButton = true,
                 onClose = { closeDrawer() },
                 onRefresh = { closeDrawer { refresh() } },
                 onOpenForum = { fid -> closeDrawer { if (fid > 0) nav.navigate("forum/$fid") } },

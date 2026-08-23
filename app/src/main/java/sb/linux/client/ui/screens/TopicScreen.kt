@@ -297,6 +297,43 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
+    /** 倒序模式：一次性加载剩余全部页（上限 100 页防止极端大帖卡死）。
+     *  增量加载下新页插入会让已看内容跳动、本地页码随加载不断变化，无法形成真正倒序；
+     *  全量加载后本地倒序切片稳定，翻页页码固定。 */
+    fun loadAllRemaining() {
+        scope.launch {
+            loadingMore = true
+            try {
+                while ((data?.page ?: 1) < (data?.totalPages ?: 1) &&
+                    (data?.page ?: 1) < 100
+                ) {
+                    val np = (data?.page ?: 1) + 1
+                    val d = session.getTopicPage(tid, np) ?: run {
+                        val resp = session.client.get("/topic/$tid?p=$np")
+                        HtmlParser.parseTopicPage(resp.html, tid).also { session.saveTopicPage(tid, np, it) }
+                    }
+                    data = data?.copy(
+                        posts = (data!!.posts + d.posts).distinctBy { it.id },
+                        page = d.page,
+                        totalPages = d.totalPages,
+                    ) ?: d
+                    loadedMaxPage = maxOf(loadedMaxPage, d.page.coerceAtLeast(1))
+                }
+            } catch (e: Exception) {
+                session.showToast(e.message ?: "加载失败")
+            } finally { loadingMore = false }
+        }
+    }
+
+    // 倒序被选中（含进入帖子时记住的上次选择）：评论未加载完就全量补齐，保证完整真实倒序。
+    // loading/loadingMore 也作为 key：首次 load(1) 结束时 data 与 loading 几乎同时落定，
+    // 仅依赖 data key 重启会读到 loading=true 而漏触发。
+    LaunchedEffect(sortOrder, data?.page, data?.totalPages, loading, loadingMore) {
+        if (sortOrder == 2 && data != null && !loading && !loadingMore &&
+            (data?.page ?: 1) < (data?.totalPages ?: 1)
+        ) loadAllRemaining()
+    }
+
     /** 跳转到指定楼层：借助源站 ?floor=N 重定向定位页码（跨页时使用） */
     fun jumpFloor(floor: Int) {
         scope.launch {

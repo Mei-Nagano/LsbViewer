@@ -1,6 +1,7 @@
 package sb.linux.client.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -338,49 +339,45 @@ fun titleRarityColor(rarity: String): Pair<Color, Color> {
     }
 }
 
-/** 源站称号系统徽章：图标 + 名称（+ 稀有度），按稀有度配色。
- *  small=true 时缩小字号/内边距并收紧名称宽度，避免卡片/评论里称号过宽而换行。 */
+/** 源站称号系统徽章（对齐源站 2026 新样式）：
+ *  名称 = 稀有度色纯文本（无胶囊背景）+ 稀有度 = 细边框小标签；图标不再展示（源站已 display:none）。
+ *  small=true 时缩小字号并收紧名称宽度，避免卡片/评论里称号过宽而换行。 */
 @Composable
 fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Boolean = false) {
-    val (fg, bg) = titleRarityColor(title.rarity)
+    val (fg, _) = titleRarityColor(title.rarity)
     val style = if (small) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
     else MaterialTheme.typography.labelSmall
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = bg,
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (small) 3.dp else 4.dp),
         modifier = modifier
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(
-                horizontal = if (small) 5.dp else 6.dp,
-                vertical = 1.dp
-            )
-        ) {
-            if (title.icon.isNotBlank()) {
-                Text(title.icon, style = style, maxLines = 1)
-                Spacer(Modifier.width(if (small) 1.dp else 2.dp))
-            }
+        Text(
+            title.name,
+            style = style,
+            fontWeight = FontWeight.Medium,
+            color = fg,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            // 小尺寸下收紧名称宽度，过长称号截断而不再撑大/换行
+            modifier = if (small) Modifier.widthIn(max = 64.dp) else Modifier
+        )
+        // 稀有度：细边框小标签（源站 .gacha-title-rarity：1px 边框 + 透明背景 + 稀有度色）
+        if (title.rarity.isNotBlank()) {
             Text(
-                title.name,
-                style = style,
-                fontWeight = FontWeight.Medium,
+                title.rarity,
+                style = style.copy(fontSize = style.fontSize * 0.85f),
+                fontWeight = FontWeight.SemiBold,
                 color = fg,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                // 小尺寸下收紧名称宽度，过长称号截断而不再撑大/换行
-                modifier = if (small) Modifier.widthIn(max = 64.dp) else Modifier
+                modifier = Modifier
+                    .border(
+                        width = 1.dp,
+                        color = fg.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 3.dp)
             )
-            if (title.rarity.isNotBlank()) {
-                Spacer(Modifier.width(if (small) 2.dp else 3.dp))
-                Text(
-                    title.rarity,
-                    style = style,
-                    fontWeight = FontWeight.SemiBold,
-                    color = fg.copy(alpha = 0.85f),
-                    maxLines = 1
-                )
-            }
         }
     }
 }
