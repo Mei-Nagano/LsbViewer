@@ -140,7 +140,7 @@ class AppSettings(context: Context) {
     /** 重置常规设置 */
     fun resetGeneral() = prefs.edit()
         .remove("link_open_mode").remove("update_check_mode")
-        .remove("update_check_interval_hours").remove("tablet_mode")
+        .remove("update_check_interval_hours")
         .apply()
 
     /** 重置 WebDAV 备份配置 */

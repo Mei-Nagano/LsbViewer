@@ -2196,7 +2196,7 @@ fun FloorJumpDialog(maxFloor: Int, onDismiss: () -> Unit, onJump: (Int) -> Unit)
 
 /** 回复编辑：底部抽屉，预填引用内容，Markdown 工具栏 + 人机验证（照搬源站编辑器）。
  *  title/submitLabel/showToolbar 可定制：私信等场景复用此编辑器但隐藏 Markdown 工具栏。
- *  抽屉内为紧凑输入框（右下角「展开」）；点击展开进入全屏编辑（3.21） */
+ *  抽屉内为紧凑输入框（内嵌「展开」按钮）；点击展开进入全屏编辑（3.21） */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReplyDialog(
@@ -2237,23 +2237,23 @@ fun ReplyDialog(
         onSubmit(body.text, answer) { busy = false }
     }
 
-    // 修复软键盘遮挡：Dialog window 默认 softInputMode 为 UNSPECIFIED，部分设备上
-    // 表现为 pan（整体平移窗口）而非 resize，导致输入框被键盘盖住。这里强制
-    // ADJUST_RESIZE，配合 imePadding 让内容稳定避开 IME。
-    val dialogView = LocalView.current
-    LaunchedEffect(dialogView) {
-        @Suppress("DEPRECATION") // Dialog window 上 ADJUST_RESIZE 仍是让 IME insets 生效的可靠手段
-        (dialogView.parent as? DialogWindowProvider)?.window?.setSoftInputMode(
-            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-        )
-    }
-
     if (expanded) {
         // ---------- 全屏编辑（3.21）：抽屉内点「展开」进入 ----------
         Dialog(
             onDismissRequest = { if (!busy) expanded = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
+            // 修复软键盘遮挡（含底部人机验证输入框）：Dialog window 默认 softInputMode 为
+            // UNSPECIFIED，部分设备上表现为 pan（整体平移窗口）而非 resize，输入框/验证码被
+            // 键盘盖住。必须在 Dialog 内容里拿到所属窗口强制 ADJUST_RESIZE（在外层取到的是
+            // 主窗口，无效），配合 imePadding 让内容稳定避开 IME。
+            val dialogView = LocalView.current
+            LaunchedEffect(dialogView) {
+                @Suppress("DEPRECATION") // Dialog window 上 ADJUST_RESIZE 仍是让 IME insets 生效的可靠手段
+                (dialogView.parent as? DialogWindowProvider)?.window?.setSoftInputMode(
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                )
+            }
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                 Column(
                     Modifier
@@ -2323,35 +2323,25 @@ fun ReplyDialog(
             Spacer(Modifier.height(4.dp))
             if (showToolbar) ReplyToolbar(onInsert = { b, a, p -> insert(b, a, p) })
             Spacer(Modifier.height(8.dp))
-            // 紧凑输入框：右下角「展开」进入全屏编辑
-            Box {
-                OutlinedTextField(
-                    value = body,
-                    onValueChange = { body = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 96.dp),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                IconButton(
-                    onClick = { expanded = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 6.dp, bottom = 6.dp)
-                        .size(30.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceContainerHigh,
-                            RoundedCornerShape(50)
+            // 紧凑输入框：「展开」按钮嵌入输入框尾随槽位（trailingIcon），点按进入全屏编辑
+            OutlinedTextField(
+                value = body,
+                onValueChange = { body = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 96.dp),
+                shape = RoundedCornerShape(14.dp),
+                trailingIcon = {
+                    IconButton(onClick = { expanded = true }) {
+                        Icon(
+                            Icons.Filled.OpenInFull,
+                            "全屏编辑",
+                            Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                ) {
-                    Icon(
-                        Icons.Filled.OpenInFull,
-                        "全屏编辑",
-                        Modifier.size(15.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    }
                 }
-            }
+            )
             ReplyCaptchaField(
                 captcha = captcha,
                 answer = answer,

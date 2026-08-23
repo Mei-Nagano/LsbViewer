@@ -2081,6 +2081,19 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                     )
                 }
             }
+
+            // ---------- 布局：平板模式（从常规设置迁入） ----------
+            item { GroupLabel("布局") }
+            item {
+                GroupCard {
+                    SwitchRow(
+                        title = "平板模式",
+                        subtitle = "宽屏设备使用左右双栏：导航栏居左，主页/设置占左栏，帖子与详情占右栏。需屏幕宽度 ≥ 600dp 生效",
+                        checked = session.tabletMode,
+                        onCheckedChange = { session.saveTabletMode(it) },
+                    )
+                }
+            }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -2145,7 +2158,6 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
     // resetTick 作 key，重置后刷新
     var linkMode by remember(resetTick) { mutableStateOf(session.settings.linkOpenMode) }
     var updateMode by remember(resetTick) { mutableStateOf(session.settings.updateCheckMode) }
-    var tabletMode by remember(resetTick) { mutableStateOf(session.tabletMode) }
     // 重置后强制刷新输入框
     var intervalText by remember(resetTick, session.settings.updateCheckIntervalHours) {
         mutableStateOf("${session.settings.updateCheckIntervalHours}")
@@ -2217,19 +2229,6 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                         ) { Text("外部浏览器打开", maxLines = 1) }
                     }
                 }
-            }
-
-            // ---------- 平板模式 ----------
-            GroupCard {
-                SwitchRow(
-                    title = "平板模式",
-                    subtitle = "宽屏设备使用左右双栏：导航栏居左，主页/设置占左栏，帖子与详情占右栏。需屏幕宽度 ≥ 600dp 生效",
-                    checked = tabletMode,
-                    onCheckedChange = {
-                        tabletMode = it
-                        session.saveTabletMode(it)
-                    },
-                )
             }
 
             // ---------- 检查更新 ----------

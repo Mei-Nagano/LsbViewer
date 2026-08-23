@@ -313,14 +313,14 @@ class Session(app: Application) : AndroidViewModel(app) {
         showOnlineUsers = settings.sidebarShowOnlineUsers
     }
 
-    /** 重置全部应用设置（一级菜单重置按钮） */
+    /** 重置全部应用设置（一级菜单重置按钮）；平板模式迁入外观设置后此处显式恢复默认 */
     fun resetAllAppSettings() {
         resetThemeSettings()
         resetBrowseSettings()
         settings.resetAi()
         settings.resetGeneral()
         settings.resetWebdav()
-        tabletMode = settings.tabletMode
+        saveTabletMode(false)
     }
 
     fun saveTabletMode(v: Boolean) {

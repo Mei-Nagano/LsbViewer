@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -48,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -92,7 +94,12 @@ private fun buildPath(sort: String, page: Int): String = when {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun HomeScreen(session: Session, nav: NavHostController) {
+fun HomeScreen(
+    session: Session,
+    nav: NavHostController,
+    // 抽屉状态提升：平板双栏下左侧导航栏顶部的侧边栏按钮也能打开抽屉（手机模式内部自建）
+    drawerState: DrawerState = rememberDrawerState(DrawerValue.Closed),
+) {
     // 状态全部保存在 Session：进帖返回后仍在原分类、原位置
     val tabIndex = session.homeTabIndex
     val combo = session.homeCombo
@@ -106,7 +113,6 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     // 顶栏搜索态（t10）：搜索时整条顶栏变为搜索框；退出 / 失焦恢复
     var searchActive by remember { mutableStateOf(false) }
@@ -379,6 +385,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
             HomeSidebarDrawer(
                 session = session,
                 sidebar = sidebar,
+                // 平板双栏：抽屉只覆盖左栏，点右栏无法关闭 → 提供悬浮关闭按钮
+                showCloseButton = masterNav != null,
                 onClose = { closeDrawer() },
                 onRefresh = { closeDrawer { refresh() } },
                 onOpenForum = { fid -> closeDrawer { if (fid > 0) nav.navigate("forum/$fid") } },
@@ -469,8 +477,11 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                             windowInsets = WindowInsets(0, 0, 0, 0),
                             title = { Text("烧饼社区") },
                             navigationIcon = {
-                                IconButton(onClick = { openDrawer() }) {
-                                    Icon(Icons.Filled.Menu, "侧板")
+                                // 平板双栏：侧边栏按钮已移到左侧导航栏顶部，顶栏不再重复展示
+                                if (masterNav == null) {
+                                    IconButton(onClick = { openDrawer() }) {
+                                        Icon(Icons.Filled.Menu, "侧板")
+                                    }
                                 }
                             },
                             actions = {
@@ -755,7 +766,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     }
 }
 
-/** 源站首页侧板：用户卡片 / 签到天数 / 版块列表 / 快捷功能 / 每日热帖 / 最近浏览版块 / 站点统计 / 最新用户 */
+/** 源站首页侧板：用户卡片 / 签到天数 / 版块列表 / 快捷功能 / 每日热帖 / 最近浏览版块 / 站点统计 / 最新用户
+ *  showCloseButton：平板双栏下抽屉只覆盖左栏，点击右栏无法关闭 → 顶部显示悬浮关闭按钮 */
 @Composable
 private fun HomeSidebarDrawer(
     session: Session,
@@ -768,10 +780,18 @@ private fun HomeSidebarDrawer(
     onOpenLeaderboard: () -> Unit,
     onLogin: () -> Unit,
     onNavigate: (String) -> Unit,
+    showCloseButton: Boolean = false,
 ) {
-    ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+    // 背景容器用正常矩形（默认右上/右下为圆角）；宽度自适应：窄平板主栏不足 300dp 时不溢出
+    ModalDrawerSheet(
+        modifier = Modifier.fillMaxWidth().widthIn(max = 300.dp),
+        drawerShape = RectangleShape,
+    ) {
         val sb = sidebar
+        Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
+            // 给悬浮关闭按钮留出顶部空间，避免遮挡用户卡片
+            if (showCloseButton) Spacer(Modifier.height(38.dp))
             // 顶部用户卡片：品牌色横幅 + 头像 + 签到天数
             val state = session.loginState
             Surface(
@@ -1090,6 +1110,23 @@ private fun HomeSidebarDrawer(
                     }
                 }
                 item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+
+            // 悬浮关闭按钮（仅平板双栏模式显示）：抽屉只覆盖左栏，点击右栏无法关闭
+            if (showCloseButton) {
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                ) {
+                    Icon(
+                        Icons.Filled.Close, "关闭侧边栏",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

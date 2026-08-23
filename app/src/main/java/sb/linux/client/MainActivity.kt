@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,26 +13,35 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DrawerState
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.rememberDrawerState
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -39,10 +49,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -54,6 +68,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.launch
 import sb.linux.client.data.Endpoints
 import sb.linux.client.data.Session
 import sb.linux.client.data.UpdateChecker
@@ -120,6 +135,9 @@ fun LsbApp(session: Session) {
     val detailNav = rememberNavController()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // 首页抽屉状态提升到应用级：平板双栏下左侧导航栏顶部的侧边栏按钮也要能打开它
+    val homeDrawerState = rememberDrawerState(DrawerValue.Closed)
 
     // 平板模式（3.21）：开关开启且屏幕宽度 ≥ 600dp 时启用左右双栏布局
     val twoPane = session.tabletMode && LocalConfiguration.current.screenWidthDp >= 600
@@ -266,13 +284,13 @@ fun LsbApp(session: Session) {
                     startDestination = "home",
                     modifier = Modifier.padding(pad)
                 ) {
-                    masterRoutes(session, nav)
+                    masterRoutes(session, nav, homeDrawerState)
                     detailRoutes(session, nav)
                 }
             }
         } else {
-            // 平板双栏（3.21）：底部导航移到左侧 NavigationRail，
-            // 主栏（顶层页面/应用设置菜单）占左 1/3，详情（帖子/用户/设置子页）占右 2/3
+            // 平板双栏（3.21）：底部导航移到左侧导航栏（顶部为侧边栏按钮，首页/我的平分
+            // 剩余高度），主栏（顶层页面/应用设置菜单）占左 1/3，详情（帖子/用户/设置子页）占右 2/3
             Scaffold(
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 snackbarHost = { SnackbarHost(snackbar) }
@@ -287,27 +305,34 @@ fun LsbApp(session: Session) {
                             restoreState = true
                         }
                     }
-                    NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
-                        NavigationRailItem(
-                            selected = masterRoute == "home",
-                            onClick = { switchTab("home") },
-                            icon = { Icon(Icons.Filled.Home, null) },
-                            label = { Text("首页") }
-                        )
-                        NavigationRailItem(
-                            selected = masterRoute == "me",
-                            onClick = { switchTab("me") },
-                            icon = { Icon(Icons.Filled.Person, null) },
-                            label = { Text("我的") }
-                        )
+                    // 切换顶层页面（首页/我的/应用设置）时清空右栏详情，回到空态占位
+                    var lastMasterRoute by remember { mutableStateOf(masterRoute) }
+                    LaunchedEffect(masterRoute) {
+                        if (lastMasterRoute != masterRoute) {
+                            lastMasterRoute = masterRoute
+                            detailNav.navigate("detailEmpty") {
+                                popUpTo(detailNav.graph.findStartDestination().id) { saveState = false }
+                                launchSingleTop = true
+                            }
+                        }
                     }
+                    // 左侧导航栏：侧边栏按钮固定在最上方，首页/我的各占剩余高度一半
+                    TabletNavRail(
+                        selected = masterRoute,
+                        onSelect = { switchTab(it) },
+                        onOpenSidebar = {
+                            // 不在首页时先切回首页再打开抽屉（抽屉挂在首页上）
+                            if (masterRoute != "home") switchTab("home")
+                            scope.launch { homeDrawerState.open() }
+                        },
+                    )
                     // 主栏：顶层页面与应用设置菜单；屏幕内容导航(detailNav)进右栏
                     NavHost(
                         navController = masterNav,
                         startDestination = "home",
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
-                        masterRoutes(session, detailNav)
+                        masterRoutes(session, detailNav, homeDrawerState)
                     }
                     VerticalDivider(Modifier.fillMaxHeight())
                     // 详情栏：帖子/用户/搜索/设置子页等
@@ -324,6 +349,92 @@ fun LsbApp(session: Session) {
     }
 }
 
+/** 平板左侧导航栏（3.21）：顶部侧边栏按钮（打开首页抽屉），下方首页/我的平分剩余高度 */
+@Composable
+private fun TabletNavRail(
+    selected: String,
+    onSelect: (String) -> Unit,
+    onOpenSidebar: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RectangleShape,
+        modifier = Modifier.fillMaxHeight().width(80.dp)
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 侧边栏按钮固定在导航栏最上方
+            IconButton(
+                onClick = onOpenSidebar,
+                modifier = Modifier.padding(top = 10.dp).size(44.dp)
+            ) {
+                Icon(Icons.Filled.Menu, "侧边栏", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.height(6.dp))
+            TabletRailItem(
+                icon = Icons.Filled.Home,
+                label = "首页",
+                selected = selected == "home",
+                onClick = { onSelect("home") },
+                modifier = Modifier.weight(1f),
+            )
+            TabletRailItem(
+                icon = Icons.Filled.Person,
+                label = "我的",
+                selected = selected == "me",
+                onClick = { onSelect("me") },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** 平板导航栏按钮：整块区域可点（大触控区），内容居中；选中时胶囊指示器高亮 */
+@Composable
+private fun TabletRailItem(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+            ) {
+                Box(
+                    Modifier.size(width = 52.dp, height = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon, null,
+                        Modifier.size(22.dp),
+                        tint = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (selected) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 // ---------------- 双栏路由图与辅助 ----------------
 
 /**
@@ -332,9 +443,14 @@ fun LsbApp(session: Session) {
  */
 val LocalMasterNav = staticCompositionLocalOf<NavHostController?> { null }
 
-/** 主栏路由：底部导航顶层页面 + 应用设置菜单（平板双栏时占左栏） */
-private fun androidx.navigation.NavGraphBuilder.masterRoutes(session: Session, nav: NavHostController) {
-    composable("home") { HomeScreen(session, nav) }
+/** 主栏路由：底部导航顶层页面 + 应用设置菜单（平板双栏时占左栏）
+ *  homeDrawerState 为应用级提升的首页抽屉状态（平板左侧导航栏的侧边栏按钮需要打开它） */
+private fun androidx.navigation.NavGraphBuilder.masterRoutes(
+    session: Session,
+    nav: NavHostController,
+    homeDrawerState: DrawerState,
+) {
+    composable("home") { HomeScreen(session, nav, homeDrawerState) }
     composable("forums") { ForumListScreen(session, nav) }
     composable("me") { MeScreen(session, nav) }
     composable("appSettings") { AppSettingsScreen(session, nav) }

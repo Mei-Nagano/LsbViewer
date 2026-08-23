@@ -63,6 +63,8 @@ fun LoginScreen(session: Session, nav: NavHostController) {
             Modifier
                 .padding(pad)
                 .fillMaxSize()
+                // 键盘弹出时收缩可视区域，保证底部的人机验证输入框不被遮挡
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 26.dp),
             horizontalAlignment = Alignment.CenterHorizontally
