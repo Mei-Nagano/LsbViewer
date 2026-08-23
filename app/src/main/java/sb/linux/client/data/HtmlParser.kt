@@ -502,7 +502,16 @@ object HtmlParser {
         val d = doc(html)
         return d.select("li.notification-item").map { li ->
             val typeText = li.selectFirst(".notification-kind")?.text() ?: "通知"
-            val content = li.selectFirst(".notification-content")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: ""
+            // 私信回复结构：<blockquote>对方引用的我方消息</blockquote><p>正文</p>。
+            // 引用单独取出（供会话还原我方消息、展示回复上下文），正文剔除引用部分。
+            val contentEl = li.selectFirst(".notification-content")
+            val quoteText = contentEl?.selectFirst("blockquote")?.text()
+                ?.replace(Regex("""\s+"""), " ")?.trim() ?: ""
+            val content = run {
+                val el = contentEl?.clone()
+                el?.select("blockquote")?.remove()
+                el?.text() ?: ""
+            }.replace(Regex("""\s+"""), " ").trim()
             // 源站私信（站内信）必带「回复TA」→ /notify/{uid}，帖子/系统通知没有此入口。
             // 用它作为私信强标志：即便私信正文里贴了 /topic/ 链接（旧逻辑会被骗去当帖子）也绝不串帖。
             val replyAction = li.selectFirst(".notification-reply-action")?.attr("href") ?: ""
@@ -536,6 +545,7 @@ object HtmlParser {
                 isTopic = isTopic,
                 partnerId = if (isPm) partnerId else 0,
                 partnerAvatar = partnerAvatar,
+                quoteText = if (isPm) quoteText else "",
             )
         }
     }

@@ -416,14 +416,16 @@ class AppSettings(context: Context) {
     private fun pmArray(): JSONArray =
         runCatching { JSONArray(prefs.getString("local_pm_messages", "[]") ?: "[]") }.getOrDefault(JSONArray())
 
-    /** 追加一条私信消息，仅保留最近 300 条；收到的私信按「对方+内容」去重，
-     *  命中时用本次解析到的更准确资料回填（ts 天级刷新 + 名字/头像），
-     *  但保留原 seq 与 timeExact——消息的先后位置不因重复解析而漂移。
-     *  排序规则见 pmThread：先按 ts 的自然日分组，同一天内按 seq（通知只给天级时间，
-     *  同日先后只能靠写入顺序；我发出的消息带精确时间但同样按此规则参与排序）。 */
+    /** 追加一条私信消息，仅保留最近 300 条。
+     *  - 收到的私信按「对方+内容」去重（通知页反复拉全量），命中回填资料并刷新天级 ts；
+     *    兼容旧版把引用拼进正文的拼法（"引用 正文"），命中时迁移为分离后的干净正文。
+     *  - synthetic（依据对方回复引用补造的我方消息）：已存在同内容则不再补。
+     *  - App 内真实发送的消息不去重，总是追加。
+     *  排序规则见 pmThread：先按 ts 自然日分组，同一天内按 seq。 */
     fun addPmMessage(
         partnerId: Long, partnerName: String, avatarUrl: String,
         incoming: Boolean, content: String, ts: Long = 0L,
+        quoteText: String = "", synthetic: Boolean = false,
     ) {
         if (partnerId <= 0) return
         val t = if (ts > 0) ts else System.currentTimeMillis()
@@ -434,30 +436,44 @@ class AppSettings(context: Context) {
             val o = old.optJSONObject(i) ?: continue
             maxSeq = maxOf(maxSeq, o.optLong("seq", 0L))
         }
+        // 旧版正文 = "引用 + 空格 + 正文"，迁移期去重同时匹配该拼法
+        val legacyContent = if (quoteText.isNotBlank()) "$quoteText $content" else ""
         val rest = JSONArray()
-        var updated = false
+        var dedupHit = false       // 收到的消息命中去重（回填后不追加）
+        var syntheticExists = false// 补造的我方消息已存在（或真发过同内容）则不再补
         for (i in 0 until old.length()) {
             val o = old.optJSONObject(i) ?: continue
-            // 去重只针对「收到的私信」（通知页会反复拉全量导致重复）；我发出的总是追加
-            if (incoming && !updated && o.optLong("partnerId") == partnerId && o.optString("content") == content) {
+            val samePartner = o.optLong("partnerId") == partnerId
+            val stored = o.optString("content")
+            if (incoming && !dedupHit && samePartner &&
+                (stored == content || (legacyContent.isNotBlank() && stored == legacyContent))
+            ) {
                 rest.put(
                     JSONObject(o.toString())
                         .put("ts", t)
+                        .put("content", content)
+                        .put("quote", quoteText)
                         .put("partnerName", partnerName.ifBlank { o.optString("partnerName") })
                         .put("avatarUrl", avatarUrl.ifBlank { o.optString("avatarUrl") })
                 )
-                updated = true
-            } else rest.put(o)
+                dedupHit = true
+            } else {
+                if (synthetic && !syntheticExists && samePartner && stored == content) syntheticExists = true
+                rest.put(o)
+            }
         }
         val out = JSONArray()
-        if (!updated) {
+        if (!dedupHit && !syntheticExists) {
             out.put(
                 JSONObject()
                     .put("partnerId", partnerId).put("partnerName", partnerName)
                     .put("avatarUrl", avatarUrl).put("incoming", incoming)
                     .put("content", content).put("ts", t)
                     .put("seq", maxSeq + 1L)
-                    .put("timeExact", !incoming)   // 我发出的有精确时间；通知解析的只有天级（"昨天"等）
+                    .put("quote", quoteText)
+                    .put("synthetic", synthetic)
+                    // App 内发送的有精确时间；通知解析与引用补造的只有天级
+                    .put("timeExact", !incoming && !synthetic)
                     .put("read", incoming)   // 我发出的始终视为已读；对方发来的以此作为标记（markPmRead 会翻成 true）
             )
         }
@@ -466,6 +482,17 @@ class AppSettings(context: Context) {
             out.put(rest.optJSONObject(i))
         }
         prefs.edit().putString("local_pm_messages", out.toString()).apply()
+    }
+
+    /** 与某人的会话里是否已有指定内容的消息（判重：决定是否按引用补造我方消息） */
+    fun pmHasContent(partnerId: Long, content: String): Boolean {
+        if (content.isBlank()) return false
+        val arr = pmArray()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (o.optLong("partnerId") == partnerId && o.optString("content") == content) return true
+        }
+        return false
     }
 
     /** 时间戳 → 聊天式时间（QQ/微信风格，固定不随查看时刻漂移）：
@@ -531,6 +558,8 @@ class AppSettings(context: Context) {
                         ts = ts,
                         seq = seq,
                         timeExact = exact,
+                        quoteText = o.optString("quote"),
+                        synthetic = o.optBoolean("synthetic"),
                     )
                 )
             }

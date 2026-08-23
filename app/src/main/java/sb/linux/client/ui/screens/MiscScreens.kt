@@ -465,10 +465,21 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
                 // 通知列表最新在前：倒序写入并带上解析到的消息时间，保证会话按时间正序、时间显示准确
                 items.asReversed().forEach { n ->
                     if (n.partnerId > 0 && n.content.isNotBlank()) {
+                        val ts = HtmlParser.parseRelativeTime(n.timeText)
+                        // 对方回复引用了我方消息而本地没有（如在网页端发送）：
+                        // 按引用内容补造一条我方记录并写在回复之前（seq 更小、同天），
+                        // 会话顺序与真实往来一致，不会出现"我方消息缺失/错位"
+                        if (n.quoteText.isNotBlank() && !session.settings.pmHasContent(n.partnerId, n.quoteText)) {
+                            session.settings.addPmMessage(
+                                partnerId = n.partnerId, partnerName = n.fromUser,
+                                avatarUrl = n.partnerAvatar, incoming = false,
+                                content = n.quoteText, ts = ts, synthetic = true,
+                            )
+                        }
                         session.settings.addPmMessage(
                             partnerId = n.partnerId, partnerName = n.fromUser,
                             avatarUrl = n.partnerAvatar, incoming = true, content = n.content,
-                            ts = HtmlParser.parseRelativeTime(n.timeText),
+                            ts = ts, quoteText = n.quoteText,
                         )
                     }
                 }
@@ -739,12 +750,24 @@ private fun ChatBubble(m: sb.linux.client.data.PmMessage, onPartnerClick: () -> 
                 color = if (mine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.widthIn(max = 280.dp)
             ) {
-                Text(
-                    m.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (mine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                )
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    // 回复引用预览（QQ/微信式）：对方回复时引用的我方消息
+                    if (m.quoteText.isNotBlank()) {
+                        Text(
+                            m.quoteText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (mine) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.72f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(bottom = 3.dp),
+                        )
+                    }
+                    Text(
+                        m.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (mine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
             if (m.timeText.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))

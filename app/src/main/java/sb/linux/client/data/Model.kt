@@ -173,6 +173,7 @@ data class NotificationItem(
     val isTopic: Boolean = true,   // 是否确为帖子类通知（link 为 /topic/{id}）；私信等非帖子通知为 false
     val partnerId: Long = 0,       // 私信对方 uid（/notify/{uid} 或 /user/{uid}）；非私信为 0
     val partnerAvatar: String = "",// 私信对方头像 URL
+    val quoteText: String = "",    // 私信回复引用的我方消息文本（blockquote），无引用为空
 )
 
 /** 本地聚合的一条私信消息（收信来自通知，去信为本地发送记录） */
@@ -186,6 +187,8 @@ data class PmMessage(
     val ts: Long = 0L,
     val seq: Long = 0L,        // 插入序号：同一天内按此排序（天级时间分不出先后）
     val timeExact: Boolean = true, // 时间是否精确到分（我发出的=精确；通知解析的只有天级）
+    val quoteText: String = "",    // 对方回复时引用的我方消息（回复上下文预览）
+    val synthetic: Boolean = false,// true = 依据对方回复里的引用补造的我方消息（非 App 内发送）
 )
 
 data class LeaderRow(

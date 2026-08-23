@@ -80,13 +80,22 @@ fun UserScreen(session: Session, nav: NavHostController) {
                     }
                     "notifications" -> {
                         notifications = runCatching { HtmlParser.parseNotifications(resp.html) }.getOrDefault(emptyList())
-                        // 与「我的通知」页一致：倒序写入并带上解析到的消息时间，保证会话按时间正序
+                        // 与「我的通知」页一致：倒序写入并带上解析到的消息时间，保证会话按时间正序；
+                        // 对方回复引用了我方消息而本地没有时，按引用补造我方记录（写在回复之前）
                         notifications.asReversed().forEach { n ->
                             if (n.partnerId > 0 && n.content.isNotBlank()) {
+                                val ts = HtmlParser.parseRelativeTime(n.timeText)
+                                if (n.quoteText.isNotBlank() && !session.settings.pmHasContent(n.partnerId, n.quoteText)) {
+                                    session.settings.addPmMessage(
+                                        partnerId = n.partnerId, partnerName = n.fromUser,
+                                        avatarUrl = n.partnerAvatar, incoming = false,
+                                        content = n.quoteText, ts = ts, synthetic = true,
+                                    )
+                                }
                                 session.settings.addPmMessage(
                                     partnerId = n.partnerId, partnerName = n.fromUser,
                                     avatarUrl = n.partnerAvatar, incoming = true, content = n.content,
-                                    ts = HtmlParser.parseRelativeTime(n.timeText),
+                                    ts = ts, quoteText = n.quoteText,
                                 )
                             }
                         }
