@@ -72,6 +72,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -200,6 +202,12 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 切换后靠此标记强制重组，让 topicInfinite 从源设置重新读取，菜单选项与分页即时同步。
     var replyModeTick by remember { mutableIntStateOf(0) }
     val replies = sortedPosts.drop(1)
+    // 树形评论（源站 data-quote-threads-parent-floor）：存在回复关系时按树形嵌套展示，
+    // 多级子回复按层级缩进 + 引导线；旧帖无此数据时保持平铺
+    val hasTree = remember(replies) { replies.any { it.parentFloor > 0 } }
+    val replyTree = remember(replies, sortOrder) {
+        if (hasTree) buildReplyTree(replies, sortOrder) else emptyList()
+    }
     // 「对话串联」开关（默认关闭）：源站已支持树形结构评论（data-quote-threads-parent-floor），
     // 楼层卡直接展示「回复 #N」标识并支持点击跳转，引用链弹窗仅作兼容保留
     val threadEnabled = session.settings.threadDialogEnabled
@@ -212,9 +220,17 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     val repliesPer = session.settings.commentsPerPage.coerceAtLeast(1)
     val pagedReplies = if (topicInfinite) replies
     else replies.drop((localReplyPage - 1) * repliesPer).take(repliesPer)
-    // 本地总页数：已加载评论的整页数；源站还有更多页时 +1（允许继续翻页触发加载）
+    // 树形模式的可见列表：翻页按「顶层节点」分页，子树整棵跟随顶层所在页（不拆散对话）
+    val flatTree = remember(replyTree, localReplyPage, topicInfinite, repliesPer) {
+        if (!hasTree) emptyList()
+        else if (topicInfinite) flattenTree(replyTree)
+        else flattenTree(replyTree.drop((localReplyPage - 1) * repliesPer).take(repliesPer))
+    }
+    // 本地总页数：已加载评论的整页数；源站还有更多页时 +1（允许继续翻页触发加载）。
+    // 树形模式按顶层节点数计页
     val localReplyTotal = if (topicInfinite) (data?.totalPages ?: 1) else run {
-        val full = ((replies.size + repliesPer - 1) / repliesPer).coerceAtLeast(1)
+        val base = if (hasTree) replyTree.size else replies.size
+        val full = ((base + repliesPer - 1) / repliesPer).coerceAtLeast(1)
         (if ((data?.page ?: 1) < (data?.totalPages ?: 1)) full + 1 else full).coerceAtLeast(localReplyPage)
     }
 
@@ -350,14 +366,31 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 localReplyPage = 1
                 loadedMaxPage = p.coerceAtLeast(1)
                 loading = false
-                // 滚动到目标楼层附近并高亮
-                val idx = data?.posts?.indexOfFirst { it.floor == floor } ?: -1
-                if (idx >= 0) {
-                    highlightPostId = data?.posts?.get(idx)?.id
-                    scope.launch {
-                        listState.animateScrollToItem(idx + 1)
-                        delay(1500)
-                        highlightPostId = null
+                // 滚动到目标楼层附近并高亮（树形模式按展平树的索引定位；
+                // 回复列表从 header(0)/主楼(1)/「全部回复」(2) 之后即 index 3 开始）
+                val posts = data?.posts ?: emptyList()
+                val loaded = posts.drop(1)
+                val tree = if (loaded.any { it.parentFloor > 0 }) buildReplyTree(loaded, 1) else null
+                if (tree != null) {
+                    val flat = flattenTree(tree)
+                    val fi = flat.indexOfFirst { it.first.floor == floor }
+                    if (fi >= 0) {
+                        highlightPostId = flat[fi].first.id
+                        scope.launch {
+                            listState.animateScrollToItem(fi + 3)
+                            delay(1500)
+                            highlightPostId = null
+                        }
+                    }
+                } else {
+                    val idx = posts.indexOfFirst { it.floor == floor }
+                    if (idx >= 0) {
+                        highlightPostId = posts[idx].id
+                        scope.launch {
+                            listState.animateScrollToItem(idx + 2)
+                            delay(1500)
+                            highlightPostId = null
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -366,18 +399,54 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    /** 定位楼层（本页优先）：直接滚动到目标楼层并高亮，同时记录原位置供返回（2.13） */
+    /** 定位楼层（本页优先）：直接滚动到目标楼层并高亮，同时记录原位置供返回（2.13）。
+     *  树形模式目标不在当前页时，先切换到其顶层节点所在本地页再定位（子树整棵跟页）。
+     *  LazyColumn 前置项：header=0、主楼=1、「全部回复」标题=2，回复从 3 开始。 */
     fun jumpToFloor(floor: Int) {
-        val posts = sortedPosts
-        val idx = posts.indexOfFirst { it.floor == floor }
-        if (idx >= 0) {
+        fun scrollAndHighlight(lazyIdx: Int, postId: Long) {
             returnPos = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-            highlightPostId = posts[idx].id
+            highlightPostId = postId
             scope.launch {
-                listState.animateScrollToItem(idx + 1)
+                listState.animateScrollToItem(lazyIdx)
                 delay(1500)
                 highlightPostId = null
             }
+        }
+        if (hasTree) {
+            val idx = flatTree.indexOfFirst { it.first.floor == floor }
+            if (idx >= 0) {
+                scrollAndHighlight(idx + 3, flatTree[idx].first.id)
+                return
+            }
+            // 已加载但不在当前本地页：向上找到顶层祖先，切到其所在页
+            val target = replies.firstOrNull { it.floor == floor }
+            if (target != null && !topicInfinite) {
+                var cur = target
+                while (true) {
+                    val parent = replies.firstOrNull { it.floor == cur.parentFloor } ?: break
+                    cur = parent
+                }
+                val topIdx = replyTree.indexOfFirst { it.post.floor == cur.floor }
+                if (topIdx >= 0) {
+                    val page = topIdx / repliesPer + 1
+                    val newFlat = flattenTree(
+                        replyTree.drop((page - 1) * repliesPer).take(repliesPer)
+                    )
+                    val ni = newFlat.indexOfFirst { it.first.floor == floor }
+                    if (ni >= 0) {
+                        localReplyPage = page
+                        scrollAndHighlight(ni + 3, target.id)
+                        return
+                    }
+                }
+            }
+            jumpFloor(floor)
+            return
+        }
+        val posts = sortedPosts
+        val idx = posts.indexOfFirst { it.floor == floor }
+        if (idx >= 0) {
+            scrollAndHighlight(idx + 2, posts[idx].id)
         } else {
             jumpFloor(floor)
         }
@@ -840,31 +909,54 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             }
                         }
                     }
-                    itemsIndexed(pagedReplies, key = { _, p -> "r-${p.id}" }) { _, post ->
-                        PostCard(
-                            post = post,
-                            loggedIn = session.loginState.loggedIn,
-                            isOpAuthor = post.authorName == d.posts.firstOrNull()?.authorName,
-                            isMainPost = false,
-                            highlight = highlightPostId == post.id,
-                            onUser = { nav.navigate("user/${post.authorId}") },
-                            onQuote = {
-                                quoteText = buildString {
-                                    if (post.floor > 0) append("@${post.authorName} #${post.floor}\n")
-                                    else append("@${post.authorName}\n")
+                    // 可见回复：树形模式 = 展平的树（含层级深度），平铺模式 = 本页切片（深度 0）
+                    val visibleReplies: List<Pair<PostEntry, Int>> =
+                        if (hasTree) flatTree else pagedReplies.map { it to 0 }
+                    itemsIndexed(visibleReplies, key = { _, v -> "r-${v.first.id}" }) { _, (post, depth) ->
+                        // 树形层级：每级缩进 14dp（最多 6 级封顶，避免深层挤压），
+                        // 子回复左侧画竖向引导线连接父层级
+                        val lineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(start = depth.coerceAtMost(6) * 14.dp)
+                                .drawBehind {
+                                    if (depth > 0) drawLine(
+                                        color = lineColor,
+                                        start = Offset(6.dp.toPx(), 0f),
+                                        end = Offset(6.dp.toPx(), size.height),
+                                        strokeWidth = 2.dp.toPx(),
+                                    )
                                 }
-                                showReply = true
-                            },
-                            onLike = { doLike(post, 0) },
-                            onCoin = { coinTarget = post },
-                            onReport = { nav.navigate("report/${post.likeCoinType.ifBlank { "reply" }}/${post.id}") },
-                            onFloor = { f -> jumpToFloor(f) },
-                            onThread = { openThread(post) },
-                            threadEnabled = threadEnabled,
-                            threadReplyCount = threadReplyCount[post.floor] ?: 0,
-                            onCopy = { copyPost = post },
-                            onEditUser = { uid -> nav.navigate("user/$uid") },
-                        )
+                        ) {
+                            PostCard(
+                                post = post,
+                                loggedIn = session.loginState.loggedIn,
+                                isOpAuthor = post.authorName == d.posts.firstOrNull()?.authorName,
+                                isMainPost = false,
+                                highlight = highlightPostId == post.id,
+                                // 嵌套子回复不重复显示「回复 #N」胶囊（缩进+引导线已表达层级）；
+                                // 顶层回复带 parentFloor 时（父楼层未加载/已删除）仍显示以指向目标
+                                showReplyBadge = depth == 0,
+                                onUser = { nav.navigate("user/${post.authorId}") },
+                                onQuote = {
+                                    quoteText = buildString {
+                                        if (post.floor > 0) append("@${post.authorName} #${post.floor}\n")
+                                        else append("@${post.authorName}\n")
+                                    }
+                                    showReply = true
+                                },
+                                onLike = { doLike(post, 0) },
+                                onCoin = { coinTarget = post },
+                                onReport = { nav.navigate("report/${post.likeCoinType.ifBlank { "reply" }}/${post.id}") },
+                                onFloor = { f -> jumpToFloor(f) },
+                                onThread = { openThread(post) },
+                                threadEnabled = threadEnabled,
+                                threadReplyCount = threadReplyCount[post.floor] ?: 0,
+                                onCopy = { copyPost = post },
+                                onEditUser = { uid -> nav.navigate("user/$uid") },
+                            )
+                        }
                     }
                     // 未登录评论区提示
                     if (d.loginVisibleReplies >= 0) {
@@ -1431,6 +1523,38 @@ private fun LoginPromptCard(count: Int, onLogin: () -> Unit) {
 
 // ==================== 楼层卡片 ====================
 
+/** 树形评论节点（源站 data-quote-threads-parent-floor 还原的多级回复结构） */
+private data class ReplyNode(val post: PostEntry, val depth: Int, val children: List<ReplyNode>)
+
+/**
+ * 由已加载回复构建评论树：parentFloor 指向的楼层已加载且楼层号更小时挂为其子节点，
+ * 否则视为顶层（父楼层必然小于子楼层——回复只能针对已有楼层，天然无环）。
+ * 顶层节点按排序模式（0 热度 / 1 正序 / 2 倒序）排列，子节点恒按楼层正序。
+ */
+private fun buildReplyTree(replies: List<PostEntry>, sortOrder: Int): List<ReplyNode> {
+    val byFloor = replies.filter { it.floor > 0 }.associateBy { it.floor }
+    val childrenOf = HashMap<Int, MutableList<PostEntry>>()
+    val tops = mutableListOf<PostEntry>()
+    replies.sortedBy { it.floor }.forEach { p ->
+        val pf = p.parentFloor
+        if (pf > 0 && pf < p.floor && byFloor.containsKey(pf)) {
+            childrenOf.getOrPut(pf) { mutableListOf() }.add(p)
+        } else tops.add(p)
+    }
+    val ordered = when (sortOrder) {
+        2 -> tops.sortedByDescending { it.floor }
+        0 -> tops.sortedWith(compareByDescending<PostEntry> { it.likeCount }.thenBy { it.floor })
+        else -> tops
+    }
+    fun node(p: PostEntry, depth: Int): ReplyNode =
+        ReplyNode(p, depth, (childrenOf[p.floor] ?: emptyList()).sortedBy { it.floor }.map { node(it, depth + 1) })
+    return ordered.map { node(it, 0) }
+}
+
+/** 树 → 展平列表（楼层 + 层级深度），子树整棵跟随顶层节点（翻页按顶层分页不拆散对话） */
+private fun flattenTree(nodes: List<ReplyNode>): List<Pair<PostEntry, Int>> =
+    nodes.flatMap { n -> listOf(n.post to n.depth) + flattenTree(n.children) }
+
 /**
  * 楼层条目。
  * 楼主正文 = 柔和主题色圆角容器；回复 = 扁平列表项（细分隔线分隔）。
@@ -1454,6 +1578,7 @@ fun PostCard(
     onDonate: (() -> Unit)? = null,
     onEditUser: (Long) -> Unit = {},
     threadEnabled: Boolean = true,
+    showReplyBadge: Boolean = true,
     threadReplyCount: Int = 0,
 ) {
     if (isMainPost) {
@@ -1475,6 +1600,7 @@ fun PostCard(
                 onDonate = onDonate,
                 onEditUser = onEditUser,
                 threadEnabled = threadEnabled,
+                showReplyBadge = showReplyBadge,
                 threadReplyCount = threadReplyCount,
             )
         }
@@ -1518,6 +1644,7 @@ fun PostCard(
                     onDonate = onDonate,
                     onEditUser = onEditUser,
                     threadEnabled = threadEnabled,
+                    showReplyBadge = showReplyBadge,
                     threadReplyCount = threadReplyCount,
                 )
             }
@@ -1545,6 +1672,7 @@ private fun PostCardContent(
     onDonate: (() -> Unit)? = null,
     onEditUser: (Long) -> Unit = {},
     threadEnabled: Boolean = true,
+    showReplyBadge: Boolean = true,
     threadReplyCount: Int = 0,
 ) {
     Column(modifier) {
@@ -1629,8 +1757,9 @@ private fun PostCardContent(
         }
         Spacer(Modifier.height(10.dp))
         // 树形评论标识（源站 data-quote-threads-parent-floor）：本楼回复的是第 N 楼，
-        // 点击跳转目标楼层；楼主正文无此标识
-        if (post.parentFloor > 0) {
+        // 点击跳转目标楼层。嵌套子回复（showReplyBadge=false）不显示——缩进与引导线
+        // 已表达层级，父卡片就在上方；父楼层未加载/已删除的顶层回复仍显示以指向目标
+        if (post.parentFloor > 0 && showReplyBadge) {
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
