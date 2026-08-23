@@ -182,8 +182,10 @@ data class PmMessage(
     val avatarUrl: String = "",//
     val incoming: Boolean,     // true = 对方发来；false = 我发出去的
     val content: String,
-    val timeText: String,      // MM-dd HH:mm
+    val timeText: String,      // 精确：MM-dd HH:mm；天级（通知来的）：昨天 / MM-dd
     val ts: Long = 0L,
+    val seq: Long = 0L,        // 插入序号：同一天内按此排序（天级时间分不出先后）
+    val timeExact: Boolean = true, // 时间是否精确到分（我发出的=精确；通知解析的只有天级）
 )
 
 data class LeaderRow(

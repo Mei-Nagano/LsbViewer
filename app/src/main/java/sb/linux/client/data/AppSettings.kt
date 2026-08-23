@@ -417,7 +417,10 @@ class AppSettings(context: Context) {
         runCatching { JSONArray(prefs.getString("local_pm_messages", "[]") ?: "[]") }.getOrDefault(JSONArray())
 
     /** 追加一条私信消息，仅保留最近 300 条；收到的私信按「对方+内容」去重，
-     *  命中时用本次解析到的更准确时间/资料回填（修正历史消息的顺序与时间） */
+     *  命中时用本次解析到的更准确资料回填（ts 天级刷新 + 名字/头像），
+     *  但保留原 seq 与 timeExact——消息的先后位置不因重复解析而漂移。
+     *  排序规则见 pmThread：先按 ts 的自然日分组，同一天内按 seq（通知只给天级时间，
+     *  同日先后只能靠写入顺序；我发出的消息带精确时间但同样按此规则参与排序）。 */
     fun addPmMessage(
         partnerId: Long, partnerName: String, avatarUrl: String,
         incoming: Boolean, content: String, ts: Long = 0L,
@@ -425,6 +428,12 @@ class AppSettings(context: Context) {
         if (partnerId <= 0) return
         val t = if (ts > 0) ts else System.currentTimeMillis()
         val old = pmArray()
+        // 新 seq 必须大于所有已存 seq，也要大于旧记录的读取兜底值（数组长度，见 pmThread）
+        var maxSeq = old.length().toLong()
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            maxSeq = maxOf(maxSeq, o.optLong("seq", 0L))
+        }
         val rest = JSONArray()
         var updated = false
         for (i in 0 until old.length()) {
@@ -447,6 +456,8 @@ class AppSettings(context: Context) {
                     .put("partnerId", partnerId).put("partnerName", partnerName)
                     .put("avatarUrl", avatarUrl).put("incoming", incoming)
                     .put("content", content).put("ts", t)
+                    .put("seq", maxSeq + 1L)
+                    .put("timeExact", !incoming)   // 我发出的有精确时间；通知解析的只有天级（"昨天"等）
                     .put("read", incoming)   // 我发出的始终视为已读；对方发来的以此作为标记（markPmRead 会翻成 true）
             )
         }
@@ -458,8 +469,9 @@ class AppSettings(context: Context) {
     }
 
     /** 时间戳 → 聊天式时间（QQ/微信风格，固定不随查看时刻漂移）：
-     *  今天 HH:mm / 昨天 HH:mm / 今年 MM-dd HH:mm / 跨年 yyyy-MM-dd HH:mm */
-    private fun relativeTimeText(ts: Long): String {
+     *  精确（我发出的）：今天 HH:mm / 昨天 HH:mm / 今年 MM-dd HH:mm / 跨年 yyyy-MM-dd HH:mm
+     *  天级（通知解析的只有"昨天/2天前"）：今天 / 昨天 / MM-dd / yyyy-MM-dd，不编造时刻 */
+    private fun relativeTimeText(ts: Long, exact: Boolean): String {
         if (ts <= 0) return ""
         val cal = java.util.Calendar.getInstance()
         val now = java.util.Calendar.getInstance()
@@ -472,25 +484,42 @@ class AppSettings(context: Context) {
             cal.get(java.util.Calendar.YEAR) == y.get(java.util.Calendar.YEAR) &&
                 cal.get(java.util.Calendar.DAY_OF_YEAR) == y.get(java.util.Calendar.DAY_OF_YEAR)
         }
-        val hm = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
+        val sameYear = cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR)
         return when {
-            sameDay -> hm
-            yesterday -> "昨天 $hm"
-            cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR) ->
-                java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
-            else ->
-                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
+            !exact -> when {
+                sameDay -> "今天"
+                yesterday -> "昨天"
+                sameYear -> java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault()).format(java.util.Date(ts))
+                else -> java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(ts))
+            }
+            sameDay -> java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
+            yesterday -> "昨天 " + java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
+            sameYear -> java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
+            else -> java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
         }
     }
 
-    /** 与某人的私信线程（时间正序，用于聊天界面） */
+    /** ts 的自然日键（同年同日相等），供线程按天分组 */
+    private fun dayKey(ts: Long): Long {
+        val c = java.util.Calendar.getInstance()
+        c.timeInMillis = ts
+        return c.get(java.util.Calendar.YEAR).toLong() * 1000L + c.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+
+    /** 与某人的私信线程（时间正序，用于聊天界面）：
+     *  先按 ts 自然日分组，同一天内按 seq（写入顺序）。通知只提供天级时间，
+     *  同日先后无法从时间戳分出，靠写入序保证稳定；旧记录无 seq 时按数组位置兜底
+     *  （数组最新在前，位置越靠后越早 → 兜底 seq = length - index 保持旧数据先后）。 */
     fun pmThread(partnerId: Long): List<sb.linux.client.data.PmMessage> {
         val arr = pmArray()
+        val len = arr.length()
         return buildList {
-            for (i in 0 until arr.length()) {
+            for (i in 0 until len) {
                 val o = arr.optJSONObject(i) ?: continue
                 if (o.optLong("partnerId") != partnerId) continue
                 val ts = o.optLong("ts", 0L)
+                val seq = if (o.has("seq")) o.optLong("seq") else (len - i).toLong()
+                val exact = o.optBoolean("timeExact", !o.optBoolean("incoming"))
                 add(
                     sb.linux.client.data.PmMessage(
                         partnerId = partnerId,
@@ -498,12 +527,14 @@ class AppSettings(context: Context) {
                         avatarUrl = o.optString("avatarUrl"),
                         incoming = o.optBoolean("incoming"),
                         content = o.optString("content"),
-                        timeText = relativeTimeText(ts),
+                        timeText = relativeTimeText(ts, exact),
                         ts = ts,
+                        seq = seq,
+                        timeExact = exact,
                     )
                 )
             }
-        }.sortedBy { it.ts }
+        }.sortedWith(compareBy({ dayKey(it.ts) }, { it.seq }))
     }
 
     /** 把某人的未读私信标记为已读 */
