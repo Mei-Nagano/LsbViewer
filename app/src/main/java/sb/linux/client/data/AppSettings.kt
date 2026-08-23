@@ -98,6 +98,11 @@ class AppSettings(context: Context) {
         get() = prefs.getLong("last_update_check", 0L)
         set(v) = prefs.edit().putLong("last_update_check", v).apply()
 
+    /** 平板模式：宽屏设备启用左右双栏布局（导航栏居左，主页/设置 1/3 + 详情 2/3） */
+    var tabletMode: Boolean
+        get() = prefs.getBoolean("tablet_mode", false)
+        set(v) = prefs.edit().putBoolean("tablet_mode", v).apply()
+
     // ---------------- WebDAV 备份（3.19） ----------------
 
     var webdavUrl: String
@@ -135,7 +140,7 @@ class AppSettings(context: Context) {
     /** 重置常规设置 */
     fun resetGeneral() = prefs.edit()
         .remove("link_open_mode").remove("update_check_mode")
-        .remove("update_check_interval_hours")
+        .remove("update_check_interval_hours").remove("tablet_mode")
         .apply()
 
     /** 重置 WebDAV 备份配置 */
@@ -517,6 +522,7 @@ class AppSettings(context: Context) {
         o.put("link_open_mode", linkOpenMode)
         o.put("update_check_mode", updateCheckMode)
         o.put("update_check_interval_hours", updateCheckIntervalHours)
+        o.put("tablet_mode", tabletMode)
         o.put("webdav_url", webdavUrl)
         o.put("webdav_user", webdavUser)
         o.put("webdav_pass", webdavPass)
@@ -550,6 +556,7 @@ class AppSettings(context: Context) {
             if (o.has("link_open_mode")) p.putInt("link_open_mode", o.optInt("link_open_mode", 0).coerceIn(0, 1))
             if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 1))
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))
+            if (o.has("tablet_mode")) p.putBoolean("tablet_mode", o.getBoolean("tablet_mode"))
             if (o.has("webdav_url")) p.putString("webdav_url", o.getString("webdav_url"))
             if (o.has("webdav_user")) p.putString("webdav_user", o.getString("webdav_user"))
             if (o.has("webdav_pass")) p.putString("webdav_pass", o.getString("webdav_pass"))

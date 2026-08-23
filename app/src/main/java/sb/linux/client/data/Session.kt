@@ -94,6 +94,8 @@ class Session(app: Application) : AndroidViewModel(app) {
     var topicsPerPage by mutableIntStateOf(15)
     // 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择）
     var commentSortOrder by mutableIntStateOf(0)
+    // 平板模式（宽屏双栏布局）：Compose 响应式镜像，改动即时切换布局
+    var tabletMode by mutableStateOf(false)
 
     // 首页状态保持：当前分类 / 组合过滤 / 各分类列表与滚动位置
     var homeTabIndex by mutableIntStateOf(0)
@@ -161,6 +163,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
         showOnlineUsers = settings.sidebarShowOnlineUsers
+        tabletMode = settings.tabletMode
         blockedWords = settings.blockedWords
         blockedUsers = settings.blockedUsers
         // 清理旧版本地已读通知键（已改为源站未读数方案）
@@ -317,6 +320,12 @@ class Session(app: Application) : AndroidViewModel(app) {
         settings.resetAi()
         settings.resetGeneral()
         settings.resetWebdav()
+        tabletMode = settings.tabletMode
+    }
+
+    fun saveTabletMode(v: Boolean) {
+        tabletMode = v
+        settings.tabletMode = v
     }
 
     fun saveDanmaku(v: Boolean) {

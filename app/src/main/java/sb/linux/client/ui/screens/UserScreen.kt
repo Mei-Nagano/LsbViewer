@@ -31,8 +31,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
+import sb.linux.client.LocalMasterNav
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.Session
 import sb.linux.client.data.UserProfile
@@ -57,6 +59,8 @@ fun UserScreen(session: Session, nav: NavHostController) {
     // 通知（仅本人主页）：私信/帖子/系统通知，不能按主题列表解析否则私信会被当成帖子
     var notifications by remember { mutableStateOf<List<sb.linux.client.data.NotificationItem>>(emptyList()) }
     val isSelf = session.loginState.userId == uid
+    // 平板双栏的主栏控制器（手机为 null）：退出登录时切主栏并清空右栏
+    val masterNav = LocalMasterNav.current
 
     fun load(t: String) {
         scope.launch {
@@ -285,7 +289,15 @@ fun UserScreen(session: Session, nav: NavHostController) {
                         TextButton(onClick = {
                             confirmLogout = false
                             session.onLoggedOut()
-                            nav.navigate("home") { popUpTo("home") { inclusive = true } }
+                            // 平板双栏：主栏切回首页并清空右栏；手机：回首页重建栈
+                            if (masterNav != null) {
+                                masterNav.navigate("home") {
+                                    popUpTo(masterNav.graph.findStartDestination().id) { inclusive = true }
+                                }
+                                nav.popBackStack("detailEmpty", false)
+                            } else {
+                                nav.navigate("home") { popUpTo("home") { inclusive = true } }
+                            }
                         }) { Text("退出", color = MaterialTheme.colorScheme.error) }
                     },
                     dismissButton = {

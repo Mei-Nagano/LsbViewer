@@ -309,14 +309,19 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
 val OnlineDotColor = Color(0xFF34C759)
 
 @Composable
-fun Badge(text: String, bg: Color, fg: Color) {
+fun Badge(text: String, bg: Color, fg: Color, small: Boolean = false) {
     Surface(shape = RoundedCornerShape(50), color = bg) {
         Text(
             text,
-            style = MaterialTheme.typography.labelSmall,
+            style = if (small) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
+            else MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
             color = fg,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+            maxLines = 1,
+            modifier = Modifier.padding(
+                horizontal = if (small) 5.dp else 7.dp,
+                vertical = if (small) 1.dp else 2.dp
+            )
         )
     }
 }

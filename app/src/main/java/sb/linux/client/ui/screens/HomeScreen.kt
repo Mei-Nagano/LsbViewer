@@ -59,9 +59,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import sb.linux.client.LocalMasterNav
 import sb.linux.client.data.ForumCount
 import sb.linux.client.data.HomeSidebar
 import sb.linux.client.data.HtmlParser
@@ -284,6 +286,8 @@ fun HomeScreen(session: Session, nav: NavHostController) {
     // 跳过 goLocalPage(1)，避免被重置回第一页并滚到顶部（否则每次返回都要重新翻页）。
     var lastRetCombo by rememberSaveable { mutableStateOf(combo) }
     var lastRetInfinite by rememberSaveable { mutableStateOf(homeInfinite) }
+    // 平板双栏的主栏控制器（手机为 null）：抽屉顶层页面切换用
+    val masterNav = LocalMasterNav.current
     LaunchedEffect(combo, homeInfinite) {
         val changed = combo != lastRetCombo || homeInfinite != lastRetInfinite
         lastRetCombo = combo; lastRetInfinite = homeInfinite
@@ -382,7 +386,20 @@ fun HomeScreen(session: Session, nav: NavHostController) {
                 onOpenUser = { uid -> closeDrawer { if (uid > 0) nav.navigate("user/$uid") } },
                 onOpenLeaderboard = { closeDrawer { nav.navigate("leaderboard?type=points") } },
                 onLogin = { closeDrawer { nav.navigate("login") } },
-                onNavigate = { route -> closeDrawer { nav.navigate(route) } },
+                // 平板双栏：抽屉里的顶层页面（应用设置）切主栏，其余内容进右栏
+                onNavigate = { route ->
+                    closeDrawer {
+                        if (masterNav != null && route == "appSettings") {
+                            masterNav.navigate(route) {
+                                popUpTo(masterNav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        } else {
+                            nav.navigate(route)
+                        }
+                    }
+                },
             )
         }
     ) {

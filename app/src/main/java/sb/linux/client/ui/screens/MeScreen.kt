@@ -20,7 +20,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import sb.linux.client.LocalMasterNav
 import sb.linux.client.data.Session
 import sb.linux.client.ui.Avatar
 
@@ -28,6 +30,19 @@ import sb.linux.client.ui.Avatar
 @Composable
 fun MeScreen(session: Session, nav: NavHostController) {
     val state = session.loginState
+    // 平板双栏：主栏页面内切换顶层页面（应用设置/首页）时导航主栏，手机为 null 走原逻辑
+    val masterNav = LocalMasterNav.current
+    fun openMasterTab(route: String) {
+        if (masterNav != null) {
+            masterNav.navigate(route) {
+                popUpTo(masterNav.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        } else {
+            nav.navigate(route)
+        }
+    }
 
     Scaffold(topBar = { TopAppBar(title = { Text("我的") }) }) { pad ->
         Column(
@@ -86,7 +101,7 @@ fun MeScreen(session: Session, nav: NavHostController) {
                     MenuRow(Icons.Filled.Favorite, "收藏内容") { nav.navigate("favorites") }
                 }
                 MenuGroup("应用") {
-                    MenuRow(Icons.Filled.Tune, "应用设置") { nav.navigate("appSettings") }
+                    MenuRow(Icons.Filled.Tune, "应用设置") { openMasterTab("appSettings") }
                     // 关于应用（与应用设置平级，3.18）
                     MenuRow(Icons.Filled.Info, "关于应用") { nav.navigate("about") }
                 }
@@ -132,10 +147,10 @@ fun MeScreen(session: Session, nav: NavHostController) {
                 }
                 MenuGroup("游客可用") {
                     MenuRow(Icons.Filled.Leaderboard, "用户榜单") { nav.navigate("leaderboard?type=points") }
-                    MenuRow(Icons.Filled.Home, "浏览首页") { nav.navigate("home") }
+                    MenuRow(Icons.Filled.Home, "浏览首页") { openMasterTab("home") }
                 }
                 MenuGroup("应用") {
-                    MenuRow(Icons.Filled.Tune, "应用设置") { nav.navigate("appSettings") }
+                    MenuRow(Icons.Filled.Tune, "应用设置") { openMasterTab("appSettings") }
                     // 关于应用（与应用设置平级，3.18）
                     MenuRow(Icons.Filled.Info, "关于应用") { nav.navigate("about") }
                 }

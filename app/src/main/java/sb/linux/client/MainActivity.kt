@@ -4,22 +4,34 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,11 +40,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -99,8 +115,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun LsbApp(session: Session) {
     val nav = rememberNavController()
+    // 平板双栏控制器：主栏（底部导航的顶层页面）与详情栏（帖子/用户/设置子页等）
+    val masterNav = rememberNavController()
+    val detailNav = rememberNavController()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    // 平板模式（3.21）：开关开启且屏幕宽度 ≥ 600dp 时启用左右双栏布局
+    val twoPane = session.tabletMode && LocalConfiguration.current.screenWidthDp >= 600
 
     val verification = session.pendingVerification
     if (verification != null) {
@@ -127,19 +149,21 @@ fun LsbApp(session: Session) {
     val bottomRoutes = setOf("home", "forums", "me")
 
     // 常规设置「打开链接方式」（3.20）：站内链接（帖子/用户/板块）始终路由原生页面，
-    // 其余链接按设置选择应用内 WebView 或外部浏览器；不影响跳转楼层与过验证逻辑
+    // 其余链接按设置选择应用内 WebView 或外部浏览器；不影响跳转楼层与过验证逻辑。
+    // 双栏布局下链接内容（帖子/用户/板块/网页）一律进右栏
+    val linkNav = if (twoPane) detailNav else nav
     fun openLink(raw: String) {
         val url = Endpoints.abs(raw)
         if (session.settings.linkOpenMode == 0) {
             val uri = android.net.Uri.parse(url)
             val path = uri.path ?: ""
             if ((uri.host ?: "").endsWith("linux.sb")) {
-                Regex("""/topic/(\d+)""").find(path)?.let { m -> nav.navigate("topic/${m.groupValues[1]}"); return }
-                Regex("""/user/(\d+)""").find(path)?.let { m -> nav.navigate("user/${m.groupValues[1]}"); return }
-                Regex("""/forum/(\d+)""").find(path)?.let { m -> nav.navigate("forum/${m.groupValues[1]}"); return }
-                uri.getQueryParameter("uid")?.toIntOrNull()?.let { nav.navigate("user/$it"); return }
+                Regex("""/topic/(\d+)""").find(path)?.let { m -> linkNav.navigate("topic/${m.groupValues[1]}"); return }
+                Regex("""/user/(\d+)""").find(path)?.let { m -> linkNav.navigate("user/${m.groupValues[1]}"); return }
+                Regex("""/forum/(\d+)""").find(path)?.let { m -> linkNav.navigate("forum/${m.groupValues[1]}"); return }
+                uri.getQueryParameter("uid")?.toIntOrNull()?.let { linkNav.navigate("user/$it"); return }
             }
-            nav.navigate("web?url=${android.net.Uri.encode(url)}")
+            linkNav.navigate("web?url=${android.net.Uri.encode(url)}")
         } else {
             runCatching {
                 context.startActivity(
@@ -208,119 +232,215 @@ fun LsbApp(session: Session) {
         )
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            if (route in bottomRoutes) {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = route == "home",
-                        onClick = { nav.navigate("home") { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } },
-                        icon = { Icon(Icons.Filled.Home, null) },
-                        label = { Text("首页") }
-                    )
-                    NavigationBarItem(
-                        selected = route == "me",
-                        onClick = { nav.navigate("me") { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } },
-                        icon = { Icon(Icons.Filled.Person, null) },
-                        label = { Text("我的") }
-                    )
+    CompositionLocalProvider(
+        LocalLinkHandler provides { openLink(it) },
+        // 平板双栏下提供主栏控制器：屏幕内切换顶层页面（首页/我的/应用设置）时
+        // 跳转主栏而非右栏；手机模式为 null，屏幕走原有单栈逻辑
+        LocalMasterNav provides (if (twoPane) masterNav else null),
+    ) {
+        if (!twoPane) {
+            Scaffold(
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                snackbarHost = { SnackbarHost(snackbar) },
+                bottomBar = {
+                    if (route in bottomRoutes) {
+                        NavigationBar {
+                            NavigationBarItem(
+                                selected = route == "home",
+                                onClick = { nav.navigate("home") { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } },
+                                icon = { Icon(Icons.Filled.Home, null) },
+                                label = { Text("首页") }
+                            )
+                            NavigationBarItem(
+                                selected = route == "me",
+                                onClick = { nav.navigate("me") { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } },
+                                icon = { Icon(Icons.Filled.Person, null) },
+                                label = { Text("我的") }
+                            )
+                        }
+                    }
+                }
+            ) { pad ->
+                NavHost(
+                    navController = nav,
+                    startDestination = "home",
+                    modifier = Modifier.padding(pad)
+                ) {
+                    masterRoutes(session, nav)
+                    detailRoutes(session, nav)
+                }
+            }
+        } else {
+            // 平板双栏（3.21）：底部导航移到左侧 NavigationRail，
+            // 主栏（顶层页面/应用设置菜单）占左 1/3，详情（帖子/用户/设置子页）占右 2/3
+            Scaffold(
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                snackbarHost = { SnackbarHost(snackbar) }
+            ) { pad ->
+                Row(Modifier.padding(pad).fillMaxSize()) {
+                    val masterBackStack by masterNav.currentBackStackEntryAsState()
+                    val masterRoute = masterBackStack?.destination?.route ?: "home"
+                    fun switchTab(target: String) {
+                        masterNav.navigate(target) {
+                            popUpTo(masterNav.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                    NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        NavigationRailItem(
+                            selected = masterRoute == "home",
+                            onClick = { switchTab("home") },
+                            icon = { Icon(Icons.Filled.Home, null) },
+                            label = { Text("首页") }
+                        )
+                        NavigationRailItem(
+                            selected = masterRoute == "me",
+                            onClick = { switchTab("me") },
+                            icon = { Icon(Icons.Filled.Person, null) },
+                            label = { Text("我的") }
+                        )
+                    }
+                    // 主栏：顶层页面与应用设置菜单；屏幕内容导航(detailNav)进右栏
+                    NavHost(
+                        navController = masterNav,
+                        startDestination = "home",
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    ) {
+                        masterRoutes(session, detailNav)
+                    }
+                    VerticalDivider(Modifier.fillMaxHeight())
+                    // 详情栏：帖子/用户/搜索/设置子页等
+                    NavHost(
+                        navController = detailNav,
+                        startDestination = "detailEmpty",
+                        modifier = Modifier.weight(2f).fillMaxHeight()
+                    ) {
+                        detailRoutes(session, detailNav)
+                    }
                 }
             }
         }
-    ) { pad ->
-        CompositionLocalProvider(LocalLinkHandler provides { openLink(it) }) {
-        NavHost(
-            navController = nav,
-            startDestination = "home",
-            modifier = Modifier.padding(pad)
-        ) {
-            composable("home") { HomeScreen(session, nav) }
-            composable("forums") { ForumListScreen(session, nav) }
-            composable(
-                "search?q={q}",
-                arguments = listOf(navArgument("q") { type = androidx.navigation.NavType.StringType; defaultValue = "" })
-            ) { SearchScreen(session, nav) }
-            composable("me") { MeScreen(session, nav) }
-            composable("login") { LoginScreen(session, nav) }
-            composable(
-                "forum/{id}?p={p}",
-                arguments = listOf(
-                    navArgument("id") { type = androidx.navigation.NavType.LongType },
-                    navArgument("p") { type = androidx.navigation.NavType.IntType; defaultValue = 1 }
-                )
-            ) { ForumScreen(session, nav) }
-            composable(
-                "topic/{tid}?p={p}",
-                arguments = listOf(
-                    navArgument("tid") { type = androidx.navigation.NavType.LongType },
-                    navArgument("p") { type = androidx.navigation.NavType.IntType; defaultValue = 1 }
-                )
-            ) { TopicScreen(session, nav) }
-            composable("newTopic") { NewTopicScreen(session, nav) }
-            composable(
-                "editTopic/{tid}",
-                arguments = listOf(navArgument("tid") { type = androidx.navigation.NavType.LongType })
-            ) { NewTopicScreen(session, nav, editId = it.arguments?.getLong("tid") ?: 0L) }
-            composable(
-                "user/{uid}?tab={tab}",
-                arguments = listOf(
-                    navArgument("uid") { type = androidx.navigation.NavType.LongType },
-                    navArgument("tab") { type = androidx.navigation.NavType.StringType; defaultValue = "topics" }
-                )
-            ) { UserScreen(session, nav) }
-            composable("settings") { SettingsScreen(session, nav) }
-            composable("appSettings") { AppSettingsScreen(session, nav) }
-            composable("generalSettings") { GeneralSettingsScreen(session, nav) }
-            composable("browseSettings") { BrowseSettingsScreen(session, nav) }
-            composable("aiSettings") { AiSettingsScreen(session, nav) }
-            composable("transferSettings") { TransferSettingsScreen(session, nav) }
-            composable("themeSettings") { ThemeSettingsScreen(session, nav) }
-            composable("exportedTopics") { ExportedTopicsScreen(session, nav) }
-            composable(
-                "exportedHtml?path={path}",
-                arguments = listOf(
-                    navArgument("path") { type = androidx.navigation.NavType.StringType; defaultValue = "" }
-                )
-            ) { ExportedHtmlScreen(session, nav) }
-            composable("about") { AboutScreen(session, nav) }
-            composable(
-                "web?url={url}",
-                arguments = listOf(
-                    navArgument("url") { type = androidx.navigation.NavType.StringType; defaultValue = "" }
-                )
-            ) { WebScreen(session, nav) }
-            composable("blockWords") { BlockWordsScreen(session, nav) }
-            composable("checkin") { CheckinScreen(session, nav) }
-            composable("inviteCenter") { InviteCenterScreen(session, nav) }
-            composable(
-                "leaderboard?type={type}",
-                arguments = listOf(navArgument("type") { type = androidx.navigation.NavType.StringType; defaultValue = "points" })
-            ) { LeaderboardScreen(session, nav) }
-            composable("notifications") { NotificationsScreen(session, nav) }
-            composable("footprint") { FootprintScreen(session, nav) }
-            composable("favorites") { FavoritesScreen(session, nav) }
-            composable(
-                "chat/{userId}?name={name}&avatar={avatar}",
-                arguments = listOf(
-                    navArgument("userId") { type = androidx.navigation.NavType.StringType },
-                    navArgument("name") { type = androidx.navigation.NavType.StringType; defaultValue = "" },
-                    navArgument("avatar") { type = androidx.navigation.NavType.StringType; defaultValue = "" },
-                )
-            ) { ChatScreen(session, nav) }
-            composable(
-                "donate/{tid}",
-                arguments = listOf(navArgument("tid") { type = androidx.navigation.NavType.LongType })
-            ) { DonateScreen(session, nav) }
-            composable(
-                "report/{type}/{id}",
-                arguments = listOf(
-                    navArgument("type") { type = androidx.navigation.NavType.StringType },
-                    navArgument("id") { type = androidx.navigation.NavType.LongType }
-                )
-            ) { ReportScreen(session, nav) }
-        }
+    }
+}
+
+// ---------------- 双栏路由图与辅助 ----------------
+
+/**
+ * 平板双栏下提供主栏 NavHostController；手机模式为 null。
+ * 屏幕内切换顶层页面（首页/我的/应用设置）时优先用它导航主栏。
+ */
+val LocalMasterNav = staticCompositionLocalOf<NavHostController?> { null }
+
+/** 主栏路由：底部导航顶层页面 + 应用设置菜单（平板双栏时占左栏） */
+private fun androidx.navigation.NavGraphBuilder.masterRoutes(session: Session, nav: NavHostController) {
+    composable("home") { HomeScreen(session, nav) }
+    composable("forums") { ForumListScreen(session, nav) }
+    composable("me") { MeScreen(session, nav) }
+    composable("appSettings") { AppSettingsScreen(session, nav) }
+}
+
+/** 详情路由：帖子/用户/搜索/设置子页等（平板双栏时占右栏；detailEmpty 为右栏空态占位） */
+private fun androidx.navigation.NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
+    composable("detailEmpty") { DetailEmptyPane() }
+    composable(
+        "search?q={q}",
+        arguments = listOf(navArgument("q") { type = androidx.navigation.NavType.StringType; defaultValue = "" })
+    ) { SearchScreen(session, nav) }
+    composable("login") { LoginScreen(session, nav) }
+    composable(
+        "forum/{id}?p={p}",
+        arguments = listOf(
+            navArgument("id") { type = androidx.navigation.NavType.LongType },
+            navArgument("p") { type = androidx.navigation.NavType.IntType; defaultValue = 1 }
+        )
+    ) { ForumScreen(session, nav) }
+    composable(
+        "topic/{tid}?p={p}",
+        arguments = listOf(
+            navArgument("tid") { type = androidx.navigation.NavType.LongType },
+            navArgument("p") { type = androidx.navigation.NavType.IntType; defaultValue = 1 }
+        )
+    ) { TopicScreen(session, nav) }
+    composable("newTopic") { NewTopicScreen(session, nav) }
+    composable(
+        "editTopic/{tid}",
+        arguments = listOf(navArgument("tid") { type = androidx.navigation.NavType.LongType })
+    ) { NewTopicScreen(session, nav, editId = it.arguments?.getLong("tid") ?: 0L) }
+    composable(
+        "user/{uid}?tab={tab}",
+        arguments = listOf(
+            navArgument("uid") { type = androidx.navigation.NavType.LongType },
+            navArgument("tab") { type = androidx.navigation.NavType.StringType; defaultValue = "topics" }
+        )
+    ) { UserScreen(session, nav) }
+    composable("settings") { SettingsScreen(session, nav) }
+    composable("generalSettings") { GeneralSettingsScreen(session, nav) }
+    composable("browseSettings") { BrowseSettingsScreen(session, nav) }
+    composable("aiSettings") { AiSettingsScreen(session, nav) }
+    composable("transferSettings") { TransferSettingsScreen(session, nav) }
+    composable("themeSettings") { ThemeSettingsScreen(session, nav) }
+    composable("exportedTopics") { ExportedTopicsScreen(session, nav) }
+    composable(
+        "exportedHtml?path={path}",
+        arguments = listOf(
+            navArgument("path") { type = androidx.navigation.NavType.StringType; defaultValue = "" }
+        )
+    ) { ExportedHtmlScreen(session, nav) }
+    composable("about") { AboutScreen(session, nav) }
+    composable(
+        "web?url={url}",
+        arguments = listOf(
+            navArgument("url") { type = androidx.navigation.NavType.StringType; defaultValue = "" }
+        )
+    ) { WebScreen(session, nav) }
+    composable("blockWords") { BlockWordsScreen(session, nav) }
+    composable("checkin") { CheckinScreen(session, nav) }
+    composable("inviteCenter") { InviteCenterScreen(session, nav) }
+    composable(
+        "leaderboard?type={type}",
+        arguments = listOf(navArgument("type") { type = androidx.navigation.NavType.StringType; defaultValue = "points" })
+    ) { LeaderboardScreen(session, nav) }
+    composable("notifications") { NotificationsScreen(session, nav) }
+    composable("footprint") { FootprintScreen(session, nav) }
+    composable("favorites") { FavoritesScreen(session, nav) }
+    composable(
+        "chat/{userId}?name={name}&avatar={avatar}",
+        arguments = listOf(
+            navArgument("userId") { type = androidx.navigation.NavType.StringType },
+            navArgument("name") { type = androidx.navigation.NavType.StringType; defaultValue = "" },
+            navArgument("avatar") { type = androidx.navigation.NavType.StringType; defaultValue = "" },
+        )
+    ) { ChatScreen(session, nav) }
+    composable(
+        "donate/{tid}",
+        arguments = listOf(navArgument("tid") { type = androidx.navigation.NavType.LongType })
+    ) { DonateScreen(session, nav) }
+    composable(
+        "report/{type}/{id}",
+        arguments = listOf(
+            navArgument("type") { type = androidx.navigation.NavType.StringType },
+            navArgument("id") { type = androidx.navigation.NavType.LongType }
+        )
+    ) { ReportScreen(session, nav) }
+}
+
+/** 平板双栏右栏空态：尚未选择帖子/详情时的占位 */
+@Composable
+private fun DetailEmptyPane() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "从左侧选择内容查看",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "帖子、用户主页与设置子页将在此展示",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
         }
     }
 }

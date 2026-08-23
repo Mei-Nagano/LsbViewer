@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
+import sb.linux.client.LocalMasterNav
 import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 import kotlinx.coroutines.launch
@@ -496,12 +497,16 @@ private fun ResetAction(title: String, onConfirm: () -> Unit) {
 @Composable
 fun AppSettingsScreen(session: Session, nav: NavHostController) {
     var resetTick by remember { mutableStateOf(0) }
+    // 平板双栏：本页位于主栏，返回箭头应弹出主栏（回到「我的」）；手机走单栈
+    val masterNav = LocalMasterNav.current
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("应用设置") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
+                    IconButton(onClick = {
+                        if (masterNav != null) masterNav.popBackStack() else nav.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
@@ -2140,6 +2145,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
     // resetTick 作 key，重置后刷新
     var linkMode by remember(resetTick) { mutableStateOf(session.settings.linkOpenMode) }
     var updateMode by remember(resetTick) { mutableStateOf(session.settings.updateCheckMode) }
+    var tabletMode by remember(resetTick) { mutableStateOf(session.tabletMode) }
     // 重置后强制刷新输入框
     var intervalText by remember(resetTick, session.settings.updateCheckIntervalHours) {
         mutableStateOf("${session.settings.updateCheckIntervalHours}")
@@ -2211,6 +2217,19 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                         ) { Text("外部浏览器打开", maxLines = 1) }
                     }
                 }
+            }
+
+            // ---------- 平板模式 ----------
+            GroupCard {
+                SwitchRow(
+                    title = "平板模式",
+                    subtitle = "宽屏设备使用左右双栏：导航栏居左，主页/设置占左栏，帖子与详情占右栏。需屏幕宽度 ≥ 600dp 生效",
+                    checked = tabletMode,
+                    onCheckedChange = {
+                        tabletMode = it
+                        session.saveTabletMode(it)
+                    },
+                )
             }
 
             // ---------- 检查更新 ----------

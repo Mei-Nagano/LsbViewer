@@ -1,5 +1,6 @@
 package sb.linux.client.ui.screens
 
+import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Close
@@ -74,6 +76,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -87,6 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1516,30 +1520,28 @@ private fun PostCardContent(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (post.authorUid > 0) {
-                        // UID 徽章与称号徽章（TitleBadgeView）采用同样格式：
-                        // 同胶囊容器、内边距与字号，仅配色保持中性
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Text(
-                                "UID ${post.authorUid}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                            )
-                        }
+                        // UID 徽章：与楼主/组别/称号徽章统一的胶囊样式（small），仅配色保持中性
+                        Badge(
+                            "UID ${post.authorUid}",
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                            small = true
+                        )
                     }
                     if (isOpAuthor) {
-                        Badge("楼主", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+                        Badge(
+                            "楼主",
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.onPrimaryContainer,
+                            small = true
+                        )
                     }
                     if (post.userGroup.isNotBlank()) {
                         Badge(
                             post.userGroup,
                             MaterialTheme.colorScheme.secondaryContainer,
-                            MaterialTheme.colorScheme.onSecondaryContainer
+                            MaterialTheme.colorScheme.onSecondaryContainer,
+                            small = true
                         )
                     }
                 }
@@ -2142,10 +2144,12 @@ private fun ThreadPostItem(
                     else Modifier
                 )
             } else {
+                // 与楼层卡片中的楼主徽章保持统一样式与配色
                 Badge(
                     "楼主",
-                    MaterialTheme.colorScheme.tertiaryContainer,
-                    MaterialTheme.colorScheme.onTertiaryContainer
+                    MaterialTheme.colorScheme.primaryContainer,
+                    MaterialTheme.colorScheme.onPrimaryContainer,
+                    small = true
                 )
             }
             Spacer(Modifier.weight(1f))
@@ -2191,7 +2195,8 @@ fun FloorJumpDialog(maxFloor: Int, onDismiss: () -> Unit, onJump: (Int) -> Unit)
 }
 
 /** 回复编辑：底部抽屉，预填引用内容，Markdown 工具栏 + 人机验证（照搬源站编辑器）。
- *  title/submitLabel/showToolbar 可定制：私信等场景复用此编辑器但隐藏 Markdown 工具栏 */
+ *  title/submitLabel/showToolbar 可定制：私信等场景复用此编辑器但隐藏 Markdown 工具栏。
+ *  抽屉内为紧凑输入框（右下角「展开」）；点击展开进入全屏编辑（3.21） */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReplyDialog(
@@ -2207,6 +2212,7 @@ fun ReplyDialog(
     var body by remember { mutableStateOf(TextFieldValue(initial)) }
     var answer by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
     val canSubmit = body.text.isNotBlank() && !busy && (captcha == null || answer.isNotBlank())
     // 换题后清空旧答案，避免带着上一题的答案提交
     LaunchedEffect(captcha) { if (answer.isNotBlank()) answer = "" }
@@ -2226,6 +2232,71 @@ fun ReplyDialog(
         body = TextFieldValue(newText, selection = TextRange(cursor))
     }
 
+    fun submit() {
+        busy = true
+        onSubmit(body.text, answer) { busy = false }
+    }
+
+    // 修复软键盘遮挡：Dialog window 默认 softInputMode 为 UNSPECIFIED，部分设备上
+    // 表现为 pan（整体平移窗口）而非 resize，导致输入框被键盘盖住。这里强制
+    // ADJUST_RESIZE，配合 imePadding 让内容稳定避开 IME。
+    val dialogView = LocalView.current
+    LaunchedEffect(dialogView) {
+        @Suppress("DEPRECATION") // Dialog window 上 ADJUST_RESIZE 仍是让 IME insets 生效的可靠手段
+        (dialogView.parent as? DialogWindowProvider)?.window?.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        )
+    }
+
+    if (expanded) {
+        // ---------- 全屏编辑（3.21）：抽屉内点「展开」进入 ----------
+        Dialog(
+            onDismissRequest = { if (!busy) expanded = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .imePadding()
+                        .navigationBarsPadding()
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { if (!busy) expanded = false }) { Text("收起") }
+                        TextButton(onClick = { submit() }, enabled = canSubmit) {
+                            Text(if (busy) "发送中…" else submitLabel)
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    if (showToolbar) ReplyToolbar(onInsert = { b, a, p -> insert(b, a, p) })
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = body,
+                        onValueChange = { body = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    ReplyCaptchaField(
+                        captcha = captcha,
+                        answer = answer,
+                        onAnswerChange = { if (it.length <= 8) answer = it },
+                        onRefresh = onRefreshCaptcha,
+                        topPadding = 10.dp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+        }
+        return
+    }
+
+    // ---------- 紧凑抽屉 ----------
     ModalBottomSheet(
         onDismissRequest = { if (!busy) onDismiss() },
         // 让 BottomSheet 的内容区感知 IME 空间，键盘弹出时自动上推输入框
@@ -2239,71 +2310,113 @@ fun ReplyDialog(
                 .padding(horizontal = 20.dp)
                 .imePadding()
                 .navigationBarsPadding()
+                // 键盘弹出后可视空间不足时允许滚动，保证输入框/验证码始终可达
+                .verticalScroll(rememberScrollState())
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                TextButton(
-                    onClick = { busy = true; onSubmit(body.text, answer) { busy = false } },
-                    enabled = canSubmit
-                ) { Text(if (busy) "发送中…" else submitLabel) }
-            }
-            Spacer(Modifier.height(4.dp))
-            // Markdown 工具栏（横向滚动；私信等场景隐藏）
-            if (showToolbar) Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    IconButton(onClick = { insert("**", "**", "粗体") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatBold, "粗体", Modifier.size(18.dp)) }
-                    IconButton(onClick = { insert("*", "*", "斜体") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatItalic, "斜体", Modifier.size(18.dp)) }
-                    IconButton(onClick = { insert("## ", "", "标题") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Title, "标题", Modifier.size(18.dp)) }
-                    IconButton(onClick = { insert("> ", "", "引用") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatQuote, "引用", Modifier.size(18.dp)) }
-                    IconButton(onClick = { insert("`", "`", "代码") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Code, "代码", Modifier.size(18.dp)) }
-                    IconButton(onClick = { insert("```\n", "\n```", "代码块") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Code, "代码块", Modifier.size(18.dp)) }
-                    IconButton(onClick = { insert("- ", "", "列表项") }, modifier = Modifier.size(38.dp)) { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "列表", Modifier.size(18.dp)) }
-                    IconButton(onClick = { insert("[", "](https://)", "链接文字") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Link, "链接", Modifier.size(18.dp)) }
-                    IconButton(onClick = { insert("![", "](https://)", "图片描述") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Image, "图片", Modifier.size(18.dp)) }
+                TextButton(onClick = { submit() }, enabled = canSubmit) {
+                    Text(if (busy) "发送中…" else submitLabel)
                 }
             }
+            Spacer(Modifier.height(4.dp))
+            if (showToolbar) ReplyToolbar(onInsert = { b, a, p -> insert(b, a, p) })
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = body,
-                onValueChange = { body = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 150.dp),
-                shape = RoundedCornerShape(14.dp)
-            )
-            // 人机验证（抽奖帖等）：题目展示，答案由用户填写；提供「换一题」刷新按钮
-            if (captcha != null) {
-                val refreshCap = onRefreshCaptcha
-                Spacer(Modifier.height(10.dp))
+            // 紧凑输入框：右下角「展开」进入全屏编辑
+            Box {
                 OutlinedTextField(
-                    value = answer,
-                    onValueChange = { if (it.length <= 8) answer = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    label = { Text("人机验证：${captcha.question}") },
-                    singleLine = true,
-                    trailingIcon = if (refreshCap != null) {
-                        {
-                            IconButton(onClick = refreshCap) {
-                                Icon(Icons.Filled.Refresh, "换一题")
-                            }
-                        }
-                    } else null,
+                    value = body,
+                    onValueChange = { body = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 96.dp),
+                    shape = RoundedCornerShape(14.dp)
                 )
+                IconButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 6.dp, bottom = 6.dp)
+                        .size(30.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            RoundedCornerShape(50)
+                        )
+                ) {
+                    Icon(
+                        Icons.Filled.OpenInFull,
+                        "全屏编辑",
+                        Modifier.size(15.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
+            ReplyCaptchaField(
+                captcha = captcha,
+                answer = answer,
+                onAnswerChange = { if (it.length <= 8) answer = it },
+                onRefresh = onRefreshCaptcha,
+                topPadding = 10.dp
+            )
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+/** Markdown 工具栏（横向滚动；私信等场景隐藏），onInsert(before, after, placeholder) */
+@Composable
+private fun ReplyToolbar(onInsert: (String, String, String) -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            IconButton(onClick = { onInsert("**", "**", "粗体") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatBold, "粗体", Modifier.size(18.dp)) }
+            IconButton(onClick = { onInsert("*", "*", "斜体") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatItalic, "斜体", Modifier.size(18.dp)) }
+            IconButton(onClick = { onInsert("## ", "", "标题") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Title, "标题", Modifier.size(18.dp)) }
+            IconButton(onClick = { onInsert("> ", "", "引用") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatQuote, "引用", Modifier.size(18.dp)) }
+            IconButton(onClick = { onInsert("`", "`", "代码") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Code, "代码", Modifier.size(18.dp)) }
+            IconButton(onClick = { onInsert("```\n", "\n```", "代码块") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Code, "代码块", Modifier.size(18.dp)) }
+            IconButton(onClick = { onInsert("- ", "", "列表项") }, modifier = Modifier.size(38.dp)) { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "列表", Modifier.size(18.dp)) }
+            IconButton(onClick = { onInsert("[", "](https://)", "链接文字") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Link, "链接", Modifier.size(18.dp)) }
+            IconButton(onClick = { onInsert("![", "](https://)", "图片描述") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Image, "图片", Modifier.size(18.dp)) }
+        }
+    }
+}
+
+/** 人机验证输入框（抽奖帖等）：题目展示，答案由用户填写；提供「换一题」刷新按钮。captcha 为 null 时不显示 */
+@Composable
+private fun ReplyCaptchaField(
+    captcha: sb.linux.client.data.NativeCaptcha?,
+    answer: String,
+    onAnswerChange: (String) -> Unit,
+    onRefresh: (() -> Unit)?,
+    topPadding: androidx.compose.ui.unit.Dp,
+) {
+    if (captcha == null) return
+    Spacer(Modifier.height(topPadding))
+    OutlinedTextField(
+        value = answer,
+        onValueChange = onAnswerChange,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        label = { Text("人机验证：${captcha.question}") },
+        singleLine = true,
+        trailingIcon = if (onRefresh != null) {
+            {
+                IconButton(onClick = onRefresh) {
+                    Icon(Icons.Filled.Refresh, "换一题")
+                }
+            }
+        } else null,
+    )
 }
 
 /**
