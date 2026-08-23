@@ -704,26 +704,44 @@ object HtmlParser {
             )
         }.distinctBy { it.userId }
 
-        // 当前在线（源站 v8.6.5+ 不再渲染 .online-users-card，改为 <span.online-users-boot data-online-users-ids>
-        // 由 JS 动态拼卡）。这里读取在线 ID 集：人数 = ID 数；在线用户项交叉匹配本页帖子作者
-        // （拿名字/头像），保证侧栏能把「当前在线的作者」展示出来，无数据时为空卡片不渲染。
-        val onlineIds = onlineIdsOf(d)
-        val onlineUsers = if (onlineIds.isNotEmpty()) {
-            val fromPage = d.select("ul.post-list > li.post-item").mapNotNull { li ->
-                val userLink = li.selectFirst(".post-meta a[href^=/user/]") ?: return@mapNotNull null
-                val uid = idFrom(userLink.attr("href"))
-                if (uid > 0 && uid in onlineIds) OnlineUser(
-                    userId = uid,
-                    username = userLink.text().trim(),
-                    avatarUrl = absUrl(avatarOf(li)),
-                ) else null
-            }.distinctBy { it.userId }
+        // 当前在线：源站现已服务端渲染 .online-users-card（总数 + 头像网格），直接解析；
+        // 卡片缺失（旧版/异常页）时回退：读 online-users-boot 的 ID 集，人数 = ID 数，
+        // 在线用户项交叉匹配本页帖子作者（拿名字/头像）。
+        val card = d.selectFirst(".online-users-card")
+        val onlineUsers = if (card != null) {
             OnlineUsers(
-                count = "${onlineIds.size} 人",
-                items = fromPage,
+                count = card.selectFirst(".online-users-count")?.text()?.trim() ?: "",
+                items = card.select(".online-users-grid a.online-users-item[href]").mapNotNull { a ->
+                    val uid = idFrom(a.attr("href"))
+                    if (uid <= 0) null else OnlineUser(
+                        userId = uid,
+                        username = a.attr("title").ifBlank {
+                            a.selectFirst(".online-users-name")?.text() ?: ""
+                        }.trim(),
+                        avatarUrl = absUrl(a.selectFirst("img[src]")?.attr("src") ?: ""),
+                    )
+                }.distinctBy { it.userId },
                 moreText = "",
             )
-        } else OnlineUsers()
+        } else {
+            val onlineIds = onlineIdsOf(d)
+            if (onlineIds.isNotEmpty()) {
+                val fromPage = d.select("ul.post-list > li.post-item").mapNotNull { li ->
+                    val userLink = li.selectFirst(".post-meta a[href^=/user/]") ?: return@mapNotNull null
+                    val uid = idFrom(userLink.attr("href"))
+                    if (uid > 0 && uid in onlineIds) OnlineUser(
+                        userId = uid,
+                        username = userLink.text().trim(),
+                        avatarUrl = absUrl(avatarOf(li)),
+                    ) else null
+                }.distinctBy { it.userId }
+                OnlineUsers(
+                    count = "${onlineIds.size} 人",
+                    items = fromPage,
+                    moreText = "",
+                )
+            } else OnlineUsers()
+        }
 
         return HomeSidebar(
             forums = forums,

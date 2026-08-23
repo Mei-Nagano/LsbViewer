@@ -245,6 +245,10 @@ fun HomeScreen(
                             hotTopics = parsed.hotTopics.ifEmpty { old.hotTopics },
                             statsText = parsed.statsText.ifBlank { old.statsText },
                             newUsers = parsed.newUsers.ifEmpty { old.newUsers },
+                            // 在线状态是实时数据：每次解析到就整体覆盖，绝不被旧缓存盖掉
+                            onlineUsers = parsed.onlineUsers.takeIf {
+                                it.count.isNotBlank() || it.items.isNotEmpty()
+                            } ?: old.onlineUsers,
                         )
                         sidebar = merged
                         session.saveHomeSidebar(merged)

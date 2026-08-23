@@ -540,9 +540,15 @@ class Session(app: Application) : AndroidViewModel(app) {
             sb.newUsers.forEach { n ->
                 u.put(org.json.JSONObject().put("uid", n.userId).put("name", n.username).put("av", n.avatarUrl))
             }
+            // 在线用户（实时数据，缓存展示"上次已知在线状态"）
+            val on = org.json.JSONArray()
+            sb.onlineUsers.items.forEach { n ->
+                on.put(org.json.JSONObject().put("uid", n.userId).put("name", n.username).put("av", n.avatarUrl))
+            }
             val o = org.json.JSONObject()
                 .put("forums", a).put("recent", r).put("hot", h).put("users", u)
                 .put("stats", sb.statsText)
+                .put("onCount", sb.onlineUsers.count).put("onItems", on)
             sidebarPrefs.edit().putString("sidebar", o.toString()).apply()
         }
     }
@@ -565,9 +571,14 @@ class Session(app: Application) : AndroidViewModel(app) {
             val n = o.getJSONArray("users").getJSONObject(i)
             NewUser(n.optLong("uid"), n.optString("name"), n.optString("av"))
         }
+        val onItems = (0 until (o.optJSONArray("onItems")?.length() ?: 0)).map { i ->
+            val n = o.getJSONArray("onItems").getJSONObject(i)
+            OnlineUser(n.optLong("uid"), n.optString("name"), n.optString("av"))
+        }
         HomeSidebar(
             forums = forums, recentForums = recent, hotTopics = hot,
             statsText = o.optString("stats"), newUsers = users,
+            onlineUsers = OnlineUsers(count = o.optString("onCount"), items = onItems),
         )
     }.getOrNull()
 
