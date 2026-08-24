@@ -110,7 +110,12 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("io.coil-kt:coil-svg:2.7.0")
+    // coil-svg 传递依赖官方 androidsvg-aar:1.4，须排除：与下方的 GeneXus fork 同包名
+    // 同类名，共存会触发 checkReleaseDuplicateClasses 失败；fork 的包名/API 与官方
+    // 完全一致，coil-svg 运行时直接用 fork 的实现
+    implementation("io.coil-kt:coil-svg:2.7.0") {
+        exclude(group = "com.caverock", module = "androidsvg-aar")
+    }
     // androidsvg：直接解码 SVG 头像为 Bitmap（coil-svg 对部分默认/bottts 头像解码失败）。
     // 用 GeneXus 维护的 fork 1.5.0（官方 com.caverock 已停更于 1.4/2019，fork 同步了
     // 官方 master 后续修复并适配 AndroidX；包名/ API 与官方一致，代码零改动）
