@@ -366,13 +366,27 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 localReplyPage = 1
                 loadedMaxPage = p.coerceAtLeast(1)
                 loading = false
-                // 滚动到目标楼层附近并高亮（树形模式按展平树的索引定位；
-                // 回复列表从 header(0)/主楼(1)/「全部回复」(2) 之后即 index 3 开始）
+                // 滚动到目标楼层附近并高亮。必须按「UI 实际渲染的列表」计算索引：
+                // 分页模式下树形按顶层分页（子树整棵跟页）、平铺按 repliesPer 切片，
+                // 直接用全量索引会错位——目标可能不在当前渲染的本地页里，滚动落空
                 val posts = data?.posts ?: emptyList()
                 val loaded = posts.drop(1)
                 val tree = if (loaded.any { it.parentFloor > 0 }) buildReplyTree(loaded, 1) else null
                 if (tree != null) {
-                    val flat = flattenTree(tree)
+                    // 无限模式 = 全量展平；分页模式 = 目标顶层祖先所在本地页的切片
+                    val flat = if (topicInfinite) flattenTree(tree) else run {
+                        val target = loaded.firstOrNull { it.floor == floor } ?: return@launch
+                        var cur = target
+                        while (true) {
+                            val parent = loaded.firstOrNull { it.floor == cur.parentFloor } ?: break
+                            cur = parent
+                        }
+                        val topIdx = tree.indexOfFirst { it.post.floor == cur.floor }
+                        if (topIdx < 0) return@launch
+                        val page = topIdx / repliesPer + 1
+                        localReplyPage = page
+                        flattenTree(tree.drop((page - 1) * repliesPer).take(repliesPer))
+                    }
                     val fi = flat.indexOfFirst { it.first.floor == floor }
                     if (fi >= 0) {
                         highlightPostId = flat[fi].first.id
@@ -386,8 +400,15 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     val idx = posts.indexOfFirst { it.floor == floor }
                     if (idx >= 0) {
                         highlightPostId = posts[idx].id
+                        // 平铺渲染从 LazyColumn index 2 起；分页模式换算到目标所在本地页
+                        val lazyIdx = if (topicInfinite) idx + 2 else run {
+                            val replyIdx = idx - 1
+                            val page = replyIdx / repliesPer + 1
+                            localReplyPage = page
+                            replyIdx - (page - 1) * repliesPer + 2
+                        }
                         scope.launch {
-                            listState.animateScrollToItem(idx + 2)
+                            listState.animateScrollToItem(lazyIdx)
                             delay(1500)
                             highlightPostId = null
                         }
@@ -448,7 +469,15 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         val posts = sortedPosts
         val idx = posts.indexOfFirst { it.floor == floor }
         if (idx >= 0) {
-            scrollAndHighlight(idx + 2, posts[idx].id)
+            if (topicInfinite) {
+                scrollAndHighlight(idx + 2, posts[idx].id)
+            } else {
+                // 分页模式：目标可能不在当前本地页，按 repliesPer 换算页码与页内索引
+                val replyIdx = idx - 1
+                val page = replyIdx / repliesPer + 1
+                localReplyPage = page
+                scrollAndHighlight(replyIdx - (page - 1) * repliesPer + 2, posts[idx].id)
+            }
         } else {
             jumpFloor(floor)
         }
@@ -937,9 +966,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 isOpAuthor = post.authorName == d.posts.firstOrNull()?.authorName,
                                 isMainPost = false,
                                 highlight = highlightPostId == post.id,
-                                // 嵌套子回复不重复显示「回复 #N」胶囊（缩进+引导线已表达层级）；
-                                // 顶层回复带 parentFloor 时（父楼层未加载/已删除）仍显示以指向目标
-                                showReplyBadge = depth == 0,
+                                // 「回复 #N」胶囊：所有带 parentFloor 的楼层都显示。
+                                // 嵌套子回复虽然父卡片就在上方，但长对话树中父楼层可能已滚出
+                                // 屏幕，胶囊提供快速跳转定位入口（点击定位到目标楼层）
                                 onUser = { nav.navigate("user/${post.authorId}") },
                                 onQuote = {
                                     quoteText = buildString {
@@ -1251,9 +1280,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         } else {
                             session.showToast("回复成功")
                             showReply = false
-                            // 强制刷新末页：清掉本帖分页缓存重抓，确保新回复立即显示
-                            //（否则命中旧缓存会表现为「评论显示不完全」）
-                            load(data?.totalPages ?: 1, force = true)
+                            // 强制刷新末页并与已加载页合并（append）：
+                            // 整页替换会丢弃前序页——树形评论的父楼层多在前面页，
+                            // 丢失后自己的新回复挂不上树（显示为顶层），且会把用户踢回第 1 页。
+                            // force 清缓存确保新回复立即可见（否则命中旧缓存表现为「评论显示不完全」）
+                            load(data?.totalPages ?: 1, append = true, force = true)
                         }
                     } catch (e: Exception) {
                         session.showToast(e.message ?: "回复失败")
@@ -1580,7 +1611,6 @@ fun PostCard(
     onDonate: (() -> Unit)? = null,
     onEditUser: (Long) -> Unit = {},
     threadEnabled: Boolean = true,
-    showReplyBadge: Boolean = true,
     threadReplyCount: Int = 0,
 ) {
     if (isMainPost) {
@@ -1602,7 +1632,6 @@ fun PostCard(
                 onDonate = onDonate,
                 onEditUser = onEditUser,
                 threadEnabled = threadEnabled,
-                showReplyBadge = showReplyBadge,
                 threadReplyCount = threadReplyCount,
             )
         }
@@ -1646,7 +1675,6 @@ fun PostCard(
                     onDonate = onDonate,
                     onEditUser = onEditUser,
                     threadEnabled = threadEnabled,
-                    showReplyBadge = showReplyBadge,
                     threadReplyCount = threadReplyCount,
                 )
             }
@@ -1674,7 +1702,6 @@ private fun PostCardContent(
     onDonate: (() -> Unit)? = null,
     onEditUser: (Long) -> Unit = {},
     threadEnabled: Boolean = true,
-    showReplyBadge: Boolean = true,
     threadReplyCount: Int = 0,
 ) {
     Column(modifier) {
@@ -1759,9 +1786,9 @@ private fun PostCardContent(
         }
         Spacer(Modifier.height(10.dp))
         // 树形评论标识（源站 data-quote-threads-parent-floor）：本楼回复的是第 N 楼，
-        // 点击跳转目标楼层。嵌套子回复（showReplyBadge=false）不显示——缩进与引导线
-        // 已表达层级，父卡片就在上方；父楼层未加载/已删除的顶层回复仍显示以指向目标
-        if (post.parentFloor > 0 && showReplyBadge) {
+        // 点击在帖子内定位到目标楼层并高亮。嵌套子回复也显示——长对话树中
+        // 父楼层可能已滚出屏幕，胶囊是快速定位入口
+        if (post.parentFloor > 0) {
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
