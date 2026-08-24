@@ -466,8 +466,11 @@ private fun androidx.navigation.NavGraphBuilder.masterRoutes(
 private fun androidx.navigation.NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
     composable("detailEmpty") { DetailEmptyPane() }
     composable(
-        "search?q={q}",
-        arguments = listOf(navArgument("q") { type = androidx.navigation.NavType.StringType; defaultValue = "" })
+        "search?q={q}&field={field}",
+        arguments = listOf(
+            navArgument("q") { type = androidx.navigation.NavType.StringType; defaultValue = "" },
+            navArgument("field") { type = androidx.navigation.NavType.StringType; defaultValue = "title" }
+        )
     ) { SearchScreen(session, nav) }
     composable("login") { LoginScreen(session, nav) }
     composable(

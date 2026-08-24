@@ -212,7 +212,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     }
     // 「对话串联」开关（默认关闭）：源站已支持树形结构评论（data-quote-threads-parent-floor），
     // 楼层卡直接展示「回复 #N」标识并支持点击跳转，引用链弹窗仅作兼容保留
-    val threadEnabled = session.settings.threadDialogEnabled
+    val threadEnabled = session.threadDialogEnabled
     // 楼号 -> 回复它的楼层数量：决定评论区是否显示该楼的「对话串联」入口
     val threadReplyCount = remember(sortedPosts) {
         val m = mutableMapOf<Int, Int>()
@@ -1757,13 +1757,14 @@ private fun PostCardContent(
                             small = true
                         )
                     }
+                    // 称号徽章与 UID 胶囊同行同字号（10sp），文字基线一致不再错位
+                    post.titleBadge?.let { TitleBadgeView(it, small = true) }
                 }
-                // 元信息行（源站格式）：称号徽章在发送时间前面显示
+                // 元信息行：发送时间 · IP 属地
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    post.titleBadge?.let { TitleBadgeView(it, small = true) }
                     Text(
                         buildString {
                             if (post.timeText.isNotBlank()) append(post.timeText)

@@ -22,15 +22,20 @@ import sb.linux.client.ui.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(session: Session, nav: NavHostController) {
-    // 支持从首页顶栏搜索条带入关键词（search?q=…）
+    // 支持从首页顶栏搜索条带入关键词与搜索范围（search?q=…&field=…）
     val entry = nav.currentBackStackEntry
     val initialQuery = entry?.arguments?.getString("q").orEmpty()
+    val initialField = entry?.arguments?.getString("field")
+        ?.takeIf { it in setOf("title", "body", "reply") } ?: "title"
     // 复用会话内最近一次搜索结果：短时间内从结果页返回不重复搜索（避免再次消耗积分）
-    val cached = remember(initialQuery) {
-        session.searchCache?.takeIf { it.query == initialQuery && System.currentTimeMillis() - it.time < 30 * 60_000L }
+    val cached = remember(initialQuery, initialField) {
+        session.searchCache?.takeIf {
+            it.query == initialQuery && it.field == initialField &&
+                System.currentTimeMillis() - it.time < 30 * 60_000L
+        }
     }
     var query by remember { mutableStateOf(initialQuery) }
-    var field by remember { mutableStateOf(cached?.field ?: "title") }
+    var field by remember { mutableStateOf(cached?.field ?: initialField) }
     var results by remember { mutableStateOf(cached?.results) }
     var page by remember { mutableIntStateOf(cached?.page ?: 1) }
     var totalPages by remember { mutableIntStateOf(cached?.totalPages ?: 1) }
@@ -69,6 +74,12 @@ fun SearchScreen(session: Session, nav: NavHostController) {
                 error = e.message ?: "搜索失败"
             } finally { loading = false }
         }
+    }
+
+    // 从首页顶栏搜索进入（带关键词）时自动执行：范围/关键词已在顶栏选好，
+    // 不必再点本页搜索按钮。命中会话缓存（同关键词同范围 30 分钟内）时直接复用，不重复扣积分
+    LaunchedEffect(initialQuery, initialField) {
+        if (initialQuery.isNotBlank() && cached == null) search(1)
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("搜索") }) }) { pad ->

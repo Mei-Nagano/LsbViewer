@@ -90,6 +90,8 @@ class Session(app: Application) : AndroidViewModel(app) {
     var danmakuOn by mutableStateOf(true)
     var sidebarTwoColumns by mutableStateOf(true)
     var showOnlineUsers by mutableStateOf(true)
+    // 评论「对话串联」开关：Compose 响应式镜像（直接写 settings 不触发重组，开关显示不同步）
+    var threadDialogEnabled by mutableStateOf(false)
     // 翻页模式下每页展示的帖子条数（默认 15）
     var topicsPerPage by mutableIntStateOf(15)
     // 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择）
@@ -160,6 +162,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         danmakuOn = settings.danmakuOn
         homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
+        threadDialogEnabled = settings.threadDialogEnabled
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
         showOnlineUsers = settings.sidebarShowOnlineUsers
@@ -308,6 +311,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         danmakuOn = settings.danmakuOn
         homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
+        threadDialogEnabled = settings.threadDialogEnabled
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
         showOnlineUsers = settings.sidebarShowOnlineUsers
@@ -341,6 +345,11 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun saveShowOnlineUsers(v: Boolean) {
         showOnlineUsers = v
         settings.sidebarShowOnlineUsers = v
+    }
+
+    fun saveThreadDialog(v: Boolean) {
+        threadDialogEnabled = v
+        settings.threadDialogEnabled = v
     }
 
     /** 翻页模式下每页展示的帖子条数（5..50） */

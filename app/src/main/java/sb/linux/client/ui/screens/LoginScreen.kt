@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -132,48 +133,32 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                 Text("记住密码", style = MaterialTheme.typography.bodyMedium)
             }
 
-            // 人机验证：题目展示，答案由用户填写（PoW 由客户端自动计算）
+            // 人机验证：题目内置于输入框 label（节省纵向空间），答案由用户填写（PoW 由客户端自动计算）
             val cap = captcha
             if (cap != null) {
                 Spacer(Modifier.height(6.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "人机验证",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(onClick = {
-                        captchaAnswer = ""
-                        scope.launch {
-                            try { captcha = session.client.fetchLoginCaptcha() }
-                            catch (e: Exception) { captchaError = e.message ?: "验证码加载失败" }
-                        }
-                    }) { Text("刷新验证码") }
-                }
-                if (cap.question.isNotBlank()) {
-                    // 验证码题目：紧凑内联展示（不占额外空间）
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        cap.question,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(4.dp))
-                }
                 OutlinedTextField(
                     value = captchaAnswer,
                     onValueChange = { if (it.length <= 8) captchaAnswer = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("验证码答案") },
+                    label = {
+                        Text(
+                            if (cap.question.isBlank()) "人机验证答案"
+                            else "人机验证：${cap.question}"
+                        )
+                    },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            captchaAnswer = ""
+                            scope.launch {
+                                try { captcha = session.client.fetchLoginCaptcha() }
+                                catch (e: Exception) { captchaError = e.message ?: "验证码加载失败" }
+                            }
+                        }) { Icon(Icons.Filled.Refresh, "刷新验证码") }
+                    }
                 )
             } else if (captchaError != null) {
                 Spacer(Modifier.height(6.dp))

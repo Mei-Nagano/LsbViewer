@@ -317,7 +317,7 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Bool
         if (title.rarity.isNotBlank()) {
             Text(
                 title.rarity,
-                style = style.copy(fontSize = style.fontSize * 0.85f),
+                style = style,
                 fontWeight = FontWeight.SemiBold,
                 color = fg,
                 maxLines = 1,

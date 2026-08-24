@@ -21,7 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
@@ -43,6 +45,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,6 +89,11 @@ private val SORTS = listOf(
     "featured" to "精华",
 )
 
+/** 顶栏搜索范围值 → 中文标签 */
+private fun fieldLabelOf(field: String): String = when (field) {
+    "body" -> "内容"; "reply" -> "回帖"; else -> "标题"
+}
+
 private fun buildPath(sort: String, page: Int): String = when {
     sort == "featured" && page <= 1 -> "/topic_featured"
     sort == "featured" -> "/topic_featured?p=$page"
@@ -118,6 +126,9 @@ fun HomeScreen(
     // 顶栏搜索态（t10）：搜索时整条顶栏变为搜索框；退出 / 失焦恢复
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    // 搜索范围（顶栏左侧按钮选择）：title = 标题，body = 内容，reply = 回帖
+    var searchField by rememberSaveable { mutableStateOf("title") }
+    var searchFieldMenu by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }
     // 进入搜索态时自动聚焦输入框（否则输入框一出现就因「未失焦且为空」被立刻关闭，表现为闪现）
     LaunchedEffect(searchActive) {
@@ -141,6 +152,13 @@ fun HomeScreen(
         derivedStateOf { listState.firstVisibleItemIndex == 0 }
     }
     LaunchedEffect(derivedTopVisible) { topBarVisible = derivedTopVisible }
+    // 顶栏随滚动隐藏时退出搜索态：回到顶部展示的是正常顶栏，
+    // 搜索框不再「除非点返回否则一直存在」
+    LaunchedEffect(topBarVisible) {
+        if (!topBarVisible) { searchActive = false; searchQuery = "" }
+    }
+    // 系统返回键退出搜索态（左侧按钮已改为范围选择，返回不再是唯一出口）
+    BackHandler(enabled = searchActive) { searchActive = false; searchQuery = "" }
 
     // 分类（全部/仅抽奖/仅发卡）或排序 tab 切换后回到列表顶部。
     // 在点击回调里直接 scrollToItem 会与切换后的新数据布局竞争：LazyList 以 item key 锚定滚动位置，
@@ -374,11 +392,11 @@ fun HomeScreen(
         load(1)
     }
 
-    // 顶栏搜索提交：带回显关键词跳转搜索页
+    // 顶栏搜索提交：带关键词 + 搜索范围跳转搜索页（SearchScreen 自动执行，无需二次点击）
     fun submitTopSearch() {
         if (searchQuery.isBlank()) { searchActive = false; return }
         val q = java.net.URLEncoder.encode(searchQuery.trim(), "UTF-8")
-        nav.navigate("search?q=$q")
+        nav.navigate("search?q=$q&field=$searchField")
         searchQuery = ""; searchActive = false
     }
 
@@ -441,15 +459,44 @@ fun HomeScreen(
                 Column {
                     // 顶栏：正常态 / 搜索态 二选一
                     if (searchActive) {
-                        // 搜索态：整条顶栏变成搜索输入框 + 右侧搜索按钮；失焦后恢复
+                        // 搜索态：左侧搜索范围选择 + 搜索输入框 + 右侧搜索按钮；
+                        // 范围/关键词在顶栏一次选好，跳转搜索页直接出结果（不再进二级页面才能搜）
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 4.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = { searchActive = false; searchQuery = "" }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "取消搜索")
+                            Box {
+                                TextButton(
+                                    onClick = { searchFieldMenu = true },
+                                    contentPadding = PaddingValues(horizontal = 10.dp)
+                                ) {
+                                    Text(
+                                        fieldLabelOf(searchField),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Icon(
+                                        Icons.Filled.ArrowDropDown,
+                                        "选择搜索范围",
+                                        Modifier.size(18.dp)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = searchFieldMenu,
+                                    onDismissRequest = { searchFieldMenu = false }
+                                ) {
+                                    listOf("title" to "标题", "body" to "内容", "reply" to "回帖").forEach { (v, label) ->
+                                        DropdownMenuItem(
+                                            text = { Text(label) },
+                                            trailingIcon = if (searchField == v) {
+                                                { Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }
+                                            } else null,
+                                            onClick = { searchField = v; searchFieldMenu = false }
+                                        )
+                                    }
+                                }
                             }
                             Surface(
                                 shape = RoundedCornerShape(22.dp),
@@ -464,8 +511,8 @@ fun HomeScreen(
                                 ) {
                                     if (searchQuery.isEmpty()) {
                                         Text(
-                                            "搜索全站…",
-                                            style = MaterialTheme.typography.bodyLarge,
+                                            "搜索一次消耗 1 积分",
+                                            style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                             modifier = Modifier.padding(start = 16.dp)
                                         )
