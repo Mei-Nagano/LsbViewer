@@ -712,6 +712,12 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                         ) { Text("翻页") }
                     }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "提示：评论区采用分页模式可能导致评论区加载异常，请谨慎启用。默认启用无限滚动",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 // 翻页相关设置：仅当存在翻页分类时展示（3.14）
                 if (anyPaged) {

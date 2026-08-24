@@ -624,8 +624,8 @@ fun HomeScreen(
                         tonalElevation = 2.dp,
                         shadowElevation = 1.dp,
                     ) {
-                        // 仅折叠时在底部多留白，避免「全部/仅抽奖/仅发卡」贴住下边缘；展开时排序区自带底部间距
-                        Column(Modifier.padding(bottom = if (sortDrawerOpen) 0.dp else 14.dp)) {
+                        // 折叠时底部留白与顶部（行内 top=7dp）一致，上下留白对称；展开时排序区自带底部间距
+                        Column(Modifier.padding(bottom = if (sortDrawerOpen) 0.dp else 7.dp)) {
                             // 组合过滤行（质感样式）
                             Row(
                                 Modifier

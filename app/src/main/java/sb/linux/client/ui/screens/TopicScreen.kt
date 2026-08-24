@@ -3,9 +3,6 @@ package sb.linux.client.ui.screens
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -777,7 +774,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                     )
                                 }
                             }
-                            // 浏览 / 回复统计 + 页码 胶囊
+                            // 浏览 / 回复统计胶囊（页码不再展示，翻页条自带当前页信息）
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -787,11 +784,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             ) {
                                 StatChip(Icons.Filled.Visibility, d.viewsText.ifBlank { "-" })
                                 StatChip(Icons.AutoMirrored.Filled.Chat, d.repliesText.ifBlank { "${d.posts.size}" })
-                                StatChip(
-                                    null,
-                                    if (topicInfinite) "${d.page} / ${d.totalPages} 页"
-                                    else "$localReplyPage / $localReplyTotal 页"
-                                )
                             }
                             // 打赏弹幕
                             if (danmakuLocalOn && danmaku.isNotEmpty()) {
@@ -1028,20 +1020,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             }
             }
 
-            // 沉浸模式：顶栏隐藏后左上角悬浮返回按钮
-            if (!topBarVisible) {
-                SmallFloatingActionButton(
-                    onClick = { nav.popBackStack() },
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(10.dp),
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                }
-            }
-
             // 一键回顶按钮
             val showBackTop by remember {
                 derivedStateOf { listState.firstVisibleItemIndex > 1 }
@@ -1124,6 +1102,90 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     IconButton(onClick = { scrollToComments() }) {
                         Icon(Icons.AutoMirrored.Filled.Chat, "直达评论区")
                     }
+                    // 帖子菜单常驻顶栏（原右上角悬浮按钮取消）
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Filled.MoreVert, "菜单")
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            // 跳转楼层移入菜单（2.10）
+                            DropdownMenuItem(
+                                text = { Text("跳转楼层") },
+                                leadingIcon = { Icon(Icons.Filled.FormatListNumbered, null) },
+                                onClick = { menuOpen = false; showFloorDialog = true }
+                            )
+                            // 在浏览器打开（2.7）
+                            DropdownMenuItem(
+                                text = { Text("在浏览器打开") },
+                                leadingIcon = { Icon(Icons.Filled.OpenInNew, null) },
+                                onClick = {
+                                    menuOpen = false
+                                    runCatching {
+                                        context.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(sb.linux.client.data.Endpoints.abs("/topic/$tid"))
+                                            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    }.onFailure { session.showToast("打开失败：${it.message}") }
+                                }
+                            )
+                            // 复制帖子链接
+                            DropdownMenuItem(
+                                text = { Text("复制链接") },
+                                leadingIcon = { Icon(Icons.Filled.Link, null) },
+                                onClick = {
+                                    menuOpen = false
+                                    clipboard.setText(AnnotatedString(sb.linux.client.data.Endpoints.abs("/topic/$tid")))
+                                    session.showToast("链接已复制")
+                                }
+                            )
+                            if (session.loginState.loggedIn && data?.canFavorite == true) {
+                                DropdownMenuItem(
+                                    text = { Text("收藏") },
+                                    leadingIcon = { Icon(Icons.Filled.FavoriteBorder, null) },
+                                    onClick = { menuOpen = false; doFavorite() }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(if (danmakuLocalOn) "关闭打赏弹幕" else "显示打赏弹幕") },
+                                leadingIcon = { Icon(Icons.Filled.Subtitles, null) },
+                                onClick = {
+                                    menuOpen = false
+                                    danmakuLocalOn = !danmakuLocalOn
+                                    session.saveDanmaku(danmakuLocalOn)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (exportBusy != null) "导出中…" else "导出帖子") },
+                                leadingIcon = { Icon(Icons.Filled.IosShare, null) },
+                                onClick = { menuOpen = false; showExportDialog = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("刷新") },
+                                leadingIcon = { Icon(Icons.Filled.Refresh, null) },
+                                onClick = { menuOpen = false; load(data?.page ?: 1, force = true); loadDanmaku() }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (topicInfinite) "切换为翻页模式" else "切换为无限滚动")
+                                },
+                                leadingIcon = { Icon(Icons.Filled.SwapVert, null) },
+                                onClick = {
+                                    menuOpen = false
+                                    // 仅覆盖帖子分类的滚动模式（3.13），不影响其他分类
+                                    session.saveScrollModeOverride("topic", !topicInfinite)
+                                    localReplyPage = 1
+                                    replyModeTick++    // 见 replyModeTick 注释：强制重组使新模式即时生效
+                                    // 切换后回到顶部（参考首页切换逻辑）
+                                    scope.launch { listState.scrollToItem(0) }
+                                    session.showToast(
+                                        if (!topicInfinite) "已切换为无限滚动" else "已切换为翻页模式"
+                                    )
+                                }
+                            )
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
@@ -1132,104 +1194,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 // （此前顶栏被垫高，遮住标题顶部并与悬浮菜单按钮重叠）
                 windowInsets = WindowInsets(0, 0, 0, 0),
             )
-        }
-
-        // 右上角独立悬浮菜单按钮（类似返回 / 回顶按钮，2.11）
-        val menuTop by animateDpAsState(
-            targetValue = if (topBarVisible) 78.dp else 12.dp,
-            animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
-            label = "menuTop"
-        )
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = menuTop, end = 12.dp)
-        ) {
-            SmallFloatingActionButton(
-                onClick = { menuOpen = true },
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ) {
-                Icon(Icons.Filled.MoreVert, "菜单")
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // 跳转楼层移入菜单（2.10）
-                DropdownMenuItem(
-                    text = { Text("跳转楼层") },
-                    leadingIcon = { Icon(Icons.Filled.FormatListNumbered, null) },
-                    onClick = { menuOpen = false; showFloorDialog = true }
-                )
-                // 在浏览器打开（2.7）
-                DropdownMenuItem(
-                    text = { Text("在浏览器打开") },
-                    leadingIcon = { Icon(Icons.Filled.OpenInNew, null) },
-                    onClick = {
-                        menuOpen = false
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse(sb.linux.client.data.Endpoints.abs("/topic/$tid"))
-                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        }.onFailure { session.showToast("打开失败：${it.message}") }
-                    }
-                )
-                // 复制帖子链接
-                DropdownMenuItem(
-                    text = { Text("复制链接") },
-                    leadingIcon = { Icon(Icons.Filled.Link, null) },
-                    onClick = {
-                        menuOpen = false
-                        clipboard.setText(AnnotatedString(sb.linux.client.data.Endpoints.abs("/topic/$tid")))
-                        session.showToast("链接已复制")
-                    }
-                )
-                if (session.loginState.loggedIn && data?.canFavorite == true) {
-                    DropdownMenuItem(
-                        text = { Text("收藏") },
-                        leadingIcon = { Icon(Icons.Filled.FavoriteBorder, null) },
-                        onClick = { menuOpen = false; doFavorite() }
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text(if (danmakuLocalOn) "关闭打赏弹幕" else "显示打赏弹幕") },
-                    leadingIcon = { Icon(Icons.Filled.Subtitles, null) },
-                    onClick = {
-                        menuOpen = false
-                        danmakuLocalOn = !danmakuLocalOn
-                        session.saveDanmaku(danmakuLocalOn)
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(if (exportBusy != null) "导出中…" else "导出帖子") },
-                    leadingIcon = { Icon(Icons.Filled.IosShare, null) },
-                    onClick = { menuOpen = false; showExportDialog = true }
-                )
-                DropdownMenuItem(
-                    text = { Text("刷新") },
-                    leadingIcon = { Icon(Icons.Filled.Refresh, null) },
-                    onClick = { menuOpen = false; load(data?.page ?: 1, force = true); loadDanmaku() }
-                )
-                DropdownMenuItem(
-                    text = {
-                        Text(if (topicInfinite) "切换为翻页模式" else "切换为无限滚动")
-                    },
-                    leadingIcon = { Icon(Icons.Filled.SwapVert, null) },
-                    onClick = {
-                        menuOpen = false
-                        // 仅覆盖帖子分类的滚动模式（3.13），不影响其他分类
-                        session.saveScrollModeOverride("topic", !topicInfinite)
-                        localReplyPage = 1
-                        replyModeTick++    // 见 replyModeTick 注释：强制重组使新模式即时生效
-                        // 切换后回到顶部（参考首页切换逻辑）
-                        scope.launch { listState.scrollToItem(0) }
-                        session.showToast(
-                            if (!topicInfinite) "已切换为无限滚动" else "已切换为翻页模式"
-                        )
-                    }
-                )
-            }
         }
         }
     }
@@ -1757,14 +1721,33 @@ private fun PostCardContent(
                             small = true
                         )
                     }
-                    // 称号徽章与 UID 胶囊同行同字号（10sp），文字基线一致不再错位
-                    post.titleBadge?.let { TitleBadgeView(it, small = true) }
                 }
-                // 元信息行：发送时间 · IP 属地
+                // 元信息行：称号矮胶囊（字号与时间一致）· 发送时间 · IP 属地
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
+                    post.titleBadge?.let { t ->
+                        val (fg, bg) = sb.linux.client.ui.titleRarityColor(t.rarity)
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = bg.copy(alpha = 0.45f),
+                            modifier = Modifier.heightIn(min = 16.dp)
+                        ) {
+                            Text(
+                                buildString {
+                                    append(t.name)
+                                    if (t.rarity.isNotBlank()) append("·").append(t.rarity)
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = fg,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                     Text(
                         buildString {
                             if (post.timeText.isNotBlank()) append(post.timeText)
