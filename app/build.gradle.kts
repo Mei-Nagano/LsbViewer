@@ -111,8 +111,10 @@ dependencies {
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-svg:2.7.0")
-    // androidsvg：直接解码 SVG 头像为 Bitmap（coil-svg 对部分默认/bottts 头像解码失败）
-    implementation("com.caverock:androidsvg-aar:1.4")
+    // androidsvg：直接解码 SVG 头像为 Bitmap（coil-svg 对部分默认/bottts 头像解码失败）。
+    // 用 GeneXus 维护的 fork 1.5.0（官方 com.caverock 已停更于 1.4/2019，fork 同步了
+    // 官方 master 后续修复并适配 AndroidX；包名/ API 与官方一致，代码零改动）
+    implementation("com.genexus.android:androidsvg:1.5.0")
 
     // ColorBlendr 同款 HCT 主题引擎（material-color-utilities 的 Kotlin 封装）
     implementation("com.materialkolor:material-kolor:2.0.2")
