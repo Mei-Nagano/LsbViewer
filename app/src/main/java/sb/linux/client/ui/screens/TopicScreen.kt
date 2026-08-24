@@ -1470,11 +1470,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         )
     }
 
-    // 投币弹窗（预设 6/10/33/66/88，自定义范围 1～99，理由选填）
+    // 投币弹窗（预设 6/33/66/88，自定义范围 1～99，理由选填）
     coinTarget?.let { target ->
         CoinDialog(
             onDismiss = { coinTarget = null },
-            tiers = listOf(6, 10, 33, 66, 88),
+            tiers = listOf(6, 33, 66, 88),
             onConfirm = { points, reason ->
                 coinTarget = null
                 doLike(target, points, reason)
@@ -2357,7 +2357,7 @@ private fun DonateSheet(
 ) {
     var info by remember { mutableStateOf<HtmlParser.DonateInfo?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
-    var preset by remember { mutableStateOf("10") }
+    var preset by remember { mutableStateOf("6") }
     var custom by remember { mutableStateOf(false) }
     var customText by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("好帖！赞一个！") }
@@ -2371,7 +2371,8 @@ private fun DonateSheet(
     }
 
     val amount = if (custom) customText else preset
-    val validAmount = amount.toIntOrNull()?.let { it > 0 } == true
+    val amountNum = amount.toIntOrNull()
+    val validAmount = amountNum != null && amountNum in 1..99
 
     ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() }) {
         Column(
@@ -2418,9 +2419,9 @@ private fun DonateSheet(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    // 金额档位 + 自定义切换（38）
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("10", "50", "100", "500").forEach { v ->
+                    // 金额档位 + 自定义切换（38），与投币一致：预设 6/33/66/88，自定义范围 1～99
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("6", "33", "66", "88").forEach { v ->
                             FilterChip(
                                 selected = !custom && preset == v,
                                 onClick = { custom = false; preset = v },
@@ -2436,11 +2437,14 @@ private fun DonateSheet(
                     if (custom) {
                         OutlinedTextField(
                             value = customText,
-                            onValueChange = { t -> customText = t.filter { it.isDigit() }.take(7) },
+                            onValueChange = { t -> customText = t.filter { it.isDigit() }.take(2) },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("自定义金额（积分）") },
+                            placeholder = { Text("范围 1～99") },
                             shape = RoundedCornerShape(16.dp),
-                            singleLine = true
+                            singleLine = true,
+                            isError = customText.isNotBlank() && !validAmount,
+                            supportingText = { Text("仅支持 1～99 积分") }
                         )
                     }
                     // 快捷留言（源站打赏表单自带）
@@ -3402,7 +3406,7 @@ private fun ExportSheetItem(
     }
 }
 
-/** 投币底部弹窗：与打赏弹窗同款样式，预设 6/10/33/66/88，自定义范围 1～99；理由选填（最多120字） */
+/** 投币底部弹窗：与打赏弹窗同款样式，预设 6/33/66/88，自定义范围 1～99；理由选填（最多120字） */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CoinDialog(tiers: List<Int>, onDismiss: () -> Unit, onConfirm: (Int, String) -> Unit) {

@@ -398,7 +398,7 @@ fun TopicCardView(
             else MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 3.dp)
+            .padding(horizontal = 14.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = {
                 // 预览改色模式：点按卡片空白处改背景色；正常模式打开帖子
@@ -406,7 +406,7 @@ fun TopicCardView(
             }),
     ) {
         Box {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
                 if (!compact) {
                     Avatar(card.avatarUrl, 34, online = card.online)
                     Spacer(Modifier.width(8.dp))
@@ -486,8 +486,7 @@ fun TopicCardView(
                         overflow = TextOverflow.Ellipsis,
                         // 行距收敛到 1.0 倍 + 下方 2dp 间距：收紧标题与发帖信息行
                         // 之间的空隙（此前 1.1 倍行距 + 3dp 显得松散）
-                        lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.0f,
-                        modifier = Modifier.padding(top = 2.dp)
+                        lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.0f
                     )
                     Spacer(Modifier.size(2.dp))
                     // 底行：用户名 / 时间 / 评论数不使用分隔点，FlowRow 放不下时自动换行
@@ -586,7 +585,7 @@ fun TopicCardView(
                 Canvas(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 6.dp, end = 10.dp)
+                        .padding(top = 4.dp, end = 10.dp)
                         .size(36.dp, 20.dp)
                 ) {
                     paint.textSize = 12.sp.toPx()
