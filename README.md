@@ -47,8 +47,13 @@ LSB_STORE_FILE=/path/to.jks LSB_STORE_PASSWORD=*** LSB_KEY_ALIAS=*** LSB_KEY_PAS
 - Kotlin · Jetpack Compose · Material 3
 - Jsoup（HTML 解析）· OkHttp（网络与 Cookie）
 - Coil（图片加载，含 SVG）· materialkolor（HCT 主题引擎）
+- [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)（液态玻璃底栏）
 - Navigation Compose · WebView（应用内浏览 / 人机验证）
 
 ## 开源协议
 
 [MIT License](LICENSE)
+
+## 致谢
+
+- [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) —— 本应用的液态玻璃底栏基于 Kyant0 的 Backdrop 库实现，实时折射身后内容、动态模糊与透镜质感为界面带来了独特的视觉体验，感谢作者的开源分享。

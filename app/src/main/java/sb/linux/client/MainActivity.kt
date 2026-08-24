@@ -2,7 +2,6 @@ package sb.linux.client
 
 import android.os.Bundle
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -95,6 +94,13 @@ import sb.linux.client.ui.LocalLinkHandler
 import sb.linux.client.ui.ThemeMode
 import sb.linux.client.ui.VerificationDialog
 import sb.linux.client.ui.screens.*
+
+/**
+ * 页面转场统一时长（6）：短时淡入淡出取代瞬切（snap）与 700ms 长转场——
+ * 保留动画感但不拖沓，同时大幅缩短新旧页重叠期（转场期间退出页浮在上层
+ * 仍可交互，长转场会接住本该落在下层页面的点击），快速连点不易误触
+ */
+private const val NAV_FADE_MS = 150
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -290,7 +296,7 @@ fun LsbApp(session: Session) {
             if (session.bottomBarStyle != 0) {
                 // 液态玻璃底栏（23）：NavHost 内容绘制进 backdrop 图层，玻璃条
                 // 从身后内容实时取样折射（vibrancy + blur + lens）；内容可滚到玻璃条后方
-                // floating：1 = 居中悬浮胶囊，2 = 贴底通栏
+                // 居中悬浮胶囊样式（原「贴底通栏」铺满样式已移除）
                 Scaffold(
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     snackbarHost = { SnackbarHost(snackbar) },
@@ -306,12 +312,17 @@ fun LsbApp(session: Session) {
                             startDestination = "home",
                             modifier = Modifier
                                 .fillMaxSize()
-                                .layerBackdrop(backdrop)
+                                .layerBackdrop(backdrop),
+                            // 统一短淡入淡出（6）：替代默认 700ms 转场，重叠期短不易误触
+                            enterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+                            exitTransition = { fadeOut(tween(NAV_FADE_MS)) },
+                            popEnterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+                            popExitTransition = { fadeOut(tween(NAV_FADE_MS)) },
                         ) {
                             masterRoutes(session, nav, homeDrawerState)
                             detailRoutes(session, nav)
                         }
-                        // 液态玻璃底栏（悬浮/贴底）；抽屉打开或滑动中隐藏避免盖住抽屉
+                        // 液态玻璃悬浮底栏；抽屉打开或滑动中隐藏避免盖住抽屉
                         AnimatedVisibility(
                             visible = route in bottomRoutes &&
                                 homeDrawerState.targetValue == DrawerValue.Closed &&
@@ -323,7 +334,6 @@ fun LsbApp(session: Session) {
                             LiquidGlassBottomBar(
                                 backdrop = backdrop,
                                 route = route,
-                                floating = session.bottomBarStyle == 1,
                                 onNavigate = { target ->
                                     nav.navigate(target) {
                                         popUpTo(nav.graph.findStartDestination().id) { saveState = true }
@@ -374,7 +384,12 @@ fun LsbApp(session: Session) {
                     NavHost(
                         navController = nav,
                         startDestination = "home",
-                        modifier = Modifier.padding(pad)
+                        modifier = Modifier.padding(pad),
+                        // 统一短淡入淡出（6）：替代默认 700ms 转场，重叠期短不易误触
+                        enterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+                        exitTransition = { fadeOut(tween(NAV_FADE_MS)) },
+                        popEnterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+                        popExitTransition = { fadeOut(tween(NAV_FADE_MS)) },
                     ) {
                         masterRoutes(session, nav, homeDrawerState)
                         detailRoutes(session, nav)
@@ -429,7 +444,12 @@ fun LsbApp(session: Session) {
                     NavHost(
                         navController = masterNav,
                         startDestination = "home",
-                        modifier = Modifier.fillMaxHeight().width(masterWidth)
+                        modifier = Modifier.fillMaxHeight().width(masterWidth),
+                        // 统一短淡入淡出（6）：替代默认 700ms 转场，重叠期短不易误触
+                        enterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+                        exitTransition = { fadeOut(tween(NAV_FADE_MS)) },
+                        popEnterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+                        popExitTransition = { fadeOut(tween(NAV_FADE_MS)) },
                     ) {
                         masterRoutes(session, detailNav, homeDrawerState)
                     }
@@ -438,7 +458,12 @@ fun LsbApp(session: Session) {
                     NavHost(
                         navController = detailNav,
                         startDestination = "detailEmpty",
-                        modifier = Modifier.weight(2f).fillMaxHeight()
+                        modifier = Modifier.weight(2f).fillMaxHeight(),
+                        // 统一短淡入淡出（6）：替代默认 700ms 转场，重叠期短不易误触
+                        enterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+                        exitTransition = { fadeOut(tween(NAV_FADE_MS)) },
+                        popEnterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+                        popExitTransition = { fadeOut(tween(NAV_FADE_MS)) },
                     ) {
                         detailRoutes(session, detailNav)
                     }
@@ -553,26 +578,19 @@ private fun androidx.navigation.NavGraphBuilder.masterRoutes(
     composable("forums") { ForumListScreen(session, nav) }
     composable(
         "me",
-        // 仅在与「应用设置」往返时立即切换（默认 700ms 交叉淡入淡出过慢）
-        exitTransition = {
-            if (targetState.destination.route == "appSettings") fadeOut(snap())
-            else fadeOut(tween(700))
-        },
-        popEnterTransition = {
-            if (initialState.destination.route == "appSettings") fadeIn(snap())
-            else fadeIn(tween(700))
-        },
+        // 统一短淡入淡出（6）：不再瞬切也不 700ms 长转场，重叠期短、连点不误触
+        exitTransition = { fadeOut(tween(NAV_FADE_MS)) },
+        popEnterTransition = { fadeIn(tween(NAV_FADE_MS)) },
     ) { MeScreen(session, nav) }
     composable(
         "appSettings",
-        // 与「我的」之间进出均立即切换（snap）：转场期间退出页浮在上层仍可交互，
-        // 淡入淡出的重叠期会接住本该落在下层页面的点击造成误触
-        enterTransition = { fadeIn(snap()) },
-        popExitTransition = { fadeOut(snap()) },
+        // 短淡入淡出（6）：保留动画感，重叠期极短，返回后立即可点
+        enterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+        popExitTransition = { fadeOut(tween(NAV_FADE_MS)) },
     ) { AppSettingsScreen(session, nav) }
 }
 
-/** 设置类子页：进出均立即切换（snap），无淡入淡出、无重叠期，
+/** 设置类子页：短淡入淡出（6）——不瞬切（保留动画），重叠期极短，
  *  返回上一级后立即可点，不会误触残留的旧页面 */
 private fun androidx.navigation.NavGraphBuilder.settingsComposable(
     route: String,
@@ -580,8 +598,8 @@ private fun androidx.navigation.NavGraphBuilder.settingsComposable(
 ) {
     composable(
         route,
-        enterTransition = { fadeIn(snap()) },
-        popExitTransition = { fadeOut(snap()) },
+        enterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+        popExitTransition = { fadeOut(tween(NAV_FADE_MS)) },
     ) { content() }
 }
 
@@ -636,8 +654,8 @@ private fun androidx.navigation.NavGraphBuilder.detailRoutes(session: Session, n
         arguments = listOf(
             navArgument("path") { type = androidx.navigation.NavType.StringType; defaultValue = "" }
         ),
-        enterTransition = { fadeIn(snap()) },
-        popExitTransition = { fadeOut(snap()) },
+        enterTransition = { fadeIn(tween(NAV_FADE_MS)) },
+        popExitTransition = { fadeOut(tween(NAV_FADE_MS)) },
     ) { ExportedHtmlScreen(session, nav) }
     settingsComposable("about") { AboutScreen(session, nav) }
     composable(
@@ -697,13 +715,12 @@ private fun DetailEmptyPane() {
 /** 液态玻璃底栏：玻璃实时折射身后滚动内容（vibrancy 提饱和 + blur + lens 边缘折射），
  *  Backdrop 2.0 高级效果：lens 深度折射 + 边缘色散，自带高光描边与投影；
  *  选中项为半透明主色胶囊；低于 Android 12 时自动退化为普通半透明条。
- *  floating = true：居中悬浮胶囊，不占满屏宽（区别于旧的通栏 NavigationBar）；
- *  floating = false：贴底通栏，顶部圆角，占据整个屏幕宽度 */
+ *  固定为居中悬浮胶囊，不占满屏宽（区别于经典通栏 NavigationBar；
+ *  原「贴底通栏」铺满样式已移除） */
 @Composable
 private fun LiquidGlassBottomBar(
     backdrop: Backdrop,
     route: String,
-    floating: Boolean,
     onNavigate: (String) -> Unit,
 ) {
     // 玻璃表面色调：浅色主题垫白、深色主题垫黑，保证图标可读性
@@ -712,13 +729,10 @@ private fun LiquidGlassBottomBar(
     Row(
         Modifier
             .navigationBarsPadding()
-            .let { if (floating) it.padding(bottom = 14.dp) else it }
+            .padding(bottom = 14.dp)
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = {
-                    if (floating) RoundedCornerShape(50)
-                    else RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-                },
+                shape = { RoundedCornerShape(50) },
                 effects = {
                     vibrancy()
                     blur(6.dp.toPx())
@@ -728,7 +742,7 @@ private fun LiquidGlassBottomBar(
                 onDrawSurface = { drawRect(surfaceTint) }
             )
             .height(58.dp)
-            .let { if (floating) it.width(216.dp) else it.fillMaxWidth() },
+            .width(216.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         GlassBottomTab(

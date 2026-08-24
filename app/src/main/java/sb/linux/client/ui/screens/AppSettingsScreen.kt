@@ -2209,12 +2209,12 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                 }
             }
 
-            // ---------- 底栏样式：经典通栏 / 液态玻璃（悬浮胶囊 / 贴底通栏） ----------
+            // ---------- 底栏样式：经典通栏 / 液态玻璃悬浮胶囊 ----------
             item { GroupLabel("底栏样式") }
             item {
                 GroupCard {
                     Text(
-                        "经典为普通通栏底栏；两种液态玻璃均实时折射身后滚动内容（Android 12 以下退化为半透明条）。悬浮为居中胶囊，贴底为占满屏宽的通栏玻璃",
+                        "经典为普通通栏底栏；液态玻璃为居中悬浮胶囊，实时折射身后滚动内容（Android 12 以下退化为半透明条）",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
@@ -2227,18 +2227,13 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                         SegmentedButton(
                             selected = session.bottomBarStyle == 0,
                             onClick = { session.saveBottomBarStyle(0) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                         ) { Text("经典") }
                         SegmentedButton(
                             selected = session.bottomBarStyle == 1,
                             onClick = { session.saveBottomBarStyle(1) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
-                        ) { Text("悬浮玻璃") }
-                        SegmentedButton(
-                            selected = session.bottomBarStyle == 2,
-                            onClick = { session.saveBottomBarStyle(2) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
-                        ) { Text("贴底玻璃") }
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) { Text("液态玻璃") }
                     }
                 }
             }

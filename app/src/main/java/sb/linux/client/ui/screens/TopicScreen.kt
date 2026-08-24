@@ -112,6 +112,12 @@ import sb.linux.client.data.VirtualCard
 import sb.linux.client.ui.*
 import java.io.File
 
+/**
+ * 评论区实时楼层胶囊（37）：暂时不启用——不加设置开关，保留实现，
+ * 需要恢复时改回 true 即可。跳楼弹窗入口（帖子菜单）不受影响。
+ */
+private const val FLOOR_PILL_ENABLED = false
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TopicScreen(session: Session, nav: NavHostController) {
@@ -1126,9 +1132,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             }
 
             // 评论区当前楼层胶囊（37）：实时显示首个可见回复的楼层号，
-            // 点击弹出跳楼输入框；位于回顶按钮上方
+            // 点击弹出跳楼输入框；位于回顶按钮上方。
+            // 暂时不启用（FLOOR_PILL_ENABLED = false，无开关；跳楼入口见帖子菜单）
             AnimatedVisibility(
-                visible = currentFloor > 0,
+                visible = FLOOR_PILL_ENABLED && currentFloor > 0,
                 modifier = Modifier.align(Alignment.BottomEnd),
                 enter = scaleIn(),
                 exit = scaleOut(),
@@ -2021,7 +2028,9 @@ private fun PostCardContent(
             EditInfoText(post, onEditUser)
             Spacer(Modifier.height(2.dp))
         }
-        // 操作行：楼主正文 = 点赞 / 投币 / 举报（2.9 去除收藏）；回复 = 点赞 / 投币 / 回复 / 举报
+        // 操作行：楼主正文 = 点赞 / 投币 / 举报（2.9 去除收藏）；回复 = 点赞 / 投币 / 回复 / 举报。
+        // 树形回复（showFloorBadge）层级缩进挤占宽度，操作行只留图标省空间；
+        // 状态由图标表达（点赞=实心爱心、投币/收藏=主题色），点赞数保留数字
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -2029,7 +2038,11 @@ private fun PostCardContent(
             if (post.canLike) {
                 PostAction(
                     icon = if (post.liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    label = if (post.likeCount > 0) "赞 ${post.likeCount}" else "点赞",
+                    label = when {
+                        showFloorBadge -> if (post.likeCount > 0) "${post.likeCount}" else ""
+                        post.likeCount > 0 -> "赞 ${post.likeCount}"
+                        else -> "点赞"
+                    },
                     onClick = { if (loggedIn) onLike() },
                     iconTint = if (post.liked) MaterialTheme.colorScheme.primary else null
                 )
@@ -2038,7 +2051,7 @@ private fun PostCardContent(
             if (post.canLike) {
                 PostAction(
                     icon = Icons.Filled.Paid,
-                    label = if (post.coined) "已投币" else "投币",
+                    label = if (showFloorBadge) "" else if (post.coined) "已投币" else "投币",
                     onClick = { if (loggedIn) onCoin() },
                     iconTint = if (post.coined) MaterialTheme.colorScheme.primary else null
                 )
@@ -2051,19 +2064,23 @@ private fun PostCardContent(
                     onClick = donate
                 )
             }
-            PostAction(icon = Icons.Filled.Flag, label = "举报", onClick = onReport)
+            PostAction(
+                icon = Icons.Filled.Flag,
+                label = if (showFloorBadge) "" else "举报",
+                onClick = onReport
+            )
             // 本地收藏评论（34）：仅回复显示，收藏后图标填充
             if (showFloorBadge && onFavComment != null) {
                 PostAction(
                     icon = if (commentFavorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                    label = if (commentFavorited) "已收藏" else "收藏",
+                    label = "",
                     onClick = onFavComment,
                     iconTint = if (commentFavorited) MaterialTheme.colorScheme.primary else null
                 )
             }
             if (showFloorBadge) {
                 // 回复的操作行：点赞 / 打赏 / 举报 / 回复（原"引用"统一为回复）
-                PostAction(icon = Icons.Filled.FormatQuote, label = "回复", onClick = { if (loggedIn) onQuote() })
+                PostAction(icon = Icons.Filled.FormatQuote, label = "", onClick = { if (loggedIn) onQuote() })
             }
             Spacer(Modifier.weight(1f))
         }

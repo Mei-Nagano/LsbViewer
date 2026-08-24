@@ -119,10 +119,11 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("tablet_mode", false)
         set(v) = prefs.edit().putBoolean("tablet_mode", v).apply()
 
-    /** 底栏样式：0 = 经典（通栏 NavigationBar），1 = 液态玻璃悬浮，2 = 液态玻璃贴底通栏 */
+    /** 底栏样式：0 = 经典（通栏 NavigationBar），1 = 液态玻璃悬浮胶囊。
+     *  读取时夹取到 0..1：原「贴底通栏」铺满样式（2）已移除，旧值自动回落到悬浮胶囊 */
     var bottomBarStyle: Int
-        get() = prefs.getInt("bottom_bar_style", 1)
-        set(v) = prefs.edit().putInt("bottom_bar_style", v).apply()
+        get() = prefs.getInt("bottom_bar_style", 1).coerceIn(0, 1)
+        set(v) = prefs.edit().putInt("bottom_bar_style", v.coerceIn(0, 1)).apply()
 
     // ---------------- WebDAV 备份（3.19） ----------------
 
@@ -743,7 +744,7 @@ class AppSettings(context: Context) {
             if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 1))
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))
             if (o.has("tablet_mode")) p.putBoolean("tablet_mode", o.getBoolean("tablet_mode"))
-            if (o.has("bottom_bar_style")) p.putInt("bottom_bar_style", o.optInt("bottom_bar_style", 1).coerceIn(0, 2))
+            if (o.has("bottom_bar_style")) p.putInt("bottom_bar_style", o.optInt("bottom_bar_style", 1).coerceIn(0, 1))
             if (o.has("webdav_url")) p.putString("webdav_url", o.getString("webdav_url"))
             if (o.has("webdav_user")) p.putString("webdav_user", o.getString("webdav_user"))
             if (o.has("webdav_pass")) p.putString("webdav_pass", o.getString("webdav_pass"))

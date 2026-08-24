@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -770,12 +769,12 @@ fun HomeScreen(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),
                                 // 底部留白让末条内容可滚出玻璃底栏（23）：
-                                // 玻璃条高 58 +（悬浮额外边距 14）+ 系统导航栏 inset；
+                                // 玻璃条高 58 + 悬浮边距 14 + 系统导航栏 inset；
                                 // 经典底栏由 Scaffold bottomBar inset 处理，不加此留白
                                 contentPadding = PaddingValues(
                                     top = 8.dp,
                                     bottom = if (session.bottomBarStyle != 0) {
-                                        8.dp + (if (session.bottomBarStyle == 1) 72.dp else 58.dp) +
+                                        8.dp + 72.dp +
                                             WindowInsets.navigationBars
                                                 .asPaddingValues().calculateBottomPadding()
                                     } else 8.dp
@@ -889,7 +888,11 @@ private fun HomeSidebarDrawer(
                 Column(Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (state.loggedIn) {
-                            Avatar(state.avatarUrl, 46)
+                            // 点击头像打开个人主页（原右侧圆形图标按钮已移除）
+                            Avatar(
+                                state.avatarUrl, 46,
+                                Modifier.clickable { onClose(); onOpenUser(state.userId) }
+                            )
                             Spacer(Modifier.width(11.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(state.username.ifBlank { "饼友" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -899,14 +902,6 @@ private fun HomeSidebarDrawer(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
-                            }
-                            IconButton(
-                                onClick = { onClose(); onOpenUser(state.userId) },
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f), CircleShape)
-                            ) {
-                                Icon(Icons.Filled.Person, "主页", modifier = Modifier.size(17.dp))
                             }
                         } else {
                             Column(Modifier.weight(1f)) {

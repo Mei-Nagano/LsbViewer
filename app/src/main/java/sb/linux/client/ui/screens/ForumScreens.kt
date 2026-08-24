@@ -60,14 +60,10 @@ fun ForumListScreen(session: Session, nav: NavHostController) {
                 forums.isEmpty() -> EmptyBox("暂无板块")
                 else -> LazyColumn(
                     // 底部留白让末条内容可滚出玻璃底栏（23）：Scaffold 已消耗导航栏 inset；
-                    // 贴底玻璃高 58，悬浮玻璃另加 14 悬浮边距；经典底栏不加此留白
+                    // 悬浮玻璃高 58 + 悬浮边距 14；经典底栏不加此留白
                     contentPadding = PaddingValues(
                         start = 14.dp, end = 14.dp, top = 10.dp,
-                        bottom = 10.dp + when (session.bottomBarStyle) {
-                            1 -> 72.dp
-                            2 -> 58.dp
-                            else -> 0.dp
-                        }
+                        bottom = 10.dp + if (session.bottomBarStyle != 0) 72.dp else 0.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {

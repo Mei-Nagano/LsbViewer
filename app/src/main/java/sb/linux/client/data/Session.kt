@@ -103,7 +103,8 @@ class Session(app: Application) : AndroidViewModel(app) {
     var commentSortOrder by mutableIntStateOf(0)
     // 平板模式（宽屏双栏布局）：Compose 响应式镜像，改动即时切换布局
     var tabletMode by mutableStateOf(false)
-    // 底栏样式：0 = 经典通栏，1 = 液态玻璃悬浮胶囊（默认）：响应式镜像，改动即时切换
+    // 底栏样式：0 = 经典通栏，1 = 液态玻璃悬浮胶囊（默认，原「贴底通栏」铺满样式已移除）：
+    // 响应式镜像，改动即时切换
     var bottomBarStyle by mutableIntStateOf(1)
 
     // 首页状态保持：当前分类 / 组合过滤 / 各分类列表与滚动位置
@@ -400,8 +401,9 @@ class Session(app: Application) : AndroidViewModel(app) {
 
     /** 底栏样式：0 = 经典通栏，1 = 液态玻璃悬浮胶囊 */
     fun saveBottomBarStyle(v: Int) {
-        bottomBarStyle = v
-        settings.bottomBarStyle = v
+        val clamped = v.coerceIn(0, 1)
+        bottomBarStyle = clamped
+        settings.bottomBarStyle = clamped
     }
 
     fun saveDanmaku(v: Boolean) {
