@@ -396,7 +396,7 @@ fun TopicCardView(
             else MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 5.dp)
+            .padding(horizontal = 14.dp, vertical = 3.dp)
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = {
                 // 预览改色模式：点按卡片空白处改背景色；正常模式打开帖子
@@ -404,10 +404,10 @@ fun TopicCardView(
             }),
     ) {
         Box {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
                 if (!compact) {
                     Avatar(card.avatarUrl, 34, online = card.online)
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
                 }
                 Column(Modifier.weight(1f)) {
                     // 帖子标签（热/精华/未读/抽奖/发卡）置于标题前面；
@@ -462,14 +462,14 @@ fun TopicCardView(
                         lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.1f,
                         modifier = Modifier.padding(top = 2.dp)
                     )
-                    Spacer(Modifier.size(4.dp))
+                    Spacer(Modifier.size(3.dp))
                     // 底行：用户名 / 时间 / 评论数不使用分隔点，FlowRow 放不下时自动换行
                     //（避免称号徽章挤占导致用户名被截断）；板块标识固定在卡片右下角（4），
                     // FlowRow 占满剩余宽度，多行时徽标贴最末行右缘
                     Row(verticalAlignment = Alignment.Bottom) {
                         FlowRow(
                             verticalArrangement = Arrangement.Center,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
@@ -525,7 +525,7 @@ fun TopicCardView(
                         }
                         // 板块标识：固定在卡片右下角（与作者信息底行对齐）
                         if (showForum) {
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(50),
                                 color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
@@ -548,21 +548,22 @@ fun TopicCardView(
                     }
                 }
             }
-            // 置顶水印：右上角「置顶」两字——淡浅灰、细体无衬线、低透明度、轻微模糊、
+            // 置顶水印：右上角「置顶」两字——浅灰、细体无衬线、半透明、轻模糊、
             // -10° 微倾的平面 2D 水印标记（无边框/圆角框/图标/立体效果，字号小不遮挡
-            // 主体内容；替代原线条图钉）。BlurMaskFilter 实现模糊，兼容全部 API 级别
+            // 主体内容；替代原线条图钉）。12sp + 更高不透明度，水印更大更清楚；
+            // BlurMaskFilter 实现模糊，兼容全部 API 级别
             if (card.pinned) {
                 val paint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
                 Canvas(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 8.dp, end = 11.dp)
-                        .size(32.dp, 16.dp)
+                        .padding(top = 6.dp, end = 10.dp)
+                        .size(36.dp, 20.dp)
                 ) {
-                    paint.textSize = 10.sp.toPx()
+                    paint.textSize = 12.sp.toPx()
                     paint.typeface = android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL)
-                    paint.color = android.graphics.Color.argb(80, 150, 150, 150)
-                    paint.maskFilter = android.graphics.BlurMaskFilter(0.8.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                    paint.color = android.graphics.Color.argb(115, 140, 140, 140)
+                    paint.maskFilter = android.graphics.BlurMaskFilter(0.5.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
                     // 文字画在画布中心，旋转围绕画布中心进行，倾斜后不偏出画布
                     val tw = paint.measureText("置顶")
                     val x = (size.width - tw) / 2f
