@@ -1470,11 +1470,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         )
     }
 
-    // 投币弹窗（档位跟随源站 data-tiers：1/5/10/50，可自定义，理由选填）
+    // 投币弹窗（预设 6/10/33/66/88，自定义范围 1～99，理由选填）
     coinTarget?.let { target ->
         CoinDialog(
             onDismiss = { coinTarget = null },
-            tiers = listOf(1, 5, 10, 50),
+            tiers = listOf(6, 10, 33, 66, 88),
             onConfirm = { points, reason ->
                 coinTarget = null
                 doLike(target, points, reason)
@@ -3402,60 +3402,83 @@ private fun ExportSheetItem(
     }
 }
 
-/** 投币弹窗：默认金额 1/5/10/20，可自定义；理由选填（最多120字） */
+/** 投币底部弹窗：与打赏弹窗同款样式，预设 6/10/33/66/88，自定义范围 1～99；理由选填（最多120字） */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CoinDialog(tiers: List<Int>, onDismiss: () -> Unit, onConfirm: (Int, String) -> Unit) {
-    var selected by remember { mutableIntStateOf(tiers.firstOrNull() ?: 1) }
-    var custom by remember { mutableStateOf("") }
+    var preset by remember { mutableStateOf((tiers.firstOrNull() ?: 6).toString()) }
+    var custom by remember { mutableStateOf(false) }
+    var customText by remember { mutableStateOf("") }
     var reason by remember { mutableStateOf("") }
-    // 自定义金额生效时切换到自定义档
-    val customNum = custom.toIntOrNull()
-    if (customNum != null && customNum > 0 && customNum != selected) selected = customNum
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("投币") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.horizontalScroll(rememberScrollState())
-                ) {
-                    tiers.forEach { t ->
-                        FilterChip(
-                            selected = selected == t && custom.isBlank(),
-                            onClick = {
-                                custom = ""
-                                selected = t
-                            },
-                            label = { Text("$t") }
-                        )
-                    }
+
+    val amount = if (custom) customText else preset
+    val amountNum = amount.toIntOrNull()
+    val validAmount = amountNum != null && amountNum in 1..99
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text("投币", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                "投币积分将赠送给作者，感谢你对优质内容的支持",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            // 金额档位 + 自定义切换，放不下时自动换行
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                tiers.forEach { v ->
+                    FilterChip(
+                        selected = !custom && preset == v.toString(),
+                        onClick = { custom = false; preset = v.toString() },
+                        label = { Text(v.toString(), style = MaterialTheme.typography.labelMedium) }
+                    )
                 }
-                OutlinedTextField(
-                    value = custom,
-                    onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) custom = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("自定义金额（积分）") },
-                    placeholder = { Text("输入其他积分数") },
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = reason,
-                    onValueChange = { if (it.length <= 120) reason = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("理由（选填）") },
-                    placeholder = { Text("例如：内容很有帮助") },
-                    singleLine = true,
-                    supportingText = { Text("${reason.length}/120") }
+                FilterChip(
+                    selected = custom,
+                    onClick = { custom = !custom },
+                    label = { Text("自定义", style = MaterialTheme.typography.labelMedium) }
                 )
             }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = selected > 0,
-                onClick = { onConfirm(selected, reason.trim()) }
-            ) { Text("投币") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
-    )
+            if (custom) {
+                OutlinedTextField(
+                    value = customText,
+                    onValueChange = { t -> customText = t.filter { it.isDigit() }.take(2) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("自定义金额（积分）") },
+                    placeholder = { Text("范围 1～99") },
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    isError = customText.isNotBlank() && !validAmount,
+                    supportingText = { Text("仅支持 1～99 积分") }
+                )
+            }
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { if (it.length <= 120) reason = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("理由（选填）") },
+                placeholder = { Text("例如：内容很有帮助") },
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true,
+                supportingText = { Text("${reason.length}/120") }
+            )
+            Button(
+                onClick = { onConfirm(amountNum ?: 0, reason.trim()) },
+                enabled = validAmount,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    "投币 $amount 积分",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
 }
