@@ -3,6 +3,7 @@ package sb.linux.client.data
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.TextNode
 
 object HtmlParser {
 
@@ -169,15 +170,21 @@ object HtmlParser {
         val d = doc(html)
         val onlineIds = onlineIdsOf(d)
         val csrf = d.selectFirst("input[name=_csrf]")?.attr("value") ?: ""
-        val realTitle = d.selectFirst("h1.post-content-title")?.text()
+        // 标题清洗：抽奖/发卡等特殊帖的源站标题开头常带不可见字符
+        // （零宽空格、BOM、不间断/全角空格等），Jsoup .text() 不会折叠它们，
+        // 渲染出来就是标题前的空位
+        fun cleanTitle(s: String) = s
+            .replace(Regex("[\\u200B\\u200C\\u200D\\uFEFF\\u00A0\\u3000\\u2060]"), " ")
+            .trim()
+        val realTitle = (d.selectFirst("h1.post-content-title")?.text()
             ?: d.selectFirst("h1.topic-title")?.text()
             ?: d.selectFirst(".main-panel h1")?.text()
             ?: d.selectFirst("h1")?.text()
             ?: run {
                 // 从 toolbar 或 title 标签恢复
                 val t = d.title()
-                if (t.contains(" - ")) t.substringBefore(" - ").trim() else t.trim()
-            }
+                if (t.contains(" - ")) t.substringBefore(" - ") else t
+            }).let(::cleanTitle)
 
         // 抽奖帖面板（源站 .community-lottery-card）：必须先于楼层解析——
         // 下方解析楼层时会把 .community-lottery-card / .virtual-card-box 从 DOM 移除
@@ -324,14 +331,27 @@ object HtmlParser {
                 }
                 // 树形回复引用锚点剥离：源站在正文首段开头渲染「@用户 #N」锚点
                 //（href 为 ?replyid=父楼id）。层级关系已由 data-quote-threads-parent-floor
-                // 表达、UI 以「回复 #N」胶囊展示，正文里去掉避免重复
+                // 表达、UI 以「回复 #N」胶囊展示，正文里去掉避免重复。
+                // 长用户名时源站会把锚点结构拆散（#楼层号 落在锚点外、或锚点外有空白文本），
+                // 旧逻辑只认「首段第一个子节点恰为完整锚点」导致剥离失败——正文残留
+                //「@用户 #N」文本且层级展示错乱。放宽：找首段开头第一个 replyid 锚点删除，
+                // 并连同其后紧邻的「#N」文本节点一并剥离
                 if (parentFloorNum > 0) {
                     contentEl.selectFirst("p")?.let { p ->
-                        val a = p.children().firstOrNull()
-                        if (a != null && a.tagName() == "a" && a.attr("href").contains("replyid=")) {
-                            val t = a.text().trim()
-                            val refFloor = Regex("""#(\d+)$""").find(t)?.groupValues?.get(1)
-                            if (t.startsWith("@") && refFloor == parentFloorNum.toString()) a.remove()
+                        val anchor = p.select("a[href*=replyid=]").firstOrNull()
+                        if (anchor != null) {
+                            // 锚点须位于段落开头（前面的兄弟节点仅允许空白文本）
+                            val leading = anchor.previousSibling()?.let {
+                                (it as? TextNode)?.isBlank ?: false
+                            } ?: true
+                            if (leading) {
+                                val next = anchor.nextSibling()
+                                anchor.remove()
+                                // 「#N」被拆到锚点外时，紧邻的纯楼层号文本一并删除
+                                if (next is TextNode && next.text().trim().matches(Regex("""#\d+"""))) {
+                                    next.remove()
+                                }
+                            }
                         }
                     }
                     // 剥离后首段可能只剩空白（纯引用回复），删除避免顶部空行
@@ -1074,59 +1094,6 @@ object HtmlParser {
         )
     }
 
-    /** 邀请中心（/invite_code）：兑换规则 + 可用邀请码 + 我邀请到的用户 */
-    fun parseInviteCenter(html: String): InviteCenter {
-        val d = doc(html)
-        if (d.selectFirst("form[action=/login], input[name=username]") != null) {
-            // 未登录
-            return InviteCenter()
-        }
-        val csrf = d.selectFirst("input[name=_csrf]")?.attr("value") ?: ""
-        val descEl = d.selectFirst(".invite-exchange-form p.muted")
-        // 可用邀请码：每个 <li> 为一枚码（空态直接展示占位文本，不纳入列表）
-        val codesEl = d.selectFirst("ul.invite-code-grid")
-        val codes = codesEl?.select("> li")?.mapNotNull { li ->
-            if (li.classNames().contains("empty-state")) {
-                null
-            } else {
-                // 优先取外观上的码文本；剔除按钮/图标文字，避免把「复制」等混进码里
-                val codeEl = li.selectFirst(".invite-code")
-                val code = codeEl?.ownText()?.ifBlank { codeEl.text() }
-                    ?: codeEl?.text()
-                    ?: li.clone().let { c ->
-                        c.select("button, [data-invite-copy], .invite-code-actions").remove()
-                        c.text()
-                    }
-                        ?.trim()
-                        ?: ""
-                if (code.isBlank()) null else InviteCode(code = code)
-            }
-        } ?: emptyList()
-        // 我邀请到的用户
-        val invitedEl = d.selectFirst("ul.admin-manage-list")
-        val invited = invitedEl?.select("> li")?.mapNotNull { li ->
-            if (li.classNames().contains("empty-state")) null
-            else {
-                val ua = li.selectFirst("a[href^=/user/]")
-                InvitedUser(
-                    userId = idFrom(ua?.attr("href")),
-                    username = ua?.text()?.trim() ?: li.ownText().trim(),
-                    avatarUrl = absUrl(avatarOf(li)),
-                    statusText = li.text().replace(Regex("""\s+"""), " ").trim(),
-                )
-            }
-        } ?: emptyList()
-        return InviteCenter(
-            subtitle = d.selectFirst(".admin-plugin-summary span")?.text()?.trim() ?: "",
-            description = descEl?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: "",
-            canExchange = d.selectFirst("form.invite-exchange-form, form[action=/invite_code]") != null,
-            csrf = csrf,
-            codes = codes,
-            invited = invited,
-            emptyCodesText = codesEl?.selectFirst("> li.empty-state")?.text()?.trim() ?: "",
-            emptyInvitedText = invitedEl?.selectFirst("> li.empty-state")?.text()?.trim() ?: "",
-        )
-    }
 
     /** 足迹/未读提醒页：解析成帖子卡片列表（结构与首页 post-list 一致时） */
     fun parseFootprintList(html: String): List<TopicCard> {

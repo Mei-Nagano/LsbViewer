@@ -5,12 +5,15 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.materialkolor.PaletteStyle
 
@@ -108,6 +111,30 @@ private val LsbShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+/** 应用字体（24）：把所选 FontFamily 应用到全部文字样式（保持 M3 默认字号/行高/字重） */
+private fun appTypography(ff: FontFamily?): Typography {
+    val t = Typography()
+    if (ff == null) return t
+    fun TextStyle.withFont() = copy(fontFamily = ff)
+    return t.copy(
+        displayLarge = t.displayLarge.withFont(),
+        displayMedium = t.displayMedium.withFont(),
+        displaySmall = t.displaySmall.withFont(),
+        headlineLarge = t.headlineLarge.withFont(),
+        headlineMedium = t.headlineMedium.withFont(),
+        headlineSmall = t.headlineSmall.withFont(),
+        titleLarge = t.titleLarge.withFont(),
+        titleMedium = t.titleMedium.withFont(),
+        titleSmall = t.titleSmall.withFont(),
+        bodyLarge = t.bodyLarge.withFont(),
+        bodyMedium = t.bodyMedium.withFont(),
+        bodySmall = t.bodySmall.withFont(),
+        labelLarge = t.labelLarge.withFont(),
+        labelMedium = t.labelMedium.withFont(),
+        labelSmall = t.labelSmall.withFont(),
+    )
+}
+
 @Composable
 fun LsbTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -119,6 +146,7 @@ fun LsbTheme(
     primary: Color? = null,
     secondary: Color? = null,
     tertiary: Color? = null,
+    fontFamily: FontFamily? = null,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (themeMode) {
@@ -177,6 +205,7 @@ fun LsbTheme(
     ) else colorScheme
     MaterialTheme(
         colorScheme = finalScheme,
+        typography = appTypography(fontFamily),
         shapes = LsbShapes,
         content = content
     )

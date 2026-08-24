@@ -72,6 +72,9 @@ class Session(app: Application) : AndroidViewModel(app) {
     var themeTertiary by mutableStateOf<Color?>(null)
     // 用户保存的自定义主题色预选（colorToKey 格式，如 custom#RRGGBB）
     var themeCustomColors by mutableStateOf<List<String>>(emptyList())
+    // 应用字体（24）：default / sans / serif / monospace / custom（自定义字体文件）
+    var fontKey by mutableStateOf("default")
+    var customFontName by mutableStateOf("")
     // 首页帖子卡片元素级自定义颜色（外观设置-实时预览点按改色）：
     // key ∈ tag/title/time/user/views/comments/forum，null=未覆盖（跟随主题）
     var cardColors by mutableStateOf<Map<String, Color>>(emptyMap())
@@ -100,6 +103,8 @@ class Session(app: Application) : AndroidViewModel(app) {
     var commentSortOrder by mutableIntStateOf(0)
     // 平板模式（宽屏双栏布局）：Compose 响应式镜像，改动即时切换布局
     var tabletMode by mutableStateOf(false)
+    // 底栏样式：0 = 经典通栏，1 = 液态玻璃悬浮胶囊（默认）：响应式镜像，改动即时切换
+    var bottomBarStyle by mutableIntStateOf(1)
 
     // 首页状态保持：当前分类 / 组合过滤 / 各分类列表与滚动位置
     var homeTabIndex by mutableIntStateOf(0)
@@ -144,8 +149,9 @@ class Session(app: Application) : AndroidViewModel(app) {
     var blockedWords by mutableStateOf<Set<String>>(emptySet())
     var blockedUsers by mutableStateOf<Set<String>>(emptySet())
 
-    init {
-        val prefs = app.getSharedPreferences("lsb_prefs", android.content.Context.MODE_PRIVATE)
+    /** 从磁盘重新读取全部偏好到内存状态（导入设置备份后调用，立即生效无需重启） */
+    fun reloadPrefs() {
+        val prefs = getApplication<Application>().getSharedPreferences("lsb_prefs", android.content.Context.MODE_PRIVATE)
         themeMode = ThemeModePref.entries.getOrElse(prefs.getInt("theme_mode", 0)) { ThemeModePref.SYSTEM }
         dynamicColor = prefs.getBoolean("dynamic_color", true)
         themeColorKey = prefs.getString("theme_color", "default") ?: "default"
@@ -156,6 +162,8 @@ class Session(app: Application) : AndroidViewModel(app) {
         themeSecondary = prefColor(prefs.getString("theme_secondary_override", ""))
         themeTertiary = prefColor(prefs.getString("theme_tertiary_override", ""))
         themeCustomColors = (prefs.getStringSet("theme_custom_colors", emptySet()) ?: emptySet()).toList()
+        fontKey = prefs.getString("font_key", "default") ?: "default"
+        customFontName = prefs.getString("custom_font_name", "") ?: ""
         cardColors = parseCardColors(prefs.getString("card_colors", ""))
         sb.linux.client.ui.CardColorOverrides.map = cardColors
         infiniteScroll = settings.infiniteScroll
@@ -170,10 +178,15 @@ class Session(app: Application) : AndroidViewModel(app) {
         commentSortOrder = settings.commentSortOrder
         showOnlineUsers = settings.sidebarShowOnlineUsers
         tabletMode = settings.tabletMode
+        bottomBarStyle = settings.bottomBarStyle
         blockedWords = settings.blockedWords
         blockedUsers = settings.blockedUsers
+    }
+
+    init {
+        reloadPrefs()
         // 清理旧版本地已读通知键（已改为源站未读数方案）
-        prefs.edit().remove("notif_read_keys").apply()
+        themePrefs().edit().remove("notif_read_keys").apply()
         client.verificationUi = { url, html -> verifyWithUi(url, html) }
         loadViewsCache()
         refreshSession()
@@ -210,6 +223,52 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun saveThemeContrast(v: Float) {
         themeContrast = v
         themePrefs().edit().putFloat("theme_contrast", v).apply()
+    }
+
+    // ---------------- 自定义字体（24） ----------------
+
+    /** 自定义字体文件（固定私有路径）：custom 档位从此加载 */
+    val customFontFile: java.io.File
+        get() = java.io.File(getApplication<Application>().filesDir, "fonts/custom_font.ttf")
+
+    fun saveFont(key: String) {
+        fontKey = key
+        themePrefs().edit().putString("font_key", key).apply()
+    }
+
+    /** 导入自定义字体文件（24）：复制进私有目录并切换到 custom 档；校验可解析才生效 */
+    suspend fun saveCustomFont(uri: android.net.Uri, displayName: String): Boolean {
+        val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val app = getApplication<Application>()
+                customFontFile.parentFile?.mkdirs()
+                app.contentResolver.openInputStream(uri)?.use { input ->
+                    customFontFile.outputStream().use { input.copyTo(it) }
+                } ?: return@runCatching false
+                // 校验确为可用字体文件（损坏/选错文件时报失败）
+                android.graphics.Typeface.createFromFile(customFontFile) != null
+            }.getOrDefault(false)
+        }
+        if (ok) {
+            customFontName = displayName
+            fontKey = "custom"
+            themePrefs().edit()
+                .putString("font_key", "custom")
+                .putString("custom_font_name", displayName)
+                .apply()
+        }
+        return ok
+    }
+
+    /** 移除自定义字体文件并回到默认字体 */
+    fun clearCustomFont() {
+        runCatching { customFontFile.delete() }
+        customFontName = ""
+        fontKey = "default"
+        themePrefs().edit()
+            .putString("font_key", "default")
+            .remove("custom_font_name")
+            .apply()
     }
 
     /** 持久化元素级覆盖色（null=跟随种子色方案） */
@@ -292,6 +351,7 @@ class Session(app: Application) : AndroidViewModel(app) {
             .remove("oled_dark").remove("theme_style").remove("theme_contrast")
             .remove("theme_primary_override").remove("theme_secondary_override").remove("theme_tertiary_override")
             .remove("theme_custom_colors").remove("card_colors")
+            .remove("font_key").remove("custom_font_name")
             .apply()
         themeMode = ThemeModePref.SYSTEM
         dynamicColor = true
@@ -303,6 +363,8 @@ class Session(app: Application) : AndroidViewModel(app) {
         themeCustomColors = emptyList()
         cardColors = emptyMap()
         sb.linux.client.ui.CardColorOverrides.map = emptyMap()
+        fontKey = "default"
+        customFontName = ""
     }
 
     /** 重置浏览设置并刷新内存镜像 */
@@ -334,6 +396,12 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun saveTabletMode(v: Boolean) {
         tabletMode = v
         settings.tabletMode = v
+    }
+
+    /** 底栏样式：0 = 经典通栏，1 = 液态玻璃悬浮胶囊 */
+    fun saveBottomBarStyle(v: Int) {
+        bottomBarStyle = v
+        settings.bottomBarStyle = v
     }
 
     fun saveDanmaku(v: Boolean) {

@@ -112,12 +112,14 @@ import sb.linux.client.data.VirtualCard
 import sb.linux.client.ui.*
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TopicScreen(session: Session, nav: NavHostController) {
     val entry = nav.currentBackStackEntry ?: return
     val tid = entry.arguments?.getLong("tid") ?: return
     val initialPage = entry.arguments?.getInt("p") ?: 1
+    // 定位楼层（收藏评论跳转用，34）：>0 时首屏加载完成后自动跳到该楼
+    val initialFloor = entry.arguments?.getInt("floor") ?: 0
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
@@ -138,6 +140,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var menuOpen by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var exportBusy by remember { mutableStateOf<String?>(null) }
+    // 打赏：底部弹层，不再跳转独立页面（28）
+    var showDonate by remember { mutableStateOf(false) }
 
     // 评论区排序：0 = 热度（楼主正文固定首位 + 其余按点赞数降序，同赞按楼层号升序保证稳定），
     //           1 = 正序（楼层号升序），2 = 倒序（楼层号降序）；记住上次选择
@@ -170,23 +174,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    // 底栏下滑隐藏（11）：向下滚动收起底部快捷栏，向上滚动恢复。
-    // 位置估计 = itemIndex * 大数 + offset（item 高度远小于该数，估计值随滚动单调）
-    var bottomBarVisible by remember { mutableStateOf(true) }
-    LaunchedEffect(listState) {
-        var prev = 0L
-        snapshotFlow {
-            listState.firstVisibleItemIndex.toLong() * 1_000_000L +
-                listState.firstVisibleItemScrollOffset
-        }.collect { cur ->
-            if (cur != prev) {
-                if (cur > prev + 6) bottomBarVisible = false
-                else if (cur < prev - 6) bottomBarVisible = true
-                prev = cur
-            }
-        }
-    }
-
     // 收藏状态（12）：打开帖子时取源站解析结果（收藏表单按钮为「取消收藏」即已收藏），
     // 操作成功后本地即时翻转并同步进当前 data，无需整页刷新
     var isFav by remember { mutableStateOf(false) }
@@ -195,10 +182,45 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         data?.let { isFav = it.favorited }
     }
 
+    // 本地收藏评论（34）：评论操作行的收藏按钮；纯本地快照，与源站无关
+    var favCommentIds by remember { mutableStateOf(session.settings.commentFavoriteList().map { it.replyId }.toSet()) }
+    fun toggleCommentFav(post: PostEntry) {
+        if (post.id in favCommentIds) {
+            session.settings.removeCommentFavorite(post.id)
+            session.showToast("已取消收藏")
+        } else {
+            val excerpt = HtmlParser.htmlToText(post.contentHtml).trim().let {
+                if (it.length > 120) it.take(120) + "…" else it
+            }
+            session.settings.addCommentFavorite(
+                replyId = post.id, topicId = tid, topicTitle = data?.title ?: "",
+                floor = post.floor, authorId = post.authorId, authorName = post.authorName,
+                avatarUrl = post.avatarUrl, content = excerpt,
+            )
+            session.showToast("已收藏该评论")
+        }
+        favCommentIds = session.settings.commentFavoriteList().map { it.replyId }.toSet()
+    }
+
     // AI 总结状态
     var aiSummary by remember { mutableStateOf<String?>(null) }
     var aiBusy by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
+
+    // 评论区当前楼层（37）：首个可见回复的楼层号；0 = 还没滚进评论区。
+    // 楼层胶囊实时展示，点击弹出跳楼弹窗（预填当前楼层）
+    val idToFloor = remember(data) {
+        (data?.posts ?: emptyList()).associate { it.id to it.floor }
+    }
+    val currentFloor by remember(idToFloor) {
+        derivedStateOf {
+            listState.layoutInfo.visibleItemsInfo
+                .firstOrNull { (it.key as? String)?.startsWith("r-") == true }
+                ?.let { info ->
+                    (info.key as String).removePrefix("r-").toLongOrNull()?.let { idToFloor[it] }
+                } ?: 0
+        }
+    }
 
     // 排序后的楼层列表（楼主正文固定首位）：热度档按点赞数降序（同赞按楼层号，顺序稳定）；
     // 正序档按楼层号升序（源站页面顺序）。未登录时源站不输出点赞计数（全 0），热度档自然退化为正序
@@ -513,6 +535,16 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
+    // 收藏评论定位（34）：首屏数据加载完成后自动跳到目标楼层（仅进入时执行一次）
+    var floorJumped by remember { mutableStateOf(false) }
+    LaunchedEffect(loading, data) {
+        if (!floorJumped && !loading && data != null && initialFloor > 0) {
+            floorJumped = true
+            if (data!!.posts.any { it.floor == initialFloor }) jumpToFloor(initialFloor)
+            else jumpFloor(initialFloor)
+        }
+    }
+
     /** 直达评论区：滚动到「全部回复」标题处（2.10） */
     fun scrollToComments() {
         val idx = if (mainPost != null) 2 else 1
@@ -758,13 +790,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
 
     Scaffold(
         bottomBar = {
-            // 底部快捷栏：回复入口 + 点赞主楼 + 收藏（未登录点击跳转登录）；
-            // 向下滚动时隐藏、向上滚动恢复（11）
-            AnimatedVisibility(
-                visible = bottomBarVisible && data != null && error == null,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
-            ) {
+            // 底部快捷栏：回复入口 + 点赞主楼 + 收藏（未登录点击跳转登录）；常驻显示
+            if (data != null && error == null) {
                 ReplyBar(
                     loggedIn = session.loginState.loggedIn,
                     liked = mainPost?.liked == true,
@@ -807,47 +834,39 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     // ---------- 头部信息块（完整标题/统计/弹幕/AI/抽奖） ----------
                     item(key = "header") {
                         Column {
-                            // 完整标题（不截断）+ 正文标签（已开奖 / 抽奖中等）
+                            // 完整标题（不截断）+ 阅读量/评论数：单一富文本段落，
+                            // 统计小字内联跟随标题文字末尾，随文字自然折行 ——
+                            // 不用 Row/FlowRow 布局，不存在子项测量导致的预留空位
+                            // 标题以全角【开头时做负 padding 视觉补偿：
+                            // 【字形左下自带空腔，大字号下看起来像标题前有空位
                             // onGloballyPositioned：标题行滑出顶栏后，顶栏切换为显示标题（11）
-                            Row(
-                                Modifier
+                            Text(
+                                buildAnnotatedString {
+                                    withStyle(
+                                        SpanStyle(fontWeight = FontWeight.Bold)
+                                    ) { append(d.title) }
+                                    withStyle(
+                                        SpanStyle(
+                                            fontSize = MaterialTheme.typography.labelMedium.fontSize,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    ) {
+                                        append("  ${d.viewsText.ifBlank { "-" }}阅读 · ${d.repliesText.ifBlank { "${d.posts.size}" }}评论")
+                                    }
+                                },
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    lineHeight = MaterialTheme.typography.titleLarge.lineHeight * 1.15f
+                                ),
+                                modifier = Modifier
                                     .fillMaxWidth()
                                     .onGloballyPositioned { titleBottomInRoot = it.boundsInRoot().bottom }
-                                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    d.title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    lineHeight = MaterialTheme.typography.titleLarge.lineHeight * 1.15f,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
-                                if (d.titleTag.isNotBlank()) {
-                                    val drawn = d.titleTag.contains("开奖")
-                                    Badge(
-                                        d.titleTag,
-                                        if (drawn) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
-                                        if (drawn) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
-                                    )
-                                }
-                            }
-                            // 浏览 / 回复统计胶囊（页码不再展示，翻页条自带当前页信息）
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                StatChip(Icons.Filled.Visibility, d.viewsText.ifBlank { "-" })
-                                StatChip(Icons.AutoMirrored.Filled.Chat, d.repliesText.ifBlank { "${d.posts.size}" })
-                            }
-                            // 打赏弹幕
-                            if (danmakuLocalOn && danmaku.isNotEmpty()) {
-                                DanmakuBar(danmaku)
-                            }
+                                    .padding(
+                                        start = if (d.title.startsWith("【")) 11.dp else 20.dp,
+                                        end = 20.dp,
+                                        top = 10.dp,
+                                        bottom = 10.dp
+                                    ),
+                            )
                             // AI 总结：仅在开启「默认总结」时显示入口
                             if (session.settings.aiAuto) {
                                 AiSummaryCard(
@@ -927,10 +946,14 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 threadReplyCount = threadReplyCount[main.floor] ?: 0,
                                 onCopy = { copyPost = main },
                                 // 打赏按钮仅登录时显示（源站打赏页需登录），入口见操作行
-                                onDonate = if (d.donateUrl != null && session.loginState.loggedIn) ({ nav.navigate("donate/$tid") }) else null,
+                                onDonate = if (d.donateUrl != null && session.loginState.loggedIn) ({ showDonate = true }) else null,
                                 onEditUser = { uid -> nav.navigate("user/$uid") },
                             )
                         }
+                    }
+                    // 打赏弹幕：展示在帖子正文与评论区之间（28）
+                    if (danmakuLocalOn && danmaku.isNotEmpty()) {
+                        item(key = "danmaku") { DanmakuBar(danmaku) }
                     }
                     // ---------- 评论区 ----------
                     if (replies.isNotEmpty() || d.loginVisibleReplies >= 0) {
@@ -1042,6 +1065,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 threadReplyCount = threadReplyCount[post.floor] ?: 0,
                                 onCopy = { copyPost = post },
                                 onEditUser = { uid -> nav.navigate("user/$uid") },
+                                // 本地收藏评论（34）：操作行收藏按钮，收藏后图标填充
+                                commentFavorited = post.id in favCommentIds,
+                                onFavComment = { toggleCommentFav(post) },
                             )
                         }
                     }
@@ -1096,6 +1122,30 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ) {
                     Icon(Icons.Filled.KeyboardArrowUp, "回到顶部")
+                }
+            }
+
+            // 评论区当前楼层胶囊（37）：实时显示首个可见回复的楼层号，
+            // 点击弹出跳楼输入框；位于回顶按钮上方
+            AnimatedVisibility(
+                visible = currentFloor > 0,
+                modifier = Modifier.align(Alignment.BottomEnd),
+                enter = scaleIn(),
+                exit = scaleOut(),
+            ) {
+                Surface(
+                    onClick = { showFloorDialog = true },
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                    modifier = Modifier.padding(end = 16.dp, bottom = 76.dp)
+                ) {
+                    Text(
+                        "#$currentFloor",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
                 }
             }
 
@@ -1203,16 +1253,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                     session.showToast("链接已复制")
                                 }
                             )
-                            if (session.loginState.loggedIn && data?.canFavorite == true) {
-                                // 收藏/取消收藏：文案与图标跟随当前收藏状态（12）
-                                DropdownMenuItem(
-                                    text = { Text(if (isFav) "取消收藏" else "收藏") },
-                                    leadingIcon = {
-                                        Icon(if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, null)
-                                    },
-                                    onClick = { menuOpen = false; onFavoriteClick() }
-                                )
-                            }
                             DropdownMenuItem(
                                 text = { Text(if (danmakuLocalOn) "关闭打赏弹幕" else "显示打赏弹幕") },
                                 leadingIcon = { Icon(Icons.Filled.Subtitles, null) },
@@ -1344,10 +1384,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         )
     }
 
-    // 跳楼弹窗
+    // 跳楼弹窗（菜单入口与楼层胶囊共用；胶囊进入时预填当前楼层）
     if (showFloorDialog) {
         FloorJumpDialog(
             maxFloor = data?.repliesText?.toIntOrNull() ?: ((data?.totalPages ?: 1) * 20),
+            initial = currentFloor,
             onDismiss = { showFloorDialog = false },
             onJump = {
                 showFloorDialog = false
@@ -1425,6 +1466,27 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             onExport = {
                 showExportDialog = false
                 export(it)
+            }
+        )
+    }
+
+    // 打赏底部弹窗（28）：从底部滑出，不再跳转独立页面
+    if (showDonate) {
+        DonateSheet(
+            session = session,
+            tid = tid,
+            onDismiss = { showDonate = false },
+            onSuccess = {
+                showDonate = false
+                session.showToast("打赏成功")
+                // 刷新打赏弹幕（新打赏会追加一条记录），更新缓存
+                scope.launch {
+                    runCatching {
+                        val items = session.client.getDonateFeed(tid)
+                        danmaku = items
+                        session.saveDanmaku(tid, items)
+                    }
+                }
             }
         )
     }
@@ -1667,6 +1729,8 @@ fun PostCard(
     threadEnabled: Boolean = true,
     threadReplyCount: Int = 0,
     replyParentAvatar: String = "",
+    commentFavorited: Boolean = false,
+    onFavComment: (() -> Unit)? = null,
 ) {
     if (isMainPost) {
         // ---------- 楼主正文：正文长按为系统原生文本选择，不再弹功能菜单（2.6） ----------
@@ -1733,6 +1797,8 @@ fun PostCard(
                     threadEnabled = threadEnabled,
                     threadReplyCount = threadReplyCount,
                     replyParentAvatar = replyParentAvatar,
+                    commentFavorited = commentFavorited,
+                    onFavComment = onFavComment,
                 )
             }
         }
@@ -1761,6 +1827,8 @@ private fun PostCardContent(
     threadEnabled: Boolean = true,
     threadReplyCount: Int = 0,
     replyParentAvatar: String = "",
+    commentFavorited: Boolean = false,
+    onFavComment: (() -> Unit)? = null,
 ) {
     Column(modifier) {
         // 作者行：头像 + 名称/徽章 + 元信息，楼层号固定右上角
@@ -1957,7 +2025,6 @@ private fun PostCardContent(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.padding(bottom = 6.dp)
         ) {
             if (post.canLike) {
                 PostAction(
@@ -1985,6 +2052,15 @@ private fun PostCardContent(
                 )
             }
             PostAction(icon = Icons.Filled.Flag, label = "举报", onClick = onReport)
+            // 本地收藏评论（34）：仅回复显示，收藏后图标填充
+            if (showFloorBadge && onFavComment != null) {
+                PostAction(
+                    icon = if (commentFavorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                    label = if (commentFavorited) "已收藏" else "收藏",
+                    onClick = onFavComment,
+                    iconTint = if (commentFavorited) MaterialTheme.colorScheme.primary else null
+                )
+            }
             if (showFloorBadge) {
                 // 回复的操作行：点赞 / 打赏 / 举报 / 回复（原"引用"统一为回复）
                 PostAction(icon = Icons.Filled.FormatQuote, label = "回复", onClick = { if (loggedIn) onQuote() })
@@ -2086,6 +2162,167 @@ fun DanmakuBar(items: List<DanmakuItem>) {
                         color = MaterialTheme.colorScheme.onTertiaryContainer,
                         maxLines = 1
                     )
+                }
+            }
+        }
+    }
+}
+
+/** 打赏底部弹窗（28）：从底部滑出，不再跳转独立页面。
+ *  金额支持自定义（38）：预设档位 + 「自定义」切换数字输入；快捷留言取自源站打赏表单 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DonateSheet(
+    session: Session,
+    tid: Long,
+    onDismiss: () -> Unit,
+    onSuccess: () -> Unit,
+) {
+    var info by remember { mutableStateOf<HtmlParser.DonateInfo?>(null) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var preset by remember { mutableStateOf("10") }
+    var custom by remember { mutableStateOf(false) }
+    var customText by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("好帖！赞一个！") }
+    var busy by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(tid) {
+        runCatching { info = HtmlParser.parseDonate(session.client.get("/donate?topic_id=$tid").html) }
+            .onFailure { loadError = it.message }
+    }
+
+    val amount = if (custom) customText else preset
+    val validAmount = amount.toIntOrNull()?.let { it > 0 } == true
+
+    ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() }) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            when {
+                loadError != null -> Text(
+                    "加载失败：${loadError}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(vertical = 24.dp)
+                )
+                info == null -> Box(
+                    Modifier.fillMaxWidth().height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) { CircularProgressIndicator() }
+                else -> {
+                    val i = info!!
+                    Text(
+                        "打赏作者",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    msg?.let {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        "打赏积分将直接赠送给楼主，感谢你对优质内容的支持",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // 金额档位 + 自定义切换（38）
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("10", "50", "100", "500").forEach { v ->
+                            FilterChip(
+                                selected = !custom && preset == v,
+                                onClick = { custom = false; preset = v },
+                                label = { Text(v, style = MaterialTheme.typography.labelMedium) }
+                            )
+                        }
+                        FilterChip(
+                            selected = custom,
+                            onClick = { custom = !custom },
+                            label = { Text("自定义", style = MaterialTheme.typography.labelMedium) }
+                        )
+                    }
+                    if (custom) {
+                        OutlinedTextField(
+                            value = customText,
+                            onValueChange = { t -> customText = t.filter { it.isDigit() }.take(7) },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("自定义金额（积分）") },
+                            shape = RoundedCornerShape(16.dp),
+                            singleLine = true
+                        )
+                    }
+                    // 快捷留言（源站打赏表单自带）
+                    if (i.quickMessages.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(i.quickMessages) { q ->
+                                AssistChip(
+                                    onClick = { message = q },
+                                    label = {
+                                        Text(
+                                            q,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            maxLines = 1
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = { message = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("留言") },
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true
+                    )
+                    Button(
+                        onClick = {
+                            busy = true; msg = null
+                            scope.launch {
+                                try {
+                                    val resp = session.client.postForm(
+                                        "/donate", mapOf(
+                                            "_csrf" to i.csrf,
+                                            "topic_id" to i.topicId.ifBlank { tid.toString() },
+                                            "request_key" to i.requestKey,
+                                            "amount" to amount,
+                                            "message" to message,
+                                        )
+                                    )
+                                    if (resp.url.contains("form_error")) {
+                                        msg = HtmlParser.extractError(resp.html).ifBlank { "打赏失败" }
+                                    } else {
+                                        onSuccess()
+                                    }
+                                } catch (e: Exception) { msg = e.message } finally { busy = false }
+                            }
+                        },
+                        enabled = !busy && validAmount,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            if (busy) "提交中…" else "打赏 $amount 积分",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
@@ -2487,8 +2724,8 @@ private fun ThreadPostItem(
 
 /** 跳楼对话框 */
 @Composable
-fun FloorJumpDialog(maxFloor: Int, onDismiss: () -> Unit, onJump: (Int) -> Unit) {
-    var text by remember { mutableStateOf("") }
+fun FloorJumpDialog(maxFloor: Int, onDismiss: () -> Unit, onJump: (Int) -> Unit, initial: Int = 0) {
+    var text by remember { mutableStateOf(if (initial > 0) initial.toString() else "") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("跳转楼层") },
@@ -2755,7 +2992,6 @@ fun PostCopySheet(
             title = "${post.authorName}${if (post.floor > 0) " #${post.floor}" else ""}",
             plain = plain,
             onClose = { freeMode = false },
-            onCopyAll = { copyAll() },
         )
         return
     }
@@ -2841,7 +3077,6 @@ private fun FreeCopyDialog(
     title: String,
     plain: String,
     onClose: () -> Unit,
-    onCopyAll: () -> Unit,
 ) {
     Dialog(
         onDismissRequest = onClose,
@@ -2897,21 +3132,6 @@ private fun FreeCopyDialog(
                                 style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 26.sp),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                        }
-                    }
-                }
-                if (plain.isNotBlank()) {
-                    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp)
-                        ) {
-                            Button(
-                                onClick = onCopyAll,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("复制全部") }
                         }
                     }
                 }

@@ -14,6 +14,10 @@ class AppSettings(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("lsb_app_settings", Context.MODE_PRIVATE)
 
+    /** 主题/字体等外观偏好（与 Session 共用的 lsb_prefs） */
+    private val themePrefs: SharedPreferences =
+        context.getSharedPreferences("lsb_prefs", Context.MODE_PRIVATE)
+
     // ---------------- 偏好读写 ----------------
 
     /** 首页滚动模式：true = 无限滚动，false = 翻页 */
@@ -114,6 +118,11 @@ class AppSettings(context: Context) {
     var tabletMode: Boolean
         get() = prefs.getBoolean("tablet_mode", false)
         set(v) = prefs.edit().putBoolean("tablet_mode", v).apply()
+
+    /** 底栏样式：0 = 经典（通栏 NavigationBar），1 = 液态玻璃悬浮，2 = 液态玻璃贴底通栏 */
+    var bottomBarStyle: Int
+        get() = prefs.getInt("bottom_bar_style", 1)
+        set(v) = prefs.edit().putInt("bottom_bar_style", v).apply()
 
     // ---------------- WebDAV 备份（3.19） ----------------
 
@@ -424,6 +433,73 @@ class AppSettings(context: Context) {
 
     fun clearFavorites() = prefs.edit().remove("local_favorites").apply()
 
+    // ---------------- 本地收藏评论（纯本地快照，34） ----------------
+
+    private fun commentFavArray(): JSONArray =
+        runCatching { JSONArray(prefs.getString("local_comment_favorites", "[]") ?: "[]") }.getOrDefault(JSONArray())
+
+    /** 收藏一条评论：同条去重置顶，最多保留 500 条 */
+    fun addCommentFavorite(
+        replyId: Long, topicId: Long, topicTitle: String, floor: Int,
+        authorId: Long, authorName: String, avatarUrl: String, content: String,
+    ) {
+        if (replyId <= 0 || topicId <= 0) return
+        val old = commentFavArray()
+        val out = JSONArray()
+        out.put(
+            JSONObject()
+                .put("replyId", replyId).put("topicId", topicId)
+                .put("topicTitle", topicTitle).put("floor", floor)
+                .put("authorId", authorId).put("authorName", authorName)
+                .put("avatarUrl", avatarUrl).put("content", content)
+                .put("at", System.currentTimeMillis())
+        )
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            if (o.optLong("replyId") == replyId) continue
+            out.put(o)
+        }
+        while (out.length() > 500) out.remove(out.length() - 1)
+        prefs.edit().putString("local_comment_favorites", out.toString()).apply()
+    }
+
+    fun commentFavoriteList(): List<CommentFavorite> {
+        val arr = commentFavArray()
+        val fmt = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val at = o.optLong("at", 0L)
+                add(
+                    CommentFavorite(
+                        replyId = o.optLong("replyId"),
+                        topicId = o.optLong("topicId"),
+                        topicTitle = o.optString("topicTitle"),
+                        floor = o.optInt("floor", 0),
+                        authorId = o.optLong("authorId"),
+                        authorName = o.optString("authorName"),
+                        avatarUrl = o.optString("avatarUrl"),
+                        content = o.optString("content"),
+                        at = at,
+                        timeText = if (at > 0) fmt.format(java.util.Date(at)) else "",
+                    )
+                )
+            }
+        }
+    }
+
+    fun removeCommentFavorite(replyId: Long) {
+        val old = commentFavArray()
+        val out = JSONArray()
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            if (o.optLong("replyId") != replyId) out.put(o)
+        }
+        prefs.edit().putString("local_comment_favorites", out.toString()).apply()
+    }
+
+    fun clearCommentFavorites() = prefs.edit().remove("local_comment_favorites").apply()
+
     // ---------------- 本地聚合私信（收信来自通知，去信为发送记录；纯本地，不额外访问源站） ----------------
 
     private fun pmArray(): JSONArray =
@@ -610,6 +686,7 @@ class AppSettings(context: Context) {
         o.put("update_check_mode", updateCheckMode)
         o.put("update_check_interval_hours", updateCheckIntervalHours)
         o.put("tablet_mode", tabletMode)
+        o.put("bottom_bar_style", bottomBarStyle)
         o.put("webdav_url", webdavUrl)
         o.put("webdav_user", webdavUser)
         o.put("webdav_pass", webdavPass)
@@ -622,6 +699,27 @@ class AppSettings(context: Context) {
         o.put("ai_include_comments", aiIncludeComments)
         o.put("blocked_words", JSONArray(blockedWords))
         o.put("blocked_users", JSONArray(blockedUsers))
+        // 26：补齐近期新增设置——对话串联开关与本地收藏的评论
+        o.put("thread_dialog_enabled", threadDialogEnabled)
+        o.put("comment_favorites", JSONArray(prefs.getString("local_comment_favorites", "[]") ?: "[]"))
+        // 26：外观主题与字体（lsb_prefs 全量导出，导入后立即生效）
+        val t = JSONObject()
+        t.put("theme_mode", themePrefs.getInt("theme_mode", 0))
+        t.put("dynamic_color", themePrefs.getBoolean("dynamic_color", true))
+        t.put("theme_color", themePrefs.getString("theme_color", "default") ?: "default")
+        t.put("oled_dark", themePrefs.getBoolean("oled_dark", false))
+        t.put("theme_style", themePrefs.getInt("theme_style", 0))
+        t.put("theme_contrast", themePrefs.getFloat("theme_contrast", 0f).toDouble())
+        t.put("theme_primary_override", themePrefs.getString("theme_primary_override", "") ?: "")
+        t.put("theme_secondary_override", themePrefs.getString("theme_secondary_override", "") ?: "")
+        t.put("theme_tertiary_override", themePrefs.getString("theme_tertiary_override", "") ?: "")
+        t.put(
+            "theme_custom_colors",
+            JSONArray((themePrefs.getStringSet("theme_custom_colors", emptySet()) ?: emptySet()).toList())
+        )
+        t.put("card_colors", themePrefs.getString("card_colors", "") ?: "")
+        t.put("font_key", themePrefs.getString("font_key", "default") ?: "default")
+        o.put("theme", t)
         return o.toString(2)
     }
 
@@ -645,6 +743,7 @@ class AppSettings(context: Context) {
             if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 1))
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))
             if (o.has("tablet_mode")) p.putBoolean("tablet_mode", o.getBoolean("tablet_mode"))
+            if (o.has("bottom_bar_style")) p.putInt("bottom_bar_style", o.optInt("bottom_bar_style", 1).coerceIn(0, 2))
             if (o.has("webdav_url")) p.putString("webdav_url", o.getString("webdav_url"))
             if (o.has("webdav_user")) p.putString("webdav_user", o.getString("webdav_user"))
             if (o.has("webdav_pass")) p.putString("webdav_pass", o.getString("webdav_pass"))
@@ -665,7 +764,32 @@ class AppSettings(context: Context) {
                 val set = (0 until arr.length()).map { arr.getString(it) }.toSet()
                 p.putStringSet("blocked_users", set)
             }
+            // 26：对话串联开关
+            if (o.has("thread_dialog_enabled")) p.putBoolean("thread_dialog_enabled", o.getBoolean("thread_dialog_enabled"))
+            // 26：本地收藏的评论
+            if (o.has("comment_favorites")) p.putString("local_comment_favorites", o.getJSONArray("comment_favorites").toString())
             p.apply()
+            // 26：外观主题与字体写入 lsb_prefs
+            if (o.has("theme")) {
+                val t = o.getJSONObject("theme")
+                val tp = themePrefs.edit()
+                if (t.has("theme_mode")) tp.putInt("theme_mode", t.optInt("theme_mode", 0).coerceIn(0, 2))
+                if (t.has("dynamic_color")) tp.putBoolean("dynamic_color", t.getBoolean("dynamic_color"))
+                if (t.has("theme_color")) tp.putString("theme_color", t.getString("theme_color"))
+                if (t.has("oled_dark")) tp.putBoolean("oled_dark", t.getBoolean("oled_dark"))
+                if (t.has("theme_style")) tp.putInt("theme_style", t.optInt("theme_style", 0).coerceIn(0, 15))
+                if (t.has("theme_contrast")) tp.putFloat("theme_contrast", t.getDouble("theme_contrast").toFloat())
+                if (t.has("theme_primary_override")) tp.putString("theme_primary_override", t.getString("theme_primary_override"))
+                if (t.has("theme_secondary_override")) tp.putString("theme_secondary_override", t.getString("theme_secondary_override"))
+                if (t.has("theme_tertiary_override")) tp.putString("theme_tertiary_override", t.getString("theme_tertiary_override"))
+                if (t.has("theme_custom_colors")) {
+                    val arr = t.getJSONArray("theme_custom_colors")
+                    tp.putStringSet("theme_custom_colors", (0 until arr.length()).map { arr.getString(it) }.toSet())
+                }
+                if (t.has("card_colors")) tp.putString("card_colors", t.getString("card_colors"))
+                if (t.has("font_key")) tp.putString("font_key", t.getString("font_key"))
+                tp.apply()
+            }
             null
         } catch (e: Exception) {
             "导入失败：不是有效的设置 JSON"

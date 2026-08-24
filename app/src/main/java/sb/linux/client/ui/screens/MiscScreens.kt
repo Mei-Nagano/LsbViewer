@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
+import sb.linux.client.data.CommentFavorite
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.LeaderRow
 import sb.linux.client.data.Session
@@ -927,7 +929,7 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
     }
 }
 
-// ---------------- 收藏内容（本地快照，收藏时更新，可本地搜索） ----------------
+// ---------------- 收藏内容（本地快照，收藏时更新，可本地搜索；34 增加评论分类） ----------------
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -935,12 +937,19 @@ fun FavoritesScreen(session: Session, nav: NavHostController) {
     // 本地收藏：收藏帖子时写入本地快照，纯本地筛选（3.15）；
     // 进入页面时从源站合并一次收藏（本地已有快照的不覆盖），之后全部本地展示
     var topics by remember { mutableStateOf(session.settings.favoriteList()) }
+    // 本地收藏的评论（34）：纯本地快照，与源站无关
+    var comments by remember { mutableStateOf(session.settings.commentFavoriteList()) }
+    // 分类 Tab：0 = 帖子，1 = 评论
+    var tab by remember { mutableIntStateOf(0) }
     var showClearDialog by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var syncing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    fun refresh() { topics = session.settings.favoriteList() }
+    fun refresh() {
+        topics = session.settings.favoriteList()
+        comments = session.settings.commentFavoriteList()
+    }
 
     // 同步源站收藏：合并进本地，静默失败（本地快照仍可正常展示）
     fun syncFromSource() {
@@ -970,23 +979,39 @@ fun FavoritesScreen(session: Session, nav: NavHostController) {
                     }
                 },
                 actions = {
-                    TextButton(onClick = { syncFromSource() }, enabled = !syncing) {
-                        Text(if (syncing) "同步中…" else "刷新")
+                    if (tab == 0) {
+                        TextButton(onClick = { syncFromSource() }, enabled = !syncing) {
+                            Text(if (syncing) "同步中…" else "刷新")
+                        }
                     }
                     TextButton(
                         onClick = { showClearDialog = true },
-                        enabled = topics.isNotEmpty(),
+                        enabled = if (tab == 0) topics.isNotEmpty() else comments.isNotEmpty(),
                     ) { Text("清空") }
                 }
             )
         }
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            if (topics.isNotEmpty()) {
+            // 分类选择（34）：帖子 / 评论
+            TabRow(selectedTabIndex = tab) {
+                Tab(
+                    selected = tab == 0,
+                    onClick = { tab = 0; query = "" },
+                    text = { Text("帖子${if (topics.isNotEmpty()) " (${topics.size})" else ""}") }
+                )
+                Tab(
+                    selected = tab == 1,
+                    onClick = { tab = 1; query = "" },
+                    text = { Text("评论${if (comments.isNotEmpty()) " (${comments.size})" else ""}") }
+                )
+            }
+            val listEmpty = if (tab == 0) topics.isEmpty() else comments.isEmpty()
+            if (!listEmpty) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("搜索收藏内容") },
+                    placeholder = { Text(if (tab == 0) "搜索收藏帖子" else "搜索收藏评论") },
                     leadingIcon = { Icon(Icons.Filled.Search, null) },
                     trailingIcon = {
                         if (query.isNotBlank()) Icon(
@@ -1002,67 +1027,135 @@ fun FavoritesScreen(session: Session, nav: NavHostController) {
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
-            if (topics.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (syncing) "正在从源站同步收藏…"
-                        else "收藏的帖子会显示在这里（在帖子菜单里点「收藏」，登录后进入本页会自动同步源站收藏）",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(24.dp)
-                    )
-                }
-            } else {
-                val filtered = topics.filter {
-                    query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)
-                }
-                if (filtered.isEmpty()) {
+            if (tab == 0) {
+                if (topics.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "无匹配“${query}”的收藏",
+                            if (syncing) "正在从源站同步收藏…"
+                            else "收藏的帖子会显示在这里（在帖子菜单里点「收藏」，登录后进入本页会自动同步源站收藏）",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(24.dp)
                         )
                     }
                 } else {
-                    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-                        items(filtered, key = { it.topicId }) { t ->
-                            val state = rememberSwipeToDismissBoxState(
-                                confirmValueChange = { v ->
-                                    if (v == SwipeToDismissBoxValue.EndToStart) {
-                                        session.settings.removeFavorite(t.topicId)
-                                        refresh()
-                                        session.showToast("已取消收藏")
-                                        true
-                                    } else false
-                                }
+                    val filtered = topics.filter {
+                        query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)
+                    }
+                    if (filtered.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "无匹配“${query}”的收藏",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(24.dp)
                             )
-                            SwipeToDismissBox(
-                                state = state,
-                                enableDismissFromStartToEnd = false,
-                                backgroundContent = {
-                                    Box(
-                                        Modifier
-                                            .fillMaxSize()
-                                            .padding(horizontal = 14.dp, vertical = 5.dp)
-                                            .background(
-                                                MaterialTheme.colorScheme.errorContainer,
-                                                RoundedCornerShape(18.dp)
-                                            ),
-                                        contentAlignment = Alignment.CenterEnd
-                                    ) {
-                                        Icon(
-                                            Icons.Filled.Delete, "取消收藏",
-                                            Modifier.padding(end = 22.dp),
-                                            tint = MaterialTheme.colorScheme.onErrorContainer
-                                        )
+                        }
+                    } else {
+                        LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                            items(filtered, key = { it.topicId }) { t ->
+                                val state = rememberSwipeToDismissBoxState(
+                                    confirmValueChange = { v ->
+                                        if (v == SwipeToDismissBoxValue.EndToStart) {
+                                            session.settings.removeFavorite(t.topicId)
+                                            refresh()
+                                            session.showToast("已取消收藏")
+                                            true
+                                        } else false
+                                    }
+                                )
+                                SwipeToDismissBox(
+                                    state = state,
+                                    enableDismissFromStartToEnd = false,
+                                    backgroundContent = {
+                                        Box(
+                                            Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 14.dp, vertical = 5.dp)
+                                                .background(
+                                                    MaterialTheme.colorScheme.errorContainer,
+                                                    RoundedCornerShape(18.dp)
+                                                ),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Delete, "取消收藏",
+                                                Modifier.padding(end = 22.dp),
+                                                tint = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    TopicCardView(
+                                        t,
+                                        onClick = { nav.navigate("topic/${t.topicId}") },
+                                        onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (comments.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "收藏的评论会显示在这里（在评论操作行点「收藏」，点击收藏项可跳回原楼层）",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(24.dp)
+                        )
+                    }
+                } else {
+                    val filtered = comments.filter {
+                        query.isBlank() || it.content.contains(query.trim(), ignoreCase = true) ||
+                            it.topicTitle.contains(query.trim(), ignoreCase = true) ||
+                            it.authorName.contains(query.trim(), ignoreCase = true)
+                    }
+                    if (filtered.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "无匹配“${query}”的收藏",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(24.dp)
+                            )
+                        }
+                    } else {
+                        LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                            items(filtered, key = { it.replyId }) { c ->
+                                val state = rememberSwipeToDismissBoxState(
+                                    confirmValueChange = { v ->
+                                        if (v == SwipeToDismissBoxValue.EndToStart) {
+                                            session.settings.removeCommentFavorite(c.replyId)
+                                            refresh()
+                                            session.showToast("已取消收藏")
+                                            true
+                                        } else false
+                                    }
+                                )
+                                SwipeToDismissBox(
+                                    state = state,
+                                    enableDismissFromStartToEnd = false,
+                                    backgroundContent = {
+                                        Box(
+                                            Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 14.dp, vertical = 5.dp)
+                                                .background(
+                                                    MaterialTheme.colorScheme.errorContainer,
+                                                    RoundedCornerShape(18.dp)
+                                                ),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Delete, "取消收藏",
+                                                Modifier.padding(end = 22.dp),
+                                                tint = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    CommentFavCard(c) {
+                                        nav.navigate("topic/${c.topicId}?floor=${c.floor}")
                                     }
                                 }
-                            ) {
-                                TopicCardView(
-                                    t,
-                                    onClick = { nav.navigate("topic/${t.topicId}") },
-                                    onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
-                                )
                             }
                         }
                     }
@@ -1074,11 +1167,17 @@ fun FavoritesScreen(session: Session, nav: NavHostController) {
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("清空收藏内容") },
-            text = { Text("确定清空全部 ${topics.size} 条本地收藏记录吗？") },
+            title = { Text(if (tab == 0) "清空收藏帖子" else "清空收藏评论") },
+            text = {
+                Text(
+                    if (tab == 0) "确定清空全部 ${topics.size} 条本地收藏记录吗？"
+                    else "确定清空全部 ${comments.size} 条收藏的评论吗？"
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    session.settings.clearFavorites()
+                    if (tab == 0) session.settings.clearFavorites()
+                    else session.settings.clearCommentFavorites()
                     refresh()
                     showClearDialog = false
                     session.showToast("收藏内容已清空")
@@ -1089,128 +1188,76 @@ fun FavoritesScreen(session: Session, nav: NavHostController) {
     }
 }
 
-// ---------------- 打赏 ----------------
-
-@OptIn(ExperimentalMaterial3Api::class)
+/** 收藏评论卡片（34）：作者 + 摘要 + 所属帖子；点击跳回原帖原楼层 */
 @Composable
-fun DonateScreen(session: Session, nav: NavHostController) {
-    val tid = nav.currentBackStackEntry?.arguments?.getLong("tid") ?: return
-    var info by remember { mutableStateOf<HtmlParser.DonateInfo?>(null) }
-    var amount by remember { mutableStateOf("10") }
-    var message by remember { mutableStateOf("好帖！赞一个！") }
-    var busy by remember { mutableStateOf(false) }
-    var msg by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(tid) {
-        runCatching {
-            info = HtmlParser.parseDonate(session.client.get("/donate?topic_id=$tid").html)
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("打赏作者") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+private fun CommentFavCard(c: CommentFavorite, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Column(
+            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                Avatar(c.avatarUrl, 30)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        c.authorName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (c.timeText.isNotBlank()) {
+                        Text(
+                            c.timeText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-            )
-        }
-    ) { pad ->
-        val i = info ?: run { LoadingBox(); return@Scaffold }
-        Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            msg?.let {
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
                 ) {
                     Text(
-                        it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        "#${c.floor}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
                     )
                 }
             }
-            // 顶部提示卡
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "选择打赏金额",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "打赏积分将直接赠送给楼主，感谢你对优质内容的支持",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            // 金额选择
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("10", "50", "100", "500").forEach { v ->
-                    FilterChip(
-                        selected = amount == v,
-                        onClick = { amount = v },
-                        label = { Text("$v 积分", style = MaterialTheme.typography.labelMedium) }
-                    )
-                }
-            }
-            OutlinedTextField(
-                value = message, onValueChange = { message = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("留言") },
-                shape = RoundedCornerShape(16.dp),
-                singleLine = true
+            Text(
+                c.content,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
             )
-            Button(
-                onClick = {
-                    busy = true; msg = null
-                    scope.launch {
-                        try {
-                            val resp = session.client.postForm(
-                                "/donate", mapOf(
-                                    "_csrf" to i.csrf,
-                                    "topic_id" to i.topicId.ifBlank { tid.toString() },
-                                    "request_key" to i.requestKey,
-                                    "amount" to amount,
-                                    "message" to message,
-                                )
-                            )
-                            if (resp.url.contains("form_error")) {
-                                msg = HtmlParser.extractError(resp.html).ifBlank { "打赏失败" }
-                            } else {
-                                session.showToast("打赏成功")
-                                nav.popBackStack()
-                            }
-                        } catch (e: Exception) { msg = e.message } finally { busy = false }
-                    }
-                },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(16.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Chat, null,
+                    Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
                 Text(
-                    if (busy) "提交中…" else "打赏 $amount 积分",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    c.topicTitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

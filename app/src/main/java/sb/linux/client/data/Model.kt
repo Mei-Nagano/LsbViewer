@@ -31,6 +31,20 @@ data class PageResult<T>(
     val totalPages: Int,
 )
 
+/** 本地收藏的评论快照（纯本地，34） */
+data class CommentFavorite(
+    val replyId: Long,
+    val topicId: Long,
+    val topicTitle: String,
+    val floor: Int,
+    val authorId: Long,
+    val authorName: String,
+    val avatarUrl: String,
+    val content: String,     // 纯文本摘要（收藏时从正文 HTML 提取）
+    val at: Long,
+    val timeText: String = "",
+)
+
 /** 帖子页楼层 */
 data class PostEntry(
     val id: Long,
@@ -242,30 +256,6 @@ data class OnlineUser(
     val avatarUrl: String = "",
 )
 
-/** 邀请中心（源站 /invite_code） */
-data class InviteCenter(
-    val subtitle: String = "",             // 例如 "注册可选填写邀请码"
-    val description: String = "",          // 兑换规则说明（消耗积分换码 + 被邀奖励）
-    val canExchange: Boolean = false,      // 是否存在可提交的兑换表单
-    val csrf: String = "",
-    val codes: List<InviteCode> = emptyList(),
-    val invited: List<InvitedUser> = emptyList(),
-    val emptyCodesText: String = "",
-    val emptyInvitedText: String = "",
-)
-
-/** 一个可用的邀请码 */
-data class InviteCode(
-    val code: String = "",
-)
-
-/** 通过邀请码注册的用户 */
-data class InvitedUser(
-    val userId: Long = 0,
-    val username: String = "",
-    val avatarUrl: String = "",
-    val statusText: String = "",
-)
 
 data class ForumCount(
     val id: Long,

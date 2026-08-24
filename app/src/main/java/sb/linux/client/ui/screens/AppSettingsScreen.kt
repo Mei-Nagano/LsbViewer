@@ -49,6 +49,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -539,7 +541,7 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
                     nav.navigate("browseSettings")
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("外观设置", "深浅模式 · 主题色 · 调色风格 · 卡片元素改色") {
+                SettingMenuRow("外观设置", "深浅模式 · 主题色 · 字体 · 调色风格 · 卡片元素改色") {
                     nav.navigate("themeSettings")
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -547,7 +549,7 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
                     nav.navigate("aiSettings")
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("备份设置", "导出 / 导入 JSON · WebDAV 备份") {
+                SettingMenuRow("备份设置", "导出 / 导入 JSON（含外观与字体）· WebDAV 备份") {
                     nav.navigate("transferSettings")
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -678,18 +680,19 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "选择生效分类后切换模式；当前：首页${if (homeInf) "无限滚动" else "翻页"} · 板块内${if (forumInf) "无限滚动" else "翻页"} · 帖子内${if (topicInf) "无限滚动" else "翻页"}",
+                        "选择生效分类后切换模式；当前：首页${if (homeInf) "无限滚动" else "翻页"} · 板块内${if (forumInf) "无限滚动" else "翻页"} · 评论${if (topicInf) "无限滚动" else "翻页"}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(8.dp))
-                    // 生效分类选择（MD3 FilterChip，3.13）
+                    // 生效分类选择（MD3 FilterChip，3.13）。
+                    // topic 范围实际作用于帖子内评论区的分页，故文案为「仅评论」
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
                             "all" to "全部",
                             "home" to "仅首页",
                             "forum" to "仅板块",
-                            "topic" to "仅帖子",
+                            "topic" to "仅评论",
                         ).forEach { (key, label) ->
                             FilterChip(
                                 selected = applyScope == key,
@@ -776,7 +779,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                 )
                 SwitchRow(
                     "显示打赏弹幕",
-                    "帖子顶部滚动展示打赏信息，可在帖子菜单中单独开关",
+                    "在帖子正文与评论区之间滚动展示打赏信息，可在帖子菜单中单独开关",
                     checked = session.danmakuOn,
                     onCheckedChange = { session.saveDanmaku(it) }
                 )
@@ -981,7 +984,13 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
             runCatching {
                 val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: ""
                 if (text.isBlank()) msg = "文件为空"
-                else msg = session.settings.importJson(text)?.let { "✗ $it" } ?: "✓ 导入成功"
+                else {
+                    val err = session.settings.importJson(text)
+                    if (err == null) {
+                        session.reloadPrefs()   // 导入后立即生效，无需重启
+                        msg = "✓ 导入成功，已立即生效"
+                    } else msg = "✗ $err"
+                }
             }.onFailure { msg = "导入失败：${it.message}" }
         }
     }
@@ -1012,7 +1021,11 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
         scope.launch {
             try {
                 val body = WebDav.get(url, davUser, davPass)
-                msg = session.settings.importJson(body)?.let { "✗ $it" } ?: "✓ 已从 WebDAV 恢复"
+                val err = session.settings.importJson(body)
+                if (err == null) {
+                    session.reloadPrefs()   // 恢复后立即生效，无需重启
+                    msg = "✓ 已从 WebDAV 恢复，已立即生效"
+                } else msg = "✗ $err"
             } catch (e: Exception) {
                 msg = "✗ WebDAV 恢复失败：${e.message}"
             } finally { davBusy = false }
@@ -1058,7 +1071,8 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
 
             GroupCard {
                 Text(
-                    "把浏览、外观与 AI 等应用设置导出为 JSON 文件，或在其他设备上导入恢复。",
+                    "把浏览、外观主题与字体、AI、屏蔽词及收藏的评论等全部应用设置导出为 JSON 文件，" +
+                        "或在其他设备上导入恢复，导入后立即生效。自定义字体文件本体不随备份迁移。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
@@ -1772,6 +1786,68 @@ private fun ColorSwatch(
     }
 }
 
+/** 读取 SAF 文档的显示名（用于自定义字体文件名展示） */
+private fun queryDisplayName(context: android.content.Context, uri: android.net.Uri): String =
+    runCatching {
+        context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
+        } ?: uri.lastPathSegment
+    }.getOrNull() ?: "自定义字体"
+
+/** 字体选项块（24）：以「字A」预览该字体实际观感 */
+@Composable
+private fun FontSwatch(
+    label: String,
+    fontFamily: FontFamily?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    custom: Boolean = false,
+) {
+    val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    val borderWidth = if (selected) 2.dp else 1.dp
+    Column(
+        Modifier.width(64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .border(borderWidth, borderColor, RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            contentAlignment = Alignment.Center
+        ) {
+            if (custom) {
+                Icon(
+                    Icons.Filled.Add,
+                    "导入自定义字体",
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Text(
+                    "字A",
+                    fontFamily = fontFamily,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 /**
  * 外观设置（独立分类页）：快捷切换 / 实时预览(帖子卡片元素级改色) / 主题色 / 调色风格 / 取色 / 对比度。
  * 基于 ColorBlendr 同款 HCT 主题引擎：主题色作为「种子色」，配合调色风格与对比度
@@ -1786,6 +1862,26 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
     val dark = isPreviewDark(session.themeMode)
     // 当前生效的整体配色方案（直接取自 LsbTheme 应用的主题，已含元素级覆盖）
     val currentScheme = MaterialTheme.colorScheme
+
+    // ---------- 自定义字体（24）：导入器与预览字体 ----------
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val customFontFamily = remember(session.customFontName) {
+        session.customFontFile.takeIf { it.exists() }?.let { f ->
+            runCatching { FontFamily(Font(f)) }.getOrNull()
+        }
+    }
+    val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                if (session.saveCustomFont(uri, queryDisplayName(context, uri))) {
+                    session.showToast("已应用自定义字体")
+                } else {
+                    session.showToast("导入失败：不是有效的字体文件")
+                }
+            }
+        }
+    }
 
     // 自定义主题色（种子色）取色对话框
     if (showColorPicker) {
@@ -2110,6 +2206,93 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                         checked = session.tabletMode,
                         onCheckedChange = { session.saveTabletMode(it) },
                     )
+                }
+            }
+
+            // ---------- 底栏样式：经典通栏 / 液态玻璃（悬浮胶囊 / 贴底通栏） ----------
+            item { GroupLabel("底栏样式") }
+            item {
+                GroupCard {
+                    Text(
+                        "经典为普通通栏底栏；两种液态玻璃均实时折射身后滚动内容（Android 12 以下退化为半透明条）。悬浮为居中胶囊，贴底为占满屏宽的通栏玻璃",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                    )
+                    SingleChoiceSegmentedButtonRow(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 4.dp)
+                    ) {
+                        SegmentedButton(
+                            selected = session.bottomBarStyle == 0,
+                            onClick = { session.saveBottomBarStyle(0) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+                        ) { Text("经典") }
+                        SegmentedButton(
+                            selected = session.bottomBarStyle == 1,
+                            onClick = { session.saveBottomBarStyle(1) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
+                        ) { Text("悬浮玻璃") }
+                        SegmentedButton(
+                            selected = session.bottomBarStyle == 2,
+                            onClick = { session.saveBottomBarStyle(2) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+                        ) { Text("贴底玻璃") }
+                    }
+                }
+            }
+
+            // ---------- 字体（24）：全局应用字体，支持导入自定义字体文件 ----------
+            item { GroupLabel("字体") }
+            item {
+                GroupCard {
+                    Text(
+                        "选择应用内全局字体；「自定义」从文件导入 ttf/otf 字体，导入后长按可移除",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                    )
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item(key = "default") {
+                            FontSwatch(
+                                label = "默认",
+                                fontFamily = null,
+                                selected = session.fontKey == "default",
+                                onClick = { session.saveFont("default") }
+                            )
+                        }
+                        item(key = "custom") {
+                            FontSwatch(
+                                label = session.customFontName
+                                    .removeSuffix(".ttf").removeSuffix(".otf")
+                                    .ifBlank { "自定义" },
+                                fontFamily = customFontFamily,
+                                selected = session.fontKey == "custom",
+                                custom = customFontFamily == null,
+                                onClick = {
+                                    if (customFontFamily == null) {
+                                        fontPicker.launch(
+                                            arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                                        )
+                                    } else {
+                                        session.saveFont("custom")
+                                    }
+                                },
+                                onLongClick = if (customFontFamily != null) {
+                                    {
+                                        session.clearCustomFont()
+                                        session.showToast("已移除自定义字体")
+                                    }
+                                } else null
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
             }
             item { Spacer(Modifier.height(24.dp)) }
@@ -2565,6 +2748,8 @@ fun AboutScreen(session: Session, nav: NavHostController) {
                     "检查更新",
                     if (updateState.checking) "正在检查…" else "检查 GitHub 最新版本",
                 ) { doCheck(false) }
+                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                SettingMenuRow("意见反馈", "GitHub Issues") { openExternal("${UpdateChecker.PROJECT_URL}/issues/new") }
             }
             updateState.msg?.let {
                 Spacer(Modifier.height(12.dp))

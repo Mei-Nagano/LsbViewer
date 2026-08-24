@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -147,7 +149,10 @@ fun HomeScreen(
     // 列表视口高度随之伸缩；翻页模式底部内容固定，视口一缩最下面的帖子和翻页条就被顶出屏幕，
     // 且下滑 fling 与视口伸缩竞争会提前停住——表现为到底后要再滑几次才能露出翻页条。
     // 按位置判定后，列表滚出首条起视口稳定不变，一次滑动即可到达翻页条。
-    var topBarVisible by remember { mutableStateOf(true) }
+    // 初始值直接取恢复后的列表位置：从帖子返回时列表通常不在顶部（滚动位置已由
+    // rememberLazyListState 恢复），若固定以 true 起始，顶栏会先展开再收起，
+    // 视口高度突变导致列表内容整体跳动一下
+    var topBarVisible by remember { mutableStateOf(listState.firstVisibleItemIndex == 0) }
     val derivedTopVisible by remember {
         derivedStateOf { listState.firstVisibleItemIndex == 0 }
     }
@@ -540,7 +545,7 @@ fun HomeScreen(
                     } else {
                         TopAppBar(
                             windowInsets = WindowInsets(0, 0, 0, 0),
-                            title = { Text("烧饼社区") },
+                            title = { Text("LINUX SB") },
                             navigationIcon = {
                                 // 平板双栏：侧边栏按钮已移到左侧导航栏顶部，顶栏不再重复展示
                                 if (masterNav == null) {
@@ -578,6 +583,12 @@ fun HomeScreen(
                                         Icon(Icons.Filled.MoreVert, "菜单")
                                     }
                                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                        // 发帖：与源站网页端一致（支持帖子类型等表单附加字段）
+                                        DropdownMenuItem(
+                                            text = { Text("发帖") },
+                                            leadingIcon = { Icon(Icons.Filled.Edit, null) },
+                                            onClick = { menuOpen = false; nav.navigate("newTopic") }
+                                        )
                                         DropdownMenuItem(
                                             text = { Text("刷新") },
                                             leadingIcon = { Icon(Icons.Filled.Refresh, null) },
@@ -758,7 +769,17 @@ fun HomeScreen(
                             LazyColumn(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(vertical = 8.dp)
+                                // 底部留白让末条内容可滚出玻璃底栏（23）：
+                                // 玻璃条高 58 +（悬浮额外边距 14）+ 系统导航栏 inset；
+                                // 经典底栏由 Scaffold bottomBar inset 处理，不加此留白
+                                contentPadding = PaddingValues(
+                                    top = 8.dp,
+                                    bottom = if (session.bottomBarStyle != 0) {
+                                        8.dp + (if (session.bottomBarStyle == 1) 72.dp else 58.dp) +
+                                            WindowInsets.navigationBars
+                                                .asPaddingValues().calculateBottomPadding()
+                                    } else 8.dp
+                                )
                             ) {
                                 items(
                                     pagedTopics,
@@ -882,9 +903,10 @@ private fun HomeSidebarDrawer(
                             IconButton(
                                 onClick = { onClose(); onOpenUser(state.userId) },
                                 modifier = Modifier
+                                    .size(24.dp)
                                     .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f), CircleShape)
                             ) {
-                                Icon(Icons.Filled.Person, "主页", modifier = Modifier.size(20.dp))
+                                Icon(Icons.Filled.Person, "主页", modifier = Modifier.size(17.dp))
                             }
                         } else {
                             Column(Modifier.weight(1f)) {

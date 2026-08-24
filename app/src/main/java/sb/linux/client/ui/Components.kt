@@ -1,11 +1,11 @@
 package sb.linux.client.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -61,7 +61,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
@@ -157,7 +159,15 @@ private fun isSvgContents(b: ByteArray): Boolean {
 private fun renderSvgToBitmap(svg: ByteArray, px: Int): Bitmap? = runCatching {
     val png = svgToPng(svg, RenderOptions(px.toFloat(), px.toFloat(), null, FitMode.CONTAIN))
     BitmapFactory.decodeByteArray(png, 0, png.size)
-}.getOrNull()
+}.onFailure { android.util.Log.e("ResvgRender", "SVG render failed (px=$px, bytes=${svg.size})", it) }
+    .getOrNull()
+
+/**
+ * SVG 渲染结果缓存（url + 目标像素 → Bitmap）：
+ * 头像列表项滚出视野后状态丢弃，滚回时若不缓存，同一 SVG 会经 JNA 反复重渲染，
+ * 快速滑动时 CPU 开销显著。容量按个数计（头像 Bitmap 约 px*px*4 字节，64 个足够）。
+ */
+private val svgBitmapCache = android.util.LruCache<String, Bitmap>(64)
 
 @Composable
 fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: Boolean = false) {
@@ -165,20 +175,38 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
     val app = context.applicationContext as LsbApp
     val target = url.trim()
     val px = with(LocalDensity.current) { size.dp.roundToPx() }
+    // 首帧同步缓存窥探：字节已进内存缓存（此前展示过）时跳过 IO 协程调度，
+    // 直接以就绪态组合——列表滚回视野的缓存命中头像不闪占位符、不掉帧
+    val initialBytes = remember(target) {
+        if (target.isEmpty()) ByteArray(0) else app.client.peekAvatarBytes(target)
+    }
     // null=加载中；空数组=fetchBytes 失败（转 URL 兜底）；非空=字节就绪
-    val fetch by produceState<ByteArray?>(null, target) {
-        value = withContext(Dispatchers.IO) {
-            if (target.isEmpty()) ByteArray(0)
-            else runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
+    val fetch by produceState<ByteArray?>(initialBytes, target) {
+        if (value == null) {
+            value = withContext(Dispatchers.IO) {
+                if (target.isEmpty()) ByteArray(0)
+                else runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
+            }
         }
     }
     val b = fetch
     // SVG 头像：直接用 resvg 渲染成 Bitmap，不走 Coil；非 SVG / 未就绪为 null
-    val svgBitmap by produceState<Bitmap?>(null, target, b, px) {
+    // 初始值同步查渲染缓存：滚回视野的 SVG 头像首帧直接出图
+    val svgBitmap by produceState<Bitmap?>(
+        initialValue = run {
+            val key = "$target#$px"
+            if (b != null && b.isNotEmpty() && isSvgContents(b)) svgBitmapCache.get(key) else null
+        },
+        target, b, px,
+    ) {
         value = if (b != null && b.isNotEmpty() && isSvgContents(b)) {
-            withContext(Dispatchers.IO) { renderSvgToBitmap(b, px) }
+            val key = "$target#$px"
+            svgBitmapCache.get(key) ?: withContext(Dispatchers.IO) {
+                renderSvgToBitmap(b, px)
+            }?.also { svgBitmapCache.put(key, it) }
         } else null
     }
+
     // 加载中（b==null）不发起图片请求；字节就绪用字节渲染，fetchBytes 失败才用 URL 直载
     val model = remember(target, px, b) {
         if (target.isEmpty() || b == null) null
@@ -226,14 +254,17 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
                 // 加载中 / 服务端未提供头像 URL：显示占位图标
                 fallback()
             } else {
-                // loading / error 均显示兜底图标，避免解码失败时"显示一下就没影"
-                SubcomposeAsyncImage(
-                    model = model,
-                    contentDescription = null,
-                    modifier = Modifier.size(size.dp),
-                    loading = { fallback() },
-                    error = { fallback() }
-                )
+                // 占位图标垫底 + 普通 AsyncImage 覆盖：加载中/失败时露出兜底图标，
+                // 成功后图片盖在其上。不用 SubcomposeAsyncImage——每个头像一次子组合，
+                // 列表快滑时开销显著（滚动掉帧的主因）
+                Box(Modifier.size(size.dp), contentAlignment = Alignment.Center) {
+                    fallback()
+                    AsyncImage(
+                        model = model,
+                        contentDescription = null,
+                        modifier = Modifier.size(size.dp),
+                    )
+                }
             }
         }
         // 源站在线状态：右下角绿点（带描边，与源站头像上的 online-users-dot 一致）
@@ -372,162 +403,186 @@ fun TopicCardView(
                 if (onElementClick != null) onElementClick(CardColorOverrides.BACKGROUND) else onClick()
             }),
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
-            if (!compact) {
-                Avatar(card.avatarUrl, 34, online = card.online)
-                Spacer(Modifier.width(10.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                // 顶行：标题（含标签）占左侧，板块标识固定在卡片右上角，与置顶/热等标签同一行以节省高度
-                Row(verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
-                        // 帖子标签（置顶/热/精华/未读/抽奖/发卡）置于标题前面
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            modifier = Modifier.let { m ->
-                                if (onElementClick != null)
-                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TAG) }
-                                else m
-                            }
-                        ) {
-                    if (tagColor != null) {
-                        // 自定义标签色：统一应用（前景自动黑/白）
-                        val fg = onColorFor(tagColor)
-                        if (card.pinned) Badge("置顶", tagColor, fg)
-                        if (card.hot) Badge("热", tagColor, fg)
-                        if (card.featured) Badge("精华", tagColor, fg)
-                        if (card.unread) Badge("未读", tagColor, fg)
-                        if (card.lotteryStatus.isNotBlank()) Badge(card.lotteryStatus, tagColor, fg)
-                        if (card.cardStatus.isNotBlank()) Badge(card.cardStatus, tagColor, fg)
-                    } else {
-                        if (card.pinned) Badge("置顶", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-                        if (card.hot) Badge("热", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
-                        if (card.featured) Badge("精华", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
-                        if (card.unread) Badge("未读", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-                        if (card.lotteryStatus.isNotBlank()) {
-                            val open = card.lotteryStatus.contains("开奖").not()
-                            Badge(
-                                card.lotteryStatus,
-                                if (open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                if (open) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                        if (card.cardStatus.isNotBlank()) {
-                            val active = card.cardStatus.contains("结束").not()
-                            Badge(
-                                card.cardStatus,
-                                if (active) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.outline,
-                                if (active) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
+        Box {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+                if (!compact) {
+                    Avatar(card.avatarUrl, 34, online = card.online)
+                    Spacer(Modifier.width(10.dp))
                 }
-                    Text(
-                        card.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (card.pinned || card.featured) FontWeight.Bold else FontWeight.SemiBold,
-                        // 标题颜色不可自定义，仅保留源站解析出的彩色标题
-                        color = titleColor ?: Color.Unspecified,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.1f,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                    Spacer(Modifier.size(4.dp))
-                    // 用户名 / 时间 / 评论数：不使用分隔点。
-                    // 用 FlowRow 让行内放不下时自动换行，避免称号徽章挤占导致用户名被截断
-                    FlowRow(
-                        verticalArrangement = Arrangement.Center,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            card.authorName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = userOverride ?: MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .let { m ->
-                                    if (onElementClick != null)
-                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.USER) }
-                                    else m
-                                }
-                        )
-                        // 作者称号（源站称号系统徽章）：用 small 缩小比例，避免过宽/换行
-                        card.titleBadge?.let {
-                            TitleBadgeView(it, small = true)
-                        }
-                        Text(
-                            card.timeText,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.let { m ->
-                                if (onElementClick != null)
-                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TIME) }
-                                else m
-                            }
-                        )
-                        if (!compact && showComments) {
+                Column(Modifier.weight(1f)) {
+                    // 顶行：标签+标题占左侧，板块标识固定在卡片右上角，同一行以节省高度
+                    Row(verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f)) {
+                            // 帖子标签（热/精华/未读/抽奖/发卡）置于标题前面；
+                            // 置顶不再是文字标签——改为卡片右上角背景图钉水印（见卡片末尾）
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
                                 modifier = Modifier.let { m ->
                                     if (onElementClick != null)
-                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.COMMENTS) }
+                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TAG) }
                                     else m
                                 }
                             ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.Chat, null,
-                                    modifier = Modifier.size(12.dp),
-                                    tint = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                if (tagColor != null) {
+                                    // 自定义标签色：统一应用（前景自动黑/白）
+                                    val fg = onColorFor(tagColor)
+                                    if (card.hot) Badge("热", tagColor, fg)
+                                    if (card.featured) Badge("精华", tagColor, fg)
+                                    if (card.unread) Badge("未读", tagColor, fg)
+                                    if (card.lotteryStatus.isNotBlank()) Badge(card.lotteryStatus, tagColor, fg)
+                                    if (card.cardStatus.isNotBlank()) Badge(card.cardStatus, tagColor, fg)
+                                } else {
+                                    if (card.hot) Badge("热", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+                                    if (card.featured) Badge("精华", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+                                    if (card.unread) Badge("未读", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                                    if (card.lotteryStatus.isNotBlank()) {
+                                        val open = card.lotteryStatus.contains("开奖").not()
+                                        Badge(
+                                            card.lotteryStatus,
+                                            if (open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                            if (open) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                    if (card.cardStatus.isNotBlank()) {
+                                        val active = card.cardStatus.contains("结束").not()
+                                        Badge(
+                                            card.cardStatus,
+                                            if (active) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.outline,
+                                            if (active) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                card.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = if (card.pinned || card.featured) FontWeight.Bold else FontWeight.SemiBold,
+                                // 标题颜色不可自定义，仅保留源站解析出的彩色标题
+                                color = titleColor ?: Color.Unspecified,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.1f,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                            Spacer(Modifier.size(4.dp))
+                            // 用户名 / 时间 / 评论数：不使用分隔点。
+                            // 用 FlowRow 让行内放不下时自动换行，避免称号徽章挤占导致用户名被截断
+                            FlowRow(
+                                verticalArrangement = Arrangement.Center,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                                 Text(
-                                    "${card.replies}",
+                                    card.authorName,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = userOverride ?: MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .let { m ->
+                                            if (onElementClick != null)
+                                                m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.USER) }
+                                            else m
+                                        }
+                                )
+                                // 作者称号（源站称号系统徽章）：用 small 缩小比例，避免过宽/换行
+                                card.titleBadge?.let {
+                                    TitleBadgeView(it, small = true)
+                                }
+                                Text(
+                                    card.timeText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.let { m ->
+                                        if (onElementClick != null)
+                                            m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TIME) }
+                                        else m
+                                    }
+                                )
+                                if (!compact && showComments) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        modifier = Modifier.let { m ->
+                                            if (onElementClick != null)
+                                                m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.COMMENTS) }
+                                            else m
+                                        }
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.Chat, null,
+                                            modifier = Modifier.size(12.dp),
+                                            tint = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            "${card.replies}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        // 板块标识：固定在卡片右上角（与标签行顶部对齐）
+                        if (showForum) {
+                            Spacer(Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                                onClick = {
+                                    if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
+                                    else onForumClick(card.forumId)
+                                }
+                            ) {
+                                Text(
+                                    card.forumName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = forumOverride?.let { onColorFor(it) }
+                                        ?: MaterialTheme.colorScheme.onSecondaryContainer,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
                         }
                     }
                 }
-                // 板块标识：固定在卡片右上角（与标题顶部对齐）
-                if (showForum) {
-                    Spacer(Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
-                        onClick = {
-                            if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
-                            else onForumClick(card.forumId)
-                        }
-                    ) {
-                        Text(
-                            card.forumName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = forumOverride?.let { onColorFor(it) }
-                                ?: MaterialTheme.colorScheme.onSecondaryContainer,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
+            }
+            // 置顶图钉：卡片背景右上角的简约线条图标（钉头横杆 + 钉身 + 收尖钉尖，半透明，17）
+            if (card.pinned) {
+                val pinColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                Canvas(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 7.dp, end = 8.dp)
+                        .size(15.dp)
+                ) {
+                    val w = 1.4.dp.toPx()
+                    val cap = StrokeCap.Round
+                    val cx = 7.5.dp.toPx()
+                    // 钉头：顶部横杆
+                    drawLine(pinColor, Offset(3.5.dp.toPx(), 1.8.dp.toPx()), Offset(11.5.dp.toPx(), 1.8.dp.toPx()), w, cap)
+                    // 钉身：竖直杆
+                    drawLine(pinColor, Offset(cx, 1.8.dp.toPx()), Offset(cx, 9.2.dp.toPx()), w, cap)
+                    // 钉尖：两侧收拢成尖
+                    drawLine(pinColor, Offset(5.8.dp.toPx(), 9.2.dp.toPx()), Offset(cx, 14.2.dp.toPx()), w, cap)
+                    drawLine(pinColor, Offset(9.2.dp.toPx(), 9.2.dp.toPx()), Offset(cx, 14.2.dp.toPx()), w, cap)
                 }
             }
         }
     }
 }
-}
 
-/** 分页条：圆形前后翻页按钮 + 宽页码胶囊，三者同尺寸 */
+/** 分页条：单个加宽胶囊，前后翻页箭头并入胶囊两端（36） */
 @Composable
 fun PaginationBar(page: Int, totalPages: Int, onPage: (Int) -> Unit) {
     if (totalPages <= 1) return
-    // 按钮与页码统一高度
-    val btnSize = 36.dp
+    // 胶囊整体高度，两端箭头为等宽可点区域
+    val h = 40.dp
+    val normalTint = MaterialTheme.colorScheme.onSurface
+    val disabledTint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
     Row(
         Modifier
             .fillMaxWidth()
@@ -535,61 +590,60 @@ fun PaginationBar(page: Int, totalPages: Int, onPage: (Int) -> Unit) {
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 上一页：圆形按钮，与页码同高
-        Surface(
-            onClick = { onPage((page - 1).coerceAtLeast(1)) },
-            enabled = page > 1,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.size(btnSize)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                    "上一页",
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-        // 页码胶囊：加宽背景容器
         Surface(
             shape = RoundedCornerShape(50),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier
-                .padding(horizontal = 10.dp)
-                .height(btnSize)
+            modifier = Modifier.height(h)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(horizontal = 34.dp)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 上一页：胶囊内左端箭头（首页时禁用变淡）
+                Box(
+                    Modifier
+                        .size(h)
+                        .clip(CircleShape)
+                        .then(
+                            if (page > 1) Modifier.clickable { onPage((page - 1).coerceAtLeast(1)) }
+                            else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        "上一页",
+                        modifier = Modifier.size(20.dp),
+                        tint = if (page > 1) normalTint else disabledTint
+                    )
+                }
                 Text(
                     "$page",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 6.dp)
                 )
                 Text(
                     " / $totalPages",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 6.dp)
                 )
-            }
-        }
-        // 下一页：圆形按钮，与页码同高
-        Surface(
-            onClick = { onPage((page + 1).coerceAtMost(totalPages)) },
-            enabled = page < totalPages,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.size(btnSize)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    "下一页",
-                    modifier = Modifier.size(20.dp)
-                )
+                // 下一页：胶囊内右端箭头（末页时禁用变淡）
+                Box(
+                    Modifier
+                        .size(h)
+                        .clip(CircleShape)
+                        .then(
+                            if (page < totalPages) Modifier.clickable { onPage((page + 1).coerceAtMost(totalPages)) }
+                            else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        "下一页",
+                        modifier = Modifier.size(20.dp),
+                        tint = if (page < totalPages) normalTint else disabledTint
+                    )
+                }
             }
         }
     }
@@ -706,6 +760,12 @@ internal fun formatViews(v: Int): String = when {
 
 // ---------------- HTML 内容渲染 ----------------
 
+/** 表格单元格数据（正文 <table> 解析产物） */
+private data class TableCellData(
+    val text: String,
+    val isHeader: Boolean,
+)
+
 private data class ContentBlock(
     val annotated: AnnotatedString? = null,
     val imageUrl: String? = null,
@@ -717,6 +777,7 @@ private data class ContentBlock(
     val headingLevel: Int = 0,     // 标题级别 1~4，用于排版字号缩放
     val isList: Boolean = false,   // 列表项：悬挂缩进展示（对应源站 <ul>/<ol>）
     val indent: Int = 0,           // 嵌套列表层级
+    val tableRows: List<List<TableCellData>> = emptyList(),  // 表格：按行列结构渲染
 )
 
 /**
@@ -729,7 +790,14 @@ private data class ContentBlock(
 fun HtmlContent(html: String, modifier: Modifier = Modifier, onFloor: (Int) -> Unit = {}) {
     val linkColor = MaterialTheme.colorScheme.primary
     val codeBg = MaterialTheme.colorScheme.surfaceContainerHighest
-    val blocks = remember(html) { parseHtmlToBlocks(html, linkColor, codeBg) }
+    // 解析结果全局缓存：楼层滚出视野后组合销毁，滚回时若只靠 remember 会
+    // 在主线程重新跑 Jsoup 解析 + 富文本构建（长帖快滑的掉帧主因）。
+    // 键带上主题链接/代码块颜色（解析产物中已烘焙颜色，换主题需重解析）
+    val blocks = remember(html, linkColor, codeBg) {
+        val key = "$linkColor|$codeBg|${html.hashCode()}.${html.length}"
+        htmlBlockCache.get(key) ?: parseHtmlToBlocks(html, linkColor, codeBg)
+            .also { htmlBlockCache.put(key, it) }
+    }
     val uriHandler = LocalUriHandler.current
     // 常规设置「打开链接方式」处理入口（3.20）：未提供时回退外部浏览器
     val linkHandler = LocalLinkHandler.current
@@ -770,6 +838,7 @@ fun HtmlContent(html: String, modifier: Modifier = Modifier, onFloor: (Int) -> U
                     )
                 }
                 b.isCode -> CodeBlockView(b.annotated!!.text)
+                b.tableRows.isNotEmpty() -> TableView(b.tableRows)
                 b.isQuote -> {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -841,13 +910,17 @@ private fun headingStyle(level: Int): androidx.compose.ui.text.TextStyle {
 
 /**
  * 代码块容器：左上角「代码块」标题，右上角复制 / 展开折叠按钮。
- * 默认折叠（限高 + 纵向滚动），展开后完整显示（横向滚动）。
+ * 超过阈值长度才默认折叠（限高 + 纵向滚动）并显示折叠按钮；短代码完整显示且无折叠按钮（31）。
  */
 @Composable
 fun CodeBlockView(code: String) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    var expanded by remember(code) { mutableStateOf(false) }
+    // 超长判定：行数超过 12 行或字符超过 600 才视为长代码
+    val longCode = remember(code) {
+        code.count { it == '\n' } + 1 > 12 || code.length > 600
+    }
+    var expanded by remember(code) { mutableStateOf(!longCode) }
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -879,16 +952,19 @@ fun CodeBlockView(code: String) {
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                IconButton(
-                    onClick = { expanded = !expanded },
-                    modifier = Modifier.size(30.dp)
-                ) {
-                    Icon(
-                        if (expanded) Icons.Filled.UnfoldLess else Icons.Filled.UnfoldMore,
-                        if (expanded) "折叠" else "展开",
-                        Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                // 折叠按钮仅长代码显示（31）
+                if (longCode) {
+                    IconButton(
+                        onClick = { expanded = !expanded },
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Icon(
+                            if (expanded) Icons.Filled.UnfoldLess else Icons.Filled.UnfoldMore,
+                            if (expanded) "折叠" else "展开",
+                            Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
             val text = @Composable {
@@ -899,11 +975,8 @@ fun CodeBlockView(code: String) {
                 )
             }
             if (expanded) {
-                Box(
-                    Modifier
-                        .padding(12.dp)
-                        .horizontalScroll(rememberScrollState())
-                ) { text() }
+                // 展开态不再横向滚动：长行自动换行，完整显示无需滑动
+                Box(Modifier.padding(12.dp)) { text() }
             } else {
                 // 折叠态：限高 + 纵向滚动，长代码不占满屏幕
                 Box(
@@ -912,6 +985,62 @@ fun CodeBlockView(code: String) {
                         .verticalScroll(rememberScrollState())
                         .padding(12.dp)
                 ) { text() }
+            }
+        }
+    }
+}
+
+/**
+ * 正文表格：按行列结构渲染的网格。
+ * 列宽均分（weight），单元格文本自动换行，超宽表格无需横向滑动；
+ * 表头行（th）加粗并加背景色区分。
+ */
+@Composable
+private fun TableView(rows: List<List<TableCellData>>) {
+    val colCount = rows.maxOf { it.size }
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+        modifier = Modifier.padding(vertical = 4.dp)
+    ) {
+        Column(Modifier.padding(6.dp)) {
+            rows.forEachIndexed { rIdx, row ->
+                // 首个含表头的行视为表头行，整行加背景
+                val isHeaderRow = row.any { it.isHeader }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (isHeaderRow) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            else Color.Transparent
+                        )
+                ) {
+                    repeat(colCount) { cIdx ->
+                        val cell = row.getOrNull(cIdx)
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .padding(horizontal = 5.dp, vertical = 4.dp)
+                        ) {
+                            if (!cell?.text.isNullOrBlank()) {
+                                Text(
+                                    cell!!.text,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = if (cell.isHeader) FontWeight.Bold else null,
+                                    color = if (cell.isHeader) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+                if (rIdx < rows.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 2.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
+                }
             }
         }
     }
@@ -1115,61 +1244,6 @@ private suspend fun saveImageToGallery(context: android.content.Context, url: St
         }.getOrDefault(false)
     }
 
-/**
- * 全屏查看单张头像大图。SVG 头像走 resvg 归一化渲染（位图兼容性最佳），位图头像走 Coil；
- * 支持缩放 / 双击放大 / 单击关闭。
- * @param url 头像绝对地址（相对地址请先经 Endpoints.abs / HtmlParser.absUrl 归一化）
- */
-@Composable
-fun AvatarViewer(url: String, onDismiss: () -> Unit) {
-    val target = url.trim()
-    // LocalContext 属 Composable 作用域，须在协程块外捕获，否则编译报错
-    val app = (LocalContext.current.applicationContext as LsbApp)
-    // null=加载中；空数组=获取失败；否则字节就绪（仅以 target 为键，避免 onDismiss 闭包身份变化触发重复拉取）
-    val fetch by produceState<ByteArray?>(null, target) {
-        if (target.isEmpty()) value = ByteArray(0)
-        else value = withContext(Dispatchers.IO) {
-            runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
-        }
-    }
-    val px = with(LocalDensity.current) { 512.dp.roundToPx() }
-    val svgBitmap by produceState<android.graphics.Bitmap?>(null, target, fetch, px) {
-        val b = fetch
-        value = if (b != null && b.isNotEmpty() && isSvgContents(b)) {
-            withContext(Dispatchers.IO) { renderSvgToBitmap(b, px) }
-        } else null
-    }
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .clipToBounds()
-                .background(Color.Black)
-        ) {
-            ZoomableImage(
-                url = target,
-                onSingleTap = onDismiss,
-                onLongPress = onDismiss,
-                bitmap = svgBitmap,
-            )
-            Surface(
-                shape = CircleShape,
-                color = Color(0x66000000),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(12.dp)
-            ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, "关闭", tint = Color.White)
-                }
-            }
-        }
-    }
-}
-
 /** 支持双指缩放 / 双击放大 / 单击关闭 / 长按保存的单张图片。
  *  使用 detectTransformGestures 处理缩放+平移，自动消费双指手势避免父级 HorizontalPager 误翻页；
  *  未缩放（scale≈1）时单指左右滑动交给 Pager 翻页，双指捏合时接管缩放（可缩小到 0.5x、放大到 6x）。 */
@@ -1245,6 +1319,10 @@ private fun ZoomableImage(
         }
     }
 }
+
+/** 帖子 HTML 解析结果缓存（键：主题色 + html）：
+ *  楼层滚回视野时直接命中，避免主线程重复 Jsoup 解析。按条数限容（约 48 个楼层正文）。 */
+private val htmlBlockCache = android.util.LruCache<String, List<ContentBlock>>(48)
 
 private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): List<ContentBlock> {
     val root = runCatching { Jsoup.parseBodyFragment(html).body() }.getOrNull() ?: return emptyList()
@@ -1374,22 +1452,14 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
                 }
                 "img" -> blocks.add(ContentBlock(imageUrl = abs(c)))
                 "table" -> {
-                    // 表格按行拼接为 "列1 | 列2" 文本
-                    c.select("tr").forEach { tr ->
-                        val cells = tr.select("th, td").map { it.text().trim() }
-                        if (cells.any { it.isNotBlank() }) {
-                            blocks.add(
-                                ContentBlock(
-                                    annotated = buildAnnotatedString {
-                                        withStyle(SpanStyle(fontWeight = if (tr.selectFirst("th") != null) FontWeight.Bold else null)) {
-                                            append(cells.joinToString("  |  "))
-                                        }
-                                    },
-                                    isCode = false
-                                )
-                            )
+                    // 表格按行列结构解析，渲染为真正的网格（含表头加粗）
+                    val rows = c.select("tr").mapNotNull { tr ->
+                        val cells = tr.select("th, td").map { td ->
+                            TableCellData(td.text().trim(), td.tagName().lowercase() == "th")
                         }
+                        if (cells.any { it.text.isNotBlank() }) cells else null
                     }
+                    if (rows.isNotEmpty()) blocks.add(ContentBlock(tableRows = rows))
                 }
                 "br" -> {}
                 else -> renderBlock(c)?.let { blocks.add(it) }

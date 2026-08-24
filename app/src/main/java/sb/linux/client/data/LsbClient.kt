@@ -392,6 +392,10 @@ class LsbClient(private val context: Context) {
      * 三重防护：并发去重（同 URL 只发一次请求）、魔数校验（防验证页 HTML 混入缓存）、
      * 磁盘缓存读取时再校验（历史坏缓存自动删除自愈，不再永久显示失败）。
      */
+    /** 同步窥探头像内存缓存（无网络/磁盘 IO）：列表滚动时缓存命中的头像首帧直接出图，
+     *  免去 IO 协程调度与占位符→图片的跳变（快滑掉帧与头像闪现的主因） */
+    fun peekAvatarBytes(url: String): ByteArray? = avatarMemoryCache[url]
+
     suspend fun fetchBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
         avatarMemoryCache[url]?.let { return@withContext it }
         // v2 前缀：读取时校验魔数；旧版（未校验内容即写入）残留的验证页 HTML 等坏文件在此自愈删除
@@ -458,9 +462,13 @@ class LsbClient(private val context: Context) {
         return result ?: throw LsbException("图片加载失败")
     }
 
-    suspend fun postForm(path: String, form: Map<String, String>): Resp = withContext(Dispatchers.IO) {
+    suspend fun postForm(path: String, form: Map<String, String>): Resp =
+        postFormPairs(path, form.entries.map { it.key to it.value })
+
+    /** 键值对表单提交（支持重复键：发帖的奖品数组字段 lottery_prize_name[] 等需要） */
+    suspend fun postFormPairs(path: String, pairs: List<Pair<String, String>>): Resp = withContext(Dispatchers.IO) {
         val b = FormBody.Builder()
-        form.forEach { (k, v) -> b.add(k, v) }
+        pairs.forEach { (k, v) -> b.add(k, v) }
         val req = Request.Builder().url(Endpoints.abs(path))
             .header("User-Agent", UA)
             .post(b.build())

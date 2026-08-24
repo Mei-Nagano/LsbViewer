@@ -164,18 +164,6 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
                                 Text("屏蔽词管理")
                             }
                         }
-                        // ---------- 邀请码管理 ----------
-                        item {
-                            OutlinedButton(
-                                onClick = { nav.navigate("inviteCenter") },
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Filled.ContentCopy, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("邀请码管理")
-                            }
-                        }
                         // ---------- 各表单卡片（上传头像/简介/密码…按源站实际动态渲染） ----------
                         // 过滤：纯复选框的个人资料表单、保存新邮箱设置、账号安全安全退出（按需求隐藏）
                         val forms = p.forms.filterNot { f ->

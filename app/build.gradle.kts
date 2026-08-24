@@ -2,13 +2,12 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "sb.linux.client"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "sb.linux.client"
@@ -30,21 +29,6 @@ android {
             reset()
             include("armeabi-v7a", "arm64-v8a")
             isUniversalApk = true
-        }
-    }
-
-    // APK 命名带版本号：LinuxSB-v{versionName}-{abi}.apk（4.1）
-    applicationVariants.all {
-        val variant = this
-        variant.outputs.all {
-            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            val abi = output.getFilter(com.android.build.OutputFile.ABI)
-            val abiLabel = when (abi) {
-                "arm64-v8a" -> "armv8a"
-                "armeabi-v7a" -> "armv7a"
-                else -> "universal"
-            }
-            outputFileName = "LinuxSB-v${variant.versionName}-$abiLabel.apk"
         }
     }
 
@@ -82,9 +66,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
     }
@@ -98,13 +79,33 @@ android {
     }
 }
 
+// APK 命名带版本号：LinuxSB-v{versionName}-{abi}.apk（4.1）
+// AGP 9 移除了旧 Variant API（applicationVariants.all / BaseVariantOutputImpl），
+// onAllVariants 也改为 onVariants(selector().all()) 新签名
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.forEach { output ->
+            val abi = output.filters.firstOrNull {
+                it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI
+            }?.identifier
+            val abiLabel = when (abi) {
+                "arm64-v8a" -> "armv8a"
+                "armeabi-v7a" -> "armv7a"
+                else -> "universal"
+            }
+            val vName = output.versionName.orNull ?: "0.0.0"
+            output.outputFileName.set("LinuxSB-v$vName-$abiLabel.apk")
+        }
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -127,6 +128,14 @@ dependencies {
 
     // ColorBlendr 同款 HCT 主题引擎（material-color-utilities 的 Kotlin 封装）
     implementation("com.materialkolor:material-kolor:2.0.2")
+
+    // 液态玻璃（23）：Kyant0 Backdrop 2.0.0 高级效果版——lens 边缘折射支持
+    // depthEffect 深度折射与 chromaticAberration 色散，drawBackdrop 默认附带
+    // highlight 高光描边与 shadow 投影。其 Kotlin 元数据 2.3.0 可被 AGP 9.2.1
+    // 内置 Kotlin 2.2.10 读取（n+1 规则）；传递依赖 io.github.kyant0:shapes
+    // 提供 RoundedRectangularShape；Compose 依赖与 BOM 2026.06.01（1.11）对齐，
+    // 无需再 exclude
+    implementation("io.github.kyant0:backdrop:2.0.0")
 
     testImplementation("org.jsoup:jsoup:1.18.3")
     testImplementation("junit:junit:4.13.2")

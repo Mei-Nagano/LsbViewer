@@ -95,7 +95,6 @@ fun MeScreen(session: Session, nav: NavHostController) {
 
                 MenuGroup("功能") {
                     MenuRow(Icons.Filled.CheckCircle, "每日签到") { nav.navigate("checkin") }
-                    MenuRow(Icons.Filled.CardGiftcard, "邀请码管理") { nav.navigate("inviteCenter") }
                     MenuRow(Icons.Filled.Leaderboard, "用户榜单") { nav.navigate("leaderboard?type=points") }
                     MenuRow(Icons.Filled.History, "浏览历史") { nav.navigate("footprint") }
                     MenuRow(Icons.Filled.Favorite, "收藏内容") { nav.navigate("favorites") }

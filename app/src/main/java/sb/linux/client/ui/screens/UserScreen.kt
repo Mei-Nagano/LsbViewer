@@ -49,7 +49,6 @@ fun UserScreen(session: Session, nav: NavHostController) {
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
-    var showAvatar by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val userListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
 
@@ -176,31 +175,38 @@ fun UserScreen(session: Session, nav: NavHostController) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Avatar(
                                     p.avatarUrl, 60, online = p.online,
-                                    modifier = Modifier.clickable { showAvatar = true }
                                 )
                                 Spacer(Modifier.width(14.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(p.username, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                    // 称号（源站称号系统徽章）+ 用户组
-                                    if (p.titleBadge != null || p.userGroup.isNotBlank()) {
+                                    // 名字 + 称号（35：称号紧跟名字后面展示，不单独占一行）
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            p.username,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        p.titleBadge?.let {
+                                            Spacer(Modifier.width(8.dp))
+                                            TitleBadgeView(it)
+                                        }
+                                    }
+                                    // 用户组
+                                    if (p.userGroup.isNotBlank()) {
                                         Spacer(Modifier.height(4.dp))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            p.titleBadge?.let { TitleBadgeView(it) }
-                                            if (p.userGroup.isNotBlank()) {
-                                                if (p.titleBadge != null) Spacer(Modifier.width(6.dp))
-                                                Surface(
-                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                                                    color = MaterialTheme.colorScheme.secondaryContainer
-                                                ) {
-                                                    Text(
-                                                        p.userGroup,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                                    )
-                                                }
-                                            }
+                                        Surface(
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                                            color = MaterialTheme.colorScheme.secondaryContainer
+                                        ) {
+                                            Text(
+                                                p.userGroup,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
                                         }
                                     }
                                 }
@@ -482,12 +488,6 @@ fun UserScreen(session: Session, nav: NavHostController) {
                 }
             }
         }
-    }
-
-    // 点击头像后全屏查看大图（SVG 头像走 resvg 归一化渲染）
-    if (showAvatar) {
-        val a = profile?.avatarUrl
-        if (!a.isNullOrBlank()) AvatarViewer(a) { showAvatar = false }
     }
 }
 
