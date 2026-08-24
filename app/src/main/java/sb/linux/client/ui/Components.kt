@@ -296,14 +296,14 @@ fun Badge(text: String, bg: Color, fg: Color, small: Boolean = false) {
     Surface(shape = RoundedCornerShape(50), color = bg) {
         Text(
             text,
-            style = if (small) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
-            else MaterialTheme.typography.labelSmall,
+            style = if (small) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp)
+            else MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
             fontWeight = FontWeight.Medium,
             color = fg,
             maxLines = 1,
             modifier = Modifier.padding(
                 horizontal = if (small) 5.dp else 7.dp,
-                vertical = if (small) 1.dp else 2.dp
+                vertical = if (small) 1.dp else 1.dp
             )
         )
     }
@@ -406,7 +406,7 @@ fun TopicCardView(
             }),
     ) {
         Box {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 3.dp)) {
                 if (!compact) {
                     Avatar(card.avatarUrl, 34, online = card.online)
                     Spacer(Modifier.width(8.dp))
@@ -436,13 +436,13 @@ fun TopicCardView(
                             ) {
                                 Text(
                                     card.forumName,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
                                     fontWeight = FontWeight.Medium,
                                     color = forumOverride?.let { onColorFor(it) }
                                         ?: MaterialTheme.colorScheme.onSecondaryContainer,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp)
                                 )
                             }
                         }
@@ -484,15 +484,17 @@ fun TopicCardView(
                         color = titleColor ?: Color.Unspecified,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        // 行距收敛到 1.0 倍 + 下方 2dp 间距：收紧标题与发帖信息行
-                        // 之间的空隙（此前 1.1 倍行距 + 3dp 显得松散）
-                        lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.0f
+                        // 行距收紧到 1.125 倍（18sp/16sp）：压缩行内上下留白，
+                        // 标签与标题、标题与信息行贴得更紧，提高信息密度
+                        lineHeight = 18.sp
                     )
                     Spacer(Modifier.size(2.dp))
                     // 底行：用户名 / 时间 / 评论数不使用分隔点，FlowRow 放不下时自动换行
                     //（避免称号徽章挤占导致用户名被截断）；板块标识固定在卡片右下角（4），
                     // FlowRow 占满剩余宽度，多行时徽标贴最末行右缘；
                     // forumAsTag（首页）时板块已上移到标签行，右下角不再显示
+                    // metaStyle：底行信息字行高收紧（16sp→13sp），减少卡片底部留白
+                    val metaStyle = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp)
                     Row(verticalAlignment = Alignment.Bottom) {
                         FlowRow(
                             verticalArrangement = Arrangement.Center,
@@ -501,7 +503,7 @@ fun TopicCardView(
                         ) {
                             Text(
                                 card.authorName,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = metaStyle,
                                 color = userOverride ?: MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
@@ -519,7 +521,7 @@ fun TopicCardView(
                             }
                             Text(
                                 card.timeText,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = metaStyle,
                                 color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.let { m ->
                                     if (onElementClick != null)
@@ -544,7 +546,7 @@ fun TopicCardView(
                                     )
                                     Text(
                                         "${card.replies}",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = metaStyle,
                                         color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -564,12 +566,12 @@ fun TopicCardView(
                             ) {
                                 Text(
                                     card.forumName,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
                                     color = forumOverride?.let { onColorFor(it) }
                                         ?: MaterialTheme.colorScheme.onSecondaryContainer,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                 )
                             }
                         }
