@@ -376,6 +376,8 @@ fun TopicCardView(
     views: Int = -1,
     showComments: Boolean = true,   // false 时不显示评论数（浏览历史只展示浏览时间）
     showForum: Boolean = true,      // false 时不显示板块徽标（浏览历史）
+    // true 时板块徽标以标签样式放在所有标签之前（首页）；false 时固定在卡片右下角
+    forumAsTag: Boolean = false,
     onElementClick: ((key: String) -> Unit)? = null,
 ) {
     val titleColor = remember(card.titleColor) {
@@ -421,6 +423,29 @@ fun TopicCardView(
                             else m
                         }
                     ) {
+                        // 板块标识（forumAsTag，首页）：与其他标签同样式，置于所有标签之前；
+                        // 点击进入板块；预览改色模式点按回调 FORUM key（同右下角徽标）
+                        if (forumAsTag && showForum) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer,
+                                onClick = {
+                                    if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
+                                    else onForumClick(card.forumId)
+                                }
+                            ) {
+                                Text(
+                                    card.forumName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = forumOverride?.let { onColorFor(it) }
+                                        ?: MaterialTheme.colorScheme.onSecondaryContainer,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                         if (tagColor != null) {
                             // 自定义标签色：统一应用（前景自动黑/白）
                             val fg = onColorFor(tagColor)
@@ -459,13 +484,16 @@ fun TopicCardView(
                         color = titleColor ?: Color.Unspecified,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.1f,
+                        // 行距收敛到 1.0 倍 + 下方 2dp 间距：收紧标题与发帖信息行
+                        // 之间的空隙（此前 1.1 倍行距 + 3dp 显得松散）
+                        lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.0f,
                         modifier = Modifier.padding(top = 2.dp)
                     )
-                    Spacer(Modifier.size(3.dp))
+                    Spacer(Modifier.size(2.dp))
                     // 底行：用户名 / 时间 / 评论数不使用分隔点，FlowRow 放不下时自动换行
                     //（避免称号徽章挤占导致用户名被截断）；板块标识固定在卡片右下角（4），
-                    // FlowRow 占满剩余宽度，多行时徽标贴最末行右缘
+                    // FlowRow 占满剩余宽度，多行时徽标贴最末行右缘；
+                    // forumAsTag（首页）时板块已上移到标签行，右下角不再显示
                     Row(verticalAlignment = Alignment.Bottom) {
                         FlowRow(
                             verticalArrangement = Arrangement.Center,
@@ -523,8 +551,9 @@ fun TopicCardView(
                                 }
                             }
                         }
-                        // 板块标识：固定在卡片右下角（与作者信息底行对齐）
-                        if (showForum) {
+                        // 板块标识：固定在卡片右下角（与作者信息底行对齐）；
+                        // forumAsTag（首页）时已上移到标签行，这里不再显示
+                        if (showForum && !forumAsTag) {
                             Spacer(Modifier.width(5.dp))
                             Surface(
                                 shape = RoundedCornerShape(50),

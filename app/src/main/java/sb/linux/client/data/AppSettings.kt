@@ -125,6 +125,12 @@ class AppSettings(context: Context) {
         get() = prefs.getInt("bottom_bar_style", 1).coerceIn(0, 1)
         set(v) = prefs.edit().putInt("bottom_bar_style", v.coerceIn(0, 1)).apply()
 
+    /** 评论底栏样式（帖子内底部快捷回复栏）：0 = 经典（通栏 Surface），
+     *  1 = 液态玻璃悬浮胶囊（实时折射身后滚动内容） */
+    var replyBarStyle: Int
+        get() = prefs.getInt("reply_bar_style", 1).coerceIn(0, 1)
+        set(v) = prefs.edit().putInt("reply_bar_style", v.coerceIn(0, 1)).apply()
+
     // ---------------- WebDAV 备份（3.19） ----------------
 
     var webdavUrl: String
@@ -688,6 +694,7 @@ class AppSettings(context: Context) {
         o.put("update_check_interval_hours", updateCheckIntervalHours)
         o.put("tablet_mode", tabletMode)
         o.put("bottom_bar_style", bottomBarStyle)
+        o.put("reply_bar_style", replyBarStyle)
         o.put("webdav_url", webdavUrl)
         o.put("webdav_user", webdavUser)
         o.put("webdav_pass", webdavPass)
@@ -745,6 +752,7 @@ class AppSettings(context: Context) {
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))
             if (o.has("tablet_mode")) p.putBoolean("tablet_mode", o.getBoolean("tablet_mode"))
             if (o.has("bottom_bar_style")) p.putInt("bottom_bar_style", o.optInt("bottom_bar_style", 1).coerceIn(0, 1))
+            if (o.has("reply_bar_style")) p.putInt("reply_bar_style", o.optInt("reply_bar_style", 1).coerceIn(0, 1))
             if (o.has("webdav_url")) p.putString("webdav_url", o.getString("webdav_url"))
             if (o.has("webdav_user")) p.putString("webdav_user", o.getString("webdav_user"))
             if (o.has("webdav_pass")) p.putString("webdav_pass", o.getString("webdav_pass"))

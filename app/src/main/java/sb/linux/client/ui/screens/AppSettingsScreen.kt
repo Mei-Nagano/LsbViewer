@@ -1566,6 +1566,8 @@ private fun PostCardPreview(
                 ),
                 onClick = {},
                 onForumClick = {},
+                // 与首页样式保持一致：板块徽标以标签样式置于所有标签之前
+                forumAsTag = true,
                 onElementClick = onPick,
             )
         }
@@ -2232,6 +2234,34 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                         SegmentedButton(
                             selected = session.bottomBarStyle == 1,
                             onClick = { session.saveBottomBarStyle(1) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) { Text("液态玻璃") }
+                    }
+                    // 评论底栏（帖子内底部快捷回复栏）：与主导航底栏独立的样式选择
+                    Text(
+                        "评论底栏",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(start = 18.dp, top = 14.dp, bottom = 2.dp)
+                    )
+                    Text(
+                        "帖子内底部的回复/点赞/收藏快捷栏；液态玻璃为悬浮胶囊，实时折射身后滚动的帖子内容（Android 12 以下退化为半透明条）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                    )
+                    SingleChoiceSegmentedButtonRow(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 4.dp)
+                    ) {
+                        SegmentedButton(
+                            selected = session.replyBarStyle == 0,
+                            onClick = { session.saveReplyBarStyle(0) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        ) { Text("经典") }
+                        SegmentedButton(
+                            selected = session.replyBarStyle == 1,
+                            onClick = { session.saveReplyBarStyle(1) },
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                         ) { Text("液态玻璃") }
                     }

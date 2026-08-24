@@ -73,6 +73,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
@@ -96,6 +97,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.navigation.NavHostController
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -794,10 +802,19 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
+    // 评论底栏样式（0=经典 1=液态玻璃，设置内可选）：经典为 Scaffold bottomBar 普通底栏；
+    // 液态玻璃为悬浮胶囊——帖子列表画进 backdrop 图层，玻璃条实时折射身后滚动内容
+    val replyGlass = session.replyBarStyle != 0
+    val glassBg = MaterialTheme.colorScheme.background
+    val replyBackdrop = rememberLayerBackdrop {
+        drawRect(glassBg)
+        drawContent()
+    }
     Scaffold(
         bottomBar = {
             // 底部快捷栏：回复入口 + 点赞主楼 + 收藏（未登录点击跳转登录）；常驻显示
-            if (data != null && error == null) {
+            //（液态玻璃样式改走内容区悬浮覆盖层，不占 bottomBar 槽位）
+            if (!replyGlass && data != null && error == null) {
                 ReplyBar(
                     loggedIn = session.loginState.loggedIn,
                     liked = mainPost?.liked == true,
@@ -834,7 +851,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             else -> {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // 液态玻璃样式：列表绘制进 backdrop 图层，供悬浮玻璃评论栏取样折射
+                        .then(if (replyGlass) Modifier.layerBackdrop(replyBackdrop) else Modifier),
                     contentPadding = PaddingValues(top = 72.dp, bottom = 8.dp)
                 ) {
                     // ---------- 头部信息块（完整标题/统计/弹幕/AI/抽奖） ----------
@@ -1106,7 +1126,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         }
                     }
                     // 底部留白：为悬浮按钮和输入栏留出空间
-                    item(key = "footer") { Spacer(Modifier.height(64.dp)) }
+                    //（液态玻璃评论栏为悬浮胶囊：52dp 高 + 10dp 底距）
+                    item(key = "footer") { Spacer(Modifier.height(if (replyGlass) 62.dp else 64.dp)) }
                 }
             }
             }
@@ -1123,7 +1144,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             ) {
                 SmallFloatingActionButton(
                     onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                    modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
+                    // 液态玻璃评论栏为悬浮覆盖层：回顶按钮需抬高避开玻璃条
+                    modifier = Modifier.padding(end = 16.dp, bottom = if (replyGlass) 74.dp else 16.dp),
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ) {
@@ -1164,7 +1186,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 exit = scaleOut(),
             ) {
                 Row(
-                    Modifier.padding(bottom = 16.dp),
+                    // 液态玻璃评论栏为悬浮覆盖层：抬高避开玻璃条
+                    Modifier.padding(bottom = if (replyGlass) 74.dp else 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -1307,6 +1330,33 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 // （此前顶栏被垫高，遮住标题顶部并与悬浮菜单按钮重叠）
                 windowInsets = WindowInsets(0, 0, 0, 0),
             )
+
+            // 液态玻璃评论底栏：悬浮于列表之上，实时折射身后滚动内容；
+            // 经典样式则走 Scaffold bottomBar（见上），二者互斥
+            if (replyGlass && d != null && error == null) {
+                GlassReplyBar(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    backdrop = replyBackdrop,
+                    loggedIn = session.loginState.loggedIn,
+                    liked = mainPost?.liked == true,
+                    favorited = isFav,
+                    likeCount = mainPost?.likeCount ?: 0,
+                    showLike = mainPost?.canLike == true,
+                    showFavorite = d.canFavorite,
+                    onReply = {
+                        if (session.loginState.loggedIn) { quoteText = ""; showReply = true }
+                        else nav.navigate("login")
+                    },
+                    onLike = {
+                        if (session.loginState.loggedIn) mainPost?.let { doLike(it, 0) }
+                        else nav.navigate("login")
+                    },
+                    onFavorite = {
+                        if (session.loginState.loggedIn) onFavoriteClick()
+                        else nav.navigate("login")
+                    },
+                )
+            }
         }
     }
 
@@ -1635,6 +1685,116 @@ private fun ReplyBar(
                         maxLines = 1
                     )
                 }
+            }
+        }
+    }
+}
+
+/** 液态玻璃评论底栏（评论底栏样式设置开启时）：悬浮胶囊，实时折射身后滚动的帖子内容
+ *  （vibrancy 提饱和 + blur + lens 深度折射/边缘色散）；伪输入条 + 点赞主楼 + 收藏，
+ *  交互与经典 ReplyBar 完全一致；Scaffold 空置 bottomBar 后内容区已含导航栏内边距，
+ *  这里只需底部悬浮边距，无需再垫 navigationBarsPadding */
+@Composable
+private fun GlassReplyBar(
+    modifier: Modifier = Modifier,
+    backdrop: Backdrop,
+    loggedIn: Boolean,
+    liked: Boolean,
+    favorited: Boolean,
+    likeCount: Int,
+    showLike: Boolean,
+    showFavorite: Boolean,
+    onReply: () -> Unit,
+    onLike: () -> Unit,
+    onFavorite: () -> Unit,
+) {
+    // 玻璃表面色调：浅色主题垫白、深色主题垫黑，保证内容可读性（同玻璃底栏）
+    val light = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val surfaceTint = if (light) Color.White.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.4f)
+    Row(
+        modifier
+            .padding(start = 14.dp, end = 14.dp, bottom = 10.dp)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedCornerShape(50) },
+                effects = {
+                    vibrancy()
+                    blur(6.dp.toPx())
+                    // Backdrop 2.0 高级效果：depthEffect 深度折射 + chromaticAberration 边缘色散
+                    lens(18.dp.toPx(), 18.dp.toPx(), depthEffect = true, chromaticAberration = true)
+                },
+                onDrawSurface = { drawRect(surfaceTint) }
+            )
+            .fillMaxWidth()
+            .height(52.dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // 伪输入条：点击弹出回复编辑
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(50))
+                .clickable(onClick = onReply)
+        ) {
+            Text(
+                if (loggedIn) "说点什么…" else "登录后参与回复",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (showLike) {
+            // 点赞主楼：图标 + 数量
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onLike)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Icon(
+                    if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    if (liked) "已点赞" else "点赞",
+                    Modifier.size(18.dp),
+                    tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (likeCount > 0) "$likeCount" else "点赞",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+        }
+        if (showFavorite) {
+            // 收藏：已收藏时图标填充 + 主题色高亮（12）
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onFavorite)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Icon(
+                    if (favorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                    if (favorited) "已收藏" else "收藏",
+                    Modifier.size(18.dp),
+                    tint = if (favorited) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (favorited) "已收藏" else "收藏",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (favorited) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
             }
         }
     }
