@@ -276,7 +276,8 @@ object HtmlParser {
             val uidNum = uidBadge?.removePrefix("UID")?.trim()?.toLongOrNull() ?: 0L
             val meta = li.selectFirst(".post-meta")
             val timeText = meta?.selectFirst("span[data-performance-time]")?.attr("data-performance-time")?.toLongOrNull()
-                ?.let { TimeFmt.rel(it) } ?: meta?.selectFirst("span")?.text() ?: ""
+                // 兜底取首个 span 时须跳过树形回复的「回复 #N」标识，否则时间缺失时会显示成楼层引用
+                ?.let { TimeFmt.rel(it) } ?: meta?.selectFirst("span:not(.quote-threads-reference)")?.text() ?: ""
             // 源站 v8.6+ 点赞改版：like-coin-* → donate-reaction-*（按钮 data-liked/data-coined/计数 span + 表单 donate-reaction-form）
             val likeBtn = li.selectFirst("[data-donate-reaction]")
             val likeForm = li.selectFirst("form.donate-reaction-form")
@@ -320,6 +321,21 @@ object HtmlParser {
                     }
                     editInfo = editEl.text().trim()
                     editEl.remove()
+                }
+                // 树形回复引用锚点剥离：源站在正文首段开头渲染「@用户 #N」锚点
+                //（href 为 ?replyid=父楼id）。层级关系已由 data-quote-threads-parent-floor
+                // 表达、UI 以「回复 #N」胶囊展示，正文里去掉避免重复
+                if (parentFloorNum > 0) {
+                    contentEl.selectFirst("p")?.let { p ->
+                        val a = p.children().firstOrNull()
+                        if (a != null && a.tagName() == "a" && a.attr("href").contains("replyid=")) {
+                            val t = a.text().trim()
+                            val refFloor = Regex("""#(\d+)$""").find(t)?.groupValues?.get(1)
+                            if (t.startsWith("@") && refFloor == parentFloorNum.toString()) a.remove()
+                        }
+                    }
+                    // 剥离后首段可能只剩空白（纯引用回复），删除避免顶部空行
+                    contentEl.selectFirst("p")?.takeIf { it.text().isBlank() && it.children().isEmpty() }?.remove()
                 }
             }
             PostEntry(

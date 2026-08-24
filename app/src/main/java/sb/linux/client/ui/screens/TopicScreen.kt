@@ -202,6 +202,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 切换后靠此标记强制重组，让 topicInfinite 从源设置重新读取，菜单选项与分页即时同步。
     var replyModeTick by remember { mutableIntStateOf(0) }
     val replies = sortedPosts.drop(1)
+    // 楼层号 → 回复：树形「回复 #N」胶囊展示父楼作者头像用（父楼未加载时无头像，胶囊降级为图标）
+    val repliesByFloor = remember(replies) { replies.associateBy { it.floor } }
     // 树形评论（源站 data-quote-threads-parent-floor）：存在回复关系时按树形嵌套展示，
     // 多级子回复按层级缩进 + 引导线；旧帖无此数据时保持平铺
     val hasTree = remember(replies) { replies.any { it.parentFloor > 0 } }
@@ -968,7 +970,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 highlight = highlightPostId == post.id,
                                 // 「回复 #N」胶囊：所有带 parentFloor 的楼层都显示。
                                 // 嵌套子回复虽然父卡片就在上方，但长对话树中父楼层可能已滚出
-                                // 屏幕，胶囊提供快速跳转定位入口（点击定位到目标楼层）
+                                // 屏幕，胶囊提供快速跳转定位入口（点击定位到目标楼层）；
+                                // 父楼作者头像置于楼层号前，正文首段的「@用户 #N」锚点已在解析层剥离
+                                replyParentAvatar = post.parentFloor.takeIf { it > 0 }
+                                    ?.let { repliesByFloor[it]?.avatarUrl } ?: "",
                                 onUser = { nav.navigate("user/${post.authorId}") },
                                 onQuote = {
                                     quoteText = buildString {
@@ -1612,6 +1617,7 @@ fun PostCard(
     onEditUser: (Long) -> Unit = {},
     threadEnabled: Boolean = true,
     threadReplyCount: Int = 0,
+    replyParentAvatar: String = "",
 ) {
     if (isMainPost) {
         // ---------- 楼主正文：正文长按为系统原生文本选择，不再弹功能菜单（2.6） ----------
@@ -1633,6 +1639,7 @@ fun PostCard(
                 onEditUser = onEditUser,
                 threadEnabled = threadEnabled,
                 threadReplyCount = threadReplyCount,
+                replyParentAvatar = replyParentAvatar,
             )
         }
     } else {
@@ -1676,6 +1683,7 @@ fun PostCard(
                     onEditUser = onEditUser,
                     threadEnabled = threadEnabled,
                     threadReplyCount = threadReplyCount,
+                    replyParentAvatar = replyParentAvatar,
                 )
             }
         }
@@ -1703,6 +1711,7 @@ private fun PostCardContent(
     onEditUser: (Long) -> Unit = {},
     threadEnabled: Boolean = true,
     threadReplyCount: Int = 0,
+    replyParentAvatar: String = "",
 ) {
     Column(modifier) {
         // 作者行：头像 + 名称/徽章 + 元信息，楼层号固定右上角
@@ -1801,12 +1810,17 @@ private fun PostCardContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Reply,
-                        null,
-                        Modifier.size(12.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    // 父楼作者头像置于楼层号前；父楼未加载（跨页/已删除）时降级为回复图标
+                    if (replyParentAvatar.isNotBlank()) {
+                        Avatar(replyParentAvatar, 16)
+                    } else {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Reply,
+                            null,
+                            Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
                     Text(
                         "回复 #${post.parentFloor}",
                         style = MaterialTheme.typography.labelSmall,
