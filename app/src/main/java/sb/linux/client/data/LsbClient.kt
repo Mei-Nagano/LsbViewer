@@ -184,7 +184,7 @@ class LsbClient(private val context: Context) {
 
         private fun isChallenge(html: String): Boolean = isUamChallenge(html) || isCloudflareChallenge(html)
 
-        /** SVG 字节嗅探：<svg 开头，或 <?xml 声明且前 1KB 内含 <svg（与 Coil SvgDecoder 的嗅探规则一致） */
+        /** SVG 字节嗅探：<svg 开头，或 <?xml 声明且前 1KB 内含 <svg（魔数校验用，与渲染库无关） */
         private fun isSvgBytes(b: ByteArray): Boolean {
             val head = String(b, 0, minOf(1024, b.size), Charsets.UTF_8).trimStart()
             return head.startsWith("<svg") || (head.startsWith("<?xml") && head.contains("<svg"))

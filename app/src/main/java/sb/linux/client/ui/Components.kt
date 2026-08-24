@@ -86,8 +86,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.RectF
+import android.graphics.BitmapFactory
+import org.dweb_browser.resvg_render.FitMode
+import org.dweb_browser.resvg_render.RenderOptions
+import org.dweb_browser.resvg_render.svgToPng
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import kotlinx.coroutines.launch
@@ -137,8 +139,8 @@ fun onColorFor(bg: Color): Color =
  * 兜底直载禁用 Coil 磁盘缓存——验证盾可能返回 200 HTML，写入后会永久毒化该缓存键。
  */
 /**
- * SVG 字节嗅探：<svg 开头，或 <?xml 声明且前 1KB 内含 <svg（与 Coil SvgDecoder 规则一致）。
- * 用于判定头像字节是否需要走 androidsvg 直接渲染。
+ * SVG 字节嗅探：<svg 开头，或 <?xml 声明且前 1KB 内含 <svg。
+ * 用于判定头像字节是否需要走 resvg 直接渲染。
  */
 private fun isSvgContents(b: ByteArray): Boolean {
     val head = String(b, 0, minOf(1024, b.size), Charsets.UTF_8).trimStart()
@@ -146,63 +148,16 @@ private fun isSvgContents(b: ByteArray): Boolean {
 }
 
 /**
- * 清洗源站（DiceBear bottts 等）头像 SVG，让 AndroidSVG 1.4（也是 coil-svg 底层）可稳定解析渲染。
- * 规避老版 AndroidSVG 的软肋（三者叠加时可能导致整张渲染为空/黑）：
- *  1) 去掉 <metadata> 内的 RDF 命名空间段（部分解析路径会在陌生命名空间上不安）；
- *  2) 去掉 mask-type（SVG2 属性，老版不支持，仅影响裁切细节，不影响整体可见性）；
- *  3) 根 <svg> 缺少 width/height 时用 viewBox 宽高补齐（老版渲染依赖文档尺寸，缺失可能渲染为空）；
- *  4) 裸 href → xlink:href 并补齐 xmlns:xlink（bottts 用裸 `<use href="#id">` 引用 defs）。
- * 返回清洗后的字符串；非 SVG 或清洗失败返回 null。
- */
-private fun sanitizeSvg(raw: ByteArray): String? = runCatching {
-    var s = String(raw, Charsets.UTF_8)
-    if (!s.trimStart().startsWith("<svg")) return@runCatching null
-    // 1) 去掉 metadata 段
-    s = Regex("(?is)<metadata\\b.*?</metadata>").replace(s, " ")
-    // 2) 去掉 mask-type（CSS style 形式或独立属性形式）
-    s = Regex("""(?i)\sstyle="mask-type[^"]*"""").replace(s, " ")
-    s = Regex("""(?i)\smask-type="[^"]*"""").replace(s, " ")
-    // 4) 裸 href → xlink:href
-    if (s.indexOf("xlink:href") < 0 && s.indexOf("href=") >= 0) {
-        s = s.replace("href=", "xlink:href=")
-    }
-    // 3) 根 <svg> 无 width/height 时用 viewBox 宽高补齐，并补 xmlns:xlink 声明
-    val vbox = Regex("""viewBox="\s*([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([0-9.eE]+)\s+([0-9.eE]+)\s*""").find(s)
-    if (vbox != null && !Regex("""<svg[^>]*\bwidth=""").containsMatchIn(s)) {
-        val w = vbox.groupValues[3].trim()
-        val h = vbox.groupValues[4].trim()
-        val xlink = if (s.contains("xmlns:xlink")) "" else " xmlns:xlink=\"http://www.w3.org/1999/xlink\""
-        s = Regex("""<svg\b""").replaceFirst(
-            s,
-            "<svg width=\"$w\" height=\"$h\"$xlink"
-        )
-    }
-    s
-}.getOrNull()
-
-/**
- * 用 androidsvg 把 SVG 头像字节直接渲染成 px×px 的 Bitmap。
- * 先经 [sanitizeSvg] 清洗以规避老版 AndroidSVG 的解析/渲染软肋。
- * 渲染前强制把文档 width/height 设为 100%：AndroidSVG 的 renderDocument 会让根元素
- * 的 width/height（绝对值，如 sanitize 补的 viewBox 尺寸或 SVG 自带像素值）覆盖传入的
- * 目标视口，导致内容按用户单位 1:1 绘制——px 与文档尺寸不一致时只显示左上角一块
- * （小头像被裁、全屏大图只占角落）。设为 100% 后视口保持 px×px，viewBox 正常缩放填充。
- * 与 coil-svg 官方 SvgDecoder 的做法一致。
- * 渲染失败返回 null（调用方回退 Coil 原路径）。
+ * 用 resvg（Rust 渲染引擎，JNA 加载 native .so）把 SVG 头像字节渲染成 px×px 的 PNG
+ * 再解码为 Bitmap。resvg 完整支持 SVG 1.1/2.0（mask-type、裸 href、缺 width/height、
+ * CSS 等），旧方案为绕开 AndroidSVG 软肋做的 sanitize 清洗全部不再需要。
+ * FitMode.CONTAIN：保持纵横比缩放进 px×px 画布（与旧 AndroidSVG 渲染行为一致）。
+ * 渲染失败返回 null（调用方回退占位图标）。
  */
 private fun renderSvgToBitmap(svg: ByteArray, px: Int): Bitmap? = runCatching {
-    val src = sanitizeSvg(svg) ?: return@runCatching null
-    val doc = com.caverock.androidsvg.SVG.getFromInputStream(src.byteInputStream())
-    doc.setDocumentWidth("100%")
-    doc.setDocumentHeight("100%")
-    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
-    doc.renderToCanvas(Canvas(bmp), RectF(0f, 0f, px.toFloat(), px.toFloat()))
-    bmp
+    val png = svgToPng(svg, RenderOptions(px.toFloat(), px.toFloat(), null, FitMode.CONTAIN))
+    BitmapFactory.decodeByteArray(png, 0, png.size)
 }.getOrNull()
-
-/** 返回清洗后的 SVG 字节（供 Coil SvgDecoder 兜底解码）；非 SVG 返回 null。 */
-private fun cleanedSvgBytes(b: ByteArray): ByteArray? =
-    if (b.isNotEmpty() && isSvgContents(b)) sanitizeSvg(b)?.toByteArray(Charsets.UTF_8) else null
 
 @Composable
 fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: Boolean = false) {
@@ -218,22 +173,18 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
         }
     }
     val b = fetch
-    // SVG 头像：直接用 androidsvg 渲染成 Bitmap，不走 Coil；非 SVG / 未就绪为 null
+    // SVG 头像：直接用 resvg 渲染成 Bitmap，不走 Coil；非 SVG / 未就绪为 null
     val svgBitmap by produceState<Bitmap?>(null, target, b, px) {
         value = if (b != null && b.isNotEmpty() && isSvgContents(b)) {
             withContext(Dispatchers.IO) { renderSvgToBitmap(b, px) }
         } else null
     }
-    // 清洗后的 SVG 字节：供 androidsvg 渲染失败时交由 Coil SvgDecoder 兜底解码（避免用原始 URL 再次触发裸 href 解码失败）
-    val cleanSvg by produceState<ByteArray?>(null, target, b) {
-        value = b?.takeIf { it.isNotEmpty() }?.let { cleanedSvgBytes(it) }
-    }
     // 加载中（b==null）不发起图片请求；字节就绪用字节渲染，fetchBytes 失败才用 URL 直载
-    val model = remember(target, px, b, cleanSvg) {
+    val model = remember(target, px, b) {
         if (target.isEmpty() || b == null) null
         else coil.request.ImageRequest.Builder(context)
             .data(
-                cleanSvg ?: if (b.isNotEmpty()) b
+                if (b.isNotEmpty()) b
                 else if (target.contains('?')) target.substringBefore('?')
                 else target
             )
@@ -1165,8 +1116,8 @@ private suspend fun saveImageToGallery(context: android.content.Context, url: St
     }
 
 /**
- * 全屏查看单张头像大图。SVG 头像走 androidsvg 归一化渲染（coil-svg 对 uid=1 / 20903 等
- * bottts 默认头像解码失败），位图头像走 Coil；支持缩放 / 双击放大 / 单击关闭。
+ * 全屏查看单张头像大图。SVG 头像走 resvg 归一化渲染（位图兼容性最佳），位图头像走 Coil；
+ * 支持缩放 / 双击放大 / 单击关闭。
  * @param url 头像绝对地址（相对地址请先经 Endpoints.abs / HtmlParser.absUrl 归一化）
  */
 @Composable
@@ -1188,10 +1139,6 @@ fun AvatarViewer(url: String, onDismiss: () -> Unit) {
             withContext(Dispatchers.IO) { renderSvgToBitmap(b, px) }
         } else null
     }
-    // 清洗后的 SVG 字节：渲染失败时交给 Coil SvgDecoder 兜底（避免直接用原始 URL 触发裸 href 解码失败→黑屏）
-    val cleanSvg by produceState<ByteArray?>(null, target, fetch) {
-        value = fetch?.takeIf { it.isNotEmpty() }?.let { cleanedSvgBytes(it) }
-    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -1207,7 +1154,6 @@ fun AvatarViewer(url: String, onDismiss: () -> Unit) {
                 onSingleTap = onDismiss,
                 onLongPress = onDismiss,
                 bitmap = svgBitmap,
-                svgBytes = cleanSvg,
             )
             Surface(
                 shape = CircleShape,
@@ -1232,8 +1178,7 @@ private fun ZoomableImage(
     url: String,
     onSingleTap: () -> Unit,
     onLongPress: () -> Unit = {},
-    bitmap: android.graphics.Bitmap? = null,   // 非空时直接渲染（SVG 头像经 androidsvg 归一化后的结果，绕开 coil-svg 解码失败）
-    svgBytes: ByteArray? = null,               // 清洗后的 SVG 字节：bitmap 为空时交给 Coil SvgDecoder 解码（避免裸 href 失败→黑屏）
+    bitmap: android.graphics.Bitmap? = null,   // 非空时直接渲染（SVG 头像经 resvg 归一化后的结果）
 ) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
@@ -1287,11 +1232,10 @@ private fun ZoomableImage(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // 优先用清洗后的字节（图片源置信更高）；无字节才回退网络 URL
-            val data = svgBytes ?: url
+            // 无位图时回退网络 URL 直载
             AsyncImage(
                 model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(data)
+                    .data(url)
                     .crossfade(true)
                     .build(),
                 contentDescription = "放大图片",

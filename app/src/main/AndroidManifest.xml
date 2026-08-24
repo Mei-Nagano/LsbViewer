@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- resvg 渲染库 manifest 声明 minSdk 28，实际未用 28+ API，覆盖以兼容 API 26 基线 -->
+    <uses-sdk tools:overrideLibrary="org.dweb_browser.resvg_render" />
 
     <application
         android:name=".LsbApp"

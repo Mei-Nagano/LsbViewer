@@ -3,7 +3,6 @@ package sb.linux.client
 import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
-import coil.decode.SvgDecoder
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import sb.linux.client.data.LsbClient
@@ -17,10 +16,9 @@ class LsbApp : Application(), ImageLoaderFactory {
         client = LsbClient(this)
     }
 
-    /** 全局图片加载器：支持 SVG 头像 + 强磁盘/内存缓存（加速头像加载） */
+    /** 全局图片加载器：强磁盘/内存缓存加速头像加载（SVG 头像由 resvg 直接渲染，不经 Coil） */
     override fun newImageLoader(): ImageLoader =
         ImageLoader.Builder(this)
-            .components { add(SvgDecoder.Factory()) }
             .memoryCache {
                 MemoryCache.Builder(this)
                     .maxSizePercent(0.20)

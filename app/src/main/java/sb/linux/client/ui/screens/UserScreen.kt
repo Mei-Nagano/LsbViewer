@@ -484,7 +484,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    // 点击头像后全屏查看大图（SVG 头像走 androidsvg 归一化渲染，避免 coil-svg 解码失败）
+    // 点击头像后全屏查看大图（SVG 头像走 resvg 归一化渲染）
     if (showAvatar) {
         val a = profile?.avatarUrl
         if (!a.isNullOrBlank()) AvatarViewer(a) { showAvatar = false }
