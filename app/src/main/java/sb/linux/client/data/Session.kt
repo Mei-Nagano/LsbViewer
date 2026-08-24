@@ -92,6 +92,8 @@ class Session(app: Application) : AndroidViewModel(app) {
     var showOnlineUsers by mutableStateOf(true)
     // 评论「对话串联」开关：Compose 响应式镜像（直接写 settings 不触发重组，开关显示不同步）
     var threadDialogEnabled by mutableStateOf(false)
+    // 取消收藏确认框开关：Compose 响应式镜像
+    var unfavoriteConfirm by mutableStateOf(true)
     // 翻页模式下每页展示的帖子条数（默认 15）
     var topicsPerPage by mutableIntStateOf(15)
     // 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择）
@@ -163,6 +165,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
         threadDialogEnabled = settings.threadDialogEnabled
+        unfavoriteConfirm = settings.unfavoriteConfirm
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
         showOnlineUsers = settings.sidebarShowOnlineUsers
@@ -312,6 +315,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
         threadDialogEnabled = settings.threadDialogEnabled
+        unfavoriteConfirm = settings.unfavoriteConfirm
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
         showOnlineUsers = settings.sidebarShowOnlineUsers
@@ -350,6 +354,11 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun saveThreadDialog(v: Boolean) {
         threadDialogEnabled = v
         settings.threadDialogEnabled = v
+    }
+
+    fun saveUnfavoriteConfirm(v: Boolean) {
+        unfavoriteConfirm = v
+        settings.unfavoriteConfirm = v
     }
 
     /** 翻页模式下每页展示的帖子条数（5..50） */
@@ -537,10 +546,6 @@ class Session(app: Application) : AndroidViewModel(app) {
             sb.forums.forEach { f ->
                 a.put(org.json.JSONObject().put("id", f.id).put("name", f.name).put("count", f.count).put("color", f.color))
             }
-            val r = org.json.JSONArray()
-            sb.recentForums.forEach { f ->
-                r.put(org.json.JSONObject().put("id", f.id).put("name", f.name))
-            }
             val h = org.json.JSONArray()
             sb.hotTopics.forEach { t ->
                 h.put(org.json.JSONObject().put("tid", t.topicId).put("title", t.title).put("meta", t.meta))
@@ -555,7 +560,7 @@ class Session(app: Application) : AndroidViewModel(app) {
                 on.put(org.json.JSONObject().put("uid", n.userId).put("name", n.username).put("av", n.avatarUrl))
             }
             val o = org.json.JSONObject()
-                .put("forums", a).put("recent", r).put("hot", h).put("users", u)
+                .put("forums", a).put("hot", h).put("users", u)
                 .put("stats", sb.statsText)
                 .put("onCount", sb.onlineUsers.count).put("onItems", on)
             sidebarPrefs.edit().putString("sidebar", o.toString()).apply()
@@ -567,10 +572,6 @@ class Session(app: Application) : AndroidViewModel(app) {
         val forums = (0 until (o.optJSONArray("forums")?.length() ?: 0)).map { i ->
             val f = o.getJSONArray("forums").getJSONObject(i)
             ForumCount(f.optLong("id"), f.optString("name"), f.optString("count"), f.optString("color"))
-        }
-        val recent = (0 until (o.optJSONArray("recent")?.length() ?: 0)).map { i ->
-            val f = o.getJSONArray("recent").getJSONObject(i)
-            ForumInfo(f.optLong("id"), f.optString("name"))
         }
         val hot = (0 until (o.optJSONArray("hot")?.length() ?: 0)).map { i ->
             val t = o.getJSONArray("hot").getJSONObject(i)
@@ -585,7 +586,7 @@ class Session(app: Application) : AndroidViewModel(app) {
             OnlineUser(n.optLong("uid"), n.optString("name"), n.optString("av"))
         }
         HomeSidebar(
-            forums = forums, recentForums = recent, hotTopics = hot,
+            forums = forums, hotTopics = hot,
             statsText = o.optString("stats"), newUsers = users,
             onlineUsers = OnlineUsers(count = o.optString("onCount"), items = onItems),
         )

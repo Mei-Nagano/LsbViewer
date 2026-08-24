@@ -259,7 +259,6 @@ fun HomeScreen(
                         val old = sidebar
                         val merged = if (old == null) parsed else old.copy(
                             forums = parsed.forums.ifEmpty { old.forums },
-                            recentForums = parsed.recentForums.ifEmpty { old.recentForums },
                             hotTopics = parsed.hotTopics.ifEmpty { old.hotTopics },
                             statsText = parsed.statsText.ifBlank { old.statsText },
                             newUsers = parsed.newUsers.ifEmpty { old.newUsers },
@@ -420,9 +419,6 @@ fun HomeScreen(
             HomeSidebarDrawer(
                 session = session,
                 sidebar = sidebar,
-                // 悬浮关闭按钮：抽屉打开时任何模式都提供明确的关闭途径
-                // （平板抽屉只覆盖左栏点不到遮罩；手机窄屏/非「全部」分类时遮罩点击也失效）
-                showCloseButton = true,
                 onClose = { closeDrawer() },
                 onRefresh = { closeDrawer { refresh() } },
                 onOpenForum = { fid -> closeDrawer { if (fid > 0) nav.navigate("forum/$fid") } },
@@ -835,8 +831,9 @@ fun HomeScreen(
     }
 }
 
-/** 源站首页侧板：用户卡片 / 签到天数 / 版块列表 / 快捷功能 / 每日热帖 / 最近浏览版块 / 站点统计 / 最新用户
- *  showCloseButton：平板双栏下抽屉只覆盖左栏，点击右栏无法关闭 → 顶部显示悬浮关闭按钮 */
+/** 源站首页侧板：用户卡片 / 签到天数 / 版块列表 / 快捷功能 / 每日热帖 / 站点统计 / 最新用户
+ *  关闭方式：点击侧边栏以外区域（遮罩）自动关闭（13）；平板双栏下右栏/导航栏区域的
+ *  关闭由 MainActivity 中的透明点击层兜底 */
 @Composable
 private fun HomeSidebarDrawer(
     session: Session,
@@ -849,7 +846,6 @@ private fun HomeSidebarDrawer(
     onOpenLeaderboard: () -> Unit,
     onLogin: () -> Unit,
     onNavigate: (String) -> Unit,
-    showCloseButton: Boolean = false,
 ) {
     // 背景容器用正常矩形（默认右上/右下为圆角）。
     // 宽度上限 300dp：不能 fillMaxWidth（会占满全屏，遮罩无处可点导致抽屉关不掉），
@@ -859,10 +855,7 @@ private fun HomeSidebarDrawer(
         drawerShape = RectangleShape,
     ) {
         val sb = sidebar
-        Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            // 给悬浮关闭按钮留出顶部空间，避免遮挡用户卡片
-            if (showCloseButton) Spacer(Modifier.height(38.dp))
             // 顶部用户卡片：品牌色横幅 + 头像 + 签到天数
             val state = session.loginState
             Surface(
@@ -886,10 +879,13 @@ private fun HomeSidebarDrawer(
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            FilledTonalButton(
+                            IconButton(
                                 onClick = { onClose(); onOpenUser(state.userId) },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                            ) { Text("主页", style = MaterialTheme.typography.labelMedium) }
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f), CircleShape)
+                            ) {
+                                Icon(Icons.Filled.Person, "主页", modifier = Modifier.size(20.dp))
+                            }
                         } else {
                             Column(Modifier.weight(1f)) {
                                 Text("访客", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -1081,14 +1077,6 @@ private fun HomeSidebarDrawer(
                     }
                 }
 
-                // 最近浏览版块
-                if (sb?.recentForums?.isNotEmpty() == true) {
-                    item { DrawerTitle("最近浏览版块") }
-                    items(sb.recentForums, key = { "r-${it.id}" }) { f ->
-                        DrawerPillRow(f.name, { onOpenForum(f.id) }, Modifier.fillMaxWidth())
-                    }
-                }
-
                 // 站点统计：结构化为「数值 + 标签」网格，容器风格与其他卡片一致
                 if (!sb?.statsText.isNullOrBlank()) {
                     item { DrawerTitle("站点统计") }
@@ -1181,23 +1169,6 @@ private fun HomeSidebarDrawer(
                     }
                 }
                 item { Spacer(Modifier.height(24.dp)) }
-            }
-        }
-
-            // 悬浮关闭按钮（仅平板双栏模式显示）：抽屉只覆盖左栏，点击右栏无法关闭
-            if (showCloseButton) {
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Filled.Close, "关闭侧边栏",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
         }
     }

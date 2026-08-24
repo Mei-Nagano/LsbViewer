@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.CardGiftcard
@@ -74,8 +75,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -154,15 +158,42 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var highlightPostId by remember { mutableStateOf<Long?>(null) }
     var returnPos by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
-    // 沉浸模式：滚动时自动隐藏顶栏（顶栏为悬浮覆盖层，不参与布局，避免内容顶到状态栏的抖动）
-    var topBarVisible by remember { mutableStateOf(true) }
-    val derivedTopVisible by remember {
+    // 顶栏常驻显示（11）：正文标题滑出顶栏下沿后，顶栏显示帖子标题，此外隐藏。
+    // 标题行底边与内容区顶边实时测量（root 坐标），标题完全没入顶栏即切换。
+    var titleBottomInRoot by remember { mutableFloatStateOf(Float.MAX_VALUE) }
+    var contentTopInRoot by remember { mutableFloatStateOf(0f) }
+    val topBarPx = with(LocalDensity.current) { 64.dp.toPx() }
+    val showTitleInTopBar by remember {
         derivedStateOf {
-            val info = listState.layoutInfo
-            (info.visibleItemsInfo.firstOrNull()?.index ?: 0) == 0
+            listState.firstVisibleItemIndex > 0 ||
+                titleBottomInRoot - contentTopInRoot <= topBarPx
         }
     }
-    LaunchedEffect(derivedTopVisible) { topBarVisible = derivedTopVisible }
+
+    // 底栏下滑隐藏（11）：向下滚动收起底部快捷栏，向上滚动恢复。
+    // 位置估计 = itemIndex * 大数 + offset（item 高度远小于该数，估计值随滚动单调）
+    var bottomBarVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        var prev = 0L
+        snapshotFlow {
+            listState.firstVisibleItemIndex.toLong() * 1_000_000L +
+                listState.firstVisibleItemScrollOffset
+        }.collect { cur ->
+            if (cur != prev) {
+                if (cur > prev + 6) bottomBarVisible = false
+                else if (cur < prev - 6) bottomBarVisible = true
+                prev = cur
+            }
+        }
+    }
+
+    // 收藏状态（12）：打开帖子时取源站解析结果（收藏表单按钮为「取消收藏」即已收藏），
+    // 操作成功后本地即时翻转并同步进当前 data，无需整页刷新
+    var isFav by remember { mutableStateOf(false) }
+    var showUnfavDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(data?.topicId, data?.favorited) {
+        data?.let { isFav = it.favorited }
+    }
 
     // AI 总结状态
     var aiSummary by remember { mutableStateOf<String?>(null) }
@@ -567,6 +598,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
 
     fun doFavorite() {
         val d = data ?: return
+        val wasFav = isFav
         scope.launch {
             try {
                 val resp = session.client.postForm(
@@ -578,19 +610,34 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 if (resp.url.contains("form_error")) {
                     session.showToast("操作失败")
                 } else {
-                    session.showToast("收藏状态已更新")
-                    // 本地收藏快照：收藏即记入本地「收藏内容」，供离线检索，不额外访问源站（3.15）
-                    val op = d.posts.firstOrNull { it.floor == 0 } ?: d.posts.firstOrNull()
-                    session.settings.addFavorite(
-                        topicId = d.topicId, title = d.title,
-                        authorId = op?.authorId ?: 0, authorName = op?.authorName ?: "",
-                        forumId = 0, forumName = "",
-                        avatarUrl = op?.avatarUrl ?: "", titleColor = "",
-                    )
+                    session.showToast(if (wasFav) "已取消收藏" else "已收藏")
+                    // 本地即时翻转并同步进当前 data（不整页刷新，避免评论分页/滚动位置重置）；
+                    // 同时清掉本帖分页缓存，下次进入重新解析最新收藏状态
+                    isFav = !wasFav
+                    data = d.copy(favorited = !wasFav)
+                    session.clearTopicPageCache(tid)
+                    if (wasFav) {
+                        // 取消收藏：本地「收藏内容」快照同步移除
+                        session.settings.removeFavorite(d.topicId)
+                    } else {
+                        // 本地收藏快照：收藏即记入本地「收藏内容」，供离线检索，不额外访问源站（3.15）
+                        val op = d.posts.firstOrNull { it.floor == 0 } ?: d.posts.firstOrNull()
+                        session.settings.addFavorite(
+                            topicId = d.topicId, title = d.title,
+                            authorId = op?.authorId ?: 0, authorName = op?.authorName ?: "",
+                            forumId = 0, forumName = "",
+                            avatarUrl = op?.avatarUrl ?: "", titleColor = "",
+                        )
+                    }
                 }
-                load(d.page)
             } catch (e: Exception) { session.showToast(e.message ?: "失败") }
         }
+    }
+
+    /** 收藏入口（底栏图标 / 顶栏菜单共用）：未收藏直接收藏；已收藏按设置决定是否弹确认框（12） */
+    fun onFavoriteClick() {
+        if (isFav && session.unfavoriteConfirm) showUnfavDialog = true
+        else doFavorite()
     }
 
     // 长图所见即所得：捕获当前主题色（供导出使用，深色模式下导出深色长图）
@@ -696,7 +743,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     }
     LaunchedEffect(
         listLast, data?.posts?.size, data?.page, data?.totalPages,
-        loadingMore, loading, topBarVisible
+        loadingMore, loading
     ) {
         val d = data
         if (topicInfinite && d != null) {
@@ -711,11 +758,17 @@ fun TopicScreen(session: Session, nav: NavHostController) {
 
     Scaffold(
         bottomBar = {
-            // 底部快捷栏：回复入口 + 点赞主楼 + 收藏（未登录点击跳转登录）
-            if (data != null && error == null) {
+            // 底部快捷栏：回复入口 + 点赞主楼 + 收藏（未登录点击跳转登录）；
+            // 向下滚动时隐藏、向上滚动恢复（11）
+            AnimatedVisibility(
+                visible = bottomBarVisible && data != null && error == null,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+            ) {
                 ReplyBar(
                     loggedIn = session.loginState.loggedIn,
                     liked = mainPost?.liked == true,
+                    favorited = isFav,
                     likeCount = mainPost?.likeCount ?: 0,
                     showLike = mainPost?.canLike == true,
                     showFavorite = data?.canFavorite == true,
@@ -728,7 +781,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         else nav.navigate("login")
                     },
                     onFavorite = {
-                        if (session.loginState.loggedIn) doFavorite()
+                        if (session.loginState.loggedIn) onFavoriteClick()
                         else nav.navigate("login")
                     },
                 )
@@ -736,7 +789,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     ) { pad ->
         val d = data
-        Box(Modifier.padding(pad)) {
+        Box(
+            Modifier
+                .padding(pad)
+                .onGloballyPositioned { contentTopInRoot = it.boundsInRoot().top }
+        ) {
         when {
             loading -> LoadingBox()
             error != null -> ErrorBox(error!!) { load(initialPage) }
@@ -751,9 +808,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     item(key = "header") {
                         Column {
                             // 完整标题（不截断）+ 正文标签（已开奖 / 抽奖中等）
+                            // onGloballyPositioned：标题行滑出顶栏后，顶栏切换为显示标题（11）
                             Row(
                                 Modifier
                                     .fillMaxWidth()
+                                    .onGloballyPositioned { titleBottomInRoot = it.boundsInRoot().bottom }
                                     .padding(horizontal = 20.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1082,16 +1141,20 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 }
             }
 
-        // 悬浮顶栏（覆盖层，不参与布局，杜绝内容顶到状态栏的抖动问题 2.1）
-        AnimatedVisibility(
-            visible = topBarVisible,
+        // 常驻顶栏（覆盖层，不参与布局，杜绝内容顶到状态栏的抖动问题 2.1）：
+        // 滑动到标题外后顶栏显示帖子标题，此外隐藏（11）
+        TopAppBar(
             modifier = Modifier.align(Alignment.TopCenter),
-            enter = slideInVertically { -it } + fadeIn(),
-            exit = slideOutVertically { -it } + fadeOut(),
-        ) {
-            TopAppBar(
-                // 顶栏不再显示标题：完整标题已在正文头部信息块展示，重复显示冗余
-                title = {},
+            title = {
+                AnimatedVisibility(visible = showTitleInTopBar, enter = fadeIn(), exit = fadeOut()) {
+                    Text(
+                        data?.title ?: "",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
@@ -1141,10 +1204,13 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 }
                             )
                             if (session.loginState.loggedIn && data?.canFavorite == true) {
+                                // 收藏/取消收藏：文案与图标跟随当前收藏状态（12）
                                 DropdownMenuItem(
-                                    text = { Text("收藏") },
-                                    leadingIcon = { Icon(Icons.Filled.FavoriteBorder, null) },
-                                    onClick = { menuOpen = false; doFavorite() }
+                                    text = { Text(if (isFav) "取消收藏" else "收藏") },
+                                    leadingIcon = {
+                                        Icon(if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, null)
+                                    },
+                                    onClick = { menuOpen = false; onFavoriteClick() }
                                 )
                             }
                             DropdownMenuItem(
@@ -1195,7 +1261,22 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 windowInsets = WindowInsets(0, 0, 0, 0),
             )
         }
-        }
+    }
+
+    // 取消收藏确认框（12）：已收藏状态下再次点击收藏图标时弹出；
+    // 关闭「设置 → 浏览设置 → 取消收藏确认」后不再提示、直接取消收藏
+    if (showUnfavDialog) {
+        AlertDialog(
+            onDismissRequest = { showUnfavDialog = false },
+            title = { Text("取消收藏") },
+            text = { Text("确定取消收藏吗？") },
+            confirmButton = {
+                TextButton(onClick = { showUnfavDialog = false; doFavorite() }) { Text("确定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUnfavDialog = false }) { Text("取消") }
+            }
+        )
     }
 
     // 回复弹窗（带人机验证时需用户作答，可「换一题」刷新验证码）
@@ -1404,6 +1485,7 @@ private fun PostAction(
 private fun ReplyBar(
     loggedIn: Boolean,
     liked: Boolean,
+    favorited: Boolean,
     likeCount: Int,
     showLike: Boolean,
     showFavorite: Boolean,
@@ -1461,7 +1543,7 @@ private fun ReplyBar(
                 }
             }
             if (showFavorite) {
-                // 收藏
+                // 收藏：已收藏时图标填充 + 主题色高亮（12）
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -1470,14 +1552,17 @@ private fun ReplyBar(
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Icon(
-                        Icons.Filled.BookmarkBorder, "收藏",
+                        if (favorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                        if (favorited) "已收藏" else "收藏",
                         Modifier.size(19.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (favorited) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "收藏",
+                        if (favorited) "已收藏" else "收藏",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (favorited) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )
                 }

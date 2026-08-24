@@ -67,6 +67,7 @@ data class TopicPageData(
     val totalPages: Int,
     val csrf: String,
     val canFavorite: Boolean,
+    val favorited: Boolean = false, // 打开帖子时是否已收藏（源站收藏表单按钮为「取消收藏」）
     val favAction: String,       // 收藏表单 action
     val donateUrl: String?,      // 打赏入口
     val virtualCard: VirtualCard? = null,   // 发卡帖兑换卡片
@@ -222,7 +223,6 @@ data class ReplyItem(
 /** 首页侧板（源站 aside.sidebar） */
 data class HomeSidebar(
     val forums: List<ForumCount> = emptyList(),      // 版块列表（含主题数）
-    val recentForums: List<ForumInfo> = emptyList(), // 最近浏览版块
     val hotTopics: List<HotTopic> = emptyList(),     // 每日热帖
     val statsText: String = "",                      // 站点统计
     val newUsers: List<NewUser> = emptyList(),       // 最新用户

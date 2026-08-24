@@ -786,6 +786,12 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     checked = session.threadDialogEnabled,
                     onCheckedChange = { session.saveThreadDialog(it) }
                 )
+                SwitchRow(
+                    "取消收藏确认",
+                    "关闭后已收藏帖子点击收藏图标直接取消收藏，不再提示",
+                    checked = session.unfavoriteConfirm,
+                    onCheckedChange = { session.saveUnfavoriteConfirm(it) }
+                )
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
                     // 本地缓存分析（饼图，3.12）
                     CacheAnalysisCard(session)

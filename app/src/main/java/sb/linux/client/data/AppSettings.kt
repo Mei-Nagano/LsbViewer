@@ -38,6 +38,11 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("thread_dialog_enabled", false)
         set(v) = prefs.edit().putBoolean("thread_dialog_enabled", v).apply()
 
+    /** 取消收藏前弹确认框：关闭后已收藏帖子点击收藏图标直接取消收藏，不再提示 */
+    var unfavoriteConfirm: Boolean
+        get() = prefs.getBoolean("unfavorite_confirm", true)
+        set(v) = prefs.edit().putBoolean("unfavorite_confirm", v).apply()
+
     /** 侧边栏双列显示（作用于快捷功能与版块列表） */
     var sidebarTwoColumns: Boolean
         get() = prefs.getBoolean("sidebar_two_columns", true)
@@ -136,6 +141,7 @@ class AppSettings(context: Context) {
         .remove("sidebar_two_columns").remove("sidebar_show_online_users").remove("topics_per_page")
         .remove("comment_sort_order").remove("comments_per_page")
         .remove("scroll_mode_overrides").remove("home_sort_drawer_open")
+        .remove("unfavorite_confirm")
         .apply()
 
     /** 重置 AI 设置 */
@@ -599,6 +605,7 @@ class AppSettings(context: Context) {
         o.put("comments_per_page", commentsPerPage)
         o.put("scroll_mode_overrides", JSONObject(scrollModeOverrides))
         o.put("home_sort_drawer_open", homeSortDrawerOpen)
+        o.put("unfavorite_confirm", unfavoriteConfirm)
         o.put("link_open_mode", linkOpenMode)
         o.put("update_check_mode", updateCheckMode)
         o.put("update_check_interval_hours", updateCheckIntervalHours)
@@ -633,6 +640,7 @@ class AppSettings(context: Context) {
             if (o.has("comments_per_page")) p.putInt("comments_per_page", o.optInt("comments_per_page", 20).coerceIn(5, 100))
             if (o.has("scroll_mode_overrides")) p.putString("scroll_mode_overrides", o.getJSONObject("scroll_mode_overrides").toString())
             if (o.has("home_sort_drawer_open")) p.putBoolean("home_sort_drawer_open", o.getBoolean("home_sort_drawer_open"))
+            if (o.has("unfavorite_confirm")) p.putBoolean("unfavorite_confirm", o.getBoolean("unfavorite_confirm"))
             if (o.has("link_open_mode")) p.putInt("link_open_mode", o.optInt("link_open_mode", 0).coerceIn(0, 1))
             if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 1))
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))

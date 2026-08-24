@@ -408,6 +408,10 @@ object HtmlParser {
             totalPages = totalPages,
             csrf = csrf,
             canFavorite = favForm != null,
+            // 已收藏判定：源站收藏表单按钮文案为「取消收藏」，未收藏为「收藏」；
+            // 兜底 data-favorited="1" 属性（同点赞按钮 data-liked 的写法）
+            favorited = favForm != null &&
+                (favForm.attr("data-favorited") == "1" || favForm.text().contains("取消")),
             favAction = favForm?.attr("action") ?: "/topic_favorite",
             donateUrl = d.selectFirst("a[data-donate-btn]")?.attr("href"),
             virtualCard = card,
@@ -715,12 +719,6 @@ object HtmlParser {
             )
         }.distinctBy { it.topicId }
 
-        // 最近浏览版块
-        val recent = aside.select(".quick-forum-links a[href^=/forum/]").mapNotNull { a ->
-            val id = idFrom(a.attr("href"))
-            if (id <= 0) null else ForumInfo(id, a.selectFirst(".quick-link-text")?.text() ?: a.text().trim())
-        }.distinctBy { it.id }
-
         // 站点统计
         val stats = aside.selectFirst(".stats-sub")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: ""
 
@@ -775,7 +773,6 @@ object HtmlParser {
 
         return HomeSidebar(
             forums = forums,
-            recentForums = recent,
             hotTopics = hot,
             statsText = stats,
             newUsers = newUsers,
