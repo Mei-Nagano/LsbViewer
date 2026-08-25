@@ -1566,8 +1566,6 @@ private fun PostCardPreview(
                 ),
                 onClick = {},
                 onForumClick = {},
-                // 与首页样式保持一致：板块徽标以标签样式置于所有标签之前
-                forumAsTag = true,
                 onElementClick = onPick,
             )
         }

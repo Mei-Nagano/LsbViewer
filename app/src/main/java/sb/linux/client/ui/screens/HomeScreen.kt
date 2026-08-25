@@ -789,8 +789,6 @@ fun HomeScreen(
                                         views = session.getTopicViews(t.topicId),
                                         onClick = { nav.navigate("topic/${t.topicId}") },
                                         onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
-                                        // 首页：板块徽标以标签样式放在所有标签之前（与右下角样式区分）
-                                        forumAsTag = true,
                                     )
                                 }
                                 if (homeInfinite) {

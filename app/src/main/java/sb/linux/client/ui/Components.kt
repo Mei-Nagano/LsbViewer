@@ -1,6 +1,5 @@
 package sb.linux.client.ui
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,10 +61,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -376,8 +373,6 @@ fun TopicCardView(
     views: Int = -1,
     showComments: Boolean = true,   // false 时不显示评论数（浏览历史只展示浏览时间）
     showForum: Boolean = true,      // false 时不显示板块徽标（浏览历史）
-    // true 时板块徽标以标签样式放在所有标签之前（首页）；false 时固定在卡片右下角
-    forumAsTag: Boolean = false,
     onElementClick: ((key: String) -> Unit)? = null,
 ) {
     val titleColor = remember(card.titleColor) {
@@ -398,84 +393,64 @@ fun TopicCardView(
             else MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 2.dp)
+            .padding(horizontal = 14.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = {
                 // 预览改色模式：点按卡片空白处改背景色；正常模式打开帖子
                 if (onElementClick != null) onElementClick(CardColorOverrides.BACKGROUND) else onClick()
             }),
     ) {
-        Box {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 3.dp)) {
-                if (!compact) {
-                    Avatar(card.avatarUrl, 34, online = card.online)
-                    Spacer(Modifier.width(8.dp))
-                }
-                Column(Modifier.weight(1f)) {
-                    // 帖子标签（热/精华/未读/抽奖/发卡）置于标题前面；
-                    // 置顶不再是文字标签——改为卡片右上角「置顶」水印（见卡片末尾）
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        modifier = Modifier.let { m ->
-                            if (onElementClick != null)
-                                m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TAG) }
-                            else m
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+            if (!compact) {
+                Avatar(card.avatarUrl, 34, online = card.online)
+                Spacer(Modifier.width(10.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                // 顶行：标题（含标签）占左侧，板块标识固定在卡片右上角，与置顶/热等标签同一行以节省高度
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f)) {
+                        // 帖子标签（置顶/热/精华/未读/抽奖/发卡）置于标题前面
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            modifier = Modifier.let { m ->
+                                if (onElementClick != null)
+                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TAG) }
+                                else m
+                            }
+                        ) {
+                    if (tagColor != null) {
+                        // 自定义标签色：统一应用（前景自动黑/白）
+                        val fg = onColorFor(tagColor)
+                        if (card.pinned) Badge("置顶", tagColor, fg)
+                        if (card.hot) Badge("热", tagColor, fg)
+                        if (card.featured) Badge("精华", tagColor, fg)
+                        if (card.unread) Badge("未读", tagColor, fg)
+                        if (card.lotteryStatus.isNotBlank()) Badge(card.lotteryStatus, tagColor, fg)
+                        if (card.cardStatus.isNotBlank()) Badge(card.cardStatus, tagColor, fg)
+                    } else {
+                        if (card.pinned) Badge("置顶", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+                        if (card.hot) Badge("热", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+                        if (card.featured) Badge("精华", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+                        if (card.unread) Badge("未读", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                        if (card.lotteryStatus.isNotBlank()) {
+                            val open = card.lotteryStatus.contains("开奖").not()
+                            Badge(
+                                card.lotteryStatus,
+                                if (open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                if (open) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            )
                         }
-                    ) {
-                        // 板块标识（forumAsTag，首页）：与其他标签同样式，置于所有标签之前；
-                        // 点击进入板块；预览改色模式点按回调 FORUM key（同右下角徽标）
-                        if (forumAsTag && showForum) {
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer,
-                                onClick = {
-                                    if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
-                                    else onForumClick(card.forumId)
-                                }
-                            ) {
-                                Text(
-                                    card.forumName,
-                                    style = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
-                                    fontWeight = FontWeight.Medium,
-                                    color = forumOverride?.let { onColorFor(it) }
-                                        ?: MaterialTheme.colorScheme.onSecondaryContainer,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp)
-                                )
-                            }
-                        }
-                        if (tagColor != null) {
-                            // 自定义标签色：统一应用（前景自动黑/白）
-                            val fg = onColorFor(tagColor)
-                            if (card.hot) Badge("热", tagColor, fg)
-                            if (card.featured) Badge("精华", tagColor, fg)
-                            if (card.unread) Badge("未读", tagColor, fg)
-                            if (card.lotteryStatus.isNotBlank()) Badge(card.lotteryStatus, tagColor, fg)
-                            if (card.cardStatus.isNotBlank()) Badge(card.cardStatus, tagColor, fg)
-                        } else {
-                            if (card.hot) Badge("热", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
-                            if (card.featured) Badge("精华", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
-                            if (card.unread) Badge("未读", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-                            if (card.lotteryStatus.isNotBlank()) {
-                                val open = card.lotteryStatus.contains("开奖").not()
-                                Badge(
-                                    card.lotteryStatus,
-                                    if (open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                    if (open) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
-                            if (card.cardStatus.isNotBlank()) {
-                                val active = card.cardStatus.contains("结束").not()
-                                Badge(
-                                    card.cardStatus,
-                                    if (active) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.outline,
-                                    if (active) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
+                        if (card.cardStatus.isNotBlank()) {
+                            val active = card.cardStatus.contains("结束").not()
+                            Badge(
+                                card.cardStatus,
+                                if (active) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.outline,
+                                if (active) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurface,
+                            )
                         }
                     }
+                }
                     Text(
                         card.title,
                         style = MaterialTheme.typography.titleSmall,
@@ -484,127 +459,95 @@ fun TopicCardView(
                         color = titleColor ?: Color.Unspecified,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        // 行距收紧到 1.125 倍（18sp/16sp）：压缩行内上下留白，
-                        // 标签与标题、标题与信息行贴得更紧，提高信息密度
-                        lineHeight = 18.sp
+                        lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.1f,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
-                    Spacer(Modifier.size(2.dp))
-                    // 底行：用户名 / 时间 / 评论数不使用分隔点，FlowRow 放不下时自动换行
-                    //（避免称号徽章挤占导致用户名被截断）；板块标识固定在卡片右下角（4），
-                    // FlowRow 占满剩余宽度，多行时徽标贴最末行右缘；
-                    // forumAsTag（首页）时板块已上移到标签行，右下角不再显示
-                    // metaStyle：底行信息字行高收紧（16sp→13sp），减少卡片底部留白
-                    val metaStyle = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp)
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        FlowRow(
-                            verticalArrangement = Arrangement.Center,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                card.authorName,
-                                style = metaStyle,
-                                color = userOverride ?: MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .let { m ->
-                                        if (onElementClick != null)
-                                            m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.USER) }
-                                        else m
-                                    }
-                            )
-                            // 作者称号（源站称号系统徽章）：用 small 缩小比例，避免过宽/换行
-                            card.titleBadge?.let {
-                                TitleBadgeView(it, small = true)
-                            }
-                            Text(
-                                card.timeText,
-                                style = metaStyle,
-                                color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.let { m ->
+                    Spacer(Modifier.size(4.dp))
+                    // 用户名 / 时间 / 评论数：不使用分隔点。
+                    // 用 FlowRow 让行内放不下时自动换行，避免称号徽章挤占导致用户名被截断
+                    FlowRow(
+                        verticalArrangement = Arrangement.Center,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            card.authorName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = userOverride ?: MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .let { m ->
                                     if (onElementClick != null)
-                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TIME) }
+                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.USER) }
                                     else m
                                 }
-                            )
-                            if (!compact && showComments) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    modifier = Modifier.let { m ->
-                                        if (onElementClick != null)
-                                            m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.COMMENTS) }
-                                        else m
-                                    }
-                                ) {
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.Chat, null,
-                                        modifier = Modifier.size(12.dp),
-                                        tint = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        "${card.replies}",
-                                        style = metaStyle,
-                                        color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                        )
+                        // 作者称号（源站称号系统徽章）：用 small 缩小比例，避免过宽/换行
+                        card.titleBadge?.let {
+                            TitleBadgeView(it, small = true)
                         }
-                        // 板块标识：固定在卡片右下角（与作者信息底行对齐）；
-                        // forumAsTag（首页）时已上移到标签行，这里不再显示
-                        if (showForum && !forumAsTag) {
-                            Spacer(Modifier.width(5.dp))
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
-                                onClick = {
-                                    if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
-                                    else onForumClick(card.forumId)
+                        Text(
+                            card.timeText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.let { m ->
+                                if (onElementClick != null)
+                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TIME) }
+                                else m
+                            }
+                        )
+                        if (!compact && showComments) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                modifier = Modifier.let { m ->
+                                    if (onElementClick != null)
+                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.COMMENTS) }
+                                    else m
                                 }
                             ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Chat, null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 Text(
-                                    card.forumName,
-                                    style = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
-                                    color = forumOverride?.let { onColorFor(it) }
-                                        ?: MaterialTheme.colorScheme.onSecondaryContainer,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    "${card.replies}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                     }
                 }
-            }
-            // 置顶水印：右上角「置顶」两字——浅灰、细体无衬线、半透明、轻模糊、
-            // -10° 微倾的平面 2D 水印标记（无边框/圆角框/图标/立体效果，字号小不遮挡
-            // 主体内容；替代原线条图钉）。12sp + 更高不透明度，水印更大更清楚；
-            // BlurMaskFilter 实现模糊，兼容全部 API 级别
-            if (card.pinned) {
-                val paint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
-                Canvas(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 4.dp, end = 10.dp)
-                        .size(36.dp, 20.dp)
-                ) {
-                    paint.textSize = 12.sp.toPx()
-                    paint.typeface = android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL)
-                    paint.color = android.graphics.Color.argb(115, 140, 140, 140)
-                    paint.maskFilter = android.graphics.BlurMaskFilter(0.5.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
-                    // 文字画在画布中心，旋转围绕画布中心进行，倾斜后不偏出画布
-                    val tw = paint.measureText("置顶")
-                    val x = (size.width - tw) / 2f
-                    val y = size.height / 2f - (paint.ascent() + paint.descent()) / 2f
-                    rotate(-10f) {
-                        drawContext.canvas.nativeCanvas.drawText("置顶", x, y, paint)
+                // 板块标识：固定在卡片右上角（与标题顶部对齐）
+                if (showForum) {
+                    Spacer(Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                        onClick = {
+                            if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
+                            else onForumClick(card.forumId)
+                        }
+                    ) {
+                        Text(
+                            card.forumName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = forumOverride?.let { onColorFor(it) }
+                                ?: MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
                     }
                 }
             }
         }
     }
+}
 }
 
 /** 分页条：单个加宽胶囊，前后翻页箭头并入胶囊两端（36） */
