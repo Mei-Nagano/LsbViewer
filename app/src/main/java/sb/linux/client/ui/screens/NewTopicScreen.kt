@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Title
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -164,6 +166,8 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmOpen by remember { mutableStateOf(false) }
+    // 预览模式：正文 Markdown 实时渲染为帖子样式（HtmlContent）
+    var previewMode by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(editId) {
@@ -308,6 +312,13 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                     }
                 },
                 actions = {
+                    // 正文 Markdown 实时预览开关
+                    IconButton(onClick = { previewMode = !previewMode }) {
+                        Icon(
+                            if (previewMode) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            if (previewMode) "退出预览" else "预览"
+                        )
+                    }
                     // 发布前先弹公告确认（每次都要确认）
                     TextButton(
                         onClick = {
@@ -650,8 +661,8 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Markdown 工具栏
-            Surface(
+            // Markdown 工具栏（预览模式下隐藏）
+            if (!previewMode) Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier.fillMaxWidth()
@@ -671,21 +682,45 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                 }
             }
 
-            OutlinedTextField(
-                value = body,
-                onValueChange = { body = it },
-                label = { Text("内容 (Markdown)") },
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 260.dp),
-                textStyle = TextStyle(fontFamily = FontFamily.Monospace)
-            )
-            Text(
-                "支持 Markdown 语法，与源站编辑器一致。@用户名 可提及他人。",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (previewMode) {
+                // 预览：Markdown → HTML 后用帖子同款渲染器展示（表格/代码块/链接等所见即所得）
+                val previewHtml = remember(body) { HtmlParser.markdownToHtml(body) }
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 260.dp)
+                ) {
+                    if (body.isBlank()) {
+                        Text(
+                            "暂无内容，退出预览继续编辑",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else {
+                        sb.linux.client.ui.HtmlContent(
+                            html = previewHtml,
+                            modifier = Modifier.padding(16.dp),
+                            mergeImages = false,
+                            // 每敲一个键都是全新 HTML，不写共享解析缓存（否则挤掉阅读中的楼层）
+                            cacheable = false
+                        )
+                    }
+                }
+            } else {
+                OutlinedTextField(
+                    value = body,
+                    onValueChange = { body = it },
+                    label = { Text("内容 (Markdown)") },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 260.dp),
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace)
+                )
+            }
         }
     }
 }

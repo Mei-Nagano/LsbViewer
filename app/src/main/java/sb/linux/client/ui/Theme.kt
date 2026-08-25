@@ -202,7 +202,7 @@ fun LsbTheme(
         surfaceContainerHigh = Color(0xFF161616),
         surfaceContainerHighest = Color(0xFF1C1C1C),
         outlineVariant = Color(0xFF262626),
-    ) else colorScheme
+    ) else styledScheme
     MaterialTheme(
         colorScheme = finalScheme,
         typography = appTypography(fontFamily),

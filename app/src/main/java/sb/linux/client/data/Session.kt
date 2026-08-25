@@ -503,10 +503,17 @@ class Session(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * 阅读量缓存持久化（上限 500 条）。
+     * topicViews 是 SnapshotStateMap，迭代顺序不保证是插入序 —— 原先的 takeLast(500)
+     * 因此丢弃的是「随机」条目而非最旧的。按 topicId 降序保留（id 越大帖子越新），
+     * 淘汰结果稳定可预期。
+     */
     private fun persistViews() {
         runCatching {
             val o = org.json.JSONObject()
-            topicViews.entries.toList().takeLast(500).forEach { e -> o.put(e.key.toString(), e.value) }
+            topicViews.entries.sortedByDescending { it.key }.take(500)
+                .forEach { e -> o.put(e.key.toString(), e.value) }
             viewsPrefs.edit().putString("views", o.toString()).apply()
         }
     }
@@ -680,7 +687,7 @@ class Session(app: Application) : AndroidViewModel(app) {
      * 临时文件 + Coil 图片磁盘缓存。保留登录态、设置与登录信息。
      */
     fun clearLocalCache() {
-        topicPageCache.clear()
+        clearAllTopicPageCache()
         aiSummaryCache.clear()
         danmakuCache.clear()
         topicViews.clear()
@@ -728,9 +735,11 @@ class Session(app: Application) : AndroidViewModel(app) {
                         loadCheckinInfo()
                     }
                 }
-                // 登录态发生变化：清空帖子页缓存（未登录时抓的帖子看不到评论区，登录后需重新抓取）
+                // 登录态发生变化：清空帖子页缓存（未登录时抓的帖子看不到评论区，登录后需重新抓取），
+                // 并丢弃 CSRF 令牌缓存——令牌与会话 Cookie 绑定，换了身份旧令牌会被源站拒绝
                 if (wasLoggedIn != loginState.loggedIn) {
-                    topicPageCache.clear()
+                    clearAllTopicPageCache()
+                    client.invalidateCsrf()
                 }
             } catch (e: Exception) {
                 loginState = LoginState()

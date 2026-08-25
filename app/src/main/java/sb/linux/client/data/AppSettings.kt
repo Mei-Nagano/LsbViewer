@@ -710,6 +710,9 @@ class AppSettings(context: Context) {
         // 26：补齐近期新增设置——对话串联开关与本地收藏的评论
         o.put("thread_dialog_enabled", threadDialogEnabled)
         o.put("comment_favorites", JSONArray(prefs.getString("local_comment_favorites", "[]") ?: "[]"))
+        // 本地收藏的帖子与浏览历史：纯本地数据，源站不存，不导出则换机即丢
+        o.put("favorites", JSONArray(prefs.getString("local_favorites", "[]") ?: "[]"))
+        o.put("history", JSONArray(prefs.getString("local_history", "[]") ?: "[]"))
         // 26：外观主题与字体（lsb_prefs 全量导出，导入后立即生效）
         val t = JSONObject()
         t.put("theme_mode", themePrefs.getInt("theme_mode", 0))
@@ -727,6 +730,9 @@ class AppSettings(context: Context) {
         )
         t.put("card_colors", themePrefs.getString("card_colors", "") ?: "")
         t.put("font_key", themePrefs.getString("font_key", "default") ?: "default")
+        // 自定义字体的显示名：不导出会导致导入后字体档位显示为「自定义」但名称空白
+        // （字体文件本身在私有目录，无法随 JSON 一起搬走，导入端会自动回落默认字体）
+        t.put("custom_font_name", themePrefs.getString("custom_font_name", "") ?: "")
         o.put("theme", t)
         return o.toString(2)
     }
@@ -748,7 +754,9 @@ class AppSettings(context: Context) {
             if (o.has("home_sort_drawer_open")) p.putBoolean("home_sort_drawer_open", o.getBoolean("home_sort_drawer_open"))
             if (o.has("unfavorite_confirm")) p.putBoolean("unfavorite_confirm", o.getBoolean("unfavorite_confirm"))
             if (o.has("link_open_mode")) p.putInt("link_open_mode", o.optInt("link_open_mode", 0).coerceIn(0, 1))
-            if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 1))
+            // 0 = 每次打开，1 = 按间隔，2 = 从不：上限必须是 2，夹到 1 会把用户
+            // 选的「从不」在恢复备份后悄悄改成「按间隔」
+            if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 2))
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))
             if (o.has("tablet_mode")) p.putBoolean("tablet_mode", o.getBoolean("tablet_mode"))
             if (o.has("bottom_bar_style")) p.putInt("bottom_bar_style", o.optInt("bottom_bar_style", 1).coerceIn(0, 1))
@@ -777,6 +785,9 @@ class AppSettings(context: Context) {
             if (o.has("thread_dialog_enabled")) p.putBoolean("thread_dialog_enabled", o.getBoolean("thread_dialog_enabled"))
             // 26：本地收藏的评论
             if (o.has("comment_favorites")) p.putString("local_comment_favorites", o.getJSONArray("comment_favorites").toString())
+            // 本地收藏的帖子与浏览历史
+            if (o.has("favorites")) p.putString("local_favorites", o.getJSONArray("favorites").toString())
+            if (o.has("history")) p.putString("local_history", o.getJSONArray("history").toString())
             p.apply()
             // 26：外观主题与字体写入 lsb_prefs
             if (o.has("theme")) {
@@ -797,6 +808,9 @@ class AppSettings(context: Context) {
                 }
                 if (t.has("card_colors")) tp.putString("card_colors", t.getString("card_colors"))
                 if (t.has("font_key")) tp.putString("font_key", t.getString("font_key"))
+                // 字体文件在私有目录、随不了 JSON；导入后 MainActivity 发现文件不存在会
+                // 自动回落默认字体，这里只把名称补上以免设置页显示为空白的「自定义」
+                if (t.has("custom_font_name")) tp.putString("custom_font_name", t.getString("custom_font_name"))
                 tp.apply()
             }
             null

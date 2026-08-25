@@ -265,6 +265,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 滚动模式切换的触发标记：scrollModeOverrides 存于 SharedPreferences（非 Compose 状态），
     // 切换后靠此标记强制重组，让 topicInfinite 从源设置重新读取，菜单选项与分页即时同步。
     var replyModeTick by remember { mutableIntStateOf(0) }
+    // 倒序全量加载可能因源站页码不推进而中途停下（见 loadAllRemaining 的进度守卫）。
+    // 记录停下时的页码：下面那个 LaunchedEffect 以 loadingMore 为 key，若不记录会在
+    // 守卫跳出后立刻重新触发，形成 effect 级别的无限重试。
+    var reverseStalledAtPage by remember { mutableIntStateOf(0) }
     val replies = sortedPosts.drop(1)
     // 楼层号 → 回复：树形「回复 #N」胶囊展示父楼作者头像用（父楼未加载时无头像，胶囊降级为图标）
     val repliesByFloor = remember(replies) { replies.associateBy { it.floor } }
@@ -330,8 +334,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 // 记录已载入的源站分页范围（1..loadedMaxPage）
                 loadedMaxPage = if (append) maxOf(loadedMaxPage, d.page.coerceAtLeast(1))
                 else d.page.coerceAtLeast(1)
-                // 重新加载（非追加）时重置本地评论分页页码（3.11）
-                if (!append) localReplyPage = 1
+                // 重新加载（非追加）时重置本地评论分页页码（3.11）与倒序停滞标记
+                if (!append) { localReplyPage = 1; reverseStalledAtPage = 0 }
                 // 阅读量回填首页卡片缓存
                 if (!append) d.viewsText.toIntOrNull()?.let { session.saveTopicViews(tid, it) }
                 // 记录到本地浏览历史（3.2）
@@ -359,8 +363,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             error = null
             while ((data?.posts?.size ?: 0) < need && (data?.page ?: 1) < (data?.totalPages ?: 1)) {
                 loadingMore = true
+                val prevPage = data?.page ?: 1
+                val prevCount = data?.posts?.size ?: 0
                 try {
-                    val np = (data?.page ?: 1) + 1
+                    val np = prevPage + 1
                     val d = session.getTopicPage(tid, np) ?: run {
                         val resp = session.client.get("/topic/$tid?p=$np")
                         HtmlParser.parseTopicPage(resp.html, tid).also { session.saveTopicPage(tid, np, it) }
@@ -375,6 +381,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     session.showToast(e.message ?: "加载失败")
                     break
                 }
+                // 进度守卫：源站对越界 ?p= 常返回同一页内容，该页若无分页控件解析出的
+                // page 会回落为 1 —— 此时 page 不推进、posts 也不增长，循环条件恒真。
+                // 命中缓存后还会退化成纯 CPU 空转（每轮全量 distinctBy），必须主动跳出。
+                if ((data?.page ?: 1) <= prevPage && (data?.posts?.size ?: 0) <= prevCount) break
             }
             loadingMore = false
             localReplyPage = target.coerceAtLeast(1)
@@ -393,7 +403,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 while ((data?.page ?: 1) < (data?.totalPages ?: 1) &&
                     (data?.page ?: 1) < 100
                 ) {
-                    val np = (data?.page ?: 1) + 1
+                    val prevPage = data?.page ?: 1
+                    val prevCount = data?.posts?.size ?: 0
+                    val np = prevPage + 1
                     val d = session.getTopicPage(tid, np) ?: run {
                         val resp = session.client.get("/topic/$tid?p=$np")
                         HtmlParser.parseTopicPage(resp.html, tid).also { session.saveTopicPage(tid, np, it) }
@@ -404,6 +416,13 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         totalPages = d.totalPages,
                     ) ?: d
                     loadedMaxPage = maxOf(loadedMaxPage, d.page.coerceAtLeast(1))
+                    // 进度守卫：上面的 page < 100 限的是页码而非迭代次数——源站页码若不
+                    // 推进（越界 ?p= 返回同一页 / 该页解析不到分页控件回落为 1），page 恒为
+                    // prevPage，那个上限永远挡不住，必须按「本轮是否真有进展」跳出。
+                    if ((data?.page ?: 1) <= prevPage && (data?.posts?.size ?: 0) <= prevCount) {
+                        reverseStalledAtPage = prevPage
+                        break
+                    }
                 }
             } catch (e: Exception) {
                 session.showToast(e.message ?: "加载失败")
@@ -416,7 +435,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 仅依赖 data key 重启会读到 loading=true 而漏触发。
     LaunchedEffect(sortOrder, data?.page, data?.totalPages, loading, loadingMore) {
         if (sortOrder == 2 && data != null && !loading && !loadingMore &&
-            (data?.page ?: 1) < (data?.totalPages ?: 1)
+            (data?.page ?: 1) < (data?.totalPages ?: 1) &&
+            // 上一轮已在这一页停住（源站页码不推进）：不再重试，否则本 effect 会随
+            // loadingMore 的翻转被无限重新触发
+            reverseStalledAtPage != (data?.page ?: 1)
         ) loadAllRemaining()
     }
 
@@ -1972,6 +1994,27 @@ fun PostCard(
     }
 }
 
+/** 帖内统一徽章胶囊：UID / 楼主 / 头衔（组别）/ 称号共用同一规格，
+ *  labelSmall 字号 · 16dp 最小高度 · 45% 透明背景 · 6dp/1dp 内边距，仅配色语义不同 */
+@Composable
+private fun PillBadge(text: String, fg: Color, bg: Color, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = bg.copy(alpha = 0.45f),
+        modifier = modifier.heightIn(min = 16.dp)
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = fg,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun PostCardContent(
@@ -2017,29 +2060,13 @@ private fun PostCardContent(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (post.authorUid > 0) {
-                        // UID 徽章：与楼主/组别/称号徽章统一的胶囊样式（small），仅配色保持中性
-                        Badge(
-                            "UID ${post.authorUid}",
-                            MaterialTheme.colorScheme.surfaceVariant,
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                            small = true
-                        )
+                        PillBadge("UID ${post.authorUid}", MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceVariant, Modifier.align(Alignment.CenterVertically))
                     }
                     if (isOpAuthor) {
-                        Badge(
-                            "楼主",
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.onPrimaryContainer,
-                            small = true
-                        )
+                        PillBadge("楼主", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer, Modifier.align(Alignment.CenterVertically))
                     }
                     if (post.userGroup.isNotBlank()) {
-                        Badge(
-                            post.userGroup,
-                            MaterialTheme.colorScheme.secondaryContainer,
-                            MaterialTheme.colorScheme.onSecondaryContainer,
-                            small = true
-                        )
+                        PillBadge(post.userGroup, MaterialTheme.colorScheme.onSecondaryContainer, MaterialTheme.colorScheme.secondaryContainer, Modifier.align(Alignment.CenterVertically))
                     }
                 }
                 // 元信息行：称号矮胶囊（字号与时间一致）· 发送时间 · IP 属地
@@ -2049,24 +2076,13 @@ private fun PostCardContent(
                 ) {
                     post.titleBadge?.let { t ->
                         val (fg, bg) = sb.linux.client.ui.titleRarityColor(t.rarity)
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = bg.copy(alpha = 0.45f),
-                            modifier = Modifier.heightIn(min = 16.dp)
-                        ) {
-                            Text(
-                                buildString {
-                                    append(t.name)
-                                    if (t.rarity.isNotBlank()) append("·").append(t.rarity)
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = fg,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                            )
-                        }
+                        PillBadge(
+                            buildString {
+                                append(t.name)
+                                if (t.rarity.isNotBlank()) append("·").append(t.rarity)
+                            },
+                            fg, bg
+                        )
                     }
                     Text(
                         buildString {

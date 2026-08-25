@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,6 +53,9 @@ fun WebScreen(session: Session, nav: NavHostController) {
     val rawUrl = entry.arguments?.getString("url").orEmpty()
     val url = sb.linux.client.data.Endpoints.abs(rawUrl)
     var pageTitle by remember { mutableStateOf(url) }
+    // WebView 内页面可能发生跳转，记录当前实际地址供「在浏览器打开」使用
+    var currentUrl by remember { mutableStateOf(url) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         topBar = {
@@ -67,6 +71,21 @@ fun WebScreen(session: Session, nav: NavHostController) {
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    // 在浏览器打开：调起系统浏览器查看当前页面
+                    IconButton(onClick = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(currentUrl)
+                                )
+                            )
+                        }
+                    }) {
+                        Icon(Icons.Filled.OpenInNew, "在浏览器打开")
                     }
                 }
             )
@@ -86,6 +105,7 @@ fun WebScreen(session: Session, nav: NavHostController) {
                             isReload: Boolean,
                         ) {
                             pageTitle = view?.title?.takeIf { it.isNotBlank() } ?: u ?: url
+                            currentUrl = u ?: url
                         }
                     }
                     loadUrl(url)

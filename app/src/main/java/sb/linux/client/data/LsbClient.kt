@@ -37,26 +37,39 @@ class LsbClient(private val context: Context) {
     private val prefs = context.getSharedPreferences("lsb_session", Context.MODE_PRIVATE)
 
     private val cookieJar = object : CookieJar {
-        fun store(): MutableMap<String, Cookie> {
+        /**
+         * 内存为权威存储，SharedPreferences 只承担「持久化 Cookie」的跨进程恢复。
+         *
+         * 旧实现没有内存层：loadForRequest 每次都重读 prefs 并逐条 split 解析
+         * （头像列表滚动时每张图一次，开销可观），而 persist() 只写 it.persistent
+         * 的那些 —— 于是会话 Cookie（无 Expires/Max-Age）在下一个请求前就被丢掉，
+         * 永远发不出去。改为内存持久：会话 Cookie 活到进程结束，符合浏览器语义。
+         */
+        private val memory: MutableMap<String, Cookie> by lazy { loadPersisted() }
+
+        private fun loadPersisted(): MutableMap<String, Cookie> {
             val map = mutableMapOf<String, Cookie>()
             val set = prefs.getStringSet("cookies", emptySet()) ?: emptySet()
             for (s in set) {
                 val p = s.split("\u0001")
-                if (p.size == 5 && p[4].toLong() > System.currentTimeMillis()) {
-                    map[p[0]] = Cookie.Builder()
-                        .name(p[0]).value(p[1])
-                        .domain(p[2]).path(p[3])
-                        .expiresAt(p[4].toLong())
-                        .build()
-                }
+                if (p.size != 5) continue
+                // toLongOrNull：脏数据不至于让整个 loadForRequest 抛异常导致所有请求失败
+                val exp = p[4].toLongOrNull() ?: continue
+                if (exp <= System.currentTimeMillis()) continue
+                map[p[0]] = Cookie.Builder()
+                    .name(p[0]).value(p[1])
+                    .domain(p[2]).path(p[3])
+                    .expiresAt(exp)
+                    .build()
             }
             return map
         }
 
-        fun value(name: String): String? = store()[name]?.value
+        fun store(): MutableMap<String, Cookie> = synchronized(this) { LinkedHashMap(memory) }
 
-        fun saveRawCookies(url: String, cookieHeader: String) {
-            val map = store()
+        fun value(name: String): String? = synchronized(this) { memory[name]?.value }
+
+        fun saveRawCookies(url: String, cookieHeader: String) = synchronized(this) {
             val httpUrl = url.toHttpUrl()
             for (pair in cookieHeader.split(";")) {
                 val eq = pair.indexOf('=')
@@ -64,32 +77,43 @@ class LsbClient(private val context: Context) {
                 val name = pair.substring(0, eq).trim()
                 val value = pair.substring(eq + 1).trim()
                 if (name.isBlank()) continue
-                map[name] = Cookie.Builder()
+                memory[name] = Cookie.Builder()
                     .name(name).value(value)
                     .domain(httpUrl.host).path("/")
                     .expiresAt(System.currentTimeMillis() + 6 * 60 * 60 * 1000)
                     .build()
             }
-            persist(map)
+            persist()
         }
 
-        private fun persist(map: MutableMap<String, Cookie>) {
+        /** 调用方需持有 this 锁 */
+        private fun persist() {
             prefs.edit().putStringSet(
                 "cookies",
-                map.values.filter { it.persistent }.map {
+                memory.values.filter { it.persistent }.map {
                     "${it.name}\u0001${it.value}\u0001${it.domain}\u0001${it.path}\u0001${it.expiresAt}"
                 }.toSet()
             ).apply()
         }
 
-        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-            val map = store()
-            for (c in cookies) map[c.name] = c
-            persist(map)
+        /** 清空内存与磁盘（退出登录）：只清 prefs 会留下内存里的会话 Cookie，仍是登录态 */
+        fun clear() = synchronized(this) {
+            memory.clear()
+            prefs.edit().putStringSet("cookies", emptySet()).apply()
         }
 
-        override fun loadForRequest(url: HttpUrl): List<Cookie> =
-            store().values.filter { it.matches(url) }
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) = synchronized(this) {
+            for (c in cookies) memory[c.name] = c
+            persist()
+        }
+
+        override fun loadForRequest(url: HttpUrl): List<Cookie> = synchronized(this) {
+            // 仅清理已过期的持久化 Cookie；会话 Cookie 的 persistent=false、
+            // expiresAt 为 Long.MAX_VALUE，不参与过期判定
+            val now = System.currentTimeMillis()
+            memory.values.removeAll { it.persistent && it.expiresAt <= now }
+            memory.values.filter { it.matches(url) }
+        }
     }
 
     val http: OkHttpClient = OkHttpClient.Builder()
@@ -153,34 +177,70 @@ class LsbClient(private val context: Context) {
             throw LsbException("工作量证明计算超时")
         }
 
+        /**
+         * 挑战页体积上限：验证页是纯脚本页，通常只有几 KB；正常论坛页远大于此。
+         * 人可读文案类弱特征只在小于该体积的响应里才采信。
+         */
+        private const val CHALLENGE_MAX_HTML = 24 * 1024
+
+        /** 取 <title> 文本（供弱特征判定用），无标题返回空串 */
+        private fun titleOf(html: String): String =
+            Regex("<title[^>]*>([\\s\\S]{0,300}?)</title>", RegexOption.IGNORE_CASE)
+                .find(html)?.groupValues?.get(1)?.trim().orEmpty()
+
+        /**
+         * 分级匹配挑战页特征。
+         *
+         * strong = 机器标识（脚本变量 / 请求头 / Cookie 名 / 固定 URL 路径），正文散文
+         * 里不会出现，可以直接全文匹配。
+         * weak = 人可读文案，只在 <title> 里或极小的响应里才作为判据 —— 早先对整页
+         * 全文 contains("turnstile") / ("Protected By") 之类，会把「讨论 Cloudflare
+         * 的帖子」或搜这些词的搜索结果页误判成挑战页，弹出无意义的验证框，最后报
+         * 「访问验证恢复失败」而看不到内容。
+         */
+        private fun hasChallengeMarker(html: String, strong: List<String>, weak: List<String>): Boolean {
+            if (strong.any { html.contains(it, ignoreCase = true) }) return true
+            if (weak.isEmpty()) return false
+            if (weak.any { titleOf(html).contains(it, ignoreCase = true) }) return true
+            return html.length < CHALLENGE_MAX_HTML && weak.any { html.contains(it, ignoreCase = true) }
+        }
+
+        private val UAM_STRONG = listOf(
+            "X-FL-UA-Step",
+            "fl_ua_p",
+            "SECURITY_VERIFICATION",
+            "UAM_CHECKING",
+        )
+        private val UAM_WEAK = listOf(
+            "Checking your Browser",
+            "Verifying your request",
+            "Protected By",
+            "Peekabo",
+        )
+
+        private val CF_STRONG = listOf(
+            "challenge-platform",
+            "challenges.cloudflare.com",
+            "cf-chl-",
+            "cf-browser-verification",
+            "__cf_chl",
+            "cf-turnstile",
+            "cdn-cgi/challenge",
+            "CF-Chl-Client",
+        )
+        private val CF_WEAK = listOf(
+            "turnstile",
+            "Just a moment",
+            "Attention Required",
+        )
+
         /** 源站 Peekabo UAM 验证页特征（与页面 JS 一致） */
         private fun isUamChallenge(html: String): Boolean =
-            listOf(
-                "X-FL-UA-Step",
-                "fl_ua_p",
-                "SECURITY_VERIFICATION",
-                "UAM_CHECKING",
-                "Checking your Browser",
-                "Verifying your request",
-                "Protected By",
-                "Peekabo",
-            ).any { html.contains(it) }
+            hasChallengeMarker(html, UAM_STRONG, UAM_WEAK)
 
         /** Cloudflare 人机验证 / JS 挑战特征（常以 403/503 返回） */
         private fun isCloudflareChallenge(html: String): Boolean =
-            listOf(
-                "challenge-platform",
-                "challenges.cloudflare.com",
-                "cf-chl-",
-                "cf-browser-verification",
-                "__cf_chl",
-                "cf-turnstile",
-                "turnstile",
-                "Just a moment",
-                "Attention Required",
-                "cdn-cgi/challenge",
-                "CF-Chl-Client",
-            ).any { html.contains(it, ignoreCase = true) }
+            hasChallengeMarker(html, CF_STRONG, CF_WEAK)
 
         private fun isChallenge(html: String): Boolean = isUamChallenge(html) || isCloudflareChallenge(html)
 
@@ -229,13 +289,18 @@ class LsbClient(private val context: Context) {
 
     // ---------------- Peekabo UAM 访问验证 ----------------
 
-    private suspend fun solveUam(url: String, challengeHtml: String) = verificationMutex.withLock {
+    /**
+     * 处理验证页。
+     * @return true = 已处理，调用方可重试请求；false = 用户取消或等待超时，调用方应
+     *   立即放弃而不是再重试 —— 否则外层的 repeat(3) 会把同一个验证对话框接连弹三次。
+     */
+    private suspend fun solveUam(url: String, challengeHtml: String): Boolean = verificationMutex.withLock {
         // 1) 源站 Peekabo UAM：可应用层直接结算（SHA-256 PoW + 加权和 POST）。
         //    用 WebView 弹倒计时页反而会秒数卡死/一直转圈，这里先静默求解。
         if (isUamChallenge(challengeHtml)) {
             try {
                 solveUamManually(url, challengeHtml)
-                return@withLock
+                return@withLock true
             } catch (_: Exception) {
                 // 手动求解失败（如缺 fl_ua_p cookie）→ 回退到 WebView/UI
             }
@@ -244,11 +309,11 @@ class LsbClient(private val context: Context) {
         //    不预置 OkHttp cookie 到 WebView，验证通过后 importWebCookies 统一回传。
         val ui = verificationUi
         if (ui != null) {
-            val ok = runCatching { ui(url, challengeHtml) }.getOrDefault(false)
-            if (ok) return@withLock
+            // 取消与超时都会拿到 false，如实上报由调用方终止重试
+            return@withLock runCatching { ui(url, challengeHtml) }.getOrDefault(false)
         }
         // 3) 未配置 UI：隐藏 WebView 兜底。
-        if (ui == null && solveUamWithWebView(url)) return@withLock
+        solveUamWithWebView(url)
     }
 
     /** 验证页通过后，把 WebView 中的 Cookie 同步回 OkHttp */
@@ -372,7 +437,8 @@ class LsbClient(private val context: Context) {
             http.newCall(req).execute().use { r ->
                 val resp = Resp(r.request.url.toString(), r.body?.string() ?: "", r.code)
                 if (needsVerification(resp.code, resp.html)) {
-                    solveUam(resp.url, resp.html)
+                    // 取消/超时即放弃：否则同一个验证对话框会被 repeat(3) 连弹三次
+                    if (!solveUam(resp.url, resp.html)) throw LsbException("已取消人机验证")
                 } else {
                     return@withContext resp
                 }
@@ -452,7 +518,11 @@ class LsbClient(private val context: Context) {
                         // （504 空体等网关错误不该弹验证页，直接重试/换候选）
                         val html = String(b, Charsets.UTF_8)
                         if (isChallenge(html)) {
-                            runCatching { solveUam(r.request.url.toString(), html) }
+                            val resolved = runCatching {
+                                solveUam(r.request.url.toString(), html)
+                            }.getOrDefault(false)
+                            // 用户取消：别再为这张图重复弹验证，交给外层兜底逻辑
+                            if (!resolved) return@attempt
                         }
                     }
                 }
@@ -477,7 +547,8 @@ class LsbClient(private val context: Context) {
             http.newCall(req).execute().use { r ->
                 val resp = Resp(r.request.url.toString(), r.body?.string() ?: "", r.code)
                 if (needsVerification(resp.code, resp.html)) {
-                    solveUam(resp.url, resp.html)
+                    // 取消/超时即放弃：否则同一个验证对话框会被 repeat(3) 连弹三次
+                    if (!solveUam(resp.url, resp.html)) throw LsbException("已取消人机验证")
                 } else {
                     return@withContext resp
                 }
@@ -500,7 +571,7 @@ class LsbClient(private val context: Context) {
             http.newCall(req).execute().use { r ->
                 val text = r.body?.string() ?: ""
                 if (isChallenge(text) || r.code == 403 || r.code == 503) {
-                    solveUam(r.request.url.toString(), text)
+                    if (!solveUam(r.request.url.toString(), text)) throw LsbException("已取消人机验证")
                 } else {
                     return@withContext JSONObject(if (text.isBlank()) "{}" else text)
                 }
@@ -529,7 +600,8 @@ class LsbClient(private val context: Context) {
             http.newCall(req).execute().use { r ->
                 val resp = Resp(r.request.url.toString(), r.body?.string() ?: "", r.code)
                 if (needsVerification(resp.code, resp.html)) {
-                    solveUam(resp.url, resp.html)
+                    // 取消/超时即放弃：否则同一个验证对话框会被 repeat(3) 连弹三次
+                    if (!solveUam(resp.url, resp.html)) throw LsbException("已取消人机验证")
                 } else {
                     return@withContext resp
                 }
@@ -550,7 +622,7 @@ class LsbClient(private val context: Context) {
                 val text = r.body?.string() ?: ""
                 val t = text.trim()
                 if (isChallenge(text)) {
-                    solveUam(r.request.url.toString(), text)
+                    if (!solveUam(r.request.url.toString(), text)) throw LsbException("已取消人机验证")
                 } else {
                     if (t.startsWith("{") || t.startsWith("[")) return@withContext JSONObject(t)
                     throw LsbException("接口未返回 JSON")
@@ -646,6 +718,14 @@ class LsbClient(private val context: Context) {
     @Volatile
     private var csrfCache: String? = null
 
+    /**
+     * 丢弃已缓存的 CSRF 令牌。令牌与会话 Cookie 绑定，登录/登出/会话过期后旧令牌
+     * 会被源站拒绝，必须在会话身份变化时调用（否则整个进程生命周期内一直用旧令牌）。
+     */
+    fun invalidateCsrf() {
+        csrfCache = null
+    }
+
     suspend fun csrf(forceRefresh: Boolean = false): String {
         if (!forceRefresh && csrfCache != null) return csrfCache!!
         val html = get("/").html
@@ -719,7 +799,8 @@ class LsbClient(private val context: Context) {
         val elapsed = System.currentTimeMillis() - t0
         if (elapsed < 5200) {
             onStatus("安全校验中…")
-            Thread.sleep(5200 - elapsed)
+            // delay 而非 Thread.sleep：不占住 IO 线程池的线程，也能响应协程取消
+            delay(5200 - elapsed)
         }
 
         val resp = postForm(
@@ -739,6 +820,10 @@ class LsbClient(private val context: Context) {
         // 成功判定：实测源站登录成功 302 → 首页，失败（密码错/验证码错）→ /form_error，非 form_error 即成功。
         // 此前用 contains(username) 兜底判定：邮箱登录时页面只显示用户名而非邮箱，导致实际登录
         // 成功却误报"用户名或密码错误"（cookie 已写入，再次刷新验证码还会因已登录 302 首页而静默失败）
+        // 登录成功后会话 Cookie 已换新，旧 CSRF 令牌随之失效，必须丢弃缓存——否则
+        // 登录前取过令牌的话（搜索/签到等路径都会取），之后发帖回帖会一直拿游客期
+        // 的旧令牌去提交并被源站拒绝，且整个进程生命周期内都无法恢复
+        csrfCache = null
         "登录成功"
     }
 
@@ -749,11 +834,17 @@ class LsbClient(private val context: Context) {
         } catch (_: Exception) {
         }
         csrfCache = null
-        prefs.edit().putStringSet("cookies", emptySet()).apply()
+        // 必须同时清内存：Cookie Jar 现以内存为权威存储，只清 prefs 会残留会话
+        // Cookie，退出登录后仍是登录态
+        cookieJar.clear()
     }
 
+    /**
+     * 登录态判定：优先查 Cookie Jar 内存视图（会话 Cookie 形式的登录也能识别），
+     * 再回落到持久化记录的前缀匹配。
+     */
     fun hasAuthCookie(): Boolean {
         val set = prefs.getStringSet("cookies", emptySet()) ?: emptySet()
-        return set.any { it.startsWith("bbs_auth\u0001") }
+        return cookieJar.value("bbs_auth") != null || set.any { it.startsWith("bbs_auth\u0001") }
     }
 }

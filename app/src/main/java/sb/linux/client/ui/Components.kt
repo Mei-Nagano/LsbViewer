@@ -179,11 +179,18 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
     }
     // null=加载中；空数组=fetchBytes 失败（转 URL 兜底）；非空=字节就绪
     val fetch by produceState<ByteArray?>(initialBytes, target) {
-        if (value == null) {
-            value = withContext(Dispatchers.IO) {
-                if (target.isEmpty()) ByteArray(0)
-                else runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
-            }
+        // produceState 的 value 不会因 key 变化而重置回 initialValue，所以不能用
+        // 「value == null 才拉取」当守卫：同一个组合位切换到另一个 URL 时守卫会短路，
+        // 把上一个头像的字节一直显示下去。这里按当前 target 重新求值——先同步窥探
+        // 内存缓存（命中即无占位符闪烁），未命中才置空并走 IO。
+        val peeked = if (target.isEmpty()) ByteArray(0) else app.client.peekAvatarBytes(target)
+        if (peeked != null) {
+            value = peeked
+            return@produceState
+        }
+        value = null
+        value = withContext(Dispatchers.IO) {
+            runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
         }
     }
     val b = fetch
@@ -735,10 +742,12 @@ internal fun formatViews(v: Int): String = when {
 
 // ---------------- HTML 内容渲染 ----------------
 
-/** 表格单元格数据（正文 <table> 解析产物） */
+/** 表格单元格数据（正文 <table> 解析产物）
+ *  annotated 非空时为含链接/加粗等注解的富文本（点击链接可跳转），text 为纯文本兜底 */
 private data class TableCellData(
     val text: String,
     val isHeader: Boolean,
+    val annotated: AnnotatedString? = null,
 )
 
 private data class ContentBlock(
@@ -762,16 +771,27 @@ private data class ContentBlock(
  * 避免段落间距与行间距不一致的问题（含 @用户 拆分出的多个段落）。
  */
 @Composable
-fun HtmlContent(html: String, modifier: Modifier = Modifier, onFloor: (Int) -> Unit = {}) {
+fun HtmlContent(
+    html: String,
+    modifier: Modifier = Modifier,
+    onFloor: (Int) -> Unit = {},
+    mergeImages: Boolean = true,
+    cacheable: Boolean = true,
+) {
     val linkColor = MaterialTheme.colorScheme.primary
     val codeBg = MaterialTheme.colorScheme.surfaceContainerHighest
     // 解析结果全局缓存：楼层滚出视野后组合销毁，滚回时若只靠 remember 会
     // 在主线程重新跑 Jsoup 解析 + 富文本构建（长帖快滑的掉帧主因）。
-    // 键带上主题链接/代码块颜色（解析产物中已烘焙颜色，换主题需重解析）
-    val blocks = remember(html, linkColor, codeBg) {
-        val key = "$linkColor|$codeBg|${html.hashCode()}.${html.length}"
-        htmlBlockCache.get(key) ?: parseHtmlToBlocks(html, linkColor, codeBg)
-            .also { htmlBlockCache.put(key, it) }
+    // 键带上主题链接/代码块颜色（解析产物中已烘焙颜色，换主题需重解析）。
+    // cacheable=false 用于发帖预览：正文每敲一个键就是一份全新 HTML，若也写进这个
+    // 48 条的共享缓存，会把正在阅读的楼层解析结果整批挤掉。
+    val blocks = remember(html, linkColor, codeBg, mergeImages, cacheable) {
+        if (!cacheable) parseHtmlToBlocks(html, linkColor, codeBg, mergeImages)
+        else {
+            val key = "$linkColor|$codeBg|${html.hashCode()}.${html.length}|$mergeImages"
+            htmlBlockCache.get(key) ?: parseHtmlToBlocks(html, linkColor, codeBg, mergeImages)
+                .also { htmlBlockCache.put(key, it) }
+        }
     }
     val uriHandler = LocalUriHandler.current
     // 常规设置「打开链接方式」处理入口（3.20）：未提供时回退外部浏览器
@@ -813,7 +833,7 @@ fun HtmlContent(html: String, modifier: Modifier = Modifier, onFloor: (Int) -> U
                     )
                 }
                 b.isCode -> CodeBlockView(b.annotated!!.text)
-                b.tableRows.isNotEmpty() -> TableView(b.tableRows)
+                b.tableRows.isNotEmpty() -> TableView(b.tableRows, ::open, onFloor)
                 b.isQuote -> {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -969,9 +989,10 @@ fun CodeBlockView(code: String) {
  * 正文表格：按行列结构渲染的网格。
  * 列宽均分（weight），单元格文本自动换行，超宽表格无需横向滑动；
  * 表头行（th）加粗并加背景色区分。
+ * 单元格内链接（URL/FLOOR 注解）用 LinkText 渲染，可点击跳转。
  */
 @Composable
-private fun TableView(rows: List<List<TableCellData>>) {
+private fun TableView(rows: List<List<TableCellData>>, onOpenUrl: (String) -> Unit, onFloor: (Int) -> Unit = {}) {
     val colCount = rows.maxOf { it.size }
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -998,14 +1019,26 @@ private fun TableView(rows: List<List<TableCellData>>) {
                                 .weight(1f)
                                 .padding(horizontal = 5.dp, vertical = 4.dp)
                         ) {
-                            if (!cell?.text.isNullOrBlank()) {
-                                Text(
-                                    cell!!.text,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = if (cell.isHeader) FontWeight.Bold else null,
-                                    color = if (cell.isHeader) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface
-                                )
+                            val c = cell
+                            if (c != null && c.text.isNotBlank()) {
+                                if (c.annotated != null) {
+                                    // 富文本单元格：链接可点击（颜色已烘焙进注解 SpanStyle）
+                                    LinkText(
+                                        text = c.annotated,
+                                        onOpenUrl = onOpenUrl,
+                                        onFloor = onFloor,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = if (c.isHeader) FontWeight.Bold else null,
+                                    )
+                                } else {
+                                    Text(
+                                        c.text,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = if (c.isHeader) FontWeight.Bold else null,
+                                        color = if (c.isHeader) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }
@@ -1299,7 +1332,7 @@ private fun ZoomableImage(
  *  楼层滚回视野时直接命中，避免主线程重复 Jsoup 解析。按条数限容（约 48 个楼层正文）。 */
 private val htmlBlockCache = android.util.LruCache<String, List<ContentBlock>>(48)
 
-private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): List<ContentBlock> {
+private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, mergeImages: Boolean = true): List<ContentBlock> {
     val root = runCatching { Jsoup.parseBodyFragment(html).body() }.getOrNull() ?: return emptyList()
     val blocks = mutableListOf<ContentBlock>()
 
@@ -1409,10 +1442,35 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
         }
     }
 
+    /** 表格 → 行列结构（th 表头加粗），无有效行时返回空表。
+     *  单元格用 renderInline 生成富文本，保留链接（URL/FLOOR 注解）与行内样式 */
+    fun parseTable(table: Element): List<List<TableCellData>> =
+        table.select("tr").mapNotNull { tr ->
+            val cells = tr.select("th, td").map { td ->
+                val rich = renderInlineTo(td)
+                TableCellData(
+                    text = rich.text.trim(),
+                    isHeader = td.tagName().lowercase() == "th",
+                    annotated = rich.takeIf { it.text.isNotBlank() },
+                )
+            }
+            if (cells.any { it.text.isNotBlank() }) cells else null
+        }
+
     fun collect(el: Element) {
         el.children().forEach { c ->
             when (c.tagName().lowercase()) {
-                "p", "div", "section" -> renderBlock(c)?.let { blocks.add(it) }
+                "p", "div", "section" -> {
+                    // 源站 markdown 表格外包一层 div.markdown-table-wrap（仅含单个 table）：
+                    // 落入 renderInline 会被拍平成一行文字，这里提取内层表格按网格渲染；
+                    // 泛化处理——只含单个 table 子节点的容器一律按表格解析（类名改版也兼容）
+                    val onlyTable = c.children().singleOrNull()
+                        ?.takeIf { it.tagName().lowercase() == "table" }
+                    if (onlyTable != null) {
+                        val rows = parseTable(onlyTable)
+                        if (rows.isNotEmpty()) blocks.add(ContentBlock(tableRows = rows))
+                    } else renderBlock(c)?.let { blocks.add(it) }
+                }
                 "blockquote", "pre", "hr" -> renderBlock(c)?.let { blocks.add(it) }
                 "ul", "ol" -> collectList(c, 0)
                 "h1", "h2", "h3", "h4", "h5" -> {
@@ -1428,12 +1486,7 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
                 "img" -> blocks.add(ContentBlock(imageUrl = abs(c)))
                 "table" -> {
                     // 表格按行列结构解析，渲染为真正的网格（含表头加粗）
-                    val rows = c.select("tr").mapNotNull { tr ->
-                        val cells = tr.select("th, td").map { td ->
-                            TableCellData(td.text().trim(), td.tagName().lowercase() == "th")
-                        }
-                        if (cells.any { it.text.isNotBlank() }) cells else null
-                    }
+                    val rows = parseTable(c)
                     if (rows.isNotEmpty()) blocks.add(ContentBlock(tableRows = rows))
                 }
                 "br" -> {}
@@ -1455,21 +1508,25 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color): Li
         collect(root)
     }
     // 连续多张图片合并为一个翻页块（中间仅隔空白/占位文本，无实际文字）
-    val merged = mutableListOf<ContentBlock>()
-    for (b in blocks) {
-        if (b.imageUrl != null) {
-            val last = merged.lastOrNull()
-            if (last != null && last.imageUrl != null) {
-                merged[merged.size - 1] = last.copy(imageUrls = last.imageUrls + b.imageUrl)
+    // mergeImages=false（发帖预览）时保持每张图独立展示，与编辑顺序一一对应
+    val source = if (mergeImages) {
+        val merged = mutableListOf<ContentBlock>()
+        for (b in blocks) {
+            if (b.imageUrl != null) {
+                val last = merged.lastOrNull()
+                if (last != null && last.imageUrl != null) {
+                    merged[merged.size - 1] = last.copy(imageUrls = last.imageUrls + b.imageUrl)
+                } else {
+                    merged.add(b.copy(imageUrls = listOf(b.imageUrl)))
+                }
             } else {
-                merged.add(b.copy(imageUrls = listOf(b.imageUrl)))
+                merged.add(b)
             }
-        } else {
-            merged.add(b)
         }
-    }
+        merged
+    } else blocks
     // @用户名#楼层号：给紧跟 @用户 链接之后的 #N 加楼层注解（点击应用内跳转对应楼层）
-    return merged.map { b ->
+    return source.map { b ->
         if (b.annotated != null) b.copy(annotated = annotateFloors(b.annotated!!)) else b
     }
 }
