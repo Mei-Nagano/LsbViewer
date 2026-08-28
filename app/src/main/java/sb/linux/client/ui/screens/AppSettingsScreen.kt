@@ -113,8 +113,12 @@ private fun SwitchRow(
     title: String,
     subtitle: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    // enabled=false（依赖的总开关未打开）：整行连同文字一起变灰，避免只有开关灰掉、
+    // 文字仍是正常色的割裂感
+    val alpha = if (enabled) 1f else 0.38f
     Row(
         Modifier
             .fillMaxWidth()
@@ -123,14 +127,19 @@ private fun SwitchRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = LocalContentColor.current.copy(alpha = alpha)
+            )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
             )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
 
@@ -825,7 +834,8 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
 @Composable
 fun AiSettingsScreen(session: Session, nav: NavHostController) {
     var msg by remember { mutableStateOf<String?>(null) }
-    var aiAuto by remember { mutableStateOf(session.settings.aiAuto) }
+    var aiEnabled by remember { mutableStateOf(session.settings.aiEnabled) }
+    var aiAutoRun by remember { mutableStateOf(session.settings.aiAutoRun) }
     var aiUrl by remember { mutableStateOf(session.settings.aiUrl) }
     var aiKey by remember { mutableStateOf(session.settings.aiKey) }
     var aiModel by remember { mutableStateOf(session.settings.aiModel) }
@@ -872,17 +882,28 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
             GroupCard {
                 SwitchRow(
                     "开启 AI 总结",
-                    "打开帖子时自动请求 AI 总结，结果置顶显示；关闭后帖子内不显示 AI 框",
-                    checked = aiAuto,
+                    "帖子顶部显示「AI 总结本帖」按钮，点按后才请求；关闭则帖子内不显示 AI 入口",
+                    checked = aiEnabled,
                     onCheckedChange = {
-                        aiAuto = it
-                        session.settings.aiAuto = it
+                        aiEnabled = it
+                        session.settings.aiEnabled = it
+                    }
+                )
+                SwitchRow(
+                    "打开帖子自动总结",
+                    "无需点按钮，进帖即请求总结。水贴也会照总结并消耗额度，建议保持关闭",
+                    checked = aiAutoRun,
+                    enabled = aiEnabled,
+                    onCheckedChange = {
+                        aiAutoRun = it
+                        session.settings.aiAutoRun = it
                     }
                 )
                 SwitchRow(
                     "解析评论区",
                     "开启后连同所有回复一起总结；关闭则仅总结楼主正文",
                     checked = aiIncludeComments,
+                    enabled = aiEnabled,
                     onCheckedChange = {
                         aiIncludeComments = it
                         session.settings.aiIncludeComments = it

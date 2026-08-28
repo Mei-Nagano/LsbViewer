@@ -162,8 +162,8 @@ class AppSettings(context: Context) {
 
     /** 重置 AI 设置 */
     fun resetAi() = prefs.edit()
-        .remove("ai_auto").remove("ai_url").remove("ai_key").remove("ai_model")
-        .remove("ai_temp").remove("ai_include_comments")
+        .remove("ai_auto").remove("ai_auto_run").remove("ai_url").remove("ai_key")
+        .remove("ai_model").remove("ai_temp").remove("ai_include_comments")
         .apply()
 
     /** 重置常规设置 */
@@ -177,10 +177,21 @@ class AppSettings(context: Context) {
         .remove("webdav_url").remove("webdav_user").remove("webdav_pass").remove("webdav_dir")
         .apply()
 
-    /** 打开帖子自动请求 AI 总结 */
-    var aiAuto: Boolean
+    /**
+     * AI 总结总开关：关闭后帖子内不显示 AI 入口。
+     * 键名沿用历史 ai_auto（当初这个开关兼任「自动总结」），改名会让老用户/旧备份丢配置。
+     */
+    var aiEnabled: Boolean
         get() = prefs.getBoolean("ai_auto", false)
         set(v) = prefs.edit().putBoolean("ai_auto", v).apply()
+
+    /**
+     * 打开帖子自动请求总结。默认关闭——水贴没有总结价值，还白烧 token，
+     * 改为帖子内点按钮手动触发（结果按帖缓存，同一帖不会重复请求）。
+     */
+    var aiAutoRun: Boolean
+        get() = prefs.getBoolean("ai_auto_run", false)
+        set(v) = prefs.edit().putBoolean("ai_auto_run", v).apply()
 
     var aiUrl: String
         get() = prefs.getString("ai_url", "") ?: ""
@@ -699,7 +710,8 @@ class AppSettings(context: Context) {
         o.put("webdav_user", webdavUser)
         o.put("webdav_pass", webdavPass)
         o.put("webdav_dir", webdavDir)
-        o.put("ai_auto", aiAuto)
+        o.put("ai_auto", aiEnabled)
+        o.put("ai_auto_run", aiAutoRun)
         o.put("ai_url", aiUrl)
         o.put("ai_key", aiKey)
         o.put("ai_model", aiModel)
@@ -766,6 +778,7 @@ class AppSettings(context: Context) {
             if (o.has("webdav_pass")) p.putString("webdav_pass", o.getString("webdav_pass"))
             if (o.has("webdav_dir")) p.putString("webdav_dir", o.getString("webdav_dir"))
             if (o.has("ai_auto")) p.putBoolean("ai_auto", o.getBoolean("ai_auto"))
+            if (o.has("ai_auto_run")) p.putBoolean("ai_auto_run", o.getBoolean("ai_auto_run"))
             if (o.has("ai_url")) p.putString("ai_url", o.getString("ai_url"))
             if (o.has("ai_key")) p.putString("ai_key", o.getString("ai_key"))
             if (o.has("ai_model")) p.putString("ai_model", o.getString("ai_model"))

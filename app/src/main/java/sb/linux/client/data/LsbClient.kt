@@ -440,6 +440,7 @@ class LsbClient(private val context: Context) {
                     // 取消/超时即放弃：否则同一个验证对话框会被 repeat(3) 连弹三次
                     if (!solveUam(resp.url, resp.html)) throw LsbException("已取消人机验证")
                 } else {
+                    sniffCsrf(resp.html)
                     return@withContext resp
                 }
             }
@@ -550,6 +551,7 @@ class LsbClient(private val context: Context) {
                     // 取消/超时即放弃：否则同一个验证对话框会被 repeat(3) 连弹三次
                     if (!solveUam(resp.url, resp.html)) throw LsbException("已取消人机验证")
                 } else {
+                    sniffCsrf(resp.html)
                     return@withContext resp
                 }
             }
@@ -726,11 +728,52 @@ class LsbClient(private val context: Context) {
         csrfCache = null
     }
 
+    /**
+     * 从任意响应 HTML 里顺手抓取 CSRF 令牌（每个 get/post 都会调）。
+     * 源站几乎每个渲染页都带 `input[name=_csrf]`（回复框、抽奖参与、点赞…），
+     * 抓到就更新缓存，这样 csrf() 基本不必再单独请求首页 —— 首页偶发被访问盾/CF
+     * 拦成挑战页时不会再抛「无法获取 CSRF 令牌」把回复整个卡死。
+     */
+    private fun sniffCsrf(html: String) {
+        // 先做廉价字符串判断：帖子页 HTML 很大，没有令牌就不必上正则/Jsoup
+        if (html.length < 16 || !html.contains("_csrf")) return
+        extractCsrf(html)?.let { csrfCache = it }
+    }
+
+    /**
+     * 从 HTML 中提取 CSRF 令牌。容忍属性顺序、引号种类与多余空白 ——
+     * 原先只认死板的 `name="_csrf" value="…"` 字面量，源站模板一改就整站提交失效。
+     */
+    private fun extractCsrf(html: String): String? {
+        runCatching {
+            val d = Jsoup.parse(html)
+            d.select("input[name=_csrf]").forEach { el ->
+                val v = el.attr("value").trim()
+                if (v.isNotEmpty()) return v
+            }
+            d.selectFirst("meta[name=csrf-token]")?.attr("content")?.trim()
+                ?.takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        // Jsoup 解析失败（响应被截断等）时的正则兜底：name/value 任意顺序、单双引号皆可
+        Regex("""name=["']_csrf["'][^>]*?value=["']([^"']+)["']""")
+            .find(html)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }?.let { return it }
+        Regex("""value=["']([^"']+)["'][^>]*?name=["']_csrf["']""")
+            .find(html)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }?.let { return it }
+        return null
+    }
+
+    /**
+     * 取 CSRF 令牌：缓存 →（其他请求已顺手 sniff 到的令牌）→ 首页 → /profile。
+     * 首页在被访问盾拦截时不含令牌，此时退到 /profile（登录态必有带令牌的表单）再试一次，
+     * 而不是直接失败。
+     */
     suspend fun csrf(forceRefresh: Boolean = false): String {
         if (!forceRefresh && csrfCache != null) return csrfCache!!
-        val html = get("/").html
-        val m = Regex("""name="_csrf" value="([^"]+)"""").find(html)
-        csrfCache = m?.groupValues?.get(1)
+        for (path in listOf("/", "/profile")) {
+            val html = runCatching { get(path).html }.getOrNull() ?: continue
+            extractCsrf(html)?.let { csrfCache = it; return it }
+        }
+        // 兜底：本轮取不到，但之前 sniff 到过就继续用旧令牌（多半仍在同一会话内有效）
         return csrfCache ?: throw LsbException("无法获取 CSRF 令牌")
     }
 

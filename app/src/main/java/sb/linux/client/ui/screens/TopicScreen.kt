@@ -737,11 +737,18 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    fun runAi() {
+    /**
+     * 请求 AI 总结。默认走「同帖只请求一次」的缓存；force=true 用于卡片上的重新总结
+     * （缓存命中时用户没别的办法再触发一次）。
+     */
+    fun runAi(force: Boolean = false) {
         val d = data ?: return
-        session.getAiSummary(tid)?.let {
-            aiSummary = it
-            return
+        if (aiBusy) return
+        if (!force) {
+            session.getAiSummary(tid)?.let {
+                aiSummary = it
+                return
+            }
         }
         if (!AiClient.isConfigured(session.settings)) {
             aiError = "请先在「我的 → 应用设置」中配置 AI API"
@@ -801,8 +808,13 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
+    // 帖子数据就绪：已有缓存总结先回填（换页/返回本帖时不丢），
+    // 未缓存则仅在开启「打开帖子自动总结」时才发请求 —— 否则等用户点卡片上的按钮
     LaunchedEffect(data) {
-        if (data != null && session.settings.aiAuto) runAi()
+        if (data == null) return@LaunchedEffect
+        val cached = session.getAiSummary(tid)
+        if (cached != null) aiSummary = cached
+        else if (session.settings.aiEnabled && session.settings.aiAutoRun) runAi()
     }
 
     // 评论区无限滚动：接近末尾自动加载下一页（仅无限滚动模式）
@@ -915,14 +927,15 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                         bottom = 10.dp
                                     ),
                             )
-                            // AI 总结：仅在开启「默认总结」时显示入口
-                            if (session.settings.aiAuto) {
+                            // AI 总结：开启总开关后显示入口，默认等用户点按钮才请求
+                            if (session.settings.aiEnabled) {
                                 AiSummaryCard(
                                     summary = aiSummary,
                                     busy = aiBusy,
                                     error = aiError,
                                     enabled = AiClient.isConfigured(session.settings),
                                     onRun = { runAi() },
+                                    onRegenerate = { runAi(force = true) },
                                     onDismiss = { aiSummary = null; aiError = null },
                                 )
                             }
@@ -1424,7 +1437,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             onSubmit = { body, captchaAnswer, onDone ->
                 scope.launch {
                     try {
-                        val csrf = session.client.csrf()
+                        // 令牌优先用帖子页自己带的那份（回复框里就有）：不必再多打一次首页，
+                        // 也避开首页偶发被访问盾拦成挑战页导致取不到令牌、回复直接失败
+                        val csrf = data?.csrf?.takeIf { it.isNotBlank() } ?: session.client.csrf()
                         val form = buildMap {
                             put("_csrf", csrf)
                             put("topic_id", tid.toString())
@@ -2642,7 +2657,7 @@ fun LotteryPanelView(
     }
 }
 
-/** AI 总结卡片（置顶显示） */
+/** AI 总结卡片（置顶显示）：未总结时是一颗手动触发按钮，出结果后按 Markdown 渲染 */
 @Composable
 fun AiSummaryCard(
     summary: String?,
@@ -2650,6 +2665,7 @@ fun AiSummaryCard(
     error: String?,
     enabled: Boolean,
     onRun: () -> Unit,
+    onRegenerate: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     if (busy || summary != null || error != null) {
@@ -2674,6 +2690,16 @@ fun AiSummaryCard(
                     Spacer(Modifier.width(8.dp))
                     Text("AI 总结", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     Spacer(Modifier.weight(1f))
+                    // 重新总结：结果按帖缓存，没这个入口的话同一帖再也换不出新总结
+                    if (!busy && summary != null) {
+                        IconButton(onClick = onRegenerate, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                Icons.Filled.Refresh, "重新总结",
+                                Modifier.size(17.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
                     TextButton(onClick = onDismiss) { Text("关闭") }
                 }
                 Spacer(Modifier.height(6.dp))
@@ -2685,8 +2711,19 @@ fun AiSummaryCard(
                         CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
                         Text("正在总结…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
-                    error != null -> Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    summary != null -> Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    error != null -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        FilledTonalButton(
+                            onClick = onRegenerate,
+                            enabled = enabled,
+                            shape = RoundedCornerShape(50)
+                        ) { Text("重试") }
+                    }
+                    // 模型返回的是 Markdown：直接 Text 会把 ## 和 ** 记号原样显示出来
+                    summary != null -> MarkdownText(
+                        summary,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
                 }
             }
         }
