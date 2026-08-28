@@ -27,7 +27,7 @@ fun SearchScreen(session: Session, nav: NavHostController) {
     val initialQuery = entry?.arguments?.getString("q").orEmpty()
     val initialField = entry?.arguments?.getString("field")
         ?.takeIf { it in setOf("title", "body", "reply") } ?: "title"
-    // 复用会话内最近一次搜索结果：短时间内从结果页返回不重复搜索（避免再次消耗积分）
+    // 复用会话内最近一次搜索结果：短时间内从结果页返回不重复搜索
     val cached = remember(initialQuery, initialField) {
         session.searchCache?.takeIf {
             it.query == initialQuery && it.field == initialField &&
@@ -54,20 +54,27 @@ fun SearchScreen(session: Session, nav: NavHostController) {
         scope.launch {
             loading = true; error = null
             try {
-                // POST /search 返回 JSON redirect（消耗 1 积分），随后 GET 结果页
-                if (query != lastQuery || field != lastField || p == 1) {
-                    val csrf = session.client.csrf()
-                    val json = session.client.postAjax("/search", mapOf("_csrf" to csrf, "field" to field, "q" to query))
-                    if (json.optInt("ok") == 0) {
-                        error = json.optString("message", "搜索失败")
-                        return@launch
-                    }
-                    json.optString("tip").takeIf { it.isNotBlank() }?.let { session.showToast(it) }
+                // 源站表单为 data-no-ajax 纯 POST /search，直接渲染结果页 HTML（非 JSON 重定向）
+                // 字段：_csrf + q + field(title/body/reply)，分页在 POST body 带 p
+                val csrf = session.client.csrf()
+                val form = HashMap<String, String>().apply {
+                    put("_csrf", csrf); put("field", field); put("q", query)
+                    if (p > 1) put("p", p.toString())
                 }
-                lastQuery = query; lastField = field
-                val resp = session.client.get("/index.php?q=${java.net.URLEncoder.encode(query, "UTF-8")}&field=$field&p=$p")
+                val resp = session.client.postForm("/search", form)
+                if (resp.url.contains("login")) {
+                    error = "请先登录后再搜索"
+                    return@launch
+                }
+                val errText = HtmlParser.extractError(resp.html)
+                    .takeIf { it.isNotBlank() && resp.url.contains("form_error") }
+                if (errText != null) {
+                    error = errText
+                    return@launch
+                }
                 val (items, pg) = HtmlParser.parseTopicList(resp.html)
                 results = items; page = pg.first; totalPages = pg.second
+                lastQuery = query; lastField = field
                 // 保存到会话缓存，返回时直接复用
                 session.searchCache = SearchResultCache(query, field, page, totalPages, items, System.currentTimeMillis())
             } catch (e: Exception) {
@@ -77,7 +84,7 @@ fun SearchScreen(session: Session, nav: NavHostController) {
     }
 
     // 从首页顶栏搜索进入（带关键词）时自动执行：范围/关键词已在顶栏选好，
-    // 不必再点本页搜索按钮。命中会话缓存（同关键词同范围 30 分钟内）时直接复用，不重复扣积分
+    // 不必再点本页搜索按钮。命中会话缓存（同关键词同范围 30 分钟内）时直接复用
     LaunchedEffect(initialQuery, initialField) {
         if (initialQuery.isNotBlank() && cached == null) search(1)
     }
@@ -130,11 +137,6 @@ fun SearchScreen(session: Session, nav: NavHostController) {
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    "提示：每次搜索消耗 1 积分",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 error?.let {
                     Spacer(Modifier.height(4.dp))
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)

@@ -138,7 +138,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     val aiSummaryCache = mutableStateMapOf<Long, String>()
     val danmakuCache = mutableStateMapOf<Long, List<DanmakuItem>>()
 
-    // 搜索结果缓存：从结果页进入帖子再返回时直接复用，避免重新搜索再次消耗积分
+    // 搜索结果缓存：从结果页进入帖子再返回时直接复用，避免重新搜索
     var searchCache: SearchResultCache? by mutableStateOf(null)
 
     // 签到信息（连续/累计天数，登录后从源站解析）

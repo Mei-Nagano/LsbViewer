@@ -949,12 +949,24 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                     onJoinForm = { option ->
                                         scope.launch {
                                             try {
-                                                val form = buildMap {
-                                                    put("_csrf", d.csrf)
+                                                // 令牌优先用帖子页自带的那份；页面可能来自缓存或登录前抓取，
+                                                // 令牌为空/已随会话失效时会被源站以 CSRF 错误拒绝——为空先退回客户端取
+                                                fun buildForm(token: String) = buildMap {
+                                                    put("_csrf", token)
                                                     putAll(lp.joinFields)
                                                     if (option.isNotBlank()) put("option", option)
                                                 }
-                                                val resp = session.client.postForm(lp.joinAction, form)
+                                                var resp = session.client.postForm(
+                                                    lp.joinAction,
+                                                    buildForm(d.csrf.ifBlank { session.client.csrf() })
+                                                )
+                                                // 令牌被拒（无法访问 CSRF 令牌）：强制刷新令牌重试一次
+                                                if (resp.url.contains("form_error") && resp.html.contains("csrf", ignoreCase = true)) {
+                                                    resp = session.client.postForm(
+                                                        lp.joinAction,
+                                                        buildForm(session.client.csrf(forceRefresh = true))
+                                                    )
+                                                }
                                                 session.showToast(if (resp.url.contains("form_error")) HtmlParser.extractError(resp.html).ifBlank { "参与失败" } else "已参与抽奖")
                                                 load(d.page, force = true)
                                             } catch (e: Exception) { session.showToast(e.message ?: "失败") }

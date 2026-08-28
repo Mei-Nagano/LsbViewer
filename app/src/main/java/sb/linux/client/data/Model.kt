@@ -179,6 +179,45 @@ data class TitleBadge(
     val rarity: String = "",   // 稀有度，如 SSR（取自类名 gacha-title-<x>）
 )
 
+/** 邀请中心（/invite_center）：分享链接 + 奖励统计 + 已邀请用户 */
+data class InviteCenter(
+    val link: String,                        // 我的分享链接，如 https://linux.sb/s/xxxx
+    val desc: String,                        // 奖励规则说明
+    val rule: String,                        // 违规警告文案
+    val invitedCount: String,                // 已邀请用户数
+    val firstReward: String,                 // 首奖积分（N 人）
+    val secondReward: String,                // 二奖积分（N 人）
+    val users: List<InviteUser> = emptyList(),
+)
+
+/** 通过分享链接注册的用户（.invite-center-list 列表项） */
+data class InviteUser(
+    val name: String,
+    val userId: Long = 0,     // 0 = 解析不到用户链接
+    val statusText: String = "", // 条目里除用户名外的状态文本（注册时间/奖励状态等）
+)
+
+/** 我的称号（/gacha_profile）：称号收藏列表 */
+data class GachaProfile(
+    val stat: String,                             // 头部统计，如 "3 种称号"
+    val titles: List<GachaTitleItem> = emptyList(),
+)
+
+/** 收藏的单个称号条目：徽章 + 装备状态 + 可执行操作（装备/卸下/赠送等表单） */
+data class GachaTitleItem(
+    val badge: TitleBadge,
+    val equipped: Boolean = false,                // 已装备（条目标记/文本含「已装备」）
+    val count: Int = 1,                           // 持有数量
+    val actions: List<GachaAction> = emptyList(), // 页面内可提交的操作表单
+)
+
+/** 称号操作：源站表单（action + 隐藏字段 + 按钮文本），提交后由页面反馈结果 */
+data class GachaAction(
+    val label: String,                 // 按钮文本，如 装备 / 卸下 / 赠送
+    val action: String,                // 表单提交地址
+    val fields: Map<String, String>,   // 隐藏字段（含称号 id 等，不含 _csrf）
+)
+
 data class NotificationItem(
     val fromUser: String,
     val typeText: String,

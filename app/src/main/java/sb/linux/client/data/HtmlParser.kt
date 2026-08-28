@@ -1218,6 +1218,83 @@ object HtmlParser {
         )
     }
 
+    // ---------------- 邀请中心 / 我的称号 ----------------
+
+    /**
+     * 邀请中心（/invite_center，登录后可见）。
+     * 结构（v8.7.5 插件）：.invite-center-link（说明 + 分享链接 input[data-invite-center-link]）、
+     * .invite-center-stats（三个 strong+span 统计）、.invite-center-list ul li（被邀请用户）。
+     */
+    fun parseInviteCenter(html: String): InviteCenter {
+        val d = doc(html)
+        fun statsAt(i: Int): String =
+            d.select(".invite-center-stats > div")[i].selectFirst("strong")?.text()?.trim() ?: "0"
+        val users = d.select(".invite-center-list ul li").mapNotNull { li ->
+            // 空态 li.empty-state（"暂时还没有用户…"）不是用户条目
+            if (li.hasClass("empty-state") || li.selectFirst("a[href^=/user/]") == null) return@mapNotNull null
+            val a = li.selectFirst("a[href^=/user/]")
+            val name = a?.text()?.trim() ?: return@mapNotNull null
+            // 状态文本：条目全文去掉用户名后的剩余文本（注册时间/奖励发放等）
+            val status = li.text().replace(name, "").replace(Regex("""\s+"""), " ").trim()
+            InviteUser(
+                name = name,
+                userId = a?.attr("href")?.let { idFrom(it) } ?: 0,
+                statusText = status,
+            )
+        }
+        return InviteCenter(
+            link = d.selectFirst("input[data-invite-center-link]")?.attr("value")?.trim() ?: "",
+            desc = d.selectFirst(".invite-center-link p.muted")?.text()?.trim() ?: "",
+            rule = d.selectFirst(".invite-center-rule")?.text()?.trim() ?: "",
+            invitedCount = statsAt(0),
+            firstReward = d.select(".invite-center-stats > div").getOrNull(1)
+                ?.selectFirst("span")?.text()?.trim() ?: "",
+            secondReward = d.select(".invite-center-stats > div").getOrNull(2)
+                ?.selectFirst("span")?.text()?.trim() ?: "",
+            users = users,
+        )
+    }
+
+    /**
+     * 我的称号（/gacha_profile，登录后可见）。
+     * 结构：.gacha-center-stat（"N 种称号"）+ .gacha-profile-titles 内称号条目。
+     * 条目 DOM 未见于空态页面（测试账号无称号），按源站惯例宽松解析：
+     * 容器直接子元素逐个取 .gacha-title-badge（icon/name/rarity），
+     * 其余表单（装备/赠送等）按 action + 隐藏字段 + 按钮文本通用收集，不硬编码接口。
+     */
+    fun parseGachaProfile(html: String): GachaProfile {
+        val d = doc(html)
+        val titles = d.select(".gacha-profile-titles > *").mapNotNull { el ->
+            if (el.hasClass("empty-state")) return@mapNotNull null
+            val badge = gachaTitleOf(el) ?: el.selectFirst(".gacha-title-badge")?.let { b ->
+                TitleBadge(
+                    icon = b.selectFirst(".gacha-title-icon")?.text()?.trim() ?: "",
+                    name = b.selectFirst(".gacha-title-name")?.text()?.trim() ?: "",
+                    rarity = b.selectFirst(".gacha-title-rarity")?.text()?.trim() ?: "",
+                )
+            }
+            if (badge == null || badge.name.isBlank()) return@mapNotNull null
+            val full = el.text().replace(Regex("""\s+"""), " ").trim()
+            // 数量：条目里「×N」或「x N」形式的持有数（无则 1）
+            val count = Regex("""[×x]\s*(\d+)""").find(full)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+            // 装备状态：类标记 is-equipped / 文本含「已装备」
+            val equipped = el.selectFirst(".is-equipped, [class*=equipped]") != null || full.contains("已装备")
+            val actions = el.select("form[action]").mapNotNull { form ->
+                val btn = form.selectFirst("button") ?: return@mapNotNull null
+                GachaAction(
+                    label = btn.text().trim(),
+                    action = form.attr("action"),
+                    fields = hiddenFields(form),
+                )
+            }.filter { it.label.isNotBlank() && it.action.isNotBlank() }
+            GachaTitleItem(badge = badge, equipped = equipped, count = count, actions = actions)
+        }
+        return GachaProfile(
+            stat = d.selectFirst(".gacha-center-stat")?.text()?.trim() ?: "",
+            titles = titles,
+        )
+    }
+
 
     /** 足迹/未读提醒页：解析成帖子卡片列表（结构与首页 post-list 一致时） */
     fun parseFootprintList(html: String): List<TopicCard> {

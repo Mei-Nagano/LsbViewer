@@ -666,6 +666,8 @@ private fun androidx.navigation.NavGraphBuilder.detailRoutes(session: Session, n
     ) { WebScreen(session, nav) }
     settingsComposable("blockWords") { BlockWordsScreen(session, nav) }
     composable("checkin") { CheckinScreen(session, nav) }
+    composable("inviteCenter") { InviteCenterScreen(session, nav) }
+    composable("gachaProfile") { GachaProfileScreen(session, nav) }
     composable(
         "leaderboard?type={type}",
         arguments = listOf(navArgument("type") { type = androidx.navigation.NavType.StringType; defaultValue = "points" })

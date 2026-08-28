@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -330,6 +331,365 @@ fun CheckinScreen(session: Session, nav: NavHostController) {
             } else if (!session.loginState.loggedIn) {
                 Button(onClick = { nav.navigate("login") }) { Text("登录后签到") }
             }
+        }
+    }
+}
+
+// ---------------- 邀请中心 ----------------
+
+/** 邀请中心（/invite_center）：分享链接 + 奖励统计 + 已邀请用户列表 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InviteCenterScreen(session: Session, nav: NavHostController) {
+    var info by remember { mutableStateOf<sb.linux.client.data.InviteCenter?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var copied by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+
+    fun load() {
+        scope.launch {
+            loading = true; error = null
+            try {
+                val resp = session.client.get("/invite_center")
+                info = HtmlParser.parseInviteCenter(resp.html)
+            } catch (e: Exception) { error = e.message } finally { loading = false }
+        }
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("邀请中心") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") }
+                }
+            )
+        }
+    ) { pad ->
+        Column(
+            Modifier
+                .padding(pad)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            if (loading) { LoadingBox(); return@Column }
+            val e = error
+            if (e != null) {
+                ErrorBox(e) { load() }
+            } else if (!session.loginState.loggedIn) {
+                EmptyBox("登录后可查看邀请中心")
+                Button(onClick = { nav.navigate("login") }) { Text("去登录") }
+            } else {
+                val i = info ?: return@Column
+                // 分享链接卡：说明 + 链接 + 复制
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("我的分享链接", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        if (i.desc.isNotBlank()) {
+                            Text(
+                                i.desc,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.65f),
+                        ) {
+                            Row(
+                                Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    i.link.ifBlank { "暂无邀请链接" },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                                TextButton(
+                                    enabled = i.link.isNotBlank(),
+                                    onClick = {
+                                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(i.link))
+                                        copied = true
+                                    },
+                                ) { Text(if (copied) "已复制" else "复制") }
+                            }
+                        }
+                        if (i.rule.isNotBlank()) {
+                            Text(
+                                i.rule,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                            )
+                        }
+                    }
+                }
+                // 统计三卡：已邀请 / 首奖 / 二奖
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf(
+                        i.invitedCount to "已邀请用户",
+                        i.firstReward.removePrefix("首奖积分").trim('（', '(', ')', '）') to i.firstReward,
+                        i.secondReward.removePrefix("二奖积分").trim('（', '(', ')', '）') to i.secondReward,
+                    ).forEach { (value, label) ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Column(
+                                Modifier.padding(vertical = 14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(
+                                    value.ifBlank { "-" },
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+                // 已邀请用户列表
+                Text("我邀请到的用户", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                if (i.users.isEmpty()) {
+                    Text(
+                        "暂时还没有用户通过你的分享链接注册",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ) {
+                        Column {
+                            i.users.forEachIndexed { idx, u ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .then(if (u.userId > 0) Modifier.clickable { nav.navigate("user/${u.userId}") } else Modifier)
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(u.name, style = MaterialTheme.typography.bodyMedium)
+                                        if (u.statusText.isNotBlank()) {
+                                            Text(
+                                                u.statusText,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                    if (u.userId > 0) {
+                                        Icon(
+                                            Icons.Filled.ChevronRight, null,
+                                            Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                                if (idx != i.users.lastIndex) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(40.dp))
+        }
+    }
+}
+
+// ---------------- 我的称号 ----------------
+
+/** 我的称号（/gacha_profile）：称号收藏 + 装备/赠送操作；其余称号系统子页经应用内网页打开 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GachaProfileScreen(session: Session, nav: NavHostController) {
+    var profile by remember { mutableStateOf<sb.linux.client.data.GachaProfile?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busyAction by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        scope.launch {
+            loading = true; error = null
+            try {
+                val resp = session.client.get("/gacha_profile")
+                profile = HtmlParser.parseGachaProfile(resp.html)
+            } catch (e: Exception) { error = e.message } finally { loading = false }
+        }
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("我的称号") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") }
+                }
+            )
+        }
+    ) { pad ->
+        Column(
+            Modifier
+                .padding(pad)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            if (loading) { LoadingBox(); return@Column }
+            val e = error
+            if (e != null) {
+                ErrorBox(e) { load() }
+            } else if (!session.loginState.loggedIn) {
+                EmptyBox("登录后可查看我的称号")
+                Button(onClick = { nav.navigate("login") }) { Text("去登录") }
+            } else {
+                val p = profile ?: return@Column
+                // 头部统计 + 称号系统其他子页入口（抽取/熔炼/回收/合成/交易：应用内网页打开）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        p.stat.ifBlank { "${p.titles.size} 种称号" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                // 称号系统子页导航（应用内网页）
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Column(Modifier.padding(vertical = 6.dp)) {
+                        listOf(
+                            "称号抽取" to "/gacha",
+                            "称号熔炼" to "/gacha_forge_center",
+                            "称号回收" to "/gacha_recycle_center",
+                            "UR 合成" to "/gacha_recipes",
+                            "称号交易" to "/gacha_market",
+                        ).forEach { (label, path) ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { nav.navigate("web?url=${android.net.Uri.encode(path)}") }
+                                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Icon(
+                                    Icons.Filled.OpenInNew, null,
+                                    Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+                // 称号收藏列表
+                Text("称号收藏", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                if (p.titles.isEmpty()) {
+                    Text(
+                        "暂无称号",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    p.titles.forEach { t ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (t.equipped) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            else MaterialTheme.colorScheme.surfaceContainerLow,
+                        ) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TitleBadgeView(t.badge, small = true)
+                                    Spacer(Modifier.weight(1f))
+                                    if (t.count > 1) {
+                                        Text(
+                                            "×${t.count}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    if (t.equipped) {
+                                        Badge("已装备", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                                    }
+                                }
+                                // 操作表单（装备/卸下/赠送等）：直接 POST 源站表单
+                                if (t.actions.isNotEmpty()) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        t.actions.forEach { act ->
+                                            FilledTonalButton(
+                                                enabled = busyAction == null,
+                                                onClick = {
+                                                    busyAction = act.label
+                                                    scope.launch {
+                                                        try {
+                                                            val csrf = session.client.csrf()
+                                                            val resp = session.client.postForm(
+                                                                act.action, mapOf("_csrf" to csrf) + act.fields
+                                                            )
+                                                            session.showToast(
+                                                                if (resp.url.contains("form_error"))
+                                                                    HtmlParser.extractError(resp.html).ifBlank { "操作失败" }
+                                                                else "已${act.label}"
+                                                            )
+                                                            // 操作后刷新装备状态
+                                                            val fresh = session.client.get("/gacha_profile")
+                                                            profile = HtmlParser.parseGachaProfile(fresh.html)
+                                                        } catch (e2: Exception) {
+                                                            session.showToast(e2.message ?: "操作失败")
+                                                        } finally { busyAction = null }
+                                                    }
+                                                },
+                                            ) { Text(if (busyAction == act.label) "处理中…" else act.label) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(40.dp))
         }
     }
 }

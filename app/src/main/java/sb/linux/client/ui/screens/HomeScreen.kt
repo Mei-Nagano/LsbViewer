@@ -511,7 +511,7 @@ fun HomeScreen(
                                 ) {
                                     if (searchQuery.isEmpty()) {
                                         Text(
-                                            "搜索一次消耗 1 积分",
+                                            "搜索关键词",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                             modifier = Modifier.padding(start = 16.dp)
