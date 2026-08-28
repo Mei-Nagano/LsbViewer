@@ -526,28 +526,11 @@ fun InviteCenterScreen(session: Session, nav: NavHostController) {
 
 // ---------------- 我的称号 ----------------
 
-/** 我的称号（/gacha_profile）：称号收藏 + 装备/赠送操作；其余称号系统子页经应用内网页打开 */
+/** 我的称号：称号系统子页入口。
+ * 称号收藏列表暂不展示（收藏 DOM 解析有问题），仅保留抽取/熔炼/回收/合成/交易入口，全部经应用内网页打开 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GachaProfileScreen(session: Session, nav: NavHostController) {
-    var profile by remember { mutableStateOf<sb.linux.client.data.GachaProfile?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var busyAction by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
-    fun load() {
-        scope.launch {
-            loading = true; error = null
-            try {
-                val resp = session.client.get("/gacha_profile")
-                profile = HtmlParser.parseGachaProfile(resp.html)
-            } catch (e: Exception) { error = e.message } finally { loading = false }
-        }
-    }
-
-    LaunchedEffect(Unit) { load() }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -557,9 +540,6 @@ fun GachaProfileScreen(session: Session, nav: NavHostController) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
-                actions = {
-                    IconButton(onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") }
-                }
             )
         }
     ) { pad ->
@@ -571,120 +551,47 @@ fun GachaProfileScreen(session: Session, nav: NavHostController) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            if (loading) { LoadingBox(); return@Column }
-            val e = error
-            if (e != null) {
-                ErrorBox(e) { load() }
-            } else if (!session.loginState.loggedIn) {
-                EmptyBox("登录后可查看我的称号")
+            if (!session.loginState.loggedIn) {
+                EmptyBox("登录后可进入称号中心")
                 Button(onClick = { nav.navigate("login") }) { Text("去登录") }
-            } else {
-                val p = profile ?: return@Column
-                // 头部统计 + 称号系统其他子页入口（抽取/熔炼/回收/合成/交易：应用内网页打开）
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        p.stat.ifBlank { "${p.titles.size} 种称号" },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                // 称号系统子页导航（应用内网页）
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                ) {
-                    Column(Modifier.padding(vertical = 6.dp)) {
-                        listOf(
-                            "称号抽取" to "/gacha",
-                            "称号熔炼" to "/gacha_forge_center",
-                            "称号回收" to "/gacha_recycle_center",
-                            "UR 合成" to "/gacha_recipes",
-                            "称号交易" to "/gacha_market",
-                        ).forEach { (label, path) ->
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable { nav.navigate("web?url=${android.net.Uri.encode(path)}") }
-                                    .padding(horizontal = 14.dp, vertical = 9.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    label,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Icon(
-                                    Icons.Filled.OpenInNew, null,
-                                    Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-                // 称号收藏列表
-                Text("称号收藏", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                if (p.titles.isEmpty()) {
-                    Text(
-                        "暂无称号",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    p.titles.forEach { t ->
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (t.equipped) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            else MaterialTheme.colorScheme.surfaceContainerLow,
+                return@Column
+            }
+            Text("称号系统", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "抽取、熔炼、回收、合成、交易等操作将在应用内浏览器中进行",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // 称号系统子页导航（应用内网页）
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+            ) {
+                Column(Modifier.padding(vertical = 6.dp)) {
+                    listOf(
+                        "称号抽取" to "/gacha",
+                        "称号熔炼" to "/gacha_forge_center",
+                        "称号回收" to "/gacha_recycle_center",
+                        "UR 合成" to "/gacha_recipes",
+                        "称号交易" to "/gacha_market",
+                    ).forEach { (label, path) ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { nav.navigate("web?url=${android.net.Uri.encode(path)}") }
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    TitleBadgeView(t.badge, small = true)
-                                    Spacer(Modifier.weight(1f))
-                                    if (t.count > 1) {
-                                        Text(
-                                            "×${t.count}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                    if (t.equipped) {
-                                        Badge("已装备", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-                                    }
-                                }
-                                // 操作表单（装备/卸下/赠送等）：直接 POST 源站表单
-                                if (t.actions.isNotEmpty()) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        t.actions.forEach { act ->
-                                            FilledTonalButton(
-                                                enabled = busyAction == null,
-                                                onClick = {
-                                                    busyAction = act.label
-                                                    scope.launch {
-                                                        try {
-                                                            val csrf = session.client.csrf()
-                                                            val resp = session.client.postForm(
-                                                                act.action, mapOf("_csrf" to csrf) + act.fields
-                                                            )
-                                                            session.showToast(
-                                                                if (resp.url.contains("form_error"))
-                                                                    HtmlParser.extractError(resp.html).ifBlank { "操作失败" }
-                                                                else "已${act.label}"
-                                                            )
-                                                            // 操作后刷新装备状态
-                                                            val fresh = session.client.get("/gacha_profile")
-                                                            profile = HtmlParser.parseGachaProfile(fresh.html)
-                                                        } catch (e2: Exception) {
-                                                            session.showToast(e2.message ?: "操作失败")
-                                                        } finally { busyAction = null }
-                                                    }
-                                                },
-                                            ) { Text(if (busyAction == act.label) "处理中…" else act.label) }
-                                        }
-                                    }
-                                }
-                            }
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Icon(
+                                Icons.Filled.OpenInNew, null,
+                                Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }
