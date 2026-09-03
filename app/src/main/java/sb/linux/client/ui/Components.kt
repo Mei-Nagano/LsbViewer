@@ -1,6 +1,9 @@
 package sb.linux.client.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ContentCopy
@@ -37,6 +41,7 @@ import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -64,6 +69,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -75,6 +84,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -90,7 +100,6 @@ import org.dweb_browser.resvg_render.FitMode
 import org.dweb_browser.resvg_render.RenderOptions
 import org.dweb_browser.resvg_render.svgToPng
 import coil.compose.AsyncImage
-import coil.compose.SubcomposeAsyncImage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -109,6 +118,10 @@ import sb.linux.client.LsbApp
  * 未注入时（预览/独立预览组件）回退系统浏览器。
  */
 val LocalLinkHandler = staticCompositionLocalOf<((String) -> Unit)?> { null }
+/** 0 = 表格适应屏幕，1 = 保持列宽横向滑动 */
+val LocalTableDisplayMode = staticCompositionLocalOf { 0 }
+val LocalShowUid = staticCompositionLocalOf { true }
+val LocalSmartDecode = staticCompositionLocalOf { false }
 
 /**
  * 帖子卡片元素级自定义颜色（外观设置 → 实时预览点按改色）。
@@ -317,7 +330,7 @@ fun Badge(text: String, bg: Color, fg: Color, small: Boolean = false) {
 fun titleRarityColor(rarity: String): Pair<Color, Color> {
     val r = rarity.uppercase().trim()
     return when {
-        r.contains("UR") -> Color(0xFFFF3D6E) to Color(0xFFFFE3EA)   // 红
+        r.contains("UR") -> Color(0xFFA855F7) to Color(0xFFEFE3FF)   // 源站 UR 紫
         r.contains("SSR") -> Color(0xFFFF8F00) to Color(0xFFFFF0D6)  // 橙金
         r.contains("SR") -> Color(0xFF9C27B0) to Color(0xFFF3E5F5)   // 紫
         r.contains("R") -> Color(0xFF1E88E5) to Color(0xFFE3F2FD)    // 蓝
@@ -333,6 +346,26 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Bool
     val (fg, _) = titleRarityColor(title.rarity)
     val style = if (small) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
     else MaterialTheme.typography.labelSmall
+    // UR 使用源站特化：紫色软背景 + 紫色描边 + 独立三位序列号。
+    if (title.rarity.uppercase().contains("UR")) {
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = Color(0xFFEFE3FF).copy(alpha = 0.8f),
+            modifier = modifier.border(1.dp, Color(0xFF9333EA), RoundedCornerShape(6.dp))
+        ) {
+            Row(
+                Modifier.padding(horizontal = if (small) 5.dp else 7.dp, vertical = 1.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(title.name, style = style, fontWeight = FontWeight.SemiBold, color = Color(0xFF7E22CE), maxLines = 1)
+                if (title.serial.isNotBlank()) {
+                    Text(title.serial.padStart(3, '0'), style = style, fontWeight = FontWeight.Bold, color = Color(0xFF9333EA))
+                }
+            }
+        }
+        return
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (small) 3.dp else 4.dp),
@@ -370,7 +403,7 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Bool
 
 /** 帖子卡片。compact = 单列精简模式：隐藏头像与回复数。
  *  onElementClick 非空时进入"预览改色"模式：点按各元素回调对应 CardColorOverrides key（标题不可改色）。 */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun TopicCardView(
     card: TopicCard,
@@ -381,6 +414,7 @@ fun TopicCardView(
     showComments: Boolean = true,   // false 时不显示评论数（浏览历史只展示浏览时间）
     showForum: Boolean = true,      // false 时不显示板块徽标（浏览历史）
     onElementClick: ((key: String) -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val titleColor = remember(card.titleColor) {
         runCatching { Color(android.graphics.Color.parseColor(card.titleColor)) }
@@ -395,17 +429,19 @@ fun TopicCardView(
     val forumOverride = CardColorOverrides.get(CardColorOverrides.FORUM)
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = bgOverride
-            ?: if (card.unread) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
-            else MaterialTheme.colorScheme.surfaceContainerLow,
+        color = (bgOverride ?: MaterialTheme.colorScheme.surfaceContainerLow)
+            .copy(alpha = LocalSurfaceOpacity.current),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = {
-                // 预览改色模式：点按卡片空白处改背景色；正常模式打开帖子
-                if (onElementClick != null) onElementClick(CardColorOverrides.BACKGROUND) else onClick()
-            }),
+            .combinedClickable(
+                onClick = {
+                    // 预览改色模式：点按卡片空白处改背景色；正常模式打开帖子
+                    if (onElementClick != null) onElementClick(CardColorOverrides.BACKGROUND) else onClick()
+                },
+                onLongClick = if (onElementClick == null) onLongClick else null,
+            ),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
             if (!compact) {
@@ -697,6 +733,43 @@ fun EmptyBox(text: String = "暂无内容") {
     }
 }
 
+/** 未登录占位：和 [EmptyBox]/[ErrorBox] 同一套版式，多一个去登录按钮 */
+@Composable
+fun LoginRequiredBox(title: String, subtitle: String, onLogin: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .padding(24.dp), contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Login, null,
+                    Modifier.size(26.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            Text(title, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Button(onClick = onLogin, shape = RoundedCornerShape(50)) { Text("去登录") }
+        }
+    }
+}
+
 /** 可点击链接的文本；支持 #楼层号 注解点击跳转 */
 @Composable
 fun LinkText(
@@ -706,13 +779,20 @@ fun LinkText(
     style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
     fontWeight: FontWeight? = null,
     onFloor: (Int) -> Unit = {},
+    searchQuery: String = "",
+    onSearchPosition: (Float) -> Unit = {},
 ) {
     val layoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
     Text(
         text = text,
         style = style,
         fontWeight = fontWeight,
-        modifier = modifier.pointerInput(text) {
+        modifier = modifier.onGloballyPositioned { coordinates ->
+            val index = text.text.indexOf(searchQuery.trim(), ignoreCase = true)
+            if (searchQuery.isNotBlank() && index >= 0) layoutResult.value?.let {
+                onSearchPosition(coordinates.positionInRoot().y + it.getBoundingBox(index).top)
+            }
+        }.pointerInput(text) {
             detectTapGestures { pos ->
                 val res = layoutResult.value ?: return@detectTapGestures
                 val offset = res.getOffsetForPosition(pos)
@@ -744,13 +824,13 @@ internal fun formatViews(v: Int): String = when {
 
 /** 表格单元格数据（正文 <table> 解析产物）
  *  annotated 非空时为含链接/加粗等注解的富文本（点击链接可跳转），text 为纯文本兜底 */
-private data class TableCellData(
+internal data class TableCellData(
     val text: String,
     val isHeader: Boolean,
     val annotated: AnnotatedString? = null,
 )
 
-private data class ContentBlock(
+internal data class ContentBlock(
     val annotated: AnnotatedString? = null,
     val imageUrl: String? = null,
     val imageUrls: List<String> = emptyList(), // 连续多图：合并为一个翻页块
@@ -777,6 +857,9 @@ fun HtmlContent(
     onFloor: (Int) -> Unit = {},
     mergeImages: Boolean = true,
     cacheable: Boolean = true,
+    onHeadingPosition: (Int, Float) -> Unit = { _, _ -> },
+    highlightQuery: String = "",
+    onSearchPosition: (Float) -> Unit = {},
 ) {
     val linkColor = MaterialTheme.colorScheme.primary
     val codeBg = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -806,25 +889,23 @@ fun HtmlContent(
     // 统一行高：正文 1.7 倍行距（14sp × 1.7 ≈ 24sp），引用/小字 20sp
     val bodyStyle = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp)
     val quoteStyle = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp)
+    val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
+    fun searched(text: AnnotatedString): AnnotatedString = addSearchHighlights(text, highlightQuery, highlightColor)
+    val firstMatch = remember(blocks, highlightQuery) {
+        if (highlightQuery.isBlank()) -1 else blocks.indexOfFirst { block ->
+            block.annotated?.text?.contains(highlightQuery.trim(), ignoreCase = true) == true ||
+                block.tableRows.flatten().any { it.text.contains(highlightQuery.trim(), ignoreCase = true) }
+        }
+    }
     Column(modifier) {
+        var headingOrdinal = 0
         blocks.forEachIndexed { idx, b ->
+            val reportMatch: (Float) -> Unit = { y -> if (idx == firstMatch) onSearchPosition(y) }
+            val currentHeading = if (b.isHeading) headingOrdinal++ else -1
             when {
                 b.imageUrls.size > 1 -> ImagePager(b.imageUrls, Modifier.padding(vertical = 4.dp)) { viewer = b.imageUrls to it }
                 b.imageUrl != null -> {
-                    AsyncImage(
-                        model = coil.request.ImageRequest.Builder(LocalContext.current)
-                            .data(b.imageUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "图片",
-                        contentScale = androidx.compose.ui.layout.ContentScale.FillWidth,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .clickable { viewer = listOf(b.imageUrl) to 0 }
-                    )
+                    BodyImage(b.imageUrl, Modifier.padding(vertical = 4.dp)) { viewer = listOf(b.imageUrl) to 0 }
                 }
                 b.isDivider -> {
                     HorizontalDivider(
@@ -832,8 +913,8 @@ fun HtmlContent(
                         color = MaterialTheme.colorScheme.outlineVariant
                     )
                 }
-                b.isCode -> CodeBlockView(b.annotated!!.text)
-                b.tableRows.isNotEmpty() -> TableView(b.tableRows, ::open, onFloor)
+                b.isCode -> CodeBlockView(b.annotated!!.text, highlightQuery, reportMatch)
+                b.tableRows.isNotEmpty() -> TableView(b.tableRows, ::open, onFloor, highlightQuery, reportMatch)
                 b.isQuote -> {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -849,10 +930,13 @@ fun HtmlContent(
                                     .background(MaterialTheme.colorScheme.primary)
                             )
                             Spacer(Modifier.width(10.dp))
-                            Text(
-                                b.annotated!!.text,
+                            LinkText(
+                                text = searched(b.annotated!!),
                                 style = quoteStyle,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                onOpenUrl = ::open,
+                                onFloor = onFloor,
+                                searchQuery = highlightQuery,
+                                onSearchPosition = reportMatch,
                             )
                         }
                     }
@@ -874,12 +958,16 @@ fun HtmlContent(
                         else -> Modifier
                     }
                     LinkText(
-                        text = b.annotated,
+                        text = searched(b.annotated),
                         onOpenUrl = ::open,
                         onFloor = onFloor,
                         style = txtStyle,
                         fontWeight = fontWeight,
-                        modifier = base
+                        searchQuery = highlightQuery,
+                        onSearchPosition = reportMatch,
+                        modifier = if (currentHeading >= 0) base.onGloballyPositioned {
+                            onHeadingPosition(currentHeading, it.positionInParent().y)
+                        } else base
                     )
                 }
             }
@@ -908,7 +996,7 @@ private fun headingStyle(level: Int): androidx.compose.ui.text.TextStyle {
  * 超过阈值长度才默认折叠（限高 + 纵向滚动）并显示折叠按钮；短代码完整显示且无折叠按钮（31）。
  */
 @Composable
-fun CodeBlockView(code: String) {
+fun CodeBlockView(code: String, highlightQuery: String = "", onSearchPosition: (Float) -> Unit = {}) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     // 超长判定：行数超过 12 行或字符超过 600 才视为长代码
@@ -916,6 +1004,9 @@ fun CodeBlockView(code: String) {
         code.count { it == '\n' } + 1 > 12 || code.length > 600
     }
     var expanded by remember(code) { mutableStateOf(!longCode) }
+    LaunchedEffect(highlightQuery) {
+        if (highlightQuery.isNotBlank() && code.contains(highlightQuery.trim(), ignoreCase = true)) expanded = true
+    }
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -963,10 +1054,12 @@ fun CodeBlockView(code: String) {
                 }
             }
             val text = @Composable {
-                Text(
-                    code,
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp)
+                LinkText(
+                    text = addSearchHighlights(AnnotatedString(code), highlightQuery, MaterialTheme.colorScheme.tertiaryContainer),
+                    onOpenUrl = {},
+                    searchQuery = highlightQuery,
+                    onSearchPosition = onSearchPosition,
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp, fontFamily = FontFamily.Monospace)
                 )
             }
             if (expanded) {
@@ -992,14 +1085,34 @@ fun CodeBlockView(code: String) {
  * 单元格内链接（URL/FLOOR 注解）用 LinkText 渲染，可点击跳转。
  */
 @Composable
-private fun TableView(rows: List<List<TableCellData>>, onOpenUrl: (String) -> Unit, onFloor: (Int) -> Unit = {}) {
+private fun TableView(
+    rows: List<List<TableCellData>>,
+    onOpenUrl: (String) -> Unit,
+    onFloor: (Int) -> Unit = {},
+    highlightQuery: String = "",
+    onSearchPosition: (Float) -> Unit = {},
+) {
     val colCount = rows.maxOf { it.size }
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
-        modifier = Modifier.padding(vertical = 4.dp)
-    ) {
-        Column(Modifier.padding(6.dp)) {
+    val horizontal = LocalTableDisplayMode.current == 1
+    val tableWidth = (colCount * 160 + 12).dp
+    val firstMatchCell = rows.flatten().firstOrNull {
+        highlightQuery.isNotBlank() && it.text.contains(highlightQuery.trim(), ignoreCase = true)
+    }
+    val horizontalState = rememberScrollState()
+    val density = LocalDensity.current
+    LaunchedEffect(highlightQuery, horizontal) {
+        if (horizontal && firstMatchCell != null) {
+            val column = rows.first { firstMatchCell in it }.indexOf(firstMatchCell)
+            horizontalState.scrollTo(with(density) { (column * 160).dp.roundToPx() })
+        }
+    }
+    Box(Modifier.fillMaxWidth().then(if (horizontal) Modifier.horizontalScroll(horizontalState) else Modifier)) {
+      Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+          modifier = Modifier.padding(vertical = 4.dp).then(if (horizontal) Modifier.width(tableWidth) else Modifier.fillMaxWidth())
+      ) {
+        Column(Modifier.fillMaxWidth().padding(6.dp)) {
             rows.forEachIndexed { rIdx, row ->
                 // 首个含表头的行视为表头行，整行加背景
                 val isHeaderRow = row.any { it.isHeader }
@@ -1024,15 +1137,17 @@ private fun TableView(rows: List<List<TableCellData>>, onOpenUrl: (String) -> Un
                                 if (c.annotated != null) {
                                     // 富文本单元格：链接可点击（颜色已烘焙进注解 SpanStyle）
                                     LinkText(
-                                        text = c.annotated,
+                                        text = addSearchHighlights(c.annotated, highlightQuery, MaterialTheme.colorScheme.tertiaryContainer),
                                         onOpenUrl = onOpenUrl,
                                         onFloor = onFloor,
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = if (c.isHeader) FontWeight.Bold else null,
+                                        searchQuery = highlightQuery,
+                                        onSearchPosition = { y -> if (c === firstMatchCell) onSearchPosition(y) },
                                     )
                                 } else {
                                     Text(
-                                        c.text,
+                                        addSearchHighlights(AnnotatedString(c.text), highlightQuery, MaterialTheme.colorScheme.tertiaryContainer),
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = if (c.isHeader) FontWeight.Bold else null,
                                         color = if (c.isHeader) MaterialTheme.colorScheme.primary
@@ -1051,6 +1166,25 @@ private fun TableView(rows: List<List<TableCellData>>, onOpenUrl: (String) -> Un
                 }
             }
         }
+      }
+    }
+}
+
+/** 在不破坏原有粗体、链接和行内代码 Span 的前提下叠加搜索命中背景。 */
+internal fun addSearchHighlights(source: AnnotatedString, query: String, color: Color): AnnotatedString {
+    val target = query.trim()
+    if (target.isEmpty() || source.text.isEmpty()) return source
+    val ranges = Regex(Regex.escape(target), RegexOption.IGNORE_CASE).findAll(source.text).toList()
+    if (ranges.isEmpty()) return source
+    return buildAnnotatedString {
+        append(source)
+        ranges.forEach { match ->
+            addStyle(
+                SpanStyle(background = color, fontWeight = FontWeight.SemiBold),
+                match.range.first,
+                match.range.last + 1,
+            )
+        }
     }
 }
 
@@ -1063,7 +1197,7 @@ private fun TableView(rows: List<List<TableCellData>>, onOpenUrl: (String) -> Un
 @Composable
 private fun ImagePager(urls: List<String>, modifier: Modifier = Modifier, onClick: (Int) -> Unit) {
     val pagerState = androidx.compose.foundation.pager.rememberPagerState { urls.size }
-    val currentUrl = urls[pagerState.currentPage]
+    val currentUrl = urls.getOrNull(pagerState.currentPage) ?: urls.first()
     var aspects by remember { mutableStateOf(mapOf<String, Float>()) }
     // 当前比例：已知用已知值；未知先沿用上一张的比例（不重置），加载成功后更新
     var aspect by remember { mutableStateOf(1.15f) }
@@ -1081,33 +1215,14 @@ private fun ImagePager(urls: List<String>, modifier: Modifier = Modifier, onClic
     ) {
         androidx.compose.foundation.pager.HorizontalPager(
             state = pagerState,
+            beyondViewportPageCount = 1,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            if (page == pagerState.currentPage) {
-                SubcomposeAsyncImage(
-                    model = currentUrl,
-                    contentDescription = "图片 ${page + 1}/${urls.size}",
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                    onSuccess = { state ->
-                        val d = state.result.drawable
-                        val w = d.intrinsicWidth
-                        val h = d.intrinsicHeight
-                        if (w > 0 && h > 0) {
-                            val ratio = (w.toFloat() / h).coerceIn(0.4f, 3f)
-                            aspect = ratio
-                            aspects = aspects + (currentUrl to ratio)
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                AsyncImage(
-                    model = urls[page],
-                    contentDescription = "图片 ${page + 1}/${urls.size}",
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            BodyImage(urls[page], Modifier.fillMaxSize(), fillContainer = true, onAspectRatio = { actual ->
+                val loadedRatio = actual.coerceIn(0.4f, 3f)
+                aspects = aspects + (urls[page] to loadedRatio)
+                if (page == pagerState.currentPage) aspect = loadedRatio
+            }, onClick = { onClick(page) })
         }
         // 页码指示：当前页/总页数
         Surface(
@@ -1332,7 +1447,7 @@ private fun ZoomableImage(
  *  楼层滚回视野时直接命中，避免主线程重复 Jsoup 解析。按条数限容（约 48 个楼层正文）。 */
 private val htmlBlockCache = android.util.LruCache<String, List<ContentBlock>>(48)
 
-private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, mergeImages: Boolean = true): List<ContentBlock> {
+internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, mergeImages: Boolean = true): List<ContentBlock> {
     val root = runCatching { Jsoup.parseBodyFragment(html).body() }.getOrNull() ?: return emptyList()
     val blocks = mutableListOf<ContentBlock>()
 
@@ -1397,19 +1512,36 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, mer
                 val sb = renderInlineTo(el)
                 if (sb.text.isBlank()) null else ContentBlock(annotated = sb, isQuote = true)
             }
-            else -> {
-                val imgs = el.select("img")
-                val raw = renderInlineTo(el)
-                // 图片抽离成独立块：文本首尾的 <br>/占位空格一并去掉，避免文字与图片间异常留白
-                val sb = if (imgs.isNotEmpty()) trimEdges(cleanImgPlaceholder(raw)) else raw
-                if (sb.text.isNotBlank() && imgs.isEmpty()) ContentBlock(annotated = sb)
-                else null.also {
-                    // 有图片的段落：先文本后图片
-                    if (sb.text.isNotBlank()) blocks.add(ContentBlock(annotated = sb))
-                    imgs.forEach { blocks.add(ContentBlock(imageUrl = abs(it))) }
-                }
+            else -> renderInlineTo(el).let { sb ->
+                if (sb.text.isBlank()) null else ContentBlock(annotated = sb)
             }
         }
+    }
+
+    /** 按源站节点顺序拆分一段内的文字与图片，避免把穿插图片统一挪到段尾。 */
+    fun collectInlineContent(el: Element) {
+        var wrapper = Element("span")
+
+        fun flushText() {
+            val sb = trimEdges(cleanImgPlaceholder(renderInlineTo(wrapper)))
+            if (sb.text.isNotBlank()) blocks.add(ContentBlock(annotated = sb))
+            wrapper = Element("span")
+        }
+
+        el.childNodes().forEach { node ->
+            when {
+                node is Element && node.tagName().equals("img", ignoreCase = true) -> {
+                    flushText()
+                    blocks.add(ContentBlock(imageUrl = abs(node)))
+                }
+                node is Element && node.select("img").isNotEmpty() -> {
+                    flushText()
+                    collectInlineContent(node)
+                }
+                else -> wrapper.appendChild(node.clone())
+            }
+        }
+        flushText()
     }
 
     /** 递归收集列表项，支持无序/有序及嵌套，保留层级缩进 */
@@ -1420,7 +1552,8 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, mer
                 // 渲染列表项文本时去掉内嵌子列表，仅保留该项自身内容
                 val liCopy = child.clone()
                 liCopy.select("ul, ol").remove()
-                val imgs = liCopy.select("img")
+                val imgs = liCopy.select("img").toList()
+                liCopy.select("img").remove()
                 val raw = renderInlineTo(liCopy)
                 // 列表项同理：图片抽离后去掉文本首尾的 <br>/占位空格
                 val sb = if (imgs.isNotEmpty()) trimEdges(cleanImgPlaceholder(raw)) else raw
@@ -1457,6 +1590,11 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, mer
             if (cells.any { it.text.isNotBlank() }) cells else null
         }
 
+    val structuralTags = setOf(
+        "p", "div", "section", "article", "blockquote", "pre", "ul", "ol",
+        "h1", "h2", "h3", "h4", "h5", "h6", "img", "table", "hr"
+    )
+
     fun collect(el: Element) {
         el.children().forEach { c ->
             when (c.tagName().lowercase()) {
@@ -1469,11 +1607,16 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, mer
                     if (onlyTable != null) {
                         val rows = parseTable(onlyTable)
                         if (rows.isNotEmpty()) blocks.add(ContentBlock(tableRows = rows))
+                    } else if (c.children().any { it.tagName().lowercase() in structuralTags }) {
+                        collect(c)
+                    } else if (c.select("img").isNotEmpty()) {
+                        collectInlineContent(c)
                     } else renderBlock(c)?.let { blocks.add(it) }
                 }
+                "article" -> collect(c)
                 "blockquote", "pre", "hr" -> renderBlock(c)?.let { blocks.add(it) }
                 "ul", "ol" -> collectList(c, 0)
-                "h1", "h2", "h3", "h4", "h5" -> {
+                "h1", "h2", "h3", "h4", "h5", "h6" -> {
                     val sb = renderInlineTo(c)
                     if (sb.text.isNotBlank()) blocks.add(
                         ContentBlock(
@@ -1490,15 +1633,19 @@ private fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, mer
                     if (rows.isNotEmpty()) blocks.add(ContentBlock(tableRows = rows))
                 }
                 "br" -> {}
-                else -> renderBlock(c)?.let { blocks.add(it) }
+                else -> {
+                    if (c.children().any { it.tagName().lowercase() in structuralTags }) collect(c)
+                    else if (c.select("img").isNotEmpty()) collectInlineContent(c)
+                    else renderBlock(c)?.let { blocks.add(it) }
+                }
             }
         }
     }
 
     val hasBlock = root.children().any {
         it.tagName().lowercase() in setOf(
-            "p", "div", "br", "blockquote", "pre", "ul", "ol",
-            "h1", "h2", "h3", "h4", "h5", "img", "table", "section", "hr"
+            "p", "div", "section", "article", "br", "blockquote", "pre", "ul", "ol",
+            "h1", "h2", "h3", "h4", "h5", "h6", "img", "table", "section", "hr"
         )
     }
     if (!hasBlock) {
@@ -1589,6 +1736,24 @@ private fun renderInline(el: Element, linkColor: Color, codeBg: Color): Annotate
                         Regex("""[?&]floor=(\d+)""").find(link)?.let { m ->
                             addStringAnnotation("FLOOR", m.groupValues[1], start, length)
                         }
+                    } else if (!code) {
+                        // 源站部分旧帖把裸 URL 当普通文本输出；在不改动原 HTML 的前提下
+                        // 为 http(s) / www 链接补上可点击注解，并排除常见句末标点。
+                        Regex("(?i)(https?://|www\\.)[^\\s<>{}\\[\\]（）]+")
+                            .findAll(text).forEach { match ->
+                                val raw = match.value.trimEnd('.', ',', ';', ':', '!', '?', '。', '，', '；', '：', '！', '？')
+                                if (raw.isEmpty()) return@forEach
+                                val st = start + match.range.first
+                                val en = st + raw.length
+                                val target = if (raw.startsWith("www.", ignoreCase = true)) "https://$raw" else raw
+                                addStyle(
+                                    SpanStyle(
+                                        color = linkColor,
+                                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                    ), st, en
+                                )
+                                addStringAnnotation("URL", target, st, en)
+                            }
                     }
                 }
             }

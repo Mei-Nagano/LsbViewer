@@ -6,6 +6,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import sb.linux.client.data.LsbClient
+import sb.linux.client.data.AppNetwork
 
 class LsbApp : Application(), ImageLoaderFactory {
     lateinit var client: LsbClient
@@ -13,6 +14,7 @@ class LsbApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        AppNetwork.init(this)
         client = LsbClient(this)
     }
 
@@ -30,7 +32,21 @@ class LsbApp : Application(), ImageLoaderFactory {
                     .maxSizeBytes(64L * 1024 * 1024)
                     .build()
             }
-            .okHttpClient(client.http)
+            .okHttpClient(client.http.newBuilder()
+                .apply {
+                    interceptors().removeAll { it is sb.linux.client.data.CronetFallbackInterceptor }
+                    interceptors().add(0, okhttp3.Interceptor { chain ->
+                        chain.proceed(chain.request().newBuilder()
+                            .tag(sb.linux.client.data.ImageTraffic::class.java, sb.linux.client.data.ImageTraffic).build())
+                    })
+                }
+                // 复用登录态和连接池，但不把网页强制验证缓存的请求头施加到静态图片上。
+                // 仍由 Coil 尊重源站 Cache-Control / no-store，不强行缓存私有图片。
+                .addInterceptor { chain ->
+                    chain.proceed(chain.request().newBuilder()
+                        .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
+                        .build())
+                }.addInterceptor(sb.linux.client.data.CronetFallbackInterceptor(client.http.cookieJar)).build())
             .crossfade(120)
             .build()
 }

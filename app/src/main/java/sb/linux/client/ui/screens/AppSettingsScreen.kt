@@ -2,9 +2,12 @@ package sb.linux.client.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -19,21 +22,43 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Feedback
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,12 +66,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
@@ -64,11 +91,15 @@ import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import sb.linux.client.data.syncSourceUsage
 import sb.linux.client.data.Session
+import sb.linux.client.data.AiClient
 import sb.linux.client.data.ThemeModePref
 import sb.linux.client.data.UpdateChecker
 import sb.linux.client.ui.EmptyBox
 import sb.linux.client.ui.LoadingBox
+import sb.linux.client.ui.LoginRequiredBox
+import sb.linux.client.ui.MarkdownText
 import sb.linux.client.ui.PaletteStyles
 import sb.linux.client.ui.colorSeed
 import sb.linux.client.ui.colorToHsv
@@ -83,64 +114,90 @@ import java.io.File
 
 
 
-/** 设置分组标题：小号主色标签 */
+/** 设置分组标题：小号主色标签，上方留白把相邻分组断开 */
 @Composable
 private fun GroupLabel(title: String) {
     Text(
         title,
-        style = MaterialTheme.typography.labelMedium,
+        style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+        modifier = Modifier.padding(start = 12.dp, top = 10.dp, bottom = 2.dp)
     )
 }
 
-/** 设置分组卡片容器 */
+/** 设置分组卡片容器：标题行可折叠，展开/收起带动画，标题可带图标 */
 @Composable
-private fun GroupCard(content: @Composable ColumnScope.() -> Unit) {
+internal fun GroupCard(
+    title: String? = null,
+    initiallyExpanded: Boolean = true,
+    icon: ImageVector? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
+    // 箭头随展开状态旋转，比换图标的跳变更连贯
+    val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "groupArrow")
     Surface(
         Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        Column(Modifier.padding(vertical = 6.dp)) { content() }
+        Column(Modifier.padding(vertical = 6.dp)) {
+            if (title != null) ListItem(
+                headlineContent = { Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold) },
+                leadingContent = icon?.let { vector -> { SettingIcon(vector) } },
+                trailingContent = {
+                    Icon(
+                        Icons.Filled.ExpandMore,
+                        if (expanded) "收起" else "展开",
+                        Modifier.rotate(arrowRotation),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier.clickable { expanded = !expanded },
+            )
+            if (title == null) content()
+            else AnimatedVisibility(expanded) { Column(content = content) }
+        }
+    }
+}
+
+/** 设置项图标：主色图标 + 淡主色圆底，让长列表可以靠图标定位 */
+@Composable
+internal fun SettingIcon(icon: ImageVector) {
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
     }
 }
 
 /** 带开关的设置行 */
 @Composable
-private fun SwitchRow(
+internal fun SwitchRow(
     title: String,
     subtitle: String,
     checked: Boolean,
     enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    // enabled=false（依赖的总开关未打开）：整行连同文字一起变灰，避免只有开关灰掉、
-    // 文字仍是正常色的割裂感
-    val alpha = if (enabled) 1f else 0.38f
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = LocalContentColor.current.copy(alpha = alpha)
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
-            )
-        }
-        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
-    }
+    // 禁用时标题与副标题一起变淡，只淡标题会让人以为副标题还可操作
+    val alpha = if (enabled) 1f else .38f
+    ListItem(
+        headlineContent = { Text(title, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)) },
+        supportingContent = {
+            Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
+        },
+        trailingContent = { Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.clickable(enabled = enabled) { onCheckedChange(!checked) },
+    )
 }
 
 /** 人类可读的字节大小 */
@@ -152,11 +209,11 @@ private fun fmtBytes(b: Long): String = when {
 
 /** 本地缓存分析：统计各项缓存占用并用饼图展示（3.12） */
 @Composable
-private fun CacheAnalysisCard(session: Session) {
+private fun CacheAnalysisCard(session: Session, refreshKey: Int = 0) {
     val context = LocalContext.current
     var sizes by remember { mutableStateOf<List<Pair<String, Long>>?>(null) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshKey) {
         sizes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val app = context.applicationContext
             fun prefsSize(name: String): Long =
@@ -508,8 +565,85 @@ private fun ResetAction(title: String, onConfirm: () -> Unit) {
 @Composable
 fun AppSettingsScreen(session: Session, nav: NavHostController) {
     var resetTick by remember { mutableStateOf(0) }
+    var settingsQuery by rememberSaveable { mutableStateOf("") }
+    var showCardRedemptions by remember { mutableStateOf(false) }
+    var redemptionRevision by remember { mutableIntStateOf(0) }
+    val cardRedemptions = remember(showCardRedemptions, redemptionRevision) { session.settings.cardRedemptions() }
+    val entries = listOf(
+        Triple("常规设置", "打开链接方式 · DoH · 匿名免费图床 · 检查更新", "generalSettings"),
+        Triple("浏览设置", "滚动模式 · 新帖子折叠 · Base64 · 表格 · UID · 评论 · 弹幕", "browseSettings"),
+        Triple("数据管理", "缓存分析 · 分类清理 · 历史 · 收藏 · AI 数据 · 自动清理", "dataManagement"),
+        Triple("使用统计", "浏览 · 收藏 · 发帖回帖 · 积分支出 · AI 总结", "usageStats"),
+        Triple("外观设置", "深浅模式 · 主题色 · 背景 · 字体大小粗细 · 卡片颜色 · 底栏", "themeSettings"),
+        Triple("AI 总结", "API · 模型列表 · 提示词 · 自动总结 · 总结历史", "aiSettings"),
+        Triple("备份设置", "JSON · WebDAV · 导入 · 导出", "transferSettings"),
+        Triple("屏蔽词管理", "源站同步 · 屏蔽用户 · 关键词过滤", "blockWords"),
+        Triple("发卡兑换记录", "自动保存已兑换帖子、卡名与兑换码", "cardRedemptions"),
+        Triple("已导出的帖子", "HTML · Markdown · 长图 · 多页导出", "exportedTopics"),
+    )
+    val visibleEntries = if (settingsQuery.isBlank()) entries else sb.linux.client.data.SettingsSearchIndex.search(settingsQuery)
+        .map { Triple(it.title, it.category, it.route) }
+    // 按目标路由取图标：搜索结果命中的是具体选项，也能借父分类的图标定位
+    val entryIcons = mapOf(
+        "generalSettings" to Icons.Filled.Tune,
+        "dohSettings" to Icons.Filled.Dns,
+        "browseSettings" to Icons.AutoMirrored.Filled.MenuBook,
+        "dataManagement" to Icons.Filled.Storage,
+        "usageStats" to Icons.Filled.Insights,
+        "themeSettings" to Icons.Filled.Palette,
+        "aiSettings" to Icons.Filled.AutoAwesome,
+        "transferSettings" to Icons.Filled.Backup,
+        "blockWords" to Icons.Filled.Block,
+        "cardRedemptions" to Icons.Filled.Redeem,
+        "exportedTopics" to Icons.Filled.Description,
+    )
     // 平板双栏：本页位于主栏，返回箭头应弹出主栏（回到「我的」）；手机走单栈
     val masterNav = LocalMasterNav.current
+    if (showCardRedemptions) {
+        AlertDialog(
+            onDismissRequest = { showCardRedemptions = false },
+            title = { Text("发卡兑换记录（${cardRedemptions.size}）") },
+            text = {
+                if (cardRedemptions.isEmpty()) {
+                    Text("暂无记录。打开已兑换过的发卡帖后，应用会从“我的购买记录”自动建档。")
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(cardRedemptions, key = { "${it.topicId}-${it.code}" }) { record ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    showCardRedemptions = false
+                                    nav.navigate("topic/${record.topicId}")
+                                },
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                shape = RoundedCornerShape(14.dp),
+                            ) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(record.topicTitle.ifBlank { "帖子 #${record.topicId}" }, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                    Text(record.cardTitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    SelectionContainer { Text(record.code, style = MaterialTheme.typography.bodyMedium) }
+                                    Text(
+                                        listOf(record.price, record.sourceTime).filter { it.isNotBlank() }.joinToString(" · "),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (cardRedemptions.isNotEmpty()) TextButton(onClick = {
+                    session.settings.clearCardRedemptions()
+                    redemptionRevision++
+                }) { Text("清空记录") }
+            },
+            dismissButton = { TextButton(onClick = { showCardRedemptions = false }) { Text("关闭") } },
+        )
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -541,45 +675,338 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
+            OutlinedTextField(
+                value = settingsQuery,
+                onValueChange = { settingsQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                singleLine = true,
+                placeholder = { Text("搜索设置项，如「主题色」「缓存」") },
+                leadingIcon = { Icon(Icons.Filled.Search, null) },
+                trailingIcon = if (settingsQuery.isNotBlank()) {{
+                    IconButton(onClick = { settingsQuery = "" }) { Icon(Icons.Filled.Close, "清空") }
+                }} else null,
+                shape = RoundedCornerShape(28.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                ),
+            )
             GroupCard {
-                SettingMenuRow("常规设置", "打开链接方式 · 检查更新") {
-                    nav.navigate("generalSettings")
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("浏览设置", "滚动模式 · 每页条数 · 评论每页 · 缓存 · 签到 · 弹幕") {
-                    nav.navigate("browseSettings")
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("外观设置", "深浅模式 · 主题色 · 字体 · 调色风格 · 卡片元素改色") {
-                    nav.navigate("themeSettings")
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("AI 总结", "OpenAI 兼容 API · 自动总结 · 解析评论区") {
-                    nav.navigate("aiSettings")
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("备份设置", "导出 / 导入 JSON（含外观与字体）· WebDAV 备份") {
-                    nav.navigate("transferSettings")
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("已导出的帖子", "查看本地已导出为 HTML 的帖子") {
-                    nav.navigate("exportedTopics")
+                if (visibleEntries.isEmpty()) {
+                    Text(
+                        "没有找到相关设置",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    )
+                } else visibleEntries.forEachIndexed { index, (title, subtitle, route) ->
+                    SettingMenuRow(title, subtitle, entryIcons[route]) {
+                        if (route == "cardRedemptions") showCardRedemptions = true else nav.navigate(route)
+                    }
+                    if (index < visibleEntries.lastIndex) {
+                        HorizontalDivider(
+                            Modifier.padding(start = 66.dp, end = 18.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-/** 设置菜单行：标题 + 副标题 + 右箭头 */
+/** 独立数据管理：按项删除，并选择应用完全退出后需要自动清理的项目。 */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingMenuRow(title: String, subtitle: String, onClick: () -> Unit) {
+fun DataManagementScreen(session: Session, nav: NavHostController) {
+    val options = listOf(
+        "home" to ("首页与侧边栏缓存" to "帖子列表和侧边栏快照"),
+        "topic" to ("帖子与阅读量缓存" to "正文、评论、弹幕和阅读量"),
+        "images" to ("图片缓存" to "头像及正文图片的磁盘缓存"),
+        "reading_positions" to ("阅读位置" to "各帖子上次看到的位置"),
+        "ai_history" to ("AI 总结历史" to "已保存的总结与运行内缓存"),
+        "history" to ("浏览历史" to "本地帖子浏览记录"),
+        "favorites" to ("本地收藏" to "帖子收藏快照"),
+        "comment_favorites" to ("评论收藏" to "收藏的评论快照"),
+        "card_redemptions" to ("发卡兑换记录" to "已自动保存的帖子与兑换码"),
+        "usage_stats" to ("使用统计" to "操作事件与已保存的 AI 分析"),
+        "ai_config" to ("AI 配置与密钥" to "API 地址、密钥、模型、提示词及配置方案"),
+        "drafts" to ("发帖草稿" to "未发布的标题、正文和特殊帖配置"),
+        "link_previews" to ("链接预览缓存" to "网站标题、简介和图标地址"),
+        "background_image" to ("自定义背景图片" to "删除应用内保存的背景图片，恢复主题底色"),
+    )
+    var selected by remember { mutableStateOf(emptySet<String>()) }
+    var autoClear by remember { mutableStateOf(session.settings.autoClearItems) }
+    var confirmClear by remember { mutableStateOf(false) }
+    var cacheRevision by remember { mutableIntStateOf(0) }
+
+    if (confirmClear) AlertDialog(
+        onDismissRequest = { confirmClear = false },
+        title = { Text("清理所选数据") },
+        text = { Text("确定删除已选择的 ${selected.size} 类本地数据吗？此操作无法撤销。") },
+        confirmButton = { TextButton(onClick = {
+            confirmClear = false
+            session.clearDataItems(selected)
+            selected = emptySet()
+            cacheRevision++
+        }) { Text("清理") } },
+        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } },
+    )
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("数据管理") },
+            navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+        )
+    }) { pad ->
+        Column(
+            Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            GroupLabel("空间占用")
+            GroupCard {
+                Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                    CacheAnalysisCard(session, cacheRevision)
+                }
+            }
+            GroupLabel("立即清理")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                options.forEachIndexed { index, (key, labels) ->
+                    val checked = key in selected
+                    Surface(
+                        onClick = {
+                            selected = if (checked) selected - key else selected + key
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (checked) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f)
+                            else MaterialTheme.colorScheme.surfaceContainerLow,
+                        border = BorderStroke(
+                            if (checked) 1.5.dp else 0.5.dp,
+                            if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                        ),
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = null)
+                            Spacer(Modifier.width(4.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(labels.first, style = MaterialTheme.typography.bodyLarge, fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal)
+                                Text(labels.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (checked) Icon(Icons.Filled.CheckCircle, "已选择", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+            Button(
+                onClick = { confirmClear = true }, enabled = selected.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("清理所选项") }
+
+            GroupCard("退出时自动清理", initiallyExpanded = false, icon = Icons.Filled.Delete) {
+                Text(
+                    "正常退出时清理所选项目；系统强制结束进程时，会在下次启动补做。所选历史、草稿或 AI 配置会永久删除，请谨慎开启；账号登录不受影响。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                )
+                options.forEach { (key, labels) ->
+                    SwitchRow(
+                        labels.first, labels.second,
+                        checked = key in autoClear,
+                        onCheckedChange = { enabled ->
+                            autoClear = if (enabled) autoClear + key else autoClear - key
+                            session.settings.autoClearItems = autoClear
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 本地使用统计：只统计应用内真实完成的行为；AI 分析同时参考浏览历史与收藏快照。 */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun UsageStatsScreen(session: Session, nav: NavHostController) {
+    var revision by remember { mutableIntStateOf(0) }
+    val allEvents = remember(revision) { session.settings.usageEvents() }
+    var days by rememberSaveable { mutableIntStateOf(30) }
+    val cutoff = remember(days) {
+        if (days == 0) 0L else System.currentTimeMillis() - days * 24L * 60L * 60L * 1000L
+    }
+    val events = remember(allEvents, cutoff) { allEvents.filter { it.at >= cutoff } }
+    val sourceTotals = remember(revision, session.loginState.userId) {
+        runCatching { org.json.JSONObject(session.settings.sourceUsageJson) }.getOrDefault(org.json.JSONObject())
+            .takeIf { it.optLong("userId") == session.loginState.userId }
+    }
+    val counts = remember(events) { events.groupingBy { it.type }.eachCount() }
+    val pointsSpent = remember(events) { events.filter { it.type == "coin" || it.type == "donate" }.sumOf { it.value } }
+    val history = remember(revision) { session.settings.historyList() }
+    val favorites = remember(revision) { session.settings.favoriteList() }
+    val sourcePoints = remember(revision, cutoff, sourceTotals) {
+        if (sourceTotals == null) emptyList() else session.settings.sourcePoints().filter { it.timestamp >= cutoff }
+    }
+    val sourceIncome = sourcePoints.filter { it.positive }.sumOf { it.change.toLongOrNull() ?: 0 }
+    val sourceExpense = sourcePoints.filterNot { it.positive }.sumOf { it.change.toLongOrNull() ?: 0 }
+    var syncingPoints by remember { mutableStateOf(false) }
+    var aiSummary by remember { mutableStateOf(session.settings.usageAiSummary) }
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiError by remember { mutableStateOf<String?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun runAiSummary() {
+        if (aiBusy) return
+        aiBusy = true
+        aiError = null
+        scope.launch {
+            try {
+                val topViewed = events.filter { it.type == "view" && it.title.isNotBlank() }
+                    .groupingBy { it.title }.eachCount().entries.sortedByDescending { it.value }.take(8)
+                val content = buildString {
+                    appendLine("统计范围：${if (days == 0) "全部" else "最近 ${days} 天"}")
+                    appendLine("浏览 ${counts["view"] ?: 0} 次，收藏 ${counts["favorite"] ?: 0} 次，发帖 ${counts["topic"] ?: 0} 次，回帖 ${counts["reply"] ?: 0} 次，源站积分支出 $sourceExpense。")
+                    appendLine("源站当前总数：发帖 ${sourceTotals?.optInt("topics")}，回帖 ${sourceTotals?.optInt("replies")}，收藏 ${sourceTotals?.optInt("favorites")}。")
+                    appendLine("本地浏览历史现有 ${history.size} 帖，本地帖子收藏 ${favorites.size} 帖，评论收藏 ${session.settings.commentFavoriteList().size} 条。")
+                    appendLine("已同步源站积分流水 ${sourcePoints.size} 条，收入 $sourceIncome，支出 $sourceExpense。源站流水和本地操作统计可能重叠，不得相加；仅分析已同步范围。")
+                    appendLine(sourcePoints.take(40).joinToString("\n") { "${it.timeText} ${it.reason} ${if (it.positive) "+" else "-"}${it.change}" })
+                    if (topViewed.isNotEmpty()) appendLine("常看主题：${topViewed.joinToString { "${it.key}（${it.value}次）" }}")
+                    if (favorites.isNotEmpty()) appendLine("近期收藏：${favorites.take(10).joinToString { it.title }}")
+                    append("请分析使用偏好、近期关注主题和参与习惯，并给出简短总结。")
+                }
+                aiSummary = AiClient.summarize(session.settings, "我的 Linux.do/SB 使用统计", content) { }
+                session.settings.usageAiSummary = aiSummary
+            } catch (e: Exception) {
+                aiError = e.message ?: "AI 总结失败"
+            } finally {
+                aiBusy = false
+            }
+        }
+    }
+
+    if (confirmClear) AlertDialog(
+        onDismissRequest = { confirmClear = false },
+        title = { Text("清空使用统计") },
+        text = { Text("将删除操作统计和已保存的 AI 分析，不影响浏览历史与收藏。") },
+        confirmButton = { TextButton(onClick = {
+            session.settings.clearUsageStats(); aiSummary = ""; revision++; confirmClear = false
+        }) { Text("清空") } },
+        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } },
+    )
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("使用统计") },
+            navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+            actions = { IconButton(onClick = { confirmClear = true }) { Icon(Icons.Filled.Delete, "清空统计") } },
+        )
+    }) { pad ->
+        LazyColumn(
+            modifier = Modifier.padding(pad).fillMaxSize(),
+            contentPadding = PaddingValues(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    listOf(7 to "7 天", 30 to "30 天", 0 to "全部").forEachIndexed { index, (value, label) ->
+                        SegmentedButton(
+                            selected = days == value, onClick = { days = value },
+                            shape = SegmentedButtonDefaults.itemShape(index, 3), modifier = Modifier.weight(1f),
+                        ) { Text(label) }
+                    }
+                }
+            }
+            item {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "浏览" to (counts["view"] ?: 0), "收藏（源站）" to (sourceTotals?.optInt("favorites") ?: "未同步"),
+                        "发帖（源站）" to (sourceTotals?.optInt("topics") ?: "未同步"), "回帖（源站）" to (sourceTotals?.optInt("replies") ?: "未同步"),
+                        "积分支出" to sourceExpense, "历史帖子" to history.size,
+                    ).forEach { (label, value) ->
+                        Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.width(104.dp)) {
+                            Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(value.toString(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                GroupCard {
+                    Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("源站积分流水", style = MaterialTheme.typography.titleMedium)
+                        Text("当前范围 ${sourcePoints.size} 条 · 收入 $sourceIncome · 支出 $sourceExpense")
+                        Text("发帖、回帖、收藏为个人主页当前总数；积分按所选日期汇总完整流水。浏览次数来自本机。同步全部分页，成功后统一更新。", style = MaterialTheme.typography.bodySmall)
+                        Button(enabled = !syncingPoints && session.loginState.loggedIn, onClick = {
+                            syncingPoints = true
+                            scope.launch {
+                                try {
+                                    session.syncSourceUsage()
+                                    revision++
+                                    session.showToast("源站帖子、回帖、收藏及积分已同步")
+                                } catch (e: Exception) { session.showToast(e.message ?: "同步失败") }
+                                finally { syncingPoints = false }
+                            }
+                        }) { Text(if (syncingPoints) "同步中…" else "同步个人主页") }
+                    }
+                }
+            }
+            item {
+                GroupCard {
+                    Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("AI 使用分析", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        when {
+                            aiBusy -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Text("正在分析…")
+                            }
+                            aiError != null -> Text(aiError.orEmpty(), color = MaterialTheme.colorScheme.error)
+                            aiSummary.isNotBlank() -> MarkdownText(aiSummary)
+                            else -> Text("根据统计、浏览历史和收藏内容生成兴趣与参与习惯总结。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Button(onClick = ::runAiSummary, enabled = !aiBusy && AiClient.isConfigured(session.settings), modifier = Modifier.fillMaxWidth()) {
+                            Text(if (aiSummary.isBlank()) "生成 AI 总结" else "重新生成")
+                        }
+                        if (!AiClient.isConfigured(session.settings)) Text("请先在 AI 总结设置中配置 API。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            if (events.isNotEmpty()) {
+                item { GroupLabel("最近活动") }
+                items(events.take(30), key = { "${it.at}-${it.type}-${it.topicId}" }) { event ->
+                    val label = when (event.type) {
+                        "view" -> "浏览帖子"; "favorite" -> "收藏帖子"; "topic" -> "发布帖子"
+                        "reply" -> "发表回复"; "coin" -> "投币 ${event.value} 积分"; else -> "打赏 ${event.value} 积分"
+                    }
+                    ListItem(
+                        headlineContent = { Text(label) },
+                        supportingContent = { if (event.title.isNotBlank()) Text(event.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        trailingContent = { Text(java.text.SimpleDateFormat("MM-dd HH:mm", androidx.compose.ui.platform.LocalConfiguration.current.locales[0]).format(java.util.Date(event.at)), style = MaterialTheme.typography.labelSmall) },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+                    )
+                }
+            } else item { EmptyBox("该时间范围内暂无统计；新版开始记录后会显示在这里") }
+        }
+    }
+}
+
+/** 设置菜单行：图标 + 标题 + 副标题 + 右箭头 */
+@Composable
+internal fun SettingMenuRow(title: String, subtitle: String, icon: ImageVector? = null, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (icon != null) {
+            SettingIcon(icon)
+            Spacer(Modifier.width(14.dp))
+        }
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             Text(
@@ -596,11 +1023,12 @@ private fun SettingMenuRow(title: String, subtitle: String, onClick: () -> Unit)
     }
 }
 
-/** 浏览设置子页面：滚动模式（可按分类生效）/ 每页条数（输入框）/ 评论每页 / 缓存 / 签到 / 弹幕 / 缓存分析 */
+/** 浏览设置：列表与分页、正文与评论、文本选择操作。缓存分析归入数据管理。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
     var msg by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(msg) { msg?.let { session.showToast(it.removePrefix("✓ ").trim()); msg = null } }
     // 重置后强制刷新本地输入框状态
     var resetTick by remember { mutableStateOf(0) }
     // 滚动模式生效分类（3.13）：all / home / forum / topic
@@ -665,22 +1093,9 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            msg?.let {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                    )
-                }
-            }
 
-            GroupCard {
+
+            GroupCard("列表与分页", icon = Icons.AutoMirrored.Filled.ViewList) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
                     Text(
                         "滚动模式",
@@ -726,7 +1141,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     }
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "提示：评论区采用分页模式可能导致评论区加载异常，请谨慎启用。默认启用无限滚动",
+                        "分页按评论树根节点分组，子回复随父评论展示；无限滚动按需加载后续评论",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -775,6 +1190,12 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = { session.settings.homeKeepCache = it; session.homeCacheEnabled = it }
                 )
                 SwitchRow(
+                    "折叠刷新后的新帖子",
+                    "刷新回到顶部，把新增帖子收纳为折叠条，点击后展开",
+                    checked = session.collapseNewTopics,
+                    onCheckedChange = { session.saveCollapseNewTopics(it) }
+                )
+                SwitchRow(
                     "侧边栏双列显示",
                     "快捷功能与版块列表双列排布（可在首页侧边栏切换）",
                     checked = session.sidebarTwoColumns,
@@ -786,12 +1207,35 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     checked = session.showOnlineUsers,
                     onCheckedChange = { session.saveShowOnlineUsers(it) }
                 )
+            }
+            GroupCard("正文与评论", icon = Icons.AutoMirrored.Filled.Chat) {
                 SwitchRow(
                     "显示打赏弹幕",
                     "在帖子正文与评论区之间滚动展示打赏信息，可在帖子菜单中单独开关",
                     checked = session.danmakuOn,
                     onCheckedChange = { session.saveDanmaku(it) }
                 )
+                SwitchRow(
+                    "Markdown 表格横向滑动",
+                    if (session.tableDisplayMode == 1) "保持单元格可读宽度，可左右滑动" else "关闭时自动压缩列宽以适应手机屏幕",
+                    checked = session.tableDisplayMode == 1,
+                    onCheckedChange = { session.saveTableDisplayMode(if (it) 1 else 0) }
+                )
+                SwitchRow(
+                    "显示 UID",
+                    "在帖子作者头像下方仅显示 UID 数字",
+                    checked = session.showUid,
+                    onCheckedChange = { session.saveShowUid(it) }
+                )
+                SwitchRow(
+                    "智能识别编码内容",
+                    "识别 Base64、URL Base64、Hex、URL、Unicode 和显式 ROT13 内容",
+                    checked = session.smartDecodeEnabled,
+                    onCheckedChange = { session.saveSmartDecodeEnabled(it) }
+                )
+            }
+            GroupCard("帖子交互", initiallyExpanded = false, icon = Icons.Filled.TouchApp) {
+                // 正文长按已交回系统原生选择菜单（复制/翻译/搜索由系统提供），这里不再有自定义菜单项配置
                 SwitchRow(
                     "对话串联",
                     "源站已支持树形结构评论，此功能不再需要；开启后评论区显示「查看对话」入口",
@@ -804,25 +1248,6 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     checked = session.unfavoriteConfirm,
                     onCheckedChange = { session.saveUnfavoriteConfirm(it) }
                 )
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
-                    // 本地缓存分析（饼图，3.12）
-                    CacheAnalysisCard(session)
-                    Spacer(Modifier.height(10.dp))
-                    Button(
-                        onClick = {
-                            session.clearLocalCache()
-                            msg = "已清除本地缓存"
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("清除本地缓存") }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "清除首页帖子、阅读量、侧边栏、帖子页与图片等本地缓存，不删除登录状态与设置",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -833,14 +1258,62 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiSettingsScreen(session: Session, nav: NavHostController) {
+    val scope = rememberCoroutineScope()
     var msg by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(msg) { msg?.let { session.showToast(it.removePrefix("✓ ").trim()); msg = null } }
     var aiEnabled by remember { mutableStateOf(session.settings.aiEnabled) }
     var aiAutoRun by remember { mutableStateOf(session.settings.aiAutoRun) }
     var aiUrl by remember { mutableStateOf(session.settings.aiUrl) }
     var aiKey by remember { mutableStateOf(session.settings.aiKey) }
     var aiModel by remember { mutableStateOf(session.settings.aiModel) }
+    var aiPrompt by remember { mutableStateOf(session.settings.aiPrompt) }
     var aiTemp by remember { mutableStateOf(session.settings.aiTemp.toString()) }
     var aiIncludeComments by remember { mutableStateOf(session.settings.aiIncludeComments) }
+    var modelOptions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var modelMenuOpen by remember { mutableStateOf(false) }
+    var modelBusy by remember { mutableStateOf(false) }
+    var historyTick by remember { mutableIntStateOf(0) }
+    var selectedSummary by remember { mutableStateOf<sb.linux.client.data.AiSummaryRecord?>(null) }
+    var favoriteOnly by remember { mutableStateOf(false) }
+    var historyLimit by remember { mutableIntStateOf(30) }
+    val summaryHistory = remember(historyTick, favoriteOnly) { session.aiSummaryHistory().filter { !favoriteOnly || it.favorite } }
+    var presetTick by remember { mutableIntStateOf(0) }
+    var presetName by remember { mutableStateOf("") }
+    var presetMenu by remember { mutableStateOf(false) }
+    val aiPresets = remember(presetTick) { session.settings.aiConfigPresets() }
+
+    selectedSummary?.let { record ->
+        AlertDialog(
+            onDismissRequest = { selectedSummary = null },
+            title = { Text(record.title.ifBlank { "帖子 #${record.topicId}" }) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(record.summary, style = MaterialTheme.typography.bodyMedium)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedSummary = null
+                    nav.navigate("topic/${record.topicId}?p=1&floor=0")
+                }) { Text("打开原帖") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        session.removeAiSummary(record)
+                        historyTick++
+                        selectedSummary = null
+                    }) { Text("删除") }
+                    TextButton(onClick = {
+                        session.favoriteAiSummary(record, !record.favorite)
+                        selectedSummary = record.copy(favorite = !record.favorite)
+                        historyTick++
+                    }) { Text(if (record.favorite) "取消收藏" else "收藏总结") }
+                    TextButton(onClick = { selectedSummary = null }) { Text("关闭") }
+                }
+            },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -862,21 +1335,61 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            msg?.let {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (it.startsWith("✓")) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth()
+
+
+            GroupCard {
+                Text(
+                    "AI 配置方案",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(start = 18.dp, top = 12.dp, bottom = 4.dp),
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (it.startsWith("✓")) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    OutlinedTextField(
+                        value = presetName, onValueChange = { presetName = it },
+                        label = { Text("方案名称 / 选择方案") }, singleLine = true,
+                        trailingIcon = {
+                            Box {
+                                IconButton(onClick = { presetMenu = true }) { Icon(Icons.Filled.ArrowDropDown, "选择已保存方案") }
+                                DropdownMenu(expanded = presetMenu, onDismissRequest = { presetMenu = false }) {
+                                    if (aiPresets.isEmpty()) DropdownMenuItem(text = { Text("暂无已保存方案") }, onClick = {}, enabled = false)
+                                    aiPresets.forEach { preset ->
+                                        DropdownMenuItem(
+                                            text = { Text(preset.name) },
+                                            trailingIcon = { IconButton(onClick = {
+                                                session.settings.removeAiPreset(preset.name); presetTick++
+                                            }) { Icon(Icons.Filled.Delete, "删除方案") } },
+                                            onClick = {
+                                                session.settings.applyAiPreset(preset)
+                                                aiUrl = preset.url; aiKey = preset.key; aiModel = preset.model
+                                                aiTemp = preset.temperature.toString(); aiPrompt = preset.prompt
+                                                aiIncludeComments = preset.includeComments; presetName = preset.name
+                                                presetMenu = false
+                                                session.showToast("已切换到「${preset.name}」")
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
                     )
+                    Button(
+                        onClick = {
+                            session.settings.aiUrl = aiUrl.trim(); session.settings.aiKey = aiKey.trim()
+                            session.settings.aiModel = aiModel.trim(); session.settings.aiPrompt = aiPrompt.trim()
+                            session.settings.aiTemp = (aiTemp.toFloatOrNull() ?: 0.3f).coerceIn(0f, 2f)
+                            session.settings.aiIncludeComments = aiIncludeComments
+                            session.settings.saveCurrentAiPreset(presetName)
+                            presetTick++; msg = "✓ AI 配置方案已保存"
+                        },
+                        enabled = presetName.isNotBlank(),
+                    ) { Text("保存") }
                 }
+
             }
 
             GroupCard {
@@ -932,15 +1445,44 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation()
                     )
-                    OutlinedTextField(
-                        value = aiModel,
-                        onValueChange = { aiModel = it },
+                    Box(Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = aiModel,
+                            onValueChange = { aiModel = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("模型") },
+                            placeholder = { Text("gpt-4o-mini") },
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            trailingIcon = {
+                                if (modelOptions.isNotEmpty()) IconButton(onClick = { modelMenuOpen = true }) {
+                                    Icon(Icons.Filled.ArrowDropDown, "选择模型")
+                                }
+                            },
+                        )
+                        DropdownMenu(expanded = modelMenuOpen, onDismissRequest = { modelMenuOpen = false }) {
+                            modelOptions.forEach { model ->
+                                DropdownMenuItem(text = { Text(model) }, onClick = { aiModel = model; modelMenuOpen = false })
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            session.settings.aiUrl = aiUrl.trim()
+                            session.settings.aiKey = aiKey.trim()
+                            modelBusy = true
+                            scope.launch {
+                                try {
+                                    modelOptions = AiClient.fetchModels(session.settings)
+                                    if (modelOptions.isEmpty()) msg = "✗ 接口没有返回可用模型"
+                                    else { modelMenuOpen = true; msg = "✓ 已获取 ${modelOptions.size} 个模型" }
+                                } catch (e: Exception) { msg = "✗ ${e.message}" }
+                                finally { modelBusy = false }
+                            }
+                        },
+                        enabled = !modelBusy && aiUrl.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("模型") },
-                        placeholder = { Text("gpt-4o-mini") },
-                        shape = RoundedCornerShape(14.dp),
-                        singleLine = true
-                    )
+                    ) { Text(if (modelBusy) "获取中…" else "获取模型列表") }
                     OutlinedTextField(
                         value = aiTemp,
                         onValueChange = { if (it.length <= 4 && (it.isEmpty() || it.matches(Regex("""\d*\.?\d*""")))) aiTemp = it },
@@ -949,12 +1491,22 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
                         shape = RoundedCornerShape(14.dp),
                         singleLine = true
                     )
+                    OutlinedTextField(
+                        value = aiPrompt,
+                        onValueChange = { aiPrompt = it },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
+                        label = { Text("自定义总结提示词") },
+                        placeholder = { Text(AiClient.DEFAULT_SUMMARY_PROMPT) },
+                        supportingText = { Text("留空使用内置提示词") },
+                        shape = RoundedCornerShape(14.dp),
+                    )
                 }
                 Button(
                     onClick = {
                         session.settings.aiUrl = aiUrl.trim()
                         session.settings.aiKey = aiKey.trim()
                         session.settings.aiModel = aiModel.trim()
+                        session.settings.aiPrompt = aiPrompt.trim()
                         session.settings.aiTemp = (aiTemp.toFloatOrNull() ?: 0.3f).coerceIn(0f, 2f)
                         session.settings.aiIncludeComments = aiIncludeComments
                         msg = "✓ AI 设置已保存"
@@ -964,6 +1516,27 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
                         .fillMaxWidth()
                         .padding(horizontal = 18.dp, vertical = 8.dp)
                 ) { Text("保存 AI 设置") }
+            }
+            SwitchRow("仅看收藏的总结", "历史保留每次总结结果，不再覆盖同帖旧记录", checked = favoriteOnly, onCheckedChange = { favoriteOnly = it })
+            if (summaryHistory.isNotEmpty()) {
+                GroupLabel("总结历史")
+                GroupCard {
+                    summaryHistory.take(historyLimit).forEachIndexed { index, record ->
+                        ListItem(
+                            headlineContent = { Text(record.title.ifBlank { "帖子 #${record.topicId}" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = { Text(record.summary.replace("\n", " "), maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            trailingContent = {
+                                IconButton(onClick = {
+                                    session.removeAiSummary(record)
+                                    historyTick++
+                                }) { Icon(Icons.Filled.Delete, "删除") }
+                            },
+                            modifier = Modifier.clickable { selectedSummary = record },
+                        )
+                        if (index < summaryHistory.take(historyLimit).lastIndex) HorizontalDivider(Modifier.padding(horizontal = 18.dp))
+                    }
+                }
+                if (summaryHistory.size > historyLimit) TextButton(onClick = { historyLimit += 30 }) { Text("显示更多总结") }
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -977,6 +1550,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var msg by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(msg) { msg?.let { session.showToast(it.removePrefix("✓ ").trim()); msg = null } }
 
     // WebDAV 配置（持久化在 AppSettings）
     var davUrl by remember { mutableStateOf(session.settings.webdavUrl) }
@@ -985,6 +1559,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
     var davDir by remember { mutableStateOf(session.settings.webdavDir.ifBlank { "/linuxsb/" }) }
     var davBusy by remember { mutableStateOf(false) }
     var davPassVisible by remember { mutableStateOf(false) }
+    var backupItems by remember { mutableStateOf(session.settings.backupItems) }
 
     val exportJsonLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -992,7 +1567,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
         if (uri != null) {
             runCatching {
                 context.contentResolver.openOutputStream(uri)?.use { os ->
-                    os.write(session.settings.exportJson().toByteArray())
+                    os.write(session.settings.exportJson(backupItems).toByteArray())
                 }
                 msg = "✓ 已导出为 JSON"
             }.onFailure { msg = "导出失败：${it.message}" }
@@ -1028,7 +1603,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
         davBusy = true
         scope.launch {
             try {
-                WebDav.put(url, davUser, davPass, session.settings.exportJson())
+                WebDav.put(url, davUser, davPass, session.settings.exportJson(backupItems))
                 msg = "✓ 已备份到 WebDAV"
             } catch (e: Exception) {
                 msg = "✗ WebDAV 备份失败：${e.message}"
@@ -1073,31 +1648,42 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            msg?.let {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (it.startsWith("✓")) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (it.startsWith("✓")) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                    )
-                }
-            }
+
 
             GroupCard {
                 Text(
-                    "把浏览、外观主题与字体、AI、屏蔽词及收藏的评论等全部应用设置导出为 JSON 文件，" +
-                        "或在其他设备上导入恢复，导入后立即生效。自定义字体文件本体不随备份迁移。",
+                    "选择要写入 JSON 和 WebDAV 的内容。导入时只恢复文件中存在的项目，未备份的本地数据不受影响。自定义字体文件本体不随备份迁移。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
                 )
+                val backupOptions = listOf(
+                    "settings" to "应用设置",
+                    "history" to "浏览历史与阅读位置",
+                    "favorites" to "帖子与评论收藏",
+                    "ai" to "AI 配置、总结历史与总结收藏",
+                    "drafts" to "发帖草稿",
+                    "usage" to "使用统计与 AI 分析",
+                    "cards" to "发卡兑换记录",
+                )
+                backupOptions.forEach { (key, label) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            val next = if (key in backupItems) backupItems - key else backupItems + key
+                            if (next.isNotEmpty()) { backupItems = next; session.settings.backupItems = next }
+                        }.padding(horizontal = 10.dp, vertical = 1.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = key in backupItems,
+                            onCheckedChange = { checked ->
+                                val next = if (checked) backupItems + key else backupItems - key
+                                if (next.isNotEmpty()) { backupItems = next; session.settings.backupItems = next }
+                            },
+                        )
+                        Text(label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
                 Row(
                     Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1132,7 +1718,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        "把设置备份到坚果云 / Nextcloud 等 WebDAV 网盘，换机或重装后一键恢复。",
+                        "把上方已勾选的同一批内容备份到坚果云 / Nextcloud 等 WebDAV 网盘。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
@@ -1230,7 +1816,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
 
 /** WebDAV 最小客户端：PUT 上传 / GET 下载（Basic Auth） */
 private object WebDav {
-    private val client = okhttp3.OkHttpClient()
+    private val client = sb.linux.client.data.AppNetwork.clientBuilder().build()
 
     private fun auth(user: String, pass: String): String =
         okhttp3.Credentials.basic(user, pass)
@@ -1277,6 +1863,7 @@ fun BlockWordsScreen(session: Session, nav: NavHostController) {
     var loading by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(msg) { msg?.let { session.showToast(it.removePrefix("✓ ").trim()); msg = null } }
     val scope = rememberCoroutineScope()
 
     fun load() {
@@ -1323,25 +1910,16 @@ fun BlockWordsScreen(session: Session, nav: NavHostController) {
         }
     ) { pad ->
         if (!session.loginState.loggedIn) {
-            Column(
-                Modifier.padding(pad).fillMaxSize().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text("屏蔽词与源站账号绑定", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(6.dp))
-                Text(
+            Box(Modifier.padding(pad)) {
+                LoginRequiredBox(
+                    "屏蔽词与源站账号绑定",
                     "登录后可管理自定义屏蔽词、屏蔽用户，设置与网页端保持一致",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(12.dp))
-                Button(onClick = { nav.navigate("login") }) { Text("去登录") }
+                ) { nav.navigate("login") }
             }
             return@Scaffold
         }
         if (loading) {
-            LoadingBox()
+            Box(Modifier.padding(pad)) { LoadingBox() }
             return@Scaffold
         }
         Column(
@@ -1352,7 +1930,6 @@ fun BlockWordsScreen(session: Session, nav: NavHostController) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            msg?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             Text(
                 "与源站「首页关键词过滤」一致：标题含屏蔽词的帖子及被屏蔽用户的帖子将不再显示，网页端与本应用互通。",
                 style = MaterialTheme.typography.bodySmall,
@@ -1878,6 +2455,7 @@ private fun FontSwatch(
 @Composable
 fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
     var showColorPicker by remember { mutableStateOf(false) }
+    var showBackgroundPicker by remember { mutableStateOf(false) }
     var pickingRole by remember { mutableStateOf<PreviewRole?>(null) }
     var pickingElement by remember { mutableStateOf<String?>(null) }
     val dark = isPreviewDark(session.themeMode)
@@ -1890,6 +2468,15 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
     val customFontFamily = remember(session.customFontName) {
         session.customFontFile.takeIf { it.exists() }?.let { f ->
             runCatching { FontFamily(Font(f)) }.getOrNull()
+        }
+    }
+    var backgroundImportBusy by remember { mutableStateOf(false) }
+    val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            backgroundImportBusy = true
+            try { session.importBackgroundImage(uri); session.showToast("背景图片已保存到应用内") }
+            catch (e: Exception) { session.showToast(e.message ?: "导入背景失败") }
+            finally { backgroundImportBusy = false }
         }
     }
     val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -1923,6 +2510,22 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                 session.addThemeCustomColor(colorToKey(c))
                 showColorPicker = false
             }
+        )
+    }
+    if (showBackgroundPicker) {
+        ColorPickerDialog(
+            title = "自定义页面背景",
+            initial = session.themeBackground ?: currentScheme.background,
+            presets = session.themeCustomColors,
+            onDismiss = { showBackgroundPicker = false },
+            onReset = {
+                session.saveThemeBackground(null)
+                showBackgroundPicker = false
+            },
+            onPick = { color ->
+                session.saveThemeBackground(color)
+                showBackgroundPicker = false
+            },
         )
     }
     // 配色角色覆盖取色对话框
@@ -2013,6 +2616,60 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
             item {
                 GroupCard {
                     DayNightToggle(session.themeMode) { mode -> session.saveTheme(mode, session.dynamicColor) }
+                }
+            }
+
+            // ---------- 自定义全局背景（20、38） ----------
+            item { GroupLabel("页面背景") }
+            item {
+                GroupCard {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("自定义背景色", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                if (session.themeBackground == null) "当前跟随主题" else "已应用到所有页面底色",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (session.themeBackground != null) {
+                            TextButton(onClick = { session.saveThemeBackground(null) }) { Text("恢复") }
+                        }
+                        Box(
+                            Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(session.themeBackground ?: currentScheme.background)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                .clickable { showBackgroundPicker = true },
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(enabled = !backgroundImportBusy, onClick = { backgroundPicker.launch("image/*") }) {
+                            Text(if (backgroundImportBusy) "正在处理图片…" else "选择背景图片")
+                        }
+                        if (session.backgroundImage.isNotEmpty()) TextButton(onClick = session::removeBackgroundImage) { Text("移除图片") }
+                    }
+                    if (session.backgroundImage.isNotEmpty()) {
+                        SwitchRow("启用背景图片", "本地保存，随设置备份；不上传图床", checked = session.backgroundImageEnabled,
+                            onCheckedChange = session::saveBackgroundImageEnabled)
+                        Column(Modifier.padding(horizontal = 18.dp)) {
+                            Text("背景图片不透明度 ${(session.backgroundImageOpacity * 100).toInt()}%")
+                            Slider(value = session.backgroundImageOpacity, onValueChange = session::saveBackgroundImageOpacity, valueRange = 0.05f..0.65f)
+                            Text("卡片、顶栏表面不透明度 ${(session.surfaceOpacity * 100).toInt()}%")
+                            Slider(value = session.surfaceOpacity, onValueChange = session::saveSurfaceOpacity, valueRange = 0.2f..1f)
+                        }
+                    }
+                    HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    SwitchRow(
+                        "禁止页面染色",
+                        "页面底色、普通卡片和弹窗保持中性色；按钮、选中状态、标签和高亮完整保留强调色。手动自定义背景不受影响",
+                        checked = session.keepBackgroundColor,
+                        onCheckedChange = session::saveKeepBackgroundColor,
+                    )
                 }
             }
 
@@ -2256,6 +2913,48 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                         ) { Text("液态玻璃") }
                     }
+                    HorizontalDivider(Modifier.padding(top = 10.dp))
+                    Text(
+                        "底栏项目与顺序",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(start = 18.dp, top = 14.dp, bottom = 4.dp),
+                    )
+                    Text(
+                        "可选首页、版块、发帖和我的；至少保留两项。箭头用于调整显示顺序。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+                    )
+                    val bottomOptions = listOf("home" to "首页", "topicCollections" to "淘帖", "directMessages" to "私信", "newTopic" to "发帖", "me" to "我的")
+                    val selectedBottomItems = session.bottomBarItems
+                    (selectedBottomItems.mapNotNull { id -> bottomOptions.firstOrNull { it.first == id } } +
+                        bottomOptions.filter { it.first !in selectedBottomItems }).forEach { (id, label) ->
+                        val index = selectedBottomItems.indexOf(id)
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = index >= 0,
+                                enabled = index < 0 || selectedBottomItems.size > 2,
+                                onCheckedChange = { checked ->
+                                    if (checked) session.saveBottomBarItems(selectedBottomItems + id)
+                                    else if (selectedBottomItems.size > 2) session.saveBottomBarItems(selectedBottomItems - id)
+                                },
+                            )
+                            Text(label, Modifier.weight(1f))
+                            TextButton(enabled = index > 0, onClick = {
+                                val changed = selectedBottomItems.toMutableList()
+                                java.util.Collections.swap(changed, index, index - 1)
+                                session.saveBottomBarItems(changed)
+                            }) { Text("↑") }
+                            TextButton(enabled = index >= 0 && index < selectedBottomItems.lastIndex, onClick = {
+                                val changed = selectedBottomItems.toMutableList()
+                                java.util.Collections.swap(changed, index, index + 1)
+                                session.saveBottomBarItems(changed)
+                            }) { Text("↓") }
+                        }
+                    }
                     // 评论底栏（帖子内底部快捷回复栏）：与主导航底栏独立的样式选择
                     Text(
                         "评论底栏",
@@ -2336,6 +3035,32 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                             )
                         }
                     }
+                    HorizontalDivider(Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("字体大小", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.weight(1f))
+                        Text("${(session.fontScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium)
+                    }
+                    Slider(
+                        value = session.fontScale,
+                        onValueChange = session::saveFontScale,
+                        valueRange = 0.85f..1.30f,
+                        steps = 8,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                    )
+                    Text("字体粗细", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 18.dp))
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
+                        listOf("标准", "较粗", "粗体").forEachIndexed { index, label ->
+                            SegmentedButton(
+                                selected = session.fontWeightLevel == index,
+                                onClick = { session.saveFontWeightLevel(index) },
+                                shape = SegmentedButtonDefaults.itemShape(index, 3),
+                            ) { Text(label) }
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -2363,6 +3088,7 @@ private fun rememberUpdateChecker(session: Session): Pair<(Boolean) -> Unit, Upd
     var checking by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(msg) { msg?.let { session.showToast(it.removePrefix("✓ ").trim()); msg = null } }
 
     val check: (Boolean) -> Unit = { silent ->
         scope.launch {
@@ -2402,6 +3128,11 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
     // 选项用本地状态驱动 UI（SharedPreferences 属性每次重组都读盘且写入不触发重组）；
     // resetTick 作 key，重置后刷新
     var linkMode by remember(resetTick) { mutableStateOf(session.settings.linkOpenMode) }
+    var useBuiltInImageHost by remember(resetTick) { mutableStateOf(session.settings.useBuiltInImageHost) }
+    var imageHostUrl by remember(resetTick) { mutableStateOf(session.settings.imageHostUrl) }
+    var imageHostToken by remember(resetTick) { mutableStateOf(session.settings.imageHostToken) }
+    var imageHostField by remember(resetTick) { mutableStateOf(session.settings.imageHostField) }
+    val scope = rememberCoroutineScope()
     var updateMode by remember(resetTick) { mutableStateOf(session.settings.updateCheckMode) }
     // 重置后强制刷新输入框
     var intervalText by remember(resetTick, session.settings.updateCheckIntervalHours) {
@@ -2433,6 +3164,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                         title = "重置常规设置",
                     ) {
                         session.settings.resetGeneral()
+                        session.saveLinkPreviewEnabled(session.settings.linkPreviewEnabled)
                         resetTick++
                         session.showToast("已重置常规设置")
                     }
@@ -2473,6 +3205,89 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                             modifier = Modifier.weight(1f)
                         ) { Text("外部浏览器打开", maxLines = 1) }
                     }
+                }
+                SwitchRow(
+                    "链接预览卡片",
+                    "首次点击显示网站图标、标题和介绍，再点击卡片或打开按钮访问网站",
+                    checked = session.linkPreviewEnabled,
+                    onCheckedChange = { session.saveLinkPreviewEnabled(it) },
+                )
+            }
+
+            GroupCard {
+                SettingMenuRow("DNS over HTTPS", "默认与自定义服务器 · 名称和备注 · 查询测速", Icons.Filled.Dns) { nav.navigate("dohSettings") }
+            }
+            GroupCard {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("内置图床", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Text(
+                        if (useBuiltInImageHost)
+                            "内置 Pixhost 和 Catbox，免登录、无需 API Key。上传内容将公开托管于所选第三方服务，请勿上传隐私或敏感内容。"
+                        else
+                            "使用 multipart/form-data 上传到自定义接口，兼容返回 url、data.url、link 或 src 的常见 API。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = useBuiltInImageHost,
+                            onClick = {
+                                useBuiltInImageHost = true
+                                session.settings.useBuiltInImageHost = true
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                            modifier = Modifier.weight(1f),
+                        ) { Text("内置匿名图床", maxLines = 1) }
+                        SegmentedButton(
+                            selected = !useBuiltInImageHost,
+                            onClick = {
+                                useBuiltInImageHost = false
+                                session.settings.useBuiltInImageHost = false
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                            modifier = Modifier.weight(1f),
+                        ) { Text("自定义接口", maxLines = 1) }
+                    }
+                    if (useBuiltInImageHost) {
+                        var provider by remember { mutableStateOf(session.settings.builtInImageHostProvider) }
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                            listOf("pixhost" to "Pixhost", "catbox" to "Catbox").forEachIndexed { index, (value, label) ->
+                                SegmentedButton(selected = provider == value, onClick = {
+                                    provider = value; session.settings.builtInImageHostProvider = value
+                                }, shape = SegmentedButtonDefaults.itemShape(index, 2)) { Text(label) }
+                            }
+                        }
+                        Text(
+                            "Pixhost 单张上限 10 MB，Catbox 上限 20 MB；均支持免登录上传，成功后插入原图链接。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = imageHostUrl, onValueChange = { imageHostUrl = it },
+                        label = { Text("上传接口地址") }, placeholder = { Text("https://example.com/api/upload") },
+                        singleLine = true, enabled = !useBuiltInImageHost, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = imageHostToken, onValueChange = { imageHostToken = it },
+                        label = { Text("访问令牌（可选）") }, singleLine = true,
+                        enabled = !useBuiltInImageHost,
+                        visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = imageHostField, onValueChange = { imageHostField = it },
+                        label = { Text("文件字段名") }, placeholder = { Text("file") },
+                        singleLine = true, enabled = !useBuiltInImageHost, modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(onClick = {
+                        session.settings.imageHostUrl = imageHostUrl.trim()
+                        session.settings.imageHostToken = imageHostToken.trim()
+                        session.settings.imageHostField = imageHostField.trim().ifBlank { "file" }
+                        session.showToast("图床配置已保存")
+                    }, enabled = !useBuiltInImageHost, modifier = Modifier.fillMaxWidth()) { Text("保存自定义图床") }
                 }
             }
 
@@ -2639,7 +3454,7 @@ fun ExportedTopicsScreen(session: Session, nav: NavHostController) {
                                         "${fmtBytes(f.length())} · " +
                                             java.text.SimpleDateFormat(
                                                 "yyyy-MM-dd HH:mm",
-                                                java.util.Locale.getDefault()
+                                                androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
                                             ).format(java.util.Date(f.lastModified())),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2782,18 +3597,23 @@ fun AboutScreen(session: Session, nav: NavHostController) {
             Spacer(Modifier.height(24.dp))
             // List group
             GroupCard {
-                SettingMenuRow("开发人员", "Mei-Nagano") { openExternal(UpdateChecker.DEVELOPER_URL) }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("项目地址", "GitHub · ${UpdateChecker.REPO}") { openExternal(UpdateChecker.PROJECT_URL) }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("开源协议", "MIT License") { openExternal(UpdateChecker.LICENSE_URL) }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                val rowDivider = @Composable {
+                    HorizontalDivider(Modifier.padding(start = 66.dp, end = 18.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                }
+                SettingMenuRow("开发人员", "Mei-Nagano", Icons.Filled.Person) { openExternal(UpdateChecker.DEVELOPER_URL) }
+                rowDivider()
+                SettingMenuRow("项目地址", "GitHub · ${UpdateChecker.REPO}", Icons.Filled.Code) { openExternal(UpdateChecker.PROJECT_URL) }
+                rowDivider()
+                SettingMenuRow("开源协议", "MIT License", Icons.Filled.Gavel) { openExternal(UpdateChecker.LICENSE_URL) }
+                rowDivider()
                 SettingMenuRow(
                     "检查更新",
                     if (updateState.checking) "正在检查…" else "检查 GitHub 最新版本",
+                    Icons.Filled.SystemUpdate,
                 ) { doCheck(false) }
-                HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                SettingMenuRow("意见反馈", "GitHub Issues") { openExternal("${UpdateChecker.PROJECT_URL}/issues/new") }
+                rowDivider()
+                SettingMenuRow("意见反馈", "GitHub Issues", Icons.Filled.Feedback) { openExternal("${UpdateChecker.PROJECT_URL}/issues/new") }
             }
             updateState.msg?.let {
                 Spacer(Modifier.height(12.dp))

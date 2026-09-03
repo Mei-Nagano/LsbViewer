@@ -1,4 +1,5 @@
 package sb.linux.client.data
+import androidx.compose.runtime.mutableFloatStateOf
 
 import android.app.Application
 import androidx.compose.runtime.getValue
@@ -45,6 +46,21 @@ data class SearchResultCache(
     val time: Long,
 )
 
+data class TopicReadingPosition(
+    val floor: Int,
+    val listIndex: Int,
+    val scrollOffset: Int,
+)
+
+data class AiSummaryRecord(
+    val topicId: Long,
+    val title: String,
+    val summary: String,
+    val savedAt: Long,
+    val recordId: String = topicId.toString(),
+    val favorite: Boolean = false,
+)
+
 /**
  * 全局会话状态：登录态、当前用户、主题偏好、应用设置。
  */
@@ -52,6 +68,12 @@ class Session(app: Application) : AndroidViewModel(app) {
 
     val client: LsbClient = (app as sb.linux.client.LsbApp).client
     val settings: AppSettings = AppSettings(app)
+
+    /** 再次点击已选中的首页标签时递增，由 HomeScreen 消费并执行真实刷新。 */
+    var homeRefreshRequest by mutableIntStateOf(0)
+        private set
+
+    fun requestHomeRefresh() { homeRefreshRequest++ }
 
     var loginState by mutableStateOf(LoginState())
         private set
@@ -70,11 +92,20 @@ class Session(app: Application) : AndroidViewModel(app) {
     var themePrimary by mutableStateOf<Color?>(null)
     var themeSecondary by mutableStateOf<Color?>(null)
     var themeTertiary by mutableStateOf<Color?>(null)
+    // 禁止页面染色：背景、卡片和普通文字使用中性色，主题强调色与手动背景保留；并非锁定日夜同色。
+    var themeBackground by mutableStateOf<Color?>(null)
+    var keepBackgroundColor by mutableStateOf(true)
+    var backgroundImage by mutableStateOf("")
+    var backgroundImageEnabled by mutableStateOf(false)
+    var backgroundImageOpacity by mutableStateOf(0.25f)
+    var surfaceOpacity by mutableFloatStateOf(1f)
     // 用户保存的自定义主题色预选（colorToKey 格式，如 custom#RRGGBB）
     var themeCustomColors by mutableStateOf<List<String>>(emptyList())
     // 应用字体（24）：default / sans / serif / monospace / custom（自定义字体文件）
     var fontKey by mutableStateOf("default")
     var customFontName by mutableStateOf("")
+    var fontScale by mutableStateOf(1f)
+    var fontWeightLevel by mutableIntStateOf(0)
     // 首页帖子卡片元素级自定义颜色（外观设置-实时预览点按改色）：
     // key ∈ tag/title/time/user/views/comments/forum，null=未覆盖（跟随主题）
     var cardColors by mutableStateOf<Map<String, Color>>(emptyMap())
@@ -90,6 +121,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     // 若直接写它不会触发 UI 重组，导致切换翻页/无限滚动后仍按旧模式渲染（需刷新才生效、底部滑动错乱）。
     var scrollModeOverrides by mutableStateOf<Map<String, Boolean>>(emptyMap())
     var homeCacheEnabled by mutableStateOf(false)
+    var collapseNewTopics by mutableStateOf(false)
     var danmakuOn by mutableStateOf(true)
     var sidebarTwoColumns by mutableStateOf(true)
     var showOnlineUsers by mutableStateOf(true)
@@ -101,14 +133,23 @@ class Session(app: Application) : AndroidViewModel(app) {
     var topicsPerPage by mutableIntStateOf(15)
     // 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择）
     var commentSortOrder by mutableIntStateOf(0)
+    var tableDisplayMode by mutableIntStateOf(0)
+    var showUid by mutableStateOf(true)
+    var smartDecodeEnabled by mutableStateOf(false)
     // 平板模式（宽屏双栏布局）：Compose 响应式镜像，改动即时切换布局
     var tabletMode by mutableStateOf(false)
     // 底栏样式：0 = 经典通栏，1 = 液态玻璃悬浮胶囊（默认，原「贴底通栏」铺满样式已移除）：
     // 响应式镜像，改动即时切换
     var bottomBarStyle by mutableIntStateOf(1)
+    var bottomBarItems by mutableStateOf(listOf("home", "me"))
     // 评论底栏样式（帖子内底部快捷回复栏）：0 = 经典通栏，1 = 液态玻璃悬浮胶囊（默认）：
     // 响应式镜像，改动即时切换
     var replyBarStyle by mutableIntStateOf(1)
+    var linkPreviewEnabled by mutableStateOf(true)
+    // 临时钉住的帖子：只在当前进程内保留，重新进入该帖时自动清除。
+    var floatingTopicId by mutableStateOf(0L)
+    var floatingTopicTitle by mutableStateOf("")
+    var floatingTopicSnapshot: PinnedTopicSnapshot? = null
 
     // 首页状态保持：当前分类 / 组合过滤 / 各分类列表与滚动位置
     var homeTabIndex by mutableIntStateOf(0)
@@ -153,8 +194,46 @@ class Session(app: Application) : AndroidViewModel(app) {
     var blockedWords by mutableStateOf<Set<String>>(emptySet())
     var blockedUsers by mutableStateOf<Set<String>>(emptySet())
 
+    private val sessionRecovery = SessionRecovery(
+        scope = viewModelScope,
+        hasCookie = client::hasAuthCookie,
+        fetch = {
+            val home = client.get("/")
+            withContext(Dispatchers.IO) { sessionSnapshot(home.html, home.code) }
+        },
+        apply = ::applySessionSnapshot,
+        settled = { booting = false },
+    )
+
+    /** 首页请求携带代次，防止登出或切换账号之前的旧响应重新覆盖身份。 */
+    val sessionVersion: Long get() = sessionRecovery.version
+
+    fun recoverSession() = sessionRecovery.recover()
+
+    fun observeHomeSession(html: String, code: Int, version: Long) {
+        sessionSnapshot(html, code)?.let { sessionRecovery.accept(it, version) }
+            ?: sessionRecovery.recover()
+    }
+
+    private fun applySessionSnapshot(snapshot: SessionSnapshot) {
+        val previous = loginState
+        loginState = snapshot.login
+        notifUnreadCount = snapshot.unread
+        if (!loginState.loggedIn) {
+            checkinText = ""
+            checkinCheckedToday = false
+        }
+        if (previous.loggedIn != loginState.loggedIn || previous.userId != loginState.userId) {
+            clearAllTopicPageCache()
+            client.invalidateCsrf()
+            settings.clearCheckinCache()
+            if (loginState.loggedIn) refreshKeywordFilter()
+        }
+    }
+
     /** 从磁盘重新读取全部偏好到内存状态（导入设置备份后调用，立即生效无需重启） */
     fun reloadPrefs() {
+        aiSummaryCache.clear()
         val prefs = getApplication<Application>().getSharedPreferences("lsb_prefs", android.content.Context.MODE_PRIVATE)
         themeMode = ThemeModePref.entries.getOrElse(prefs.getInt("theme_mode", 0)) { ThemeModePref.SYSTEM }
         dynamicColor = prefs.getBoolean("dynamic_color", true)
@@ -165,14 +244,23 @@ class Session(app: Application) : AndroidViewModel(app) {
         themePrimary = prefColor(prefs.getString("theme_primary_override", ""))
         themeSecondary = prefColor(prefs.getString("theme_secondary_override", ""))
         themeTertiary = prefColor(prefs.getString("theme_tertiary_override", ""))
+        themeBackground = prefColor(prefs.getString("theme_background_override", ""))
+        backgroundImage = prefs.getString("background_image", "").orEmpty()
+        backgroundImageEnabled = prefs.getBoolean("background_image_enabled", false)
+        backgroundImageOpacity = prefs.getFloat("background_image_opacity", 0.25f).coerceIn(0.05f, 0.65f)
+        surfaceOpacity = prefs.getFloat("surface_opacity", 1f).coerceIn(0.2f, 1f)
+        keepBackgroundColor = prefs.getBoolean("keep_background_color", true)
         themeCustomColors = (prefs.getStringSet("theme_custom_colors", emptySet()) ?: emptySet()).toList()
         fontKey = prefs.getString("font_key", "default") ?: "default"
         customFontName = prefs.getString("custom_font_name", "") ?: ""
+        fontScale = prefs.getFloat("font_scale", 1f).coerceIn(0.85f, 1.30f)
+        fontWeightLevel = prefs.getInt("font_weight_level", 0).coerceIn(0, 2)
         cardColors = parseCardColors(prefs.getString("card_colors", ""))
         sb.linux.client.ui.CardColorOverrides.map = cardColors
         infiniteScroll = settings.infiniteScroll
         scrollModeOverrides = settings.scrollModeOverrides
         homeCacheEnabled = settings.homeKeepCache
+        collapseNewTopics = settings.collapseNewTopics
         danmakuOn = settings.danmakuOn
         homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
@@ -180,21 +268,30 @@ class Session(app: Application) : AndroidViewModel(app) {
         unfavoriteConfirm = settings.unfavoriteConfirm
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
+        tableDisplayMode = settings.tableDisplayMode
+        showUid = settings.showUid
+        smartDecodeEnabled = settings.smartDecodeEnabled
         showOnlineUsers = settings.sidebarShowOnlineUsers
         tabletMode = settings.tabletMode
         bottomBarStyle = settings.bottomBarStyle
+        bottomBarItems = settings.bottomBarItems
         replyBarStyle = settings.replyBarStyle
+        linkPreviewEnabled = settings.linkPreviewEnabled
         blockedWords = settings.blockedWords
         blockedUsers = settings.blockedUsers
     }
 
     init {
         reloadPrefs()
+        if (settings.autoClearItems.isNotEmpty()) clearDataItems(settings.autoClearItems, notify = false)
         // 清理旧版本地已读通知键（已改为源站未读数方案）
         themePrefs().edit().remove("notif_read_keys").apply()
         client.verificationUi = { url, html -> verifyWithUi(url, html) }
         loadViewsCache()
         refreshSession()
+        viewModelScope.launch {
+            AppNetwork.recoveryEvents.collect { sessionRecovery.recover(networkChanged = true) }
+        }
     }
 
     private fun themePrefs() =
@@ -241,6 +338,16 @@ class Session(app: Application) : AndroidViewModel(app) {
         themePrefs().edit().putString("font_key", key).apply()
     }
 
+    fun saveFontScale(value: Float) {
+        fontScale = value.coerceIn(0.85f, 1.30f)
+        themePrefs().edit().putFloat("font_scale", fontScale).apply()
+    }
+
+    fun saveFontWeightLevel(value: Int) {
+        fontWeightLevel = value.coerceIn(0, 2)
+        themePrefs().edit().putInt("font_weight_level", fontWeightLevel).apply()
+    }
+
     /** 导入自定义字体文件（24）：复制进私有目录并切换到 custom 档；校验可解析才生效 */
     suspend fun saveCustomFont(uri: android.net.Uri, displayName: String): Boolean {
         val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -280,6 +387,52 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun saveThemePrimary(c: Color?) { themePrimary = c; themePrefs().edit().putString("theme_primary_override", colorPref(c)).apply() }
     fun saveThemeSecondary(c: Color?) { themeSecondary = c; themePrefs().edit().putString("theme_secondary_override", colorPref(c)).apply() }
     fun saveThemeTertiary(c: Color?) { themeTertiary = c; themePrefs().edit().putString("theme_tertiary_override", colorPref(c)).apply() }
+    fun saveThemeBackground(c: Color?) {
+        themeBackground = c
+        themePrefs().edit().putString("theme_background_override", colorPref(c)).apply()
+    }
+    suspend fun importBackgroundImage(uri: android.net.Uri) {
+        val encoded = withContext(Dispatchers.IO) {
+            val context = getApplication<Application>()
+            val result = coil.Coil.imageLoader(context).execute(coil.request.ImageRequest.Builder(context)
+                .data(uri).size(1920, 1920).scale(coil.size.Scale.FIT).precision(coil.size.Precision.EXACT).allowHardware(false).build())
+            val original = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                ?: throw IllegalArgumentException("无法读取此背景图片")
+            val flat = android.graphics.Bitmap.createBitmap(original.width, original.height, android.graphics.Bitmap.Config.ARGB_8888)
+            val bytes = try {
+                android.graphics.Canvas(flat).apply { drawColor(android.graphics.Color.WHITE); drawBitmap(original, 0f, 0f, null) }
+                java.io.ByteArrayOutputStream().use { out ->
+                    check(flat.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)) { "图片处理失败" }
+                    require(out.size() <= 4 * 1024 * 1024) { "背景图片处理后仍过大，请选择较小图片" }
+                    out.toByteArray()
+                }
+            } finally { flat.recycle() }
+            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        }
+        backgroundImage = encoded
+        backgroundImageEnabled = true
+        themePrefs().edit().putString("background_image", encoded).putBoolean("background_image_enabled", true).apply()
+    }
+    fun saveBackgroundImageEnabled(value: Boolean) {
+        backgroundImageEnabled = value
+        themePrefs().edit().putBoolean("background_image_enabled", value).apply()
+    }
+    fun saveBackgroundImageOpacity(value: Float) {
+        backgroundImageOpacity = value.coerceIn(0.05f, 0.65f)
+        themePrefs().edit().putFloat("background_image_opacity", backgroundImageOpacity).apply()
+    }
+    fun saveSurfaceOpacity(value: Float) {
+        surfaceOpacity = value.coerceIn(0.2f, 1f)
+        themePrefs().edit().putFloat("surface_opacity", surfaceOpacity).apply()
+    }
+    fun removeBackgroundImage() {
+        backgroundImage = ""; backgroundImageEnabled = false
+        themePrefs().edit().remove("background_image").remove("background_image_enabled").apply()
+    }
+    fun saveKeepBackgroundColor(v: Boolean) {
+        keepBackgroundColor = v
+        themePrefs().edit().putBoolean("keep_background_color", v).apply()
+    }
 
     /** 把自定义主题色加入预选（去重），并持久化 */
     fun addThemeCustomColor(key: String) {
@@ -331,6 +484,11 @@ class Session(app: Application) : AndroidViewModel(app) {
         settings.homeSortDrawerOpen = v
     }
 
+    fun saveCollapseNewTopics(v: Boolean) {
+        collapseNewTopics = v
+        settings.collapseNewTopics = v
+    }
+
     /** 某分类生效的滚动模式（3.13）：分类覆盖优先，否则全局开关 */
     fun effectiveInfiniteScroll(scope: String): Boolean =
         scrollModeOverrides[scope] ?: infiniteScroll
@@ -355,8 +513,14 @@ class Session(app: Application) : AndroidViewModel(app) {
             .remove("theme_mode").remove("dynamic_color").remove("theme_color")
             .remove("oled_dark").remove("theme_style").remove("theme_contrast")
             .remove("theme_primary_override").remove("theme_secondary_override").remove("theme_tertiary_override")
+            .remove("theme_background_override").remove("keep_background_color")
             .remove("theme_custom_colors").remove("card_colors")
             .remove("font_key").remove("custom_font_name")
+            .remove("font_scale").remove("font_weight_level")
+            // exact_theme_colors 是已删除的「强调色精确取值」开关，顺手清掉旧值
+            .remove("exact_theme_colors")
+            .remove("background_image").remove("background_image_enabled").remove("background_image_opacity")
+            .remove("surface_opacity")
             .apply()
         themeMode = ThemeModePref.SYSTEM
         dynamicColor = true
@@ -365,11 +529,17 @@ class Session(app: Application) : AndroidViewModel(app) {
         themeStyle = 0
         themeContrast = 0f
         themePrimary = null; themeSecondary = null; themeTertiary = null
+        themeBackground = null
+        backgroundImage = ""; backgroundImageEnabled = false; backgroundImageOpacity = 0.25f
+        surfaceOpacity = 1f
+        keepBackgroundColor = true
         themeCustomColors = emptyList()
         cardColors = emptyMap()
         sb.linux.client.ui.CardColorOverrides.map = emptyMap()
         fontKey = "default"
         customFontName = ""
+        fontScale = 1f
+        fontWeightLevel = 0
     }
 
     /** 重置浏览设置并刷新内存镜像 */
@@ -378,6 +548,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         infiniteScroll = settings.infiniteScroll
         scrollModeOverrides = settings.scrollModeOverrides
         homeCacheEnabled = settings.homeKeepCache
+        collapseNewTopics = settings.collapseNewTopics
         danmakuOn = settings.danmakuOn
         homeSortDrawerOpen = settings.homeSortDrawerOpen
         sidebarTwoColumns = settings.sidebarTwoColumns
@@ -385,6 +556,9 @@ class Session(app: Application) : AndroidViewModel(app) {
         unfavoriteConfirm = settings.unfavoriteConfirm
         topicsPerPage = settings.topicsPerPage
         commentSortOrder = settings.commentSortOrder
+        tableDisplayMode = settings.tableDisplayMode
+        showUid = settings.showUid
+        smartDecodeEnabled = settings.smartDecodeEnabled
         showOnlineUsers = settings.sidebarShowOnlineUsers
     }
 
@@ -410,11 +584,33 @@ class Session(app: Application) : AndroidViewModel(app) {
         settings.bottomBarStyle = clamped
     }
 
+    fun saveBottomBarItems(items: List<String>) {
+        settings.bottomBarItems = items
+        bottomBarItems = settings.bottomBarItems
+    }
+
     /** 评论底栏样式（帖子内底部快捷回复栏）：0 = 经典通栏，1 = 液态玻璃悬浮胶囊 */
     fun saveReplyBarStyle(v: Int) {
         val clamped = v.coerceIn(0, 1)
         replyBarStyle = clamped
         settings.replyBarStyle = clamped
+    }
+
+    fun saveLinkPreviewEnabled(v: Boolean) {
+        linkPreviewEnabled = v
+        settings.linkPreviewEnabled = v
+    }
+
+    fun pinFloatingTopic(topicId: Long, title: String) {
+        floatingTopicId = topicId
+        floatingTopicTitle = title.trim()
+    }
+
+    fun clearFloatingTopic(topicId: Long? = null) {
+        if (topicId == null || floatingTopicId == topicId) {
+            floatingTopicId = 0L
+            floatingTopicTitle = ""
+        }
     }
 
     fun saveDanmaku(v: Boolean) {
@@ -452,6 +648,21 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun saveCommentSortOrder(v: Int) {
         commentSortOrder = v.coerceIn(0, 2)
         settings.commentSortOrder = commentSortOrder
+    }
+
+    fun saveTableDisplayMode(v: Int) {
+        tableDisplayMode = v.coerceIn(0, 1)
+        settings.tableDisplayMode = tableDisplayMode
+    }
+
+    fun saveShowUid(v: Boolean) {
+        showUid = v
+        settings.showUid = v
+    }
+
+    fun saveSmartDecodeEnabled(v: Boolean) {
+        smartDecodeEnabled = v
+        settings.smartDecodeEnabled = v
     }
 
     /** 从源站拉取屏蔽词（含自定义词与屏蔽用户），仅更新缓存 */
@@ -529,6 +740,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun getTopicViews(topicId: Long): Int = topicViews[topicId] ?: -1
 
     fun saveTopicPage(topicId: Long, page: Int, data: TopicPageData) {
+        if (data.page != page) return
         val key = "$topicId-$page"
         topicPageCache[key] = data
         topicPageCacheTimes[key] = System.currentTimeMillis()
@@ -545,7 +757,7 @@ class Session(app: Application) : AndroidViewModel(app) {
             topicPageCacheTimes.remove(key)
             return null
         }
-        return topicPageCache[key]
+        return topicPageCache[key]?.takeIf { it.page == page }
     }
 
     /** 清除指定帖子的全部分页缓存（刷新时强制重新抓源站） */
@@ -564,11 +776,74 @@ class Session(app: Application) : AndroidViewModel(app) {
         topicPageCacheTimes.clear()
     }
 
-    fun saveAiSummary(topicId: Long, summary: String) {
-        if (summary.isNotBlank()) aiSummaryCache[topicId] = summary
+    private val readingPositionPrefs by lazy {
+        getApplication<Application>().getSharedPreferences(
+            "lsb_reading_positions", android.content.Context.MODE_PRIVATE
+        )
     }
 
-    fun getAiSummary(topicId: Long): String? = aiSummaryCache[topicId]
+    fun saveReadingPosition(topicId: Long, floor: Int, listIndex: Int, scrollOffset: Int) {
+        if (topicId <= 0) return
+        readingPositionPrefs.edit().putString(
+            topicId.toString(), "$floor,$listIndex,$scrollOffset"
+        ).apply()
+    }
+
+    fun getReadingPosition(topicId: Long): TopicReadingPosition? {
+        val values = readingPositionPrefs.getString(topicId.toString(), null)
+            ?.split(',') ?: return null
+        if (values.size != 3) return null
+        return TopicReadingPosition(
+            floor = values[0].toIntOrNull() ?: return null,
+            listIndex = values[1].toIntOrNull() ?: return null,
+            scrollOffset = values[2].toIntOrNull() ?: return null,
+        )
+    }
+
+    fun clearReadingPositions() = readingPositionPrefs.edit().clear().apply()
+
+    private val aiSummaryPrefs by lazy {
+        getApplication<Application>().getSharedPreferences("lsb_ai_summaries", android.content.Context.MODE_PRIVATE)
+    }
+
+    fun saveAiSummary(topicId: Long, summary: String, title: String = "") {
+        if (summary.isBlank()) return
+        aiSummaryCache[topicId] = summary
+        val record = org.json.JSONObject()
+            .put("topicId", topicId).put("title", title)
+            .put("summary", summary).put("savedAt", System.currentTimeMillis())
+        val recordId = "${topicId}_${java.util.UUID.randomUUID()}"
+        aiSummaryPrefs.edit().putString(recordId, record.toString()).apply()
+    }
+
+    fun getAiSummary(topicId: Long): String? {
+        aiSummaryCache[topicId]?.let { return it }
+        val summary = aiSummaryHistory().firstOrNull { it.topicId == topicId }?.summary.orEmpty()
+        return summary.takeIf { it.isNotBlank() }?.also { aiSummaryCache[topicId] = it }
+    }
+
+    fun aiSummaryHistory(): List<AiSummaryRecord> = aiSummaryPrefs.all.mapNotNull { (key, raw) ->
+        runCatching {
+            val o = org.json.JSONObject(raw as String)
+            AiSummaryRecord(o.optLong("topicId"), o.optString("title"), o.optString("summary"), o.optLong("savedAt"), key, o.optBoolean("favorite"))
+        }.getOrNull()?.takeIf { it.topicId > 0 && it.summary.isNotBlank() }
+    }.sortedByDescending { it.savedAt }
+
+    fun removeAiSummary(record: AiSummaryRecord) {
+        aiSummaryCache.remove(record.topicId)
+        aiSummaryPrefs.edit().remove(record.recordId).apply()
+    }
+
+    fun favoriteAiSummary(record: AiSummaryRecord, favorite: Boolean) {
+        val raw = aiSummaryPrefs.getString(record.recordId, null) ?: return
+        val value = org.json.JSONObject(raw).put("favorite", favorite)
+        aiSummaryPrefs.edit().putString(record.recordId, value.toString()).apply()
+    }
+
+    fun clearAiSummaryHistory() {
+        aiSummaryCache.clear()
+        aiSummaryPrefs.edit().clear().apply()
+    }
 
     fun saveDanmaku(topicId: Long, items: List<DanmakuItem>) {
         danmakuCache[topicId] = items
@@ -715,38 +990,40 @@ class Session(app: Application) : AndroidViewModel(app) {
         showToast("本地缓存已清除")
     }
 
-    fun refreshSession() {
-        viewModelScope.launch {
-            try {
-                val wasLoggedIn = loginState.loggedIn
-                if (!client.hasAuthCookie()) {
-                    loginState = LoginState()
-                    checkinText = ""
-                    checkinCheckedToday = false
-                    notifUnreadCount = 0
-                } else {
-                    val home = client.get("/")
-                    loginState = HtmlParser.parseMySidebar(home.html)
-                    // 通知红点跟随源站：从首页顶栏 .notify-badge 解析未读数
-                    notifUnreadCount = HtmlParser.parseNotifyBadgeCount(home.html)
-                    if (loginState.loggedIn) {
-                        refreshKeywordFilter()
-                        // 签到摘要：优先用本地缓存，避免每次启动重复查询源站
-                        loadCheckinInfo()
-                    }
-                }
-                // 登录态发生变化：清空帖子页缓存（未登录时抓的帖子看不到评论区，登录后需重新抓取），
-                // 并丢弃 CSRF 令牌缓存——令牌与会话 Cookie 绑定，换了身份旧令牌会被源站拒绝
-                if (wasLoggedIn != loginState.loggedIn) {
-                    clearAllTopicPageCache()
-                    client.invalidateCsrf()
-                }
-            } catch (e: Exception) {
-                loginState = LoginState()
-            } finally {
-                booting = false
-            }
+    /** 数据管理页的按项清理；键同时用于自动清理设置。 */
+    fun clearDataItems(items: Set<String>, notify: Boolean = true) {
+        if ("home" in items) {
+            clearHomeCache()
+            homeTabs.forEach { tab -> tab.topics = emptyList(); tab.loaded = false }
+            saveHomeSidebar(null)
         }
+        if ("topic" in items) {
+            clearAllTopicPageCache()
+            danmakuCache.clear()
+            topicViews.clear()
+            getApplication<Application>().getSharedPreferences("lsb_views", android.content.Context.MODE_PRIVATE)
+                .edit().clear().apply()
+        }
+        if ("images" in items) runCatching {
+            coil.Coil.imageLoader(getApplication()).apply { diskCache?.clear(); memoryCache?.clear() }
+            sb.linux.client.ui.clearBodyImageLayoutCache()
+        }
+        if ("reading_positions" in items) clearReadingPositions()
+        if ("ai_history" in items) clearAiSummaryHistory()
+        if ("ai_config" in items) settings.resetAi()
+        if ("drafts" in items) getApplication<Application>().getSharedPreferences("lsb_topic_drafts", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+        if ("link_previews" in items) sb.linux.client.data.LinkPreviewClient.clearCache()
+        if ("background_image" in items) removeBackgroundImage()
+        if ("history" in items) settings.clearHistory()
+        if ("favorites" in items) settings.clearFavorites()
+        if ("comment_favorites" in items) settings.clearCommentFavorites()
+        if ("card_redemptions" in items) settings.clearCardRedemptions()
+        if ("usage_stats" in items) settings.clearUsageStats()
+        if (notify) showToast("已清理所选数据")
+    }
+
+    fun refreshSession() {
+        sessionRecovery.refresh()
     }
 
     /** 把签到页解析结果应用到全局状态（侧边栏/我的页实时同步） */
@@ -797,6 +1074,9 @@ class Session(app: Application) : AndroidViewModel(app) {
     }
 
     fun onLoggedOut() {
+        sessionRecovery.stop()
+        clearAllTopicPageCache()
+        client.invalidateCsrf()
         loginState = LoginState()
         blockedWords = emptySet()
         blockedUsers = emptySet()

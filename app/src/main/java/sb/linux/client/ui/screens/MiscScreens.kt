@@ -1,5 +1,9 @@
 package sb.linux.client.ui.screens
+import androidx.compose.foundation.horizontalScroll
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,15 +20,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MilitaryTech
+import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.SentimentSatisfied
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +50,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.data.CommentFavorite
+import sb.linux.client.data.GachaAction
+import sb.linux.client.data.GachaCenter
+import sb.linux.client.data.GachaFormField
+import sb.linux.client.data.GachaMarketListing
+import sb.linux.client.data.GachaMarketPage
+import sb.linux.client.data.GachaOperationForm
+import sb.linux.client.data.GachaOperationPage
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.LeaderRow
 import sb.linux.client.data.Session
@@ -109,7 +128,7 @@ fun WebScreen(session: Session, nav: NavHostController) {
                             currentUrl = u ?: url
                         }
                     }
-                    loadUrl(url)
+                    sb.linux.client.data.WebViewDoh.load(this, url)
                 }
             },
             modifier = Modifier
@@ -335,6 +354,125 @@ fun CheckinScreen(session: Session, nav: NavHostController) {
     }
 }
 
+// ---------------- 创作者认证中心 ----------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IdentityCenterScreen(session: Session, nav: NavHostController) {
+    var data by remember { mutableStateOf<sb.linux.client.data.IdentityCenterData?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        scope.launch {
+            loading = true; error = null
+            try {
+                data = HtmlParser.parseIdentityCenter(session.client.get("/identity_center").html)
+            } catch (e: Exception) {
+                error = e.message ?: "认证中心加载失败"
+            } finally {
+                loading = false
+            }
+        }
+    }
+    LaunchedEffect(Unit) { load() }
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("认证中心") },
+            navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+            actions = { IconButton(onClick = ::load) { Icon(Icons.Filled.Refresh, "刷新") } },
+        )
+    }) { pad ->
+        when {
+            loading -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { LoadingBox() }
+            error != null -> Box(Modifier.padding(pad).fillMaxSize()) { ErrorBox(error.orEmpty(), ::load) }
+            else -> {
+                val value = data ?: return@Scaffold
+                LazyColumn(
+                    modifier = Modifier.padding(pad).fillMaxSize(),
+                    contentPadding = PaddingValues(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item {
+                        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)) {
+                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("创作者认证", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Text("完成源站条件后可申请图片与附件上传、举报免押金等创作者权益。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (value.email.isNotBlank()) Text("当前邮箱：${value.email}", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
+                    if (value.benefits.isNotEmpty()) {
+                        item { Text("创作者福利", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+                        items(value.benefits, key = { it.first }) { (title, description) ->
+                            ListItem(
+                                headlineContent = { Text(title) },
+                                supportingContent = { Text(description) },
+                                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                                modifier = Modifier.clip(RoundedCornerShape(16.dp)),
+                            )
+                        }
+                    }
+                    item { IdentityRequirementCard("创作者认证条件", value.creatorRequirements) }
+                    item { IdentityRequirementCard("账号核验条件", value.accountRequirements) }
+                    item {
+                        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("申请状态", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    when {
+                                        value.canApply -> "当前已满足页面条件，可以继续申请"
+                                        value.emailVerified -> "邮箱已验证，仍有申请条件尚未满足"
+                                        else -> "请先完成邮箱验证及未满足的申请条件"
+                                    },
+                                    color = if (value.canApply) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (value.applicationRecords.isEmpty()) Text("暂无申请记录", style = MaterialTheme.typography.bodySmall)
+                                else value.applicationRecords.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                            }
+                        }
+                    }
+                    item {
+                        Button(
+                            onClick = { nav.navigate("gachaOperation/identity") },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(if (value.emailVerified) "继续申请" else "验证邮箱 / 继续申请") }
+                    }
+                    item {
+                        Text(
+                            "验证码发送、邮箱核验和最终申请均使用源站实时表单，结果与账号同步。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IdentityRequirementCard(title: String, requirements: List<sb.linux.client.data.IdentityRequirement>) {
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.padding(vertical = 10.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp))
+            if (requirements.isEmpty()) Text("暂无条件信息", modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
+            requirements.forEach { requirement ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(requirement.label, Modifier.weight(1f))
+                    Text(
+                        if (requirement.met) "✓ 符合" else "× 不符合",
+                        color = if (requirement.met) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ---------------- 邀请中心 ----------------
 
 /** 邀请中心（/invite_center）：分享链接 + 奖励统计 + 已邀请用户列表 */
@@ -526,11 +664,44 @@ fun InviteCenterScreen(session: Session, nav: NavHostController) {
 
 // ---------------- 我的称号 ----------------
 
-/** 我的称号：称号系统子页入口。
- * 称号收藏列表暂不展示（收藏 DOM 解析有问题），仅保留抽取/熔炼/回收/合成/交易入口，全部经应用内网页打开 */
+/** 我的称号：收藏、装备操作与称号系统子页入口。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GachaProfileScreen(session: Session, nav: NavHostController) {
+    var profile by remember { mutableStateOf<sb.linux.client.data.GachaProfile?>(null) }
+    var loading by remember { mutableStateOf(session.loginState.loggedIn) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    fun loadProfile() {
+        if (!session.loginState.loggedIn) return
+        loading = true; error = null
+        scope.launch {
+            try { profile = HtmlParser.parseGachaProfile(session.client.get("/gacha_profile").html) }
+            catch (e: Exception) { error = e.message ?: "加载失败" }
+            finally { loading = false }
+        }
+    }
+    LaunchedEffect(session.loginState.loggedIn) { loadProfile() }
+    var acting by remember { mutableStateOf(false) }
+    fun submit(action: GachaAction) {
+        if (acting) return
+        acting = true
+        scope.launch {
+            try {
+                val resp = session.client.postForm(
+                    action.action,
+                    buildMap { put("_csrf", session.client.csrf()); putAll(action.fields) }
+                )
+                if (resp.url.contains("form_error")) session.showToast(HtmlParser.extractError(resp.html))
+                else {
+                    session.showToast("${action.label}成功")
+                    loadProfile()
+                    session.refreshSession()
+                }
+            } catch (e: Exception) { session.showToast(e.message ?: "操作失败") }
+            finally { acting = false }
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -540,63 +711,714 @@ fun GachaProfileScreen(session: Session, nav: NavHostController) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
+                actions = {
+                    if (session.loginState.loggedIn) {
+                        IconButton(onClick = { loadProfile() }) { Icon(Icons.Filled.Refresh, "刷新") }
+                    }
+                },
             )
         }
     ) { pad ->
-        Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            if (!session.loginState.loggedIn) {
-                EmptyBox("登录后可进入称号中心")
-                Button(onClick = { nav.navigate("login") }) { Text("去登录") }
-                return@Column
-            }
-            Text("称号系统", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "抽取、熔炼、回收、合成、交易等操作将在应用内浏览器中进行",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            // 称号系统子页导航（应用内网页）
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
+        if (!session.loginState.loggedIn) {
+            Box(Modifier.padding(pad).fillMaxSize()) { GachaLoginPrompt { nav.navigate("login") } }
+            return@Scaffold
+        }
+        when {
+            loading && profile == null -> Box(Modifier.padding(pad).fillMaxSize()) { LoadingBox() }
+            error != null && profile == null -> Box(Modifier.padding(pad).fillMaxSize()) { ErrorBox(error!!) { loadProfile() } }
+            else -> Column(
+                Modifier
+                    .padding(pad)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(Modifier.padding(vertical = 6.dp)) {
-                    listOf(
-                        "称号抽取" to "/gacha",
-                        "称号熔炼" to "/gacha_forge_center",
-                        "称号回收" to "/gacha_recycle_center",
-                        "UR 合成" to "/gacha_recipes",
-                        "称号交易" to "/gacha_market",
-                    ).forEach { (label, path) ->
+                Spacer(Modifier.height(6.dp))
+                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                profile?.let { data ->
+                    val equipped = data.titles.count { it.equipped }
+                    GachaStatCard(
+                        icon = Icons.Filled.MilitaryTech,
+                        primary = data.stat.ifBlank { "${data.titles.size} 种称号" },
+                        secondary = if (data.titles.isEmpty()) "尚未获得称号"
+                        else "共 ${data.titles.sumOf { it.count }} 个 · 已装备 $equipped",
+                    )
+                }
+                // 收藏与操作入口合并在同一张称号系统卡里；材料页保留源站的动态计算与提交逻辑。
+                GachaSectionTitle("称号系统")
+                GachaSystemCard(
+                    titles = profile?.titles.orEmpty(),
+                    enabled = !acting,
+                    onAction = ::submit,
+                    nav = nav,
+                )
+                Spacer(Modifier.height(40.dp))
+            }
+        }
+    }
+}
+
+// ---------------- 称号抽取 ----------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GachaCenterScreen(session: Session, nav: NavHostController) {
+    var data by remember { mutableStateOf<GachaCenter?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var pending by remember { mutableStateOf<GachaAction?>(null) }
+    var submitting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    fun load() = scope.launch {
+        loading = true; error = null
+        try { data = HtmlParser.parseGachaCenter(session.client.get("/gacha").html) }
+        catch (e: Exception) { error = e.message ?: "加载失败" }
+        finally { loading = false }
+    }
+    LaunchedEffect(Unit) { load() }
+    var skipConfirmation by remember { mutableStateOf(!session.settings.confirmGachaPull) }
+    fun submitPull(action: GachaAction) {
+        if (submitting) return
+        submitting = true
+        scope.launch {
+            try {
+                val resp = session.client.postForm(action.action, buildMap {
+                    put("_csrf", session.client.csrf()); putAll(action.fields)
+                })
+                check(!resp.url.contains("login")) { "请重新登录" }
+                check(!resp.url.contains("form_error")) { HtmlParser.extractError(resp.html) }
+                session.showToast("抽取完成")
+                load()
+            } catch (e: Exception) { session.showToast(e.message ?: "抽取失败") }
+            finally { submitting = false; pending = null }
+        }
+    }
+
+    pending?.let { action ->
+        AlertDialog(
+            onDismissRequest = { if (!submitting) pending = null },
+            icon = { Icon(Icons.Filled.Casino, null) },
+            title = { Text("确认${action.label}") },
+            text = {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .clickable { skipConfirmation = !skipConfirmation }
+                        .padding(end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = skipConfirmation, onCheckedChange = { skipConfirmation = it })
+                    Text("以后不再显示二次确认", style = MaterialTheme.typography.bodyMedium)
+                }
+            },
+            dismissButton = { TextButton(enabled = !submitting, onClick = { pending = null }) { Text("取消") } },
+            confirmButton = {
+                Button(enabled = !submitting, onClick = {
+                    session.settings.confirmGachaPull = !skipConfirmation
+                    submitPull(action)
+                }) { Text(if (submitting) "处理中…" else "确认") }
+            },
+        )
+    }
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("称号抽取") },
+            navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+            actions = { IconButton(onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") } },
+        )
+    }) { pad ->
+        when {
+            loading && data == null -> Box(Modifier.padding(pad).fillMaxSize()) { LoadingBox() }
+            error != null && data == null -> Box(Modifier.padding(pad).fillMaxSize()) { ErrorBox(error!!) { load() } }
+            else -> Column(
+                Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Spacer(Modifier.height(6.dp))
+                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                data?.let { center ->
+                    GachaStatCard(
+                        icon = Icons.Filled.Paid,
+                        primary = center.pointsText.ifBlank { "称号抽取" },
+                        secondary = center.statsText,
+                    )
+                    if (center.pullActions.isNotEmpty()) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            center.pullActions.forEach { action ->
+                                Button(
+                                    onClick = { if (session.settings.confirmGachaPull) pending = action else submitPull(action) },
+                                    enabled = action.enabled && !submitting,
+                                    shape = RoundedCornerShape(50),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                                    modifier = Modifier.weight(1f),
+                                ) { Text(action.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            }
+                        }
+                    }
+                    // 二次确认开关与抽取按钮相邻，避免误触后才发现设置在下方。
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { nav.navigate("web?url=${android.net.Uri.encode(path)}") }
-                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                            Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("抽取前二次确认", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Switch(checked = !skipConfirmation, onCheckedChange = {
+                                skipConfirmation = !it; session.settings.confirmGachaPull = it
+                            })
+                        }
+                    }
+                    if (center.pool.isNotEmpty()) {
+                        GachaSectionTitle("称号池")
+                        center.pool.forEach { row -> GachaPoolRowView(row) }
+                    }
+                    if (center.news.isNotEmpty()) {
+                        GachaSectionTitle("最近喜报")
+                        GachaNews(center.news)
+                    }
+                    if (center.allTitles.isNotEmpty()) {
+                        GachaSectionTitle("全部称号", "${center.allTitles.distinct().size} 种")
+                        GachaTitleGroups(center.allTitles)
+                    }
+                }
+                Spacer(Modifier.height(32.dp))
+            }
+        }
+    }
+}
+
+// ---------------- 称号交易 ----------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GachaMarketScreen(session: Session, nav: NavHostController) {
+    var market by remember { mutableStateOf<GachaMarketPage?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
+    var rarity by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf("latest") }
+    var page by remember { mutableIntStateOf(1) }
+    var buying by remember { mutableStateOf<GachaMarketListing?>(null) }
+    var quantity by remember { mutableStateOf("1") }
+    var submitting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var marketRequest by remember { mutableIntStateOf(0) }
+    fun load(targetPage: Int = page) {
+        val request = ++marketRequest
+        val requestedSort = sort
+        val url = "/gacha_market?q=${android.net.Uri.encode(query)}&rarity=${android.net.Uri.encode(rarity)}&sort=${android.net.Uri.encode(sort)}&p=$targetPage"
+        loading = true; error = null; page = targetPage
+        scope.launch {
+            try {
+                val parsed = HtmlParser.parseGachaMarket(session.client.get(url).html)
+                if (request == marketRequest) market = parsed.copy(listings = when (requestedSort) {
+                    "price_asc" -> parsed.listings.sortedBy { it.price }
+                    "price_desc" -> parsed.listings.sortedByDescending { it.price }
+                    else -> parsed.listings
+                })
+            } catch (e: Exception) { if (request == marketRequest) error = e.message ?: "加载失败" }
+            finally { if (request == marketRequest) loading = false }
+        }
+    }
+    LaunchedEffect(Unit) { load() }
+
+    buying?.let { item ->
+        val count = quantity.toIntOrNull()?.coerceIn(1, item.available) ?: 1
+        AlertDialog(
+            onDismissRequest = { if (!submitting) buying = null },
+            icon = { Icon(Icons.Filled.Storefront, null) },
+            title = { Text("确认购买 ${item.badge.name}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = quantity,
+                        onValueChange = { quantity = it.filter(Char::isDigit).take(4) },
+                        label = { Text("数量（1-${item.available}）") },
+                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    // 合计金额单独一行加粗，避免与单价混在一句话里。
+                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                label,
-                                style = MaterialTheme.typography.bodyMedium,
+                                "单价 ${item.price} 积分",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),
                             )
-                            Icon(
-                                Icons.Filled.OpenInNew, null,
-                                Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            Text(
+                                "合计 ${item.price * count}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                         }
                     }
                 }
+            },
+            dismissButton = { TextButton(enabled = !submitting, onClick = { buying = null }) { Text("取消") } },
+            confirmButton = {
+                Button(enabled = !submitting && quantity.toIntOrNull() in 1..item.available, onClick = {
+                    submitting = true
+                    scope.launch {
+                        try {
+                            val fields = buildMap {
+                                put("_csrf", session.client.csrf()); putAll(item.action.fields); put("quantity", count.toString())
+                            }
+                            val resp = session.client.postForm(item.action.action, fields)
+                            if (resp.url.contains("form_error")) session.showToast(HtmlParser.extractError(resp.html))
+                            else { session.showToast("购买成功"); load() }
+                        } catch (e: Exception) { session.showToast(e.message ?: "购买失败") }
+                        finally { submitting = false; buying = null }
+                    }
+                }) { Text(if (submitting) "购买中…" else "确认购买") }
+            },
+        )
+    }
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("称号交易") },
+            navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+            actions = {
+                IconButton(onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") }
+                TextButton(onClick = { nav.navigate("gachaOperation/marketMine") }) { Text("发布") }
+            },
+        )
+    }) { pad ->
+        LazyColumn(
+            Modifier.padding(pad).fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item {
+                // 筛选区收进一张卡片，与下方出品卡片区分层级。
+                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            query, { query = it },
+                            Modifier.fillMaxWidth(),
+                            label = { Text("搜索称号") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            leadingIcon = { Icon(Icons.Filled.Search, null, Modifier.size(20.dp)) },
+                            trailingIcon = {
+                                if (query.isNotEmpty()) {
+                                    IconButton(onClick = { query = ""; load(1) }) { Icon(Icons.Filled.Close, "清空") }
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { load(1) }),
+                        )
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("" to "全部", "ur" to "UR", "ssr" to "SSR", "sr" to "SR", "r" to "R", "n" to "N").forEach { (value, label) ->
+                                FilterChip(
+                                    selected = rarity == value,
+                                    onClick = { rarity = value; load(1) },
+                                    label = { Text(label) },
+                                    shape = RoundedCornerShape(50),
+                                )
+                            }
+                        }
+                        // 排序为单选，用分段按钮表达互斥关系。
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                            listOf("latest" to "最新", "price_asc" to "价格↑", "price_desc" to "价格↓")
+                                .forEachIndexed { index, (value, label) ->
+                                    SegmentedButton(
+                                        selected = sort == value,
+                                        onClick = { sort = value; load(1) },
+                                        shape = SegmentedButtonDefaults.itemShape(index, 3),
+                                    ) { Text(label, maxLines = 1) }
+                                }
+                        }
+                        market?.summary?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        market?.note?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
-            Spacer(Modifier.height(40.dp))
+            if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            error?.let { message ->
+                item { Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            }
+            if (!loading && error == null && market?.listings.orEmpty().isEmpty()) {
+                item { GachaEmptyCard("没有符合条件的出品") }
+            }
+            items(market?.listings.orEmpty()) { item ->
+                RarityCard(item.badge.rarity) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TitleBadgeView(item.badge, modifier = Modifier.weight(1f, fill = false))
+                        Spacer(Modifier.weight(1f))
+                        GachaCountPill("剩余 ${item.available}")
+                    }
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(
+                                    item.price.toString(),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Text(
+                                    "积分 / 个",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 2.dp),
+                                )
+                            }
+                            if (item.timeLeft.isNotBlank()) {
+                                Text(
+                                    "剩余时间 ${item.timeLeft}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = { quantity = "1"; buying = item },
+                            shape = RoundedCornerShape(50),
+                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp),
+                        ) { Text("购买") }
+                    }
+                }
+            }
+            item { PaginationBar(page, market?.lastPage ?: page) { target -> if (!loading) load(target) } }
+        }
+    }
+}
+
+// ---------------- 称号动态操作页 ----------------
+
+private data class PendingGachaSubmit(
+    val label: String,
+    val action: String,
+    val fields: List<Pair<String, String>>,
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GachaOperationScreen(session: Session, nav: NavHostController, kind: String) {
+    // 熔炼/回收改走与其它称号操作相同的原生解析：内嵌 WebView 依赖 ProxyController，
+    // 机型不支持时 DoH 下会整页失败；解析源站表单后用应用自己的网络栈提交更可靠。
+    val config = when (kind) {
+        "forge" -> "称号熔炼" to "/gacha_forge_center"
+        "recycle" -> "称号回收" to "/gacha_recycle_center"
+        "recipes" -> "UR 合成" to "/gacha_recipes"
+        "marketMine" -> "发布称号" to "/gacha_market_mine"
+        "marketOrders" -> "交易记录" to "/gacha_market_orders"
+        "identity" -> "认证申请" to "/identity_center"
+        else -> "称号操作" to "/gacha_profile"
+    }
+    var data by remember(kind) { mutableStateOf<GachaOperationPage?>(null) }
+    var operationPath by remember(kind) { mutableStateOf(config.second) }
+    var loading by remember(kind) { mutableStateOf(true) }
+    var error by remember(kind) { mutableStateOf<String?>(null) }
+    var pending by remember { mutableStateOf<PendingGachaSubmit?>(null) }
+    var submitting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    fun load() = scope.launch {
+        loading = true
+        error = null
+        try {
+            val response = session.client.get(operationPath)
+            check(!response.url.contains("login")) { "请先登录" }
+            data = HtmlParser.parseGachaOperationPage(response.html)
+        }
+        catch (e: Exception) { error = e.message ?: "加载失败" }
+        finally { loading = false }
+    }
+    LaunchedEffect(kind, operationPath) { load() }
+
+    pending?.let { request ->
+        AlertDialog(
+            onDismissRequest = { if (!submitting) pending = null },
+            icon = { Icon(Icons.Filled.AutoAwesome, null) },
+            title = { Text("确认${request.label}") },
+            text = { Text("将按源站当前规则提交此操作，积分、材料和库存以源站返回结果为准。") },
+            dismissButton = { TextButton(enabled = !submitting, onClick = { pending = null }) { Text("取消") } },
+            confirmButton = {
+                Button(enabled = !submitting, onClick = {
+                    submitting = true
+                    scope.launch {
+                        try {
+                            val pairs = request.fields.filterNot { it.first == "_csrf" }.toMutableList()
+                            pairs.add(0, "_csrf" to session.client.csrf())
+                            val resp = session.client.postFormPairs(request.action, pairs)
+                            check(!resp.url.contains("login")) { "登录已失效" }
+                            if (resp.url.contains("form_error")) session.showToast(HtmlParser.extractError(resp.html))
+                            else { session.showToast("${request.label}成功，已同步源站"); load() }
+                        } catch (e: Exception) { session.showToast(e.message ?: "提交失败") }
+                        finally { submitting = false; pending = null }
+                    }
+                }) { Text(if (submitting) "处理中…" else "确认") }
+            },
+        )
+    }
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text(data?.title?.ifBlank { config.first } ?: config.first) },
+            navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+            actions = { IconButton(onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") } },
+        )
+    }) { pad ->
+        if (loading && data == null) {
+            Box(Modifier.padding(pad).fillMaxSize()) { LoadingBox() }
+            return@Scaffold
+        }
+        if (error != null && data == null) {
+            Box(Modifier.padding(pad).fillMaxSize()) { ErrorBox(error!!) { load() } }
+            return@Scaffold
+        }
+        LazyColumn(
+            Modifier.padding(pad).fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            error?.let { message ->
+                item { Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            }
+            // 源站说明收进一张提示卡，与下方可提交的表单区分开。
+            data?.notes.orEmpty().takeIf { it.isNotEmpty() }?.let { notes ->
+                item {
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Info, null,
+                                Modifier.size(18.dp).padding(top = 1.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                notes.forEach { note ->
+                                    Text(note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (data?.forms.orEmpty().isNotEmpty()) item { GachaSectionTitle("可执行操作") }
+            itemsIndexed(data?.forms.orEmpty(), key = { index, form -> "${form.action}-$index" }) { _, form ->
+                GachaDynamicForm(form = form, enabled = !submitting) { fields ->
+                    pending = PendingGachaSubmit(form.label, form.action, fields)
+                }
+            }
+            if (!loading && error == null && data?.forms.isNullOrEmpty() && data?.records.isNullOrEmpty()) {
+                item { GachaEmptyCard("当前没有可执行的操作或记录") }
+            }
+            if (data?.records.orEmpty().isNotEmpty()) item { GachaSectionTitle("记录", "${data?.records?.size ?: 0} 条") }
+            data?.records.orEmpty().forEach { record ->
+                item {
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Text(
+                            record,
+                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+            // 源站同页内的切换链接：做成一行胶囊，不再是竖着排的文字按钮。
+            data?.links.orEmpty().filter { it.second.substringBefore('?') == config.second }
+                .takeIf { it.isNotEmpty() }?.let { links ->
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            links.forEach { (label, href) ->
+                                AssistChip(
+                                    onClick = { operationPath = href },
+                                    enabled = !loading && !submitting,
+                                    label = { Text(label) },
+                                    shape = RoundedCornerShape(50),
+                                )
+                            }
+                        }
+                    }
+                }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+/**
+ * checkbox/radio 的显示文字。解析器已尽力从源站的称号徽章里取名字；万一仍然退化成字段名
+ * （label == name），补上取值，避免几十行选项长得一模一样、无法分辨。
+ */
+private fun GachaFormField.optionText(): String = when {
+    label.isNotBlank() && label != name -> label
+    value.isNotBlank() -> "$name #$value"
+    else -> name
+}
+
+@Composable
+internal fun GachaDynamicForm(
+    form: GachaOperationForm,
+    enabled: Boolean,
+    onSubmit: (List<Pair<String, String>>) -> Unit,
+) {
+    val values = remember(form) {
+        mutableStateMapOf<Int, String>().also { map ->
+            form.fields.forEachIndexed { index, field ->
+                map[index] = if (field.type == "select") {
+                    field.options.firstOrNull { it.selected && !it.disabled }?.value ?: field.options.firstOrNull { !it.disabled }?.value.orEmpty()
+                } else field.value
+            }
+        }
+    }
+    val checked = remember(form) {
+        mutableStateMapOf<Int, Boolean>().also { map ->
+            form.fields.forEachIndexed { index, field -> map[index] = field.checked }
+        }
+    }
+    val radioValues = remember(form) {
+        mutableStateMapOf<String, String>().also { map ->
+            form.fields.filter { it.type == "radio" && it.checked }.forEach { map[it.name] = it.value }
+        }
+    }
+    val multiValues = remember(form) { mutableStateMapOf<Int, Set<String>>().also { map ->
+        form.fields.forEachIndexed { index, field -> map[index] = field.options.filter { it.selected && !it.disabled }.map { it.value }.toSet() }
+    } }
+    var validationError by remember(form) { mutableStateOf<String?>(null) }
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            form.fields.forEachIndexed { index, field ->
+                when (field.type) {
+                    "checkbox" -> Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .clickable(enabled = enabled) { checked[index] = checked[index] != true },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = checked[index] == true, onCheckedChange = { checked[index] = it }, enabled = enabled)
+                        Text(field.optionText(), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    "radio" -> Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .clickable(enabled = enabled) { radioValues[field.name] = field.value },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = radioValues[field.name] == field.value, onClick = { radioValues[field.name] = field.value }, enabled = enabled)
+                        Text(field.optionText(), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    // 选项做成独立选择卡：选中项带主色描边和浅色底，禁用项整体变淡。
+                    "select" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            field.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        field.options.forEach { option ->
+                            val optionEnabled = enabled && !option.disabled
+                            val selected = if (field.multiple) option.value in multiValues[index].orEmpty() else values[index] == option.value
+                            val choose = {
+                                if (field.multiple) multiValues[index] = multiValues[index].orEmpty().let { if (option.value in it) it - option.value else it + option.value }
+                                else values[index] = option.value
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().clickable(enabled = optionEnabled) { choose() }
+                                        .padding(end = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    if (field.multiple) Checkbox(checked = selected, onCheckedChange = { choose() }, enabled = optionEnabled)
+                                    else RadioButton(selected = selected, onClick = { choose() }, enabled = optionEnabled)
+                                    Text(
+                                        option.label,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (optionEnabled) MaterialTheme.colorScheme.onSurface
+                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    else -> OutlinedTextField(
+                        value = values[index].orEmpty(),
+                        onValueChange = { values[index] = it.take(field.maxLength) },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = enabled,
+                        shape = RoundedCornerShape(14.dp),
+                        label = { Text(field.label + if (field.required) " *" else "") },
+                        placeholder = field.placeholder.takeIf { it.isNotBlank() }?.let { p -> ({ Text(p) }) },
+                        minLines = if (field.type == "textarea") 3 else 1,
+                        maxLines = if (field.type == "textarea") 8 else 1,
+                        visualTransformation = if (field.type == "password") androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (field.type == "number") androidx.compose.ui.text.input.KeyboardType.Number else androidx.compose.ui.text.input.KeyboardType.Text,
+                        ),
+                        supportingText = if (field.min.isNotBlank() || field.max.isNotBlank()) ({
+                            Text(listOf(field.min.takeIf { it.isNotBlank() }?.let { "最小 $it" }, field.max.takeIf { it.isNotBlank() }?.let { "最大 $it" }).filterNotNull().joinToString(" · "))
+                        }) else null,
+                    )
+                }
+            }
+            // 校验提示放在按钮上方并带底色：原来是一行小字，长表单里在屏幕外，
+            // 点了按钮没反应又看不到原因，跟「按钮点不了」难以区分。
+            validationError?.let {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        it,
+                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+            if (!form.enabled) {
+                Text(
+                    "源站当前禁用此操作",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Button(
+                enabled = enabled && form.enabled,
+                shape = RoundedCornerShape(50),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
+                onClick = {
+                    val pairs = form.hiddenFields.toMutableList()
+                    form.fields.forEachIndexed { index, field ->
+                        when (field.type) {
+                            "checkbox" -> if (checked[index] == true) pairs += field.name to field.value.ifBlank { "on" }
+                            "radio" -> if (radioValues[field.name] == field.value) pairs += field.name to field.value
+                            "select" -> if (field.multiple) multiValues[index].orEmpty().forEach { pairs += field.name to it }
+                                else pairs += field.name to values[index].orEmpty()
+                            else -> pairs += field.name to values[index].orEmpty()
+                        }
+                    }
+                    validationError = sb.linux.client.data.validateSourceForm(form, pairs)
+                    if (validationError == null) onSubmit(pairs)
+                },
+                modifier = Modifier.align(Alignment.End),
+            ) { Text(form.label) }
         }
     }
 }
@@ -607,7 +1429,6 @@ private val LeaderTabs = listOf(
     "points" to "富豪榜",
     "replies" to "评论榜",
     "topics" to "发帖榜",
-    "checkin" to "签到榜",
     "donation" to "打赏榜",
 )
 
@@ -652,9 +1473,9 @@ fun LeaderboardScreen(session: Session, nav: NavHostController) {
                                 Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 14.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom
                             ) {
-                                rows.take(3).forEach { r ->
+                                listOf(rows[1], rows[0], rows[2]).forEach { r ->
                                     val (bg, fg, medal) = when (r.rank) {
                                         1 -> Triple(Color(0xFFFFF3CD), Color(0xFF7A5900), "1")
                                         2 -> Triple(Color(0xFFECEFF4), Color(0xFF444A54), "2")
@@ -672,7 +1493,7 @@ fun LeaderboardScreen(session: Session, nav: NavHostController) {
                                             .clickable { nav.navigate("user/${r.userId}") },
                                     ) {
                                         Column(
-                                            Modifier.padding(vertical = 14.dp),
+                                            Modifier.height(when (r.rank) { 1 -> 194.dp; 2 -> 172.dp; else -> 152.dp }).padding(vertical = 14.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
                                             // 奖牌徽记
@@ -909,7 +1730,147 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
 
 // ---------------- 本地聚合私信聊天（QQ/微信式） ----------------
 
-/** 私信聊天界面：本地聚合会话（收到的私信通知 + 我发出的记录），气泡左右分列，输入框直接回复源站 */
+/** 新版源站私信联系人页：联系人、时间和最近消息均直接来自 /direct_messages。
+ *  showBack=false 用于底栏入口（顶层页面没有上一级可返回）。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DirectMessagesScreen(session: Session, nav: NavHostController, showBack: Boolean = true) {
+    var contacts by remember { mutableStateOf<List<sb.linux.client.data.DirectMessageContact>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        loading = true; error = null
+        scope.launch {
+            try {
+                contacts = HtmlParser.parseDirectMessageContacts(session.client.get("/direct_messages").html)
+            } catch (e: Exception) { error = e.message ?: "加载失败" }
+            finally { loading = false }
+        }
+    }
+    LaunchedEffect(Unit) { load() }
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("我的私信") },
+            navigationIcon = {
+                if (showBack) IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+            },
+            actions = { IconButton(onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") } }
+        )
+    }) { pad ->
+        when {
+            loading -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            error != null -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!) }
+            contacts.isEmpty() -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { Text("暂无私信") }
+            else -> LazyColumn(Modifier.padding(pad).fillMaxSize()) {
+                items(contacts, key = { it.userId }) { c ->
+                    ListItem(
+                        headlineContent = { Text(c.username, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        supportingContent = { Text(c.preview, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingContent = { Avatar(c.avatarUrl, 42) },
+                        trailingContent = { Text(c.timeText, style = MaterialTheme.typography.labelSmall) },
+                        modifier = Modifier.clickable {
+                            nav.navigate("chat/${c.userId}?name=${android.net.Uri.encode(c.username)}&avatar=${android.net.Uri.encode(c.avatarUrl)}")
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                }
+            }
+        }
+    }
+}
+
+/** 淘帖中心：原生解析“我的/大家的”专辑列表，专辑管理详情继续复用登录态应用内页面。
+ *  showBack=false 用于底栏入口（顶层页面没有上一级可返回）。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TopicCollectionsScreen(session: Session, nav: NavHostController, initialMine: Boolean = false, showBack: Boolean = true) {
+    var mine by rememberSaveable(initialMine) { mutableStateOf(initialMine) }
+    var rows by remember { mutableStateOf<List<sb.linux.client.data.TopicCollectionCard>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    var requestVersion by remember { mutableIntStateOf(0) }
+    fun load() {
+        val requestedMine = mine
+        val requestedUser = session.loginState.userId
+        val version = ++requestVersion
+        loading = true; error = null
+        scope.launch {
+            try {
+                val tab = if (requestedMine) "mine" else "everyone"
+                val response = session.client.get("/topic_collections?tab=$tab")
+                check(!response.url.contains("/login")) { "请先登录" }
+                val parsed = HtmlParser.parseTopicCollections(response.html)
+                if (version == requestVersion && requestedMine == mine && requestedUser == session.loginState.userId) rows = parsed
+            } catch (e: Exception) { error = e.message ?: "加载失败" }
+            finally { loading = false }
+        }
+    }
+    LaunchedEffect(mine) { load() }
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("淘帖中心") },
+            navigationIcon = {
+                if (showBack) IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+            },
+            actions = { IconButton(onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") } }
+        )
+    }) { pad ->
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            TabRow(selectedTabIndex = if (mine) 0 else 1) {
+                Tab(selected = mine, onClick = { mine = true }, text = { Text("我的淘帖") })
+                Tab(selected = !mine, onClick = { mine = false }, text = { Text("大家的淘帖") })
+            }
+            when {
+                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!) }
+                rows.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(if (mine) "还没有创建或订阅专辑" else "暂无公开专辑") }
+                    else -> LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(rows, key = { it.collectionId }) { c ->
+                            ElevatedCard(
+                                onClick = { nav.navigate("collectionActions?path=${android.net.Uri.encode("/topic_collection/${c.collectionId}")}") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                            ) {
+                                Column(Modifier.padding(start = 14.dp, top = 13.dp, end = 10.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Avatar(c.avatarUrl, 36)
+                                        Column(Modifier.weight(1f)) {
+                                            Text(c.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Text(c.authorName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                // 篇数直接跟在作者后面（不加分隔点），更新时间仍用 · 断开
+                                                if (c.articleCount.isNotBlank()) {
+                                                    Text(c.articleCount, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                }
+                                                if (c.updatedText.isNotBlank()) {
+                                                    Text("· ${c.updatedText}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                }
+                                                if (c.subscribed) Text("已订阅", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                        Icon(Icons.Filled.ChevronRight, contentDescription = "打开", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .4f))
+                                    }
+                                    if (c.description.isNotBlank()) Text(c.description, style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                }
+            }
+        }
+    }
+}
+
+/** 私信聊天界面：优先同步新版源站完整会话，本地聚合仅作离线兜底。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(session: Session, nav: NavHostController) {
@@ -920,13 +1881,30 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     var msgs by remember { mutableStateOf(session.settings.pmThread(partnerId)) }
     var text by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
+    var syncError by remember { mutableStateOf<String?>(null) }
+    var emojiOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    fun refresh() { msgs = session.settings.pmThread(partnerId) }
-
-    // 进入即标记该会话已读
-    LaunchedEffect(partnerId) { if (partnerId > 0) session.settings.markPmRead(partnerId) }
+    fun sync() = scope.launch {
+        loading = true; syncError = null
+        if (partnerId > 0) {
+            session.settings.markPmRead(partnerId)
+            try {
+                val response = session.client.get("/direct_messages/$partnerId")
+                check(!response.url.contains("login")) { "登录已失效" }
+                check(response.html.contains("direct-messages-thread")) { "未能识别源站会话，请刷新重试" }
+                val thread = HtmlParser.parseDirectMessageThread(response.html, partnerId)
+                if (thread.partnerName.isNotBlank()) name = thread.partnerName
+                if (thread.avatarUrl.isNotBlank()) avatarUrl = thread.avatarUrl
+                session.settings.savePmThread(thread)
+                msgs = thread.messages
+            } catch (e: Exception) { syncError = "同步失败，显示本地消息：${e.message.orEmpty()}" }
+            finally { loading = false }
+        } else loading = false
+    }
+    LaunchedEffect(partnerId) { sync() }
     // 消息变化自动滚到底部
     LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.scrollToItem(msgs.size - 1) }
 
@@ -937,13 +1915,18 @@ fun ChatScreen(session: Session, nav: NavHostController) {
         scope.launch {
             try {
                 val csrf = session.client.csrf()
-                val resp = session.client.postForm("/notify/$partnerId", mapOf("_csrf" to csrf, "content" to body))
+                val resp = session.client.postForm(
+                    "/direct_messages/$partnerId",
+                    mapOf("_csrf" to csrf, "partner_id" to partnerId.toString(), "content" to body)
+                )
+                check(!resp.url.contains("login")) { "登录已失效，消息未发送" }
                 if (resp.url.contains("form_error")) {
                     session.showToast(HtmlParser.extractError(resp.html).ifBlank { "发送失败" })
                 } else {
                     session.settings.addPmMessage(partnerId, name, avatarUrl, incoming = false, content = body)
                     text = ""
-                    refresh()
+                    msgs = session.settings.pmThread(partnerId)
+                    sync()
                     session.showToast("已发送")
                 }
             } catch (e: Exception) { session.showToast(e.message ?: "发送失败") }
@@ -966,6 +1949,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
+                actions = { IconButton(enabled = !loading && !sending, onClick = { sync() }) { Icon(Icons.Filled.Refresh, "同步私信") } },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 }
@@ -977,6 +1961,14 @@ fun ChatScreen(session: Session, nav: NavHostController) {
                     Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Box {
+                        IconButton(onClick = { emojiOpen = true }) { Icon(Icons.Filled.SentimentSatisfied, "表情") }
+                        DropdownMenu(expanded = emojiOpen, onDismissRequest = { emojiOpen = false }) {
+                            listOf("😀", "😂", "🥰", "😎", "🤔", "👍", "👏", "🎉", "❤️", "🙏").chunked(5).forEach { row ->
+                                Row { row.forEach { emoji -> TextButton(onClick = { text += emoji; emojiOpen = false }) { Text(emoji) } } }
+                            }
+                        }
+                    }
                     OutlinedTextField(
                         value = text, onValueChange = { text = it },
                         placeholder = { Text("输入私信内容") },
@@ -995,6 +1987,8 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     ) { pad ->
         when {
             partnerId <= 0 -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { Text("无效的会话") }
+            loading && msgs.isEmpty() -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            syncError != null && msgs.isEmpty() -> ErrorBox(syncError!!) { sync() }
             msgs.isEmpty() -> Column(
                 Modifier.padding(pad).fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
@@ -1009,6 +2003,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
                 state = listState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
             ) {
+                syncError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error); TextButton(onClick = { sync() }) { Text("重试同步") } } }
                 items(msgs) { m ->
                     ChatBubble(m, onPartnerClick = { if (m.partnerId > 0) nav.navigate("user/${m.partnerId}") })
                 }

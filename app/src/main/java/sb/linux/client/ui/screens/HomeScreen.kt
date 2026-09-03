@@ -6,8 +6,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -77,6 +80,7 @@ import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.Session
 import sb.linux.client.data.TopicCard
 import sb.linux.client.ui.Avatar
+import sb.linux.client.ui.TitleBadgeView
 import sb.linux.client.ui.EmptyBox
 import sb.linux.client.ui.ErrorBox
 import sb.linux.client.ui.LoadingBox
@@ -96,6 +100,7 @@ private fun fieldLabelOf(field: String): String = when (field) {
 }
 
 private fun buildPath(sort: String, page: Int): String = when {
+    sort == "essence" -> "/topic_essence_review_list?p=$page"
     sort == "featured" && page <= 1 -> "/topic_featured"
     sort == "featured" -> "/topic_featured?p=$page"
     page <= 1 -> "/?sort=$sort"
@@ -114,15 +119,17 @@ fun HomeScreen(
     val tabIndex = session.homeTabIndex
     val combo = session.homeCombo
     val tabStates = session.homeTabs
-    val current = tabStates[tabIndex.coerceIn(0, SORTS.size - 1)]
-    val currentSort = SORTS[tabIndex.coerceIn(0, SORTS.size - 1)].first
+    val current = tabStates[if (combo == 3) 3 else tabIndex.coerceIn(0, SORTS.size - 1)]
+    val currentSort = if (combo == 3) "essence" else SORTS[tabIndex.coerceIn(0, SORTS.size - 1)].first
     // 首页分类生效的滚动模式（浏览设置可按分类覆盖，3.13）
     val homeInfinite = session.effectiveInfiniteScroll("home")
 
     var loading by remember { mutableStateOf(false) }
     var loadingMore by remember { mutableStateOf(false) }
+    var pendingNewTopics by remember(tabIndex) { mutableStateOf<List<TopicCard>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
+    var floatingExpanded by remember { mutableStateOf(false) }
 
     // 顶栏搜索态（t10）：搜索时整条顶栏变为搜索框；退出 / 失焦恢复
     var searchActive by remember { mutableStateOf(false) }
@@ -142,6 +149,18 @@ fun HomeScreen(
 
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    var backTopPosition by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    val categoryMotion = remember { Animatable(0f) }
+
+    fun selectCombo(target: Int, direction: Int = if (target > session.homeCombo) 1 else -1) {
+        val next = target.coerceIn(0, 3)
+        if (next == session.homeCombo) return
+        scope.launch {
+            categoryMotion.snapTo(direction * 72f)
+            session.homeCombo = next
+            categoryMotion.animateTo(0f, tween(190))
+        }
+    }
 
     // 沉浸式顶栏：滚出首条时隐藏，回到顶部时重新显示。
     // 不能按"滚动方向"判定显隐：那样列表任意位置的轻微上滑（含手势起始抖动）都会展开顶栏，
@@ -174,6 +193,7 @@ fun HomeScreen(
     LaunchedEffect(combo, tabIndex) {
         if (combo != lastCombo || tabIndex != lastTabIdx) {
             lastCombo = combo; lastTabIdx = tabIndex
+            backTopPosition = null
             withFrameNanos { }
             listState.scrollToItem(0)
         }
@@ -236,23 +256,40 @@ fun HomeScreen(
         }
     }
 
-    fun load(p: Int, append: Boolean = false) {
+    fun load(p: Int, append: Boolean = false, foldNew: Boolean = false) {
         scope.launch {
-            if (append) loadingMore = true else { loading = true; current.page = p }
+            if (append) loadingMore = true else loading = true
             error = null
             try {
                 val path = buildPath(currentSort, p)
+                val sessionVersion = session.sessionVersion
                 val resp = session.client.get(path)
+                session.observeHomeSession(resp.html, resp.code, sessionVersion)
                 val (items, pg) = HtmlParser.parseTopicList(resp.html)
                 // 通知红点跟随源站：每次首页请求顺带解析顶栏未读通知数
                 session.updateNotifUnread(HtmlParser.parseNotifyBadgeCount(resp.html))
-                current.topics = if (append) (current.topics + items).distinctBy { it.topicId } else items
-                current.sourcePage = pg.first.coerceAtLeast(if (append) p else 1)
+                current.topics = when {
+                    append -> (current.topics + items).distinctBy { it.topicId }
+                    foldNew && current.topics.isNotEmpty() -> {
+                        val oldIds = current.topics.mapTo(mutableSetOf()) { it.topicId }
+                        pendingNewTopics = (items.filter { it.topicId !in oldIds } + pendingNewTopics)
+                            .distinctBy { it.topicId }
+                        // 更新原列表中已有卡片的回复数/状态，但不插入新项，保持当前锚点不移动。
+                        val latest = items.associateBy { it.topicId }
+                        current.topics.map { latest[it.topicId] ?: it }
+                    }
+                    else -> items
+                }
+                if (!foldNew) current.sourcePage = pg.first.coerceAtLeast(if (append) p else 1)
                 current.sourceTotalPages = pg.second
                 // 无限滚动：页码即源站页；翻页模式：页码为本地切片页（初始 1）
-                current.page = if (homeInfinite) current.sourcePage else 1
+                if (!foldNew) current.page = if (homeInfinite) current.sourcePage else 1
                 current.totalPages = pg.second
                 current.loaded = true
+                if (!append && !foldNew) {
+                    pendingNewTopics = emptyList()
+                    listState.scrollToItem(0)
+                }
                 // 首页成功后持久化缓存（供"启动不刷新"使用）
                 if (!append) session.saveHomeCache(currentSort, items)
                 // 侧板与首页同一次请求解析：每次非追加加载都用最新结果合并更新
@@ -277,6 +314,7 @@ fun HomeScreen(
                 }
             } catch (e: Exception) {
                 error = e.message ?: "加载失败"
+                if (current.topics.isNotEmpty()) session.showToast(error!!)
             } finally {
                 loading = false; loadingMore = false
             }
@@ -331,7 +369,7 @@ fun HomeScreen(
 
     // 首次进入分类：设置了"启动不刷新"且有缓存 → 直接用缓存，不发请求；
     // 否则正常加载
-    LaunchedEffect(tabIndex) {
+    LaunchedEffect(tabIndex, combo == 3) {
         if (!current.loaded) {
             val cached = if (session.homeCacheEnabled) session.loadHomeCache(currentSort) else emptyList()
             if (cached.isNotEmpty()) {
@@ -354,7 +392,7 @@ fun HomeScreen(
     }
 
     // 离开分类/页面时记录滚动位置
-    DisposableEffect(tabIndex) {
+    DisposableEffect(tabIndex, combo == 3) {
         onDispose {
             current.scrollIndex = listState.firstVisibleItemIndex
             current.scrollOffset = listState.firstVisibleItemScrollOffset
@@ -379,20 +417,34 @@ fun HomeScreen(
     }
 
     fun refresh() {
-        current.topics = emptyList()
-        current.loaded = false
-        current.page = 1
-        current.totalPages = 1
-        current.sourcePage = 1
-        current.sourceTotalPages = 1
+        if (loading || loadingMore) return
+        val fold = session.collapseNewTopics && current.topics.isNotEmpty()
+        if (fold) {
+            current.scrollIndex = 0; current.scrollOffset = 0
+            scope.launch { listState.scrollToItem(0) }
+            session.clearHomeCache()
+            session.clearAllTopicPageCache()
+            load(1, foldNew = true)
+            return
+        }
+        pendingNewTopics = emptyList()
         current.scrollIndex = 0
         current.scrollOffset = 0
-        sidebar = null
         session.clearHomeCache()
         // 主页刷新同时清空帖子分页缓存，保证进入帖子时重新抓最新内容
         session.clearAllTopicPageCache()
         scope.launch { listState.scrollToItem(0) }
         load(1)
+    }
+
+    // 已经位于首页时再次点击底栏首页：回到顶部并执行与下拉刷新相同的完整刷新，
+    // 包括清理帖子页缓存，避免随后进入帖子又读到刷新前的正文/评论。
+    var consumedHomeRefresh by remember { mutableIntStateOf(session.homeRefreshRequest) }
+    LaunchedEffect(session.homeRefreshRequest) {
+        if (session.homeRefreshRequest != consumedHomeRefresh) {
+            consumedHomeRefresh = session.homeRefreshRequest
+            refresh()
+        }
     }
 
     // 顶栏搜索提交：带关键词 + 搜索范围跳转搜索页（SearchScreen 自动执行，无需二次点击）
@@ -594,6 +646,11 @@ fun HomeScreen(
                                             onClick = { menuOpen = false; refresh() }
                                         )
                                         DropdownMenuItem(
+                                            text = { Text("屏蔽词管理") },
+                                            leadingIcon = { Icon(Icons.Filled.Tune, null) },
+                                            onClick = { menuOpen = false; nav.navigate("blockWords") }
+                                        )
+                                        DropdownMenuItem(
                                             text = {
                                                 Text(if (homeInfinite) "切换为翻页模式" else "切换为无限滚动")
                                             },
@@ -640,7 +697,7 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                listOf("全部" to 0, "仅抽奖" to 1, "仅发卡" to 2).forEachIndexed { _, (label, c) ->
+                                listOf("全部" to 0, "抽奖" to 1, "发卡" to 2, "申精" to 3).forEachIndexed { _, (label, c) ->
                                     val selected = combo == c
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
@@ -650,7 +707,7 @@ fun HomeScreen(
                                             .weight(1f)
                                             .clip(RoundedCornerShape(12.dp))
                                             .clickable {
-                                                session.homeCombo = c
+                                                selectCombo(c)
                                                 // 回到顶部由下方 LaunchedEffect(combo) 统一处理
                                             }
                                     ) {
@@ -673,6 +730,7 @@ fun HomeScreen(
                                         sortDrawerOpen = !sortDrawerOpen
                                         session.saveHomeSortDrawerOpen(sortDrawerOpen)
                                     },
+                                    enabled = combo != 3,
                                     modifier = Modifier.size(34.dp)
                                 ) {
                                     Icon(
@@ -685,7 +743,7 @@ fun HomeScreen(
                             }
                             // 排序 tab（新评论/新帖子/精华）做成下拉抽屉，横向可滑动
                             AnimatedVisibility(
-                                visible = sortDrawerOpen,
+                                visible = sortDrawerOpen && combo != 3,
                                 enter = expandVertically() + fadeIn(),
                                 exit = shrinkVertically() + fadeOut()
                             ) {
@@ -736,6 +794,10 @@ fun HomeScreen(
                     else -> Box(
                         Modifier
                             .fillMaxSize()
+                            .graphicsLayer {
+                                translationX = categoryMotion.value
+                                alpha = 1f - (kotlin.math.abs(categoryMotion.value) / 260f).coerceIn(0f, 0.22f)
+                            }
                             // 主页左右滑动在（全部/仅抽奖/仅发卡）之间切换；垂直滚动不受影响
                             .pointerInput(Unit) {
                                 var totalX = 0f
@@ -744,15 +806,16 @@ fun HomeScreen(
                                     onHorizontalDrag = { _, dragAmount -> totalX += dragAmount },
                                     onDragEnd = {
                                         val c = session.homeCombo
-                                        val next = when {
-                                            totalX <= -threshold -> (c + 1) % 3  // 左滑 → 下一个
-                                            totalX >= threshold -> (c + 2) % 3  // 右滑 → 上一个
-                                            else -> c
-                                        }
+                                        val left = totalX <= -threshold
+                                        val right = totalX >= threshold
                                         totalX = 0f
-                                        if (next != c) {
-                                            // 回到顶部由下方 LaunchedEffect(combo) 统一处理
-                                            session.homeCombo = next
+                                        when {
+                                            left && c < 3 -> selectCombo(c + 1, 1)
+                                            // “仅发卡”已是右边界：继续左滑不循环。
+                                            left -> Unit
+                                            right && c > 0 -> selectCombo(c - 1, -1)
+                                            // “全部”已是左边界：向右滑直接打开侧边栏。
+                                            right -> openDrawer()
                                         }
                                     },
                                     onDragCancel = { totalX = 0f },
@@ -780,6 +843,34 @@ fun HomeScreen(
                                     } else 8.dp
                                 )
                             ) {
+                                if (pendingNewTopics.isNotEmpty()) {
+                                    item(key = "pending-new-topics") {
+                                        Surface(
+                                            onClick = {
+                                                current.topics = (pendingNewTopics + current.topics).distinctBy { it.topicId }
+                                                pendingNewTopics = emptyList()
+                                                session.saveHomeCache(currentSort, current.topics)
+                                                scope.launch { listState.animateScrollToItem(0) }
+                                            },
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                                        ) {
+                                            Row(
+                                                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(
+                                                    "发现 ${pendingNewTopics.size} 个新帖子",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                )
+                                                Spacer(Modifier.weight(1f))
+                                                Text("点击展开", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                            }
+                                        }
+                                    }
+                                }
                                 items(
                                     pagedTopics,
                                     key = { t -> t.topicId },
@@ -820,7 +911,7 @@ fun HomeScreen(
                         }
                         // 回到顶部按钮：列表滚过前几条后出现（缩放动画，不用 AnimatedVisibility 避免嵌套作用域限制）
                         val showBackTop by remember {
-                            derivedStateOf { listState.firstVisibleItemIndex > 2 }
+                            derivedStateOf { listState.firstVisibleItemIndex > 2 || backTopPosition != null }
                         }
                         val backTopScale by animateFloatAsState(
                             targetValue = if (showBackTop) 1f else 0f,
@@ -829,7 +920,16 @@ fun HomeScreen(
                         )
                         if (backTopScale > 0.01f) {
                             SmallFloatingActionButton(
-                                onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                                onClick = {
+                                    val saved = backTopPosition
+                                    if (listState.firstVisibleItemIndex <= 1 && saved != null) {
+                                        backTopPosition = null
+                                        scope.launch { listState.animateScrollToItem(saved.first, saved.second) }
+                                    } else {
+                                        backTopPosition = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                                        scope.launch { listState.animateScrollToItem(0) }
+                                    }
+                                },
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
                                     .padding(end = 16.dp, bottom = 24.dp)
@@ -841,7 +941,16 @@ fun HomeScreen(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
                                 contentColor = MaterialTheme.colorScheme.onSurface,
                             ) {
-                                Icon(Icons.Filled.KeyboardArrowUp, "回到顶部")
+                                val canReturn = listState.firstVisibleItemIndex <= 1 && backTopPosition != null
+                                Icon(
+                                    if (canReturn) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp,
+                                    if (canReturn) "回到刚才位置" else "回到顶部",
+                                )
+                            }
+                        }
+                        if (session.floatingTopicId > 0L) {
+                            sb.linux.client.ui.PinnedTopicCapsule(session.floatingTopicId, session.floatingTopicTitle) {
+                                nav.navigate("topic/${session.floatingTopicId}")
                             }
                         }
                     }
@@ -876,7 +985,7 @@ private fun HomeSidebarDrawer(
     ) {
         val sb = sidebar
         Column(Modifier.fillMaxSize()) {
-            // 顶部用户卡片：品牌色横幅 + 头像 + 签到天数
+            // 顶部用户卡片：头像、账号信息与当前佩戴称号。
             val state = session.loginState
             Surface(
                 modifier = Modifier
@@ -895,7 +1004,20 @@ private fun HomeSidebarDrawer(
                             )
                             Spacer(Modifier.width(11.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(state.username.ifBlank { "饼友" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                // 称号跟在名字后面同一行：名字可省略号截断，称号先占位不被挤走
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                ) {
+                                    Text(
+                                        state.username.ifBlank { "饼友" },
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                    )
+                                    state.titleBadge?.let { TitleBadgeView(it, small = true) }
+                                }
                                 Text(
                                     "${state.userGroup.ifBlank { "饼友" }} · 积分 ${state.points.ifBlank { "-" }}",
                                     style = MaterialTheme.typography.labelSmall,
@@ -907,7 +1029,7 @@ private fun HomeSidebarDrawer(
                             Column(Modifier.weight(1f)) {
                                 Text("访客", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                                 Text(
-                                    "登录后可发帖、回帖与签到",
+                                    "登录后可发帖、回帖与私信",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -916,40 +1038,6 @@ private fun HomeSidebarDrawer(
                                 onClick = onLogin,
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
                             ) { Text("登录", style = MaterialTheme.typography.labelMedium) }
-                        }
-                    }
-                    // 签到入口行
-                    if (state.loggedIn && session.checkinText.isNotBlank()) {
-                        Spacer(Modifier.height(10.dp))
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .clickable { onNavigate("checkin") },
-                            shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.6f)
-                        ) {
-                            Row(
-                                Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.CalendarMonth, null,
-                                    Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    session.checkinText,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.weight(1f))
-                                Text(
-                                    if (session.checkinCheckedToday) "已签到" else "去签到",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold
-                                )
-                            }
                         }
                     }
                 }
@@ -1039,7 +1127,6 @@ private fun HomeSidebarDrawer(
                 // 快捷功能（无图标，统一圆角矩形背景；按侧板单/双列设置排布）
                 item { DrawerTitle("快捷功能") }
                 val quickActions = listOf(
-                    "每日签到" to { onNavigate("checkin") },
                     "我的通知" to { onNavigate("notifications") },
                     "浏览足迹" to { onNavigate("footprint") },
                     "收藏内容" to { onNavigate("favorites") },

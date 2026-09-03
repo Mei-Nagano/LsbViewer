@@ -90,7 +90,19 @@ data class TopicPageData(
     val viewsText: String = "",             // 查看次数（源站展示时）
     val repliesText: String = "",           // 回复总数（post-content-stats 第二个 span）
     val lottery: LotteryPanel? = null,      // 抽奖帖面板
+    val poll: TopicPoll? = null,            // 源站投票表单/结果
     val replyCaptcha: NativeCaptcha? = null, // 回复表单人机验证（抽奖帖等）
+    val essenceApplication: EssenceApplication? = null,
+)
+
+/** 未申请状态与可用操作均来自源站，不在客户端猜测字数、权限或冷却规则。 */
+data class EssenceApplication(
+    val title: String,
+    val note: String,
+    val action: String = "",
+    val fields: Map<String, String> = emptyMap(),
+    val label: String = "申请加精",
+    val enabled: Boolean = false,
 )
 
 /** 源站 native-captcha 人机验证组件（数学题 + PoW） */
@@ -130,6 +142,30 @@ data class LotteryPanel(
     val joinedText: String = "",            // 已参与的提示
 )
 
+/** 源站投票面板：字段名和 action 由页面动态提取，不绑定某一版接口。 */
+data class TopicPoll(
+    val title: String = "投票",
+    val note: String = "",
+    val action: String = "",
+    val fields: Map<String, String> = emptyMap(),
+    val options: List<TopicPollOption> = emptyList(),
+    val multiple: Boolean = false,
+    val submitLabel: String = "提交投票",
+    val closed: Boolean = false,
+    val reasonName: String = "",
+    val reasonRequired: Boolean = false,
+    val reasonHint: String = "",
+    val reasonMaxLength: Int = 300,
+)
+
+data class TopicPollOption(
+    val name: String,
+    val value: String,
+    val label: String,
+    val selected: Boolean = false,
+    val disabled: Boolean = false,
+)
+
 /** 打赏弹幕条目 */
 data class DanmakuItem(
     val user: String,
@@ -150,6 +186,22 @@ data class VirtualCard(
     val buyFields: Map<String, String> = emptyMap(), // 兑换表单隐藏字段
     val inStock: Boolean,
     val orders: List<CardOrder> = emptyList(), // 我的购买记录（登录且兑换过才有）
+)
+
+data class IdentityRequirement(
+    val label: String,
+    val met: Boolean,
+)
+
+data class IdentityCenterData(
+    val benefits: List<Pair<String, String>> = emptyList(),
+    val creatorRequirements: List<IdentityRequirement> = emptyList(),
+    val accountRequirements: List<IdentityRequirement> = emptyList(),
+    val email: String = "",
+    val emailVerified: Boolean = false,
+    val canApply: Boolean = false,
+    val applicationRecords: List<String> = emptyList(),
+    val notice: String = "",
 )
 
 data class ForumInfo(
@@ -177,6 +229,7 @@ data class TitleBadge(
     val icon: String = "",     // emoji 图标，如 🐉
     val name: String = "",     // 称号名，如 传说之龙
     val rarity: String = "",   // 稀有度，如 SSR（取自类名 gacha-title-<x>）
+    val serial: String = "",   // UR 限定序列号，如 058
 )
 
 /** 邀请中心（/invite_center）：分享链接 + 奖励统计 + 已邀请用户 */
@@ -216,6 +269,79 @@ data class GachaAction(
     val label: String,                 // 按钮文本，如 装备 / 卸下 / 赠送
     val action: String,                // 表单提交地址
     val fields: Map<String, String>,   // 隐藏字段（含称号 id 等，不含 _csrf）
+    val enabled: Boolean = true,
+)
+
+/** 称号抽取中心（/gacha）。 */
+data class GachaCenter(
+    val pointsText: String = "",
+    val statsText: String = "",
+    val pullActions: List<GachaAction> = emptyList(),
+    val pool: List<GachaPoolRow> = emptyList(),
+    val allTitles: List<TitleBadge> = emptyList(),
+    val news: List<String> = emptyList(),
+)
+
+data class GachaPoolRow(
+    val rarity: String,
+    val countText: String,
+    val rateText: String,
+)
+
+/** 称号交易市场当前页（/gacha_market）。 */
+data class GachaMarketPage(
+    val summary: String = "",
+    val note: String = "",
+    val listings: List<GachaMarketListing> = emptyList(),
+    val currentPage: Int = 1,
+    val lastPage: Int = 1,
+)
+
+data class GachaMarketListing(
+    val badge: TitleBadge,
+    val price: Int = 0,
+    val available: Int = 1,
+    val timeLeft: String = "",
+    val action: GachaAction,
+)
+
+/** 称号系统的动态操作页。字段直接来自源站表单，兼容熔炼、回收、UR 合成和市场发布。 */
+data class GachaOperationPage(
+    val title: String = "",
+    val notes: List<String> = emptyList(),
+    val forms: List<GachaOperationForm> = emptyList(),
+    val records: List<String> = emptyList(),
+    val links: List<Pair<String, String>> = emptyList(),
+)
+
+data class GachaOperationForm(
+    val label: String,
+    val action: String,
+    val hiddenFields: List<Pair<String, String>> = emptyList(),
+    val fields: List<GachaFormField> = emptyList(),
+    val enabled: Boolean = true,
+)
+
+data class GachaFormField(
+    val name: String,
+    val label: String,
+    val type: String = "text",
+    val value: String = "",
+    val placeholder: String = "",
+    val min: String = "",
+    val max: String = "",
+    val required: Boolean = false,
+    val checked: Boolean = false,
+    val options: List<GachaFormOption> = emptyList(),
+    val maxLength: Int = Int.MAX_VALUE,
+    val multiple: Boolean = false,
+)
+
+data class GachaFormOption(
+    val value: String,
+    val label: String,
+    val selected: Boolean = false,
+    val disabled: Boolean = false,
 )
 
 data class NotificationItem(
@@ -246,6 +372,35 @@ data class PmMessage(
     val synthetic: Boolean = false,// true = 依据对方回复里的引用补造的我方消息（非 App 内发送）
 )
 
+/** 新版 /direct_messages 联系人列表与服务端会话。 */
+data class DirectMessageContact(
+    val userId: Long,
+    val username: String,
+    val avatarUrl: String = "",
+    val timeText: String = "",
+    val preview: String = "",
+)
+
+data class DirectMessageThread(
+    val partnerId: Long,
+    val partnerName: String,
+    val avatarUrl: String = "",
+    val messages: List<PmMessage> = emptyList(),
+)
+
+data class TopicCollectionCard(
+    val collectionId: Long,
+    val title: String,
+    val authorId: Long,
+    val authorName: String,
+    val avatarUrl: String = "",
+    val visibility: String = "",
+    val articleCount: String = "",
+    val updatedText: String = "",
+    val description: String = "",
+    val subscribed: Boolean = false,
+)
+
 data class LeaderRow(
     val rank: Int,
     val userId: Long,
@@ -262,6 +417,8 @@ data class PointRow(
     val reason: String,
     val change: String,
     val positive: Boolean,
+    val timestamp: Long = 0,
+    val topicId: Long = 0,
 )
 
 data class ReplyItem(
@@ -322,4 +479,5 @@ data class LoginState(
     val points: String = "",
     val avatarUrl: String = "",
     val userGroup: String = "",
+    val titleBadge: TitleBadge? = null, // 当前佩戴称号，与用户组、积分分开保存
 )

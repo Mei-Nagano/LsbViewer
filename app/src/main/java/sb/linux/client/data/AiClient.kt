@@ -16,8 +16,10 @@ import java.time.Duration
  */
 object AiClient {
 
+    const val DEFAULT_SUMMARY_PROMPT = "你是一个论坛帖子总结助手。请用简体中文对帖子做简洁总结：先一句话概括主题，再分点列出关键信息（如有重要讨论、结论或争议请说明）。控制在 200 字以内。输出使用 Markdown：分点用 `- `，需要强调用 `**加粗**`，可用 `### ` 小标题。不要用表格，不要输出思考过程，不要把整段回答包在代码块里。"
+
     private val http: OkHttpClient by lazy {
-        OkHttpClient.Builder()
+        AppNetwork.clientBuilder()
             .connectTimeout(Duration.ofSeconds(20))
             .readTimeout(Duration.ofSeconds(120))
             .build()
@@ -42,11 +44,7 @@ object AiClient {
 
         val messages = JSONArray().apply {
             put(JSONObject().put("role", "system").put(
-                "content",
-                "你是一个论坛帖子总结助手。请用简体中文对帖子做简洁总结：先一句话概括主题，" +
-                    "再分点列出关键信息（如有重要讨论、结论或争议请说明）。控制在 200 字以内。\n" +
-                    "输出使用 Markdown：分点用 `- `，需要强调用 `**加粗**`，可用 `### ` 小标题。" +
-                    "不要用表格，不要输出思考过程，不要把整段回答包在代码块里。"
+                "content", s.aiPrompt.trim().ifBlank { DEFAULT_SUMMARY_PROMPT }
             ))
             put(JSONObject().put("role", "user").put(
                 "content",
@@ -73,6 +71,22 @@ object AiClient {
             val json = JSONObject(text)
             json.getJSONArray("choices").getJSONObject(0)
                 .getJSONObject("message").getString("content")
+        }
+    }
+
+    /** 从 OpenAI 兼容的 /models 端点读取可用模型。 */
+    suspend fun fetchModels(s: AppSettings): List<String> = withContext(Dispatchers.IO) {
+        if (s.aiUrl.isBlank()) throw LsbException("请先填写 API 地址")
+        val base = s.aiUrl.trimEnd('/').removeSuffix("/chat/completions")
+        val request = Request.Builder().url("$base/models")
+            .apply { if (s.aiKey.isNotBlank()) header("Authorization", "Bearer ${s.aiKey}") }
+            .get().build()
+        http.newCall(request).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw LsbException("模型列表请求失败 ${response.code}：${text.take(160)}")
+            val data = JSONObject(text).optJSONArray("data") ?: return@use emptyList()
+            (0 until data.length()).mapNotNull { data.optJSONObject(it)?.optString("id")?.takeIf(String::isNotBlank) }
+                .distinct().sorted()
         }
     }
 }

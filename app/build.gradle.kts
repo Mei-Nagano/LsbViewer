@@ -13,6 +13,7 @@ android {
         applicationId = "sb.linux.client"
         minSdk = 26
         targetSdk = 35
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 版本号：CI 构建时由工作流通过 -PappVersionName / -PappVersionCode 覆盖
         // （标签触发取标签名；手动触发取下方默认值）。versionCode 采用
         // major*10000+minor*100+patch 编码（1.0.7 → 10007），随版本名单调递增。
@@ -113,10 +114,18 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("androidx.webkit:webkit:1.12.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
+    // Cronet（Chromium 网络栈）：QUIC/HTTP3 回退传输层。部分网络对 linux.sb 的
+    // TCP TLS 握手做 SNI 阻断（ClientHello 后 RST），QUIC(UDP/443) 不受影响；
+    // OkHttp 不支持 HTTP/3，TCP 失败后经 Cronet 重试同一请求。用 embedded 版
+    // 自带 native 库，不依赖设备上的 Google Play Services（国产 ROM 常无 GMS）。
+    // 固定当前已接入的 embedded 版本，避免依赖用户安装的 Google Play 服务。
+    implementation("org.chromium.net:cronet-embedded:143.7445.0")
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("io.coil-kt:coil-compose:2.7.0")
     // resvg：Rust 实现的 SVG 渲染引擎（uniffi 生成绑定 + JNA 加载 .so），直接把 SVG
@@ -139,4 +148,9 @@ dependencies {
 
     testImplementation("org.jsoup:jsoup:1.18.3")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  全站仍然禁止明文流量。唯一的例外是本机回环：DoH 开启时 WebView 通过
+  127.0.0.1 上的本地 CONNECT 通路出站，这一跳是明文 TCP，隧道里转发的仍是
+  未解密的 TLS 字节，证书由 WebView 自己校验。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

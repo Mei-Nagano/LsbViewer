@@ -31,6 +31,13 @@ object HtmlParser {
             " "
         ).trim()
 
+    /** 帖内搜索专用纯文本：解码实体，并保留 pre/code 的真实内容与换行。 */
+    fun htmlToSearchText(html: String): String {
+        val body = Jsoup.parseBodyFragment(html).body()
+        body.select("script, style, noscript").remove()
+        return body.wholeText().replace('\u00A0', ' ').trim()
+    }
+
     // ---------------- Markdown → HTML（发帖预览用） ----------------
 
     /** HTML 特殊字符转义 */
@@ -209,14 +216,24 @@ object HtmlParser {
      * icon（emoji）、name（称号名）、rarity（稀有度，取自类名 gacha-title-<x>，兜底文本）。
      * 无称号徽章返回 null。
      */
+    /** 称号既可能是容器内的子节点，也可能就是用户组节点本身。 */
+    private fun textWithoutGachaTitle(el: Element?): String {
+        if (el == null || el.hasClass("gacha-title-badge") || el.hasClass("gacha-title-post-badge")) return ""
+        return el.clone().also { it.select(".gacha-title-badge, .gacha-title-post-badge").remove() }.text()
+    }
+
     private fun gachaTitleOf(el: Element): TitleBadge? {
-        val badge = el.selectFirst("a.gacha-title-badge") ?: return null
-        val rare = Regex("""gacha-title-(n|r|sr|ssr|ur|ur\+)""")
+        val badge = el.selectFirst(".gacha-title-badge, .gacha-title-post-badge") ?: return null
+        val rare = Regex("""gacha-title-(ur\+|ssr|sr|ur|r|n)(?:\s|$)""")
             .find(badge.className())?.groupValues?.get(1)?.uppercase()
+        val rarityText = badge.selectFirst(".gacha-title-rarity")?.text()?.trim().orEmpty()
         return TitleBadge(
             icon = badge.selectFirst(".gacha-title-icon")?.text()?.trim() ?: "",
             name = badge.selectFirst(".gacha-title-name")?.text()?.trim() ?: "",
-            rarity = rare ?: badge.selectFirst(".gacha-title-rarity")?.text()?.trim() ?: "",
+            rarity = rare ?: rarityText,
+            // 个人主页把 UR 编号放在 rarity 节点，帖子中则使用 serial 节点。
+            serial = badge.selectFirst(".gacha-title-serial")?.text()?.trim()?.takeIf { it.isNotBlank() }
+                ?: rarityText.takeIf { rare?.startsWith("UR") == true && it.matches(Regex("[0-9]+")) }.orEmpty(),
         ).takeIf { it.name.isNotBlank() || it.icon.isNotBlank() }
     }
 
@@ -254,7 +271,7 @@ object HtmlParser {
                 topicId = topicId,
                 title = titleA.text(),
                 authorId = authorId,
-                authorName = userLink?.text() ?: "",
+                authorName = textWithoutGachaTitle(userLink),
                 forumId = idFrom(forumLink?.attr("href")),
                 forumName = forumLink?.text() ?: "",
                 replies = replies,
@@ -300,10 +317,18 @@ object HtmlParser {
         fun cleanTitle(s: String) = s
             .replace(Regex("[\\u200B\\u200C\\u200D\\uFEFF\\u00A0\\u3000\\u2060]"), " ")
             .trim()
-        val realTitle = (d.selectFirst("h1.post-content-title")?.text()
-            ?: d.selectFirst("h1.topic-title")?.text()
-            ?: d.selectFirst(".main-panel h1")?.text()
-            ?: d.selectFirst("h1")?.text()
+        fun titleText(selector: String): String? = d.selectFirst(selector)?.clone()?.also {
+            // 精华/抽奖/发卡状态徽章是 h1 的子节点。直接 h1.text() 会把“精华”等
+            // 状态重复拼进标题；状态由 titleTag 单独展示，标题只保留文本本体。
+            it.select(
+                ".topic-management-featured-badge, .topic-management-detail-badge, " +
+                    ".community-lottery-title-status, .virtual-card-title-status"
+            ).remove()
+        }?.text()
+        val realTitle = (titleText("h1.post-content-title")
+            ?: titleText("h1.topic-title")
+            ?: titleText(".main-panel h1")
+            ?: titleText("h1")
             ?: run {
                 // 从 toolbar 或 title 标签恢复
                 val t = d.title()
@@ -395,13 +420,96 @@ object HtmlParser {
             )
         }
 
-        val posts = d.select("ul.topic-post-list > li.post-entry, ul.post-list.topic-post-list > li.post-entry").map { li ->
+        val essencePanel = d.selectFirst(".topic-essence-review-panel")
+        val essenceApplication = essencePanel?.takeIf {
+            it.attr("data-status") == "not_applied" || it.selectFirst("form.topic-essence-review-apply-form") != null
+        }?.let { panel ->
+            val form = panel.selectFirst("form.topic-essence-review-apply-form[action]")
+            val button = form?.selectFirst("button[type=submit], button")
+            EssenceApplication(
+                title = panel.selectFirst(".topic-essence-review-head strong")?.text().orEmpty().ifBlank { "申请帖子加精" },
+                note = panel.clone().apply { select("form, .topic-essence-review-head").remove() }.text(),
+                action = form?.attr("action").orEmpty(),
+                fields = hiddenFields(form),
+                label = button?.text().orEmpty().ifBlank { "申请加精" },
+                enabled = form != null && button != null && !button.hasAttr("disabled"),
+            )
+        }
+        // 投票组件：申请表单与评议投票分开，不能把“可以申请”误判为已结束投票。
+        val pollForm = d.selectFirst(
+            ".topic-essence-review-vote-form[action], .topic-poll form[action], .poll-card form[action], form[class*=poll][action], " +
+                "form[action]:has(input[type=radio][name*=poll]), form[action]:has(input[type=checkbox][name*=poll])"
+        )
+        val poll = pollForm?.let { form ->
+            val root = form.parents().firstOrNull { el ->
+                el.classNames().any { it.contains("poll", ignoreCase = true) || it == "topic-essence-review-panel" }
+            } ?: form
+            val inputs = form.select("input[type=radio][name], input[type=checkbox][name]")
+            val options = inputs.mapNotNull { input ->
+                val name = input.attr("name"); val value = input.attr("value")
+                if (name.isBlank() || value.isBlank()) return@mapNotNull null
+                val id = input.id()
+                val label = (if (id.isNotBlank()) form.select("label[for]").firstOrNull { it.attr("for") == id } else null)
+                    ?.text()?.trim()
+                    ?: input.closest("label")?.text()?.trim()
+                    ?: input.parent()?.text()?.trim()
+                    ?: value
+                TopicPollOption(name, value, label.ifBlank { value }, input.hasAttr("checked"), input.hasAttr("disabled"))
+            }
+            TopicPoll(
+                title = if (form.hasClass("topic-essence-review-vote-form")) "精华申请 · 社区投票" else root.selectFirst("h2, h3, h4, .poll-title")?.text()?.trim().orEmpty().ifBlank { "投票" },
+                note = if (form.hasClass("topic-essence-review-vote-form")) root.clone().apply { select("form").remove() }.text()
+                    else root.selectFirst(".poll-note, .poll-description, small, p")?.text()?.trim().orEmpty(),
+                action = form.attr("action"),
+                fields = hiddenFields(form),
+                options = options,
+                multiple = inputs.any { it.attr("type").equals("checkbox", true) },
+                submitLabel = form.selectFirst("button[type=submit], input[type=submit]")?.let { it.text().ifBlank { it.attr("value") } }?.trim().orEmpty().ifBlank { "提交投票" },
+                closed = options.isEmpty() || inputs.all { it.hasAttr("disabled") },
+                reasonName = form.selectFirst("textarea[name]")?.attr("name").orEmpty(),
+                reasonRequired = form.selectFirst("textarea[name]")?.hasAttr("required") == true,
+                reasonHint = form.selectFirst("textarea[name]")?.attr("placeholder").orEmpty(),
+                reasonMaxLength = form.selectFirst("textarea[name]")?.attr("maxlength")?.toIntOrNull()?.coerceAtLeast(1) ?: 300,
+            )
+        } ?: essencePanel?.takeIf { essenceApplication == null }?.let { panel ->
+            TopicPoll(title = "精华申请 · 社区投票", note = panel.text(), closed = true)
+        }
+
+        val postElements = d.select("ul.topic-post-list li.post-entry, ul.post-list.topic-post-list li.post-entry")
+        val replyIdToFloor = postElements.mapNotNull { li ->
+            val replyId = li.id().removePrefix("post-").toLongOrNull() ?: return@mapNotNull null
+            val floor = li.attr("data-floor").toIntOrNull() ?: return@mapNotNull null
+            if (floor > 0) replyId to floor else null
+        }.toMap()
+        val posts = postElements.map { li ->
             val floorNum = li.attr("data-floor").toIntOrNull() ?: 0
-            // 树形评论（源站 v8.6.5+）：回复楼带 data-quote-threads-parent-floor="N"
-            // 标记本楼回复的是第 N 楼（正文开头同时渲染「@用户 #N」引用链接）
-            val parentFloorNum = li.attr("data-quote-threads-parent-floor").toIntOrNull() ?: 0
+            // 网页脚本会补 data-quote-threads-parent-floor，但 OkHttp 拿到的是执行脚本前 HTML。
+            // 因此还需从正文第一段开头的 ?replyid=父回复ID 反查父楼层，这是原生客户端的权威兜底。
+            val ownContent = li.select(".post-content").firstOrNull { it.closest("li.post-entry") == li }
+            val mentionAnchor = ownContent?.selectFirst("p")
+                ?.takeIf { it.closest("blockquote") == null }
+                ?.selectFirst("a[href*=replyid]")
+                ?.takeIf { anchor ->
+                    anchor.parent()?.tagName() == "p" &&
+                    Regex("""^(?:https://linux\.sb)?/topic/$fallbackId(?:[?#]|$)""").containsMatchIn(anchor.attr("href")) &&
+                    generateSequence(anchor.previousSibling()) { it.previousSibling() }.all { sibling ->
+                        sibling is TextNode && sibling.isBlank
+                    }
+                }
+            val mentionHref = mentionAnchor?.attr("href").orEmpty()
+            val parentReplyId = Regex("""[?&]replyid=(\d+)""").find(mentionHref)
+                ?.groupValues?.get(1)?.toLongOrNull()
+            val mentionedFloor = mentionAnchor?.text()?.let { text ->
+                Regex("""#\s*(\d+)\s*$""").find(text)?.groupValues?.get(1)?.toIntOrNull()
+            } ?: (mentionAnchor?.nextSibling() as? TextNode)?.text()?.let {
+                Regex("""^\s*#\s*(\d+)(?:\s|$)""").find(it)?.groupValues?.get(1)?.toIntOrNull()
+            }
+            val parentFloorNum = li.attr("data-quote-threads-parent-floor").toIntOrNull()
+                ?.takeIf { it > 0 } ?: parentReplyId?.let { replyIdToFloor[it] } ?: mentionedFloor ?: 0
             val authorA = li.selectFirst("a.post-author")
-            val groups = li.select(".post-user-group").map { it.text().trim() }.filter { it.isNotBlank() }
+            val groups = li.select(".post-user-group").map { group ->
+                textWithoutGachaTitle(group).substringBefore("积分").trim(' ', '·')
+            }.filter { it.isNotBlank() }.distinct()
             val uidBadge = groups.firstOrNull { it.startsWith("UID") }
             val group = groups.lastOrNull { !it.startsWith("UID") } ?: ""
             val uidNum = uidBadge?.removePrefix("UID")?.trim()?.toLongOrNull() ?: 0L
@@ -413,7 +521,7 @@ object HtmlParser {
             val likeBtn = li.selectFirst("[data-donate-reaction]")
             val likeForm = li.selectFirst("form.donate-reaction-form")
             // 正文：把"最后编辑"信息从正文拆出，单独用分割线展示
-            val contentEl = li.selectFirst(".post-content")
+            val contentEl = ownContent?.clone()
             var editInfo = ""
             var editUserId = 0L
             var editUserName = ""
@@ -432,6 +540,7 @@ object HtmlParser {
                     ".community-lottery-card, .community-lottery-topic-panel, " +
                         ".community-lottery-readonly-prize, .community-lottery-prize-row, " +
                         ".donate-area, [data-donate-area], .quick-reply-main-action, .virtual-card-box"
+                        + ", .topic-poll, .poll-card, form[class*=poll]"
                 ).remove()
                 // 编辑信息节点：专用类名优先（含源站新类 sb-limit-edit-time-note）；
                 // 兜底查找正文内任意含「最后编辑」的尾部元素
@@ -465,15 +574,16 @@ object HtmlParser {
                         val anchor = p.select("a[href*=replyid=]").firstOrNull()
                         if (anchor != null) {
                             // 锚点须位于段落开头（前面的兄弟节点仅允许空白文本）
-                            val leading = anchor.previousSibling()?.let {
-                                (it as? TextNode)?.isBlank ?: false
-                            } ?: true
+                            val leading = mentionAnchor != null && anchor.attr("href") == mentionHref &&
+                                generateSequence(anchor.previousSibling()) { it.previousSibling() }.all {
+                                    it is TextNode && it.isBlank
+                                }
                             if (leading) {
                                 val next = anchor.nextSibling()
                                 anchor.remove()
                                 // 「#N」被拆到锚点外时，紧邻的纯楼层号文本一并删除
-                                if (next is TextNode && next.text().trim().matches(Regex("""#\d+"""))) {
-                                    next.remove()
+                                if (next is TextNode) {
+                                    next.text(next.wholeText.replaceFirst(Regex("""^\s*#\s*$parentFloorNum(?:\s+|$)"""), ""))
                                 }
                             }
                         }
@@ -487,7 +597,10 @@ object HtmlParser {
                 floor = floorNum,
                 parentFloor = parentFloorNum.takeIf { it > 0 && it != floorNum } ?: 0,
                 authorId = idFrom(authorA?.attr("href")),
-                authorName = authorA?.text() ?: "",
+                // wholeText 保留用户名内部的空格；只折叠 HTML 排版产生的连续空白，
+                // 不再使用按空格切分用户名的启发式逻辑。
+                authorName = authorA?.clone()?.also { it.select(".gacha-title-badge, .gacha-title-post-badge").remove() }
+                    ?.wholeText()?.trim()?.replace(Regex("\\s+"), " ") ?: "",
                 avatarUrl = absUrl(avatarOf(li)),
                 userGroup = group,
                 authorUid = uidNum,
@@ -564,7 +677,9 @@ object HtmlParser {
             viewsText = viewsText,
             repliesText = repliesText,
             lottery = lottery,
+            poll = poll,
             replyCaptcha = replyCaptcha,
+            essenceApplication = essenceApplication,
         )
     }
 
@@ -622,9 +737,9 @@ object HtmlParser {
             ?: d.selectFirst("a[href^=/user/]")?.attr("href")
         val avatar = d.selectFirst("a.user-avatar-big img, .user-header img")?.attr("src")
             ?: d.selectFirst("img.avatar-img, img[src*='avatar']")?.attr("src") ?: ""
-        val rank = d.selectFirst(".user-rank")?.text() ?: ""
+        val rank = textWithoutGachaTitle(d.selectFirst(".user-rank"))
         // rank 形如 "饼友 · 积分 1324"：拆出用户组与积分
-        val group = rank.substringBefore("·").trim()
+        val group = rank.substringBefore("积分").trim(' ', '·')
         val points = Regex("""积分\s*([\d.,kw万K W]+)""", RegexOption.IGNORE_CASE).find(rank)?.groupValues?.get(1) ?: ""
         // 简介保留源站格式：直接取原始 HTML（含 markdown 渲染后的 <strong>/<a>/<br>/<pre> 等），
         // 交由 HtmlContent 渲染，保留加粗、链接、换行与代码块等排版
@@ -646,7 +761,7 @@ object HtmlParser {
             // 在线：源站 data-online-users-ids 在线集合命中，兜底静态标记
             online = idFrom(uidHref) in onlineIds ||
                 d.selectFirst("a.user-avatar-big")?.let { onlineOf(it) } == true,
-            titleBadge = gachaTitleOf(d),
+            titleBadge = d.selectFirst(".user-header, .user-card")?.let(::gachaTitleOf),
         )
     }
 
@@ -654,7 +769,7 @@ object HtmlParser {
         val d = doc(html)
         val card = d.selectFirst(".user-card")
         val nameEl = card?.selectFirst("a.user-name")
-        val rank = card?.selectFirst(".user-rank")?.text() ?: ""
+        val rank = textWithoutGachaTitle(card?.selectFirst(".user-rank"))
         val points = Regex("""积分\s*([\d.kw万]+)""").find(rank)?.groupValues?.get(1) ?: ""
         return LoginState(
             loggedIn = nameEl != null,
@@ -662,7 +777,8 @@ object HtmlParser {
             username = nameEl?.text() ?: "",
             points = points,
             avatarUrl = absUrl(avatarOf(card ?: d)),
-            userGroup = rank.substringBefore("·").trim(),
+            userGroup = rank.substringBefore("积分").trim(' ', '·'),
+            titleBadge = card?.let(::gachaTitleOf),
         )
     }
 
@@ -795,8 +911,8 @@ object HtmlParser {
                 LeaderRow(
                     rank = a.selectFirst(".leaderboard-podium-step span")?.text()?.toIntOrNull() ?: 0,
                     userId = idFrom(a.attr("href")),
-                    username = a.selectFirst(".leaderboard-podium-name")?.text() ?: "",
-                    userGroup = a.selectFirst(".leaderboard-podium-group")?.text() ?: "",
+                    username = textWithoutGachaTitle(a.selectFirst(".leaderboard-podium-name")),
+                    userGroup = textWithoutGachaTitle(a.selectFirst(".leaderboard-podium-group")),
                     valueText = a.selectFirst(".leaderboard-podium-count")?.text() ?: "",
                     avatarUrl = absUrl(a.selectFirst("img")?.attr("src") ?: ""),
                     online = idFrom(a.attr("href")) in onlineIds || onlineOf(a),
@@ -810,8 +926,8 @@ object HtmlParser {
                 LeaderRow(
                     rank = a.selectFirst(".leaderboard-rank-badge")?.text()?.toIntOrNull() ?: 0,
                     userId = idFrom(a.attr("href")),
-                    username = a.selectFirst(".leaderboard-name")?.text() ?: "",
-                    userGroup = a.selectFirst(".leaderboard-group")?.text() ?: "",
+                    username = textWithoutGachaTitle(a.selectFirst(".leaderboard-name")),
+                    userGroup = textWithoutGachaTitle(a.selectFirst(".leaderboard-group")),
                     valueText = a.selectFirst(".leaderboard-count")?.text() ?: "",
                     avatarUrl = absUrl(a.selectFirst("img")?.attr("src") ?: ""),
                     online = idFrom(a.attr("href")) in onlineIds || onlineOf(a),
@@ -938,6 +1054,8 @@ object HtmlParser {
                 reason = li.selectFirst(".points-rewards-reason")?.text() ?: "",
                 change = raw.trim().trimStart('+', '-'),
                 positive = positive,
+                timestamp = runCatching { java.time.OffsetDateTime.parse(li.selectFirst("time")?.attr("datetime")).toInstant().toEpochMilli() }.getOrDefault(0L),
+                topicId = idFrom(li.selectFirst("a[href^=/topic/]")?.attr("href")),
             )
         }
     }
@@ -949,16 +1067,19 @@ object HtmlParser {
         val topicId: String,
         val requestKey: String,
         val quickMessages: List<String>,
+        val unavailableReason: String = "",
     )
 
     fun parseDonate(html: String): DonateInfo {
         val d = doc(html)
-        val form = d.selectFirst("form[action=/donate]") ?: d.selectFirst("main form")
+        val form = d.selectFirst("form[action=/donate]")
         return DonateInfo(
             csrf = form?.selectFirst("input[name=_csrf]")?.attr("value") ?: "",
             topicId = form?.selectFirst("input[name=topic_id]")?.attr("value") ?: "",
             requestKey = form?.selectFirst("input[name=request_key]")?.attr("value") ?: "",
             quickMessages = d.select("button[data-quick-message]").map { it.text() },
+            unavailableReason = if (form == null) d.selectFirst(".forum-main")?.text()
+                ?.removePrefix("消息")?.trim()?.takeIf { it.isNotBlank() } ?: extractError(html) else "",
         )
     }
 
@@ -1218,7 +1339,54 @@ object HtmlParser {
         )
     }
 
-    // ---------------- 邀请中心 / 我的称号 ----------------
+    // ---------------- 认证中心 / 邀请中心 / 我的称号 ----------------
+
+    /** 创作者认证中心（/identity_center）：权益、条件、邮箱状态与历史申请。 */
+    fun parseIdentityCenter(html: String): IdentityCenterData {
+        val d = doc(html)
+        fun heading(text: String) = d.select("h2,h3,h4").firstOrNull { it.text().contains(text) }
+        fun nextElement(start: Element?, selector: String): Element? {
+            var node = start?.nextElementSibling()
+            while (node != null && node.tagName() !in setOf("h2", "h3", "h4")) {
+                if (node.`is`(selector)) return node
+                node.selectFirst(selector)?.let { return it }
+                node = node.nextElementSibling()
+            }
+            return null
+        }
+        fun requirements(title: String): List<IdentityRequirement> {
+            val table = nextElement(heading(title), "table") ?: return emptyList()
+            return table.select("tbody tr, tr").mapNotNull { row ->
+                val cells = row.select("td")
+                if (cells.size < 2) return@mapNotNull null
+                val label = cells[0].text().trim()
+                val state = cells[1].text().trim()
+                if (label.isBlank()) null else IdentityRequirement(label, state.contains("符合") && !state.contains("不符合"))
+            }.distinctBy { it.label }
+        }
+        val benefits = nextElement(heading("创作者福利"), "ul")?.select("li")?.mapNotNull { item ->
+            val name = item.selectFirst("strong")?.text()?.trim().orEmpty()
+            if (name.isBlank()) return@mapNotNull null
+            val description = item.text().removePrefix(name).trim()
+            name to description
+        }.orEmpty()
+        val account = requirements("账号核验条件")
+        val mainText = d.selectFirst("main")?.text().orEmpty()
+        val email = Regex("当前邮箱[：:]\\s*(\\S+)").find(mainText)?.groupValues?.get(1).orEmpty()
+        val records = nextElement(heading("我的申请"), "ul")?.select("li")?.map { it.text().trim() }
+            ?.filter { it.isNotBlank() && !it.contains("暂无申请") }.orEmpty()
+        val applyButton = d.selectFirst(".identity-center-next, form.identity-center-apply button[type=submit]")
+        return IdentityCenterData(
+            benefits = benefits,
+            creatorRequirements = requirements("创作者认证条件"),
+            accountRequirements = account,
+            email = email,
+            emailVerified = account.firstOrNull { it.label.contains("邮箱验证") }?.met == true,
+            canApply = applyButton != null && !applyButton.hasAttr("disabled"),
+            applicationRecords = records,
+            notice = d.selectFirst(".identity-center-notice, .identity-center-rules, details")?.text()?.trim().orEmpty(),
+        )
+    }
 
     /**
      * 邀请中心（/invite_center，登录后可见）。
@@ -1264,35 +1432,344 @@ object HtmlParser {
      */
     fun parseGachaProfile(html: String): GachaProfile {
         val d = doc(html)
-        val titles = d.select(".gacha-profile-titles > *").mapNotNull { el ->
+        val candidates = d.select(".gacha-profile-titles .gacha-title-badge, .gacha-profile-titles .gacha-title-post-badge, .gacha-profile-grid .gacha-title-badge")
+            .map { badge ->
+                val collection = badge.parents().firstOrNull {
+                    it.hasClass("gacha-profile-titles") || it.hasClass("gacha-profile-grid")
+                }
+                // 取集合以内完整的单称号条目，不能只取装备按钮附近的内层容器，
+                // 否则放在同级的持有数量与说明会丢失。
+                badge.parents().takeWhile { it !== collection }
+                    .lastOrNull { it.select(".gacha-title-badge, .gacha-title-post-badge").size == 1 }
+                    ?: badge
+            }.distinct()
+        val titles = candidates.mapNotNull { el ->
             if (el.hasClass("empty-state")) return@mapNotNull null
             val badge = gachaTitleOf(el) ?: el.selectFirst(".gacha-title-badge")?.let { b ->
                 TitleBadge(
                     icon = b.selectFirst(".gacha-title-icon")?.text()?.trim() ?: "",
                     name = b.selectFirst(".gacha-title-name")?.text()?.trim() ?: "",
                     rarity = b.selectFirst(".gacha-title-rarity")?.text()?.trim() ?: "",
+                    serial = b.selectFirst(".gacha-title-serial")?.text()?.trim() ?: "",
                 )
             }
             if (badge == null || badge.name.isBlank()) return@mapNotNull null
             val full = el.text().replace(Regex("""\s+"""), " ").trim()
             // 数量：条目里「×N」或「x N」形式的持有数（无则 1）
-            val count = Regex("""[×x]\s*(\d+)""").find(full)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+            val count = el.selectFirst("[data-count]")?.attr("data-count")?.toIntOrNull()
+                ?: Regex("""(?:[×x]|数量\s*[:：]?|持有\s*[:：]?)\s*(\d+)""").find(full)?.groupValues?.get(1)?.toIntOrNull()
+                ?: Regex("""(\d+)\s*[个枚份]""").find(full)?.groupValues?.get(1)?.toIntOrNull() ?: 1
             // 装备状态：类标记 is-equipped / 文本含「已装备」
-            val equipped = el.selectFirst(".is-equipped, [class*=equipped]") != null || full.contains("已装备")
+            val equipped = el.hasClass("is-equipped") || el.selectFirst(".is-equipped, [class*=equipped]") != null || full.contains("已装备") || full.contains("已佩戴")
             val actions = el.select("form[action]").mapNotNull { form ->
                 val btn = form.selectFirst("button") ?: return@mapNotNull null
                 GachaAction(
                     label = btn.text().trim(),
                     action = form.attr("action"),
                     fields = hiddenFields(form),
+                    enabled = !btn.hasAttr("disabled"),
                 )
             }.filter { it.label.isNotBlank() && it.action.isNotBlank() }
             GachaTitleItem(badge = badge, equipped = equipped, count = count, actions = actions)
         }
         return GachaProfile(
             stat = d.selectFirst(".gacha-center-stat")?.text()?.trim() ?: "",
-            titles = titles,
+            titles = titles.distinctBy { Triple(it.badge.name, it.badge.rarity, it.badge.serial) },
         )
+    }
+
+    /** 称号抽取页：操作地址和池概率均以源站 DOM 为准。 */
+    fun parseGachaCenter(html: String): GachaCenter {
+        val d = doc(html)
+        val actions = d.select(".gacha-actions form[action]").mapNotNull { form ->
+            val button = form.selectFirst("button[type=submit], button") ?: return@mapNotNull null
+            GachaAction(button.text().trim(), form.attr("action"), hiddenFields(form), !button.hasAttr("disabled"))
+        }
+        val pool = d.select(".gacha-pool-rarity").mapNotNull { row ->
+            val rarity = row.selectFirst(".gacha-pool-rarity-label")?.text()?.trim().orEmpty()
+            if (rarity.isBlank() || rarity.uppercase().startsWith("UR")) return@mapNotNull null
+            GachaPoolRow(
+                rarity = rarity,
+                countText = row.selectFirst(".gacha-pool-rarity-count")?.text()?.trim().orEmpty(),
+                rateText = row.selectFirst(".gacha-pool-rarity-rate")?.text()?.trim().orEmpty(),
+            )
+        }
+        return GachaCenter(
+            pointsText = d.selectFirst(".gacha-center-header .gacha-center-stat")?.text()?.trim().orEmpty(),
+            statsText = d.selectFirst(".gacha-sub-stats")?.text()?.trim().orEmpty(),
+            pullActions = actions,
+            pool = pool,
+            allTitles = d.select(".gacha-all-item").mapNotNull(::gachaTitleOf),
+            // 跑马灯会复制一组节点实现循环，按文本去重。
+            news = d.select(".gacha-good-news-item").eachText().map { it.trim() }
+                .filter { it.isNotBlank() }.distinct().take(10),
+        )
+    }
+
+    /** 称号市场：保留每个购买表单的服务端 listing_id 及返回状态。 */
+    fun parseGachaMarket(html: String): GachaMarketPage {
+        val d = doc(html)
+        val listings = d.select("article.gacha-market-card").mapNotNull { card ->
+            val badge = gachaTitleOf(card) ?: return@mapNotNull null
+            val form = card.selectFirst("form.gacha-market-buy[action]") ?: return@mapNotNull null
+            val text = card.selectFirst(".gacha-market-meta")?.text()?.trim().orEmpty()
+            val price = Regex("""单价\s*(\d+)""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val available = form.selectFirst("input[name=quantity]")?.attr("max")?.toIntOrNull()
+                ?: Regex("""剩余\s*(\d+)\s*个""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+            val timeLeft = Regex("""剩余时间\s*(.+)$""").find(text)?.groupValues?.get(1)?.trim().orEmpty()
+            GachaMarketListing(
+                badge = badge,
+                price = price,
+                available = available,
+                timeLeft = timeLeft,
+                action = GachaAction("购买", form.attr("action"), hiddenFields(form)),
+            )
+        }
+        val pageLinks = d.select(".pagination a[href*=p]").mapNotNull { a ->
+            Regex("""[?&]p=(\d+)""").find(a.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
+        }
+        val summary = d.selectFirst(".gacha-market-head")?.text()?.trim().orEmpty()
+        val current = Regex("""当前\s*(\d+)-""").find(summary)?.groupValues?.get(1)?.toIntOrNull()
+            ?.let { start -> ((start - 1) / 24) + 1 } ?: 1
+        return GachaMarketPage(
+            summary = summary,
+            note = d.selectFirst(".gacha-market-note")?.text()?.trim().orEmpty(),
+            listings = listings,
+            currentPage = current,
+            lastPage = pageLinks.maxOrNull() ?: current,
+        )
+    }
+
+    /**
+     * 选项控件所属的选项容器，由内向外最多四层。容器里一旦出现第二个 checkbox/radio，
+     * 说明已经越过本行，再往上取就会串到别人的称号，到此为止。
+     */
+    private fun optionHolders(control: Element): List<Element> {
+        val holders = mutableListOf<Element>()
+        var node = control.parent()
+        while (node != null && holders.size < 4) {
+            if (node.select("input[type=checkbox], input[type=radio]").size > 1) break
+            holders += node
+            node = node.parent()
+        }
+        return holders
+    }
+
+    /**
+     * 熔炼/回收页里 checkbox、radio 的称号名。源站把称号渲染成 .gacha-title-badge 卡片，
+     * 控件本身既没有 label 也没有文字，直接取字段名的话界面上只会看到 title_ids，
+     * 分不清勾的是哪个称号。没有称号徽章时返回空，交给后面的 label 兜底。
+     */
+    private fun gachaOptionLabel(control: Element): String {
+        for (holder in optionHolders(control)) {
+            val badge = gachaTitleOf(holder) ?: continue
+            val head = listOf(badge.icon, badge.name).filter { it.isNotBlank() }.joinToString(" ")
+            return listOf(head, badge.rarity, badge.serial, optionSideText(holder))
+                .filter { it.isNotBlank() }.joinToString(" · ")
+        }
+        return ""
+    }
+
+    /** 既没有称号徽章又没有 label 的选项：退回选项行的可见文字，至少比字段名可读。 */
+    private fun gachaOptionText(control: Element): String =
+        optionHolders(control).firstNotNullOfOrNull { optionSideText(it).takeIf(String::isNotBlank) }.orEmpty()
+
+    /** 选项容器里除徽章和控件外的可见文字，例如持有数量「×2」；成段的说明文字不取。 */
+    private fun optionSideText(el: Element): String = el.clone()
+        .also { it.select(".gacha-title-badge, .gacha-title-post-badge, input, select, textarea, button").remove() }
+        .text().replace(Regex("""\s+"""), " ").trim()
+        .takeIf { it.length in 1..40 }.orEmpty()
+
+    /**
+     * 解析称号系统的动态表单页。这里只限定 /gacha* 的提交表单，避免把页头搜索、登录等
+     * 无关表单带进客户端；字段名称和值保持原样，提交时可完整复现重复 checkbox 参数。
+     */
+    fun parseGachaOperationPage(html: String, collectionsOnly: Boolean = false): GachaOperationPage {
+        val d = doc(html)
+        val main = d.selectFirst("main") ?: d.body()
+        val forms = main.select("form[action]").flatMap { form ->
+            val action = form.attr("action").trim()
+            val isSupportedOperation = if (collectionsOnly) action == "/topic_collections_action"
+                else Regex("^/(gacha|identity|verify|creator)[a-zA-Z0-9_/?=&%-]*$").matches(action)
+            // 只在源站显式写了 method=get 时跳过。缺省 method 的表单（源站熔炼/回收页就是这样）
+            // 一律按可提交处理：之前连同缺省一起判成 GET 会让整页解析不出任何表单，
+            // 界面上就是「按钮在但点不动」或压根没有按钮。
+            if (!isSupportedOperation || form.attr("method").trim().equals("get", true)) return@flatMap emptyList()
+            val hidden = form.select("input[type=hidden][name]:not([disabled])").map { it.attr("name") to it.attr("value") }
+            val externalControls = main.select("input[form], select[form], textarea[form]").filter { it.attr("form") == form.id() && form.id().isNotBlank() }
+            val controls = (form.select("input[name]:not([type=hidden]):not([type=submit]):not([type=button]), select[name], textarea[name]") + externalControls).distinct()
+            val fields = controls
+                .mapNotNull { control ->
+                    val name = control.attr("name").trim()
+                    if (name.isBlank() || control.hasAttr("disabled") || control.closest("fieldset[disabled]") != null) return@mapNotNull null
+                    val tag = control.tagName()
+                    val type = when (tag) {
+                        "select" -> "select"
+                        "textarea" -> "textarea"
+                        else -> control.attr("type").lowercase().ifBlank { "text" }
+                    }
+                    val id = control.id()
+                    // label 可能写在 form 外面（源站把选项卡片和表单拆成两块），所以整页找
+                    val explicitLabel = id.takeIf { it.isNotBlank() }
+                        ?.let { target -> main.select("label[for]").firstOrNull { it.attr("for") == target }?.text()?.trim() }
+                    val wrappingLabel = control.closest("label")?.text()?.trim()
+                    val fallbackLabel = control.attr("aria-label").trim()
+                        .ifBlank { control.attr("placeholder").trim() }
+                        .ifBlank { name }
+                    // 选项控件优先取称号名：熔炼/回收的 checkbox 只带 id，文字在旁边的徽章里
+                    val isOption = type == "checkbox" || type == "radio"
+                    val label = (if (isOption) gachaOptionLabel(control) else "")
+                        .ifBlank { explicitLabel.orEmpty() }
+                        .ifBlank { wrappingLabel.orEmpty() }
+                        .ifBlank { if (isOption) gachaOptionText(control) else "" }
+                        .ifBlank { fallbackLabel }
+                        .replace(Regex("""\s+"""), " ").trim()
+                    GachaFormField(
+                        name = name,
+                        label = label,
+                        type = type,
+                        value = if (tag == "textarea") control.text() else control.attr("value"),
+                        placeholder = control.attr("placeholder"),
+                        min = control.attr("min"),
+                        max = control.attr("max"),
+                        required = control.hasAttr("required"),
+                        checked = control.hasAttr("checked"),
+                        options = if (tag == "select") control.select("option").map { option ->
+                            // optgroup 的分组名（源站按稀有度分组）拼在前面，空文字的选项退回 value
+                            val group = option.closest("optgroup")?.attr("label")?.trim().orEmpty()
+                            val text = option.text().trim().ifBlank { option.attr("value").trim() }
+                            GachaFormOption(
+                                if (option.hasAttr("value")) option.attr("value") else option.text(),
+                                listOf(group, text).filter { it.isNotBlank() }.joinToString(" · "),
+                                option.hasAttr("selected"),
+                                option.hasAttr("disabled") || option.closest("optgroup[disabled]") != null,
+                            )
+                        } else emptyList(),
+                        maxLength = control.attr("maxlength").toIntOrNull()?.coerceAtLeast(0) ?: Int.MAX_VALUE,
+                        multiple = control.hasAttr("multiple"),
+                    )
+                }
+            val buttons = form.select("button[type=submit], input[type=submit], button:not([type])")
+            buttons.map { button ->
+            val submitFields = hidden.toMutableList()
+            button.attr("name").takeIf { it.isNotBlank() }?.let { submitName ->
+                submitFields += submitName to button.attr("value")
+            }
+            val label = button.clone().also { it.select("small").remove() }.text().trim()
+                .ifBlank { button?.attr("value")?.trim().orEmpty() }
+                .ifBlank { form.selectFirst("h2, h3, legend")?.text()?.trim().orEmpty() }
+                .ifBlank { "提交" }
+            val submitAction = button.attr("formaction").ifBlank { action }
+            // A submit override must stay within the same supported operation family.
+            GachaOperationForm(label, if (submitAction == action) action else submitAction.takeIf {
+                if (collectionsOnly) it == "/topic_collections_action" else Regex("^/(gacha|identity|verify|creator)[a-zA-Z0-9_/?=&%-]*$").matches(it)
+            } ?: action, submitFields, fields, !button.hasAttr("disabled") && button.closest("fieldset[disabled]") == null)
+            }
+        }
+        val notes = main.select(".gacha-market-note, .gacha-note, .notice, .alert, .tips, .help-text")
+            .eachText().map { it.replace(Regex("""\s+"""), " ").trim() }
+            .filter { it.isNotBlank() }.distinct().take(8)
+        val records = main.select("table tbody tr, .empty-state, .gacha-record, .order-item")
+            .eachText().map { it.replace(Regex("""\s+"""), " ").trim() }
+            .filter { it.isNotBlank() && it.length <= 500 }.distinct().take(100)
+        return GachaOperationPage(
+            title = main.selectFirst("h1")?.text()?.trim().orEmpty()
+                .ifBlank { d.title().substringBefore("-").trim() },
+            notes = notes,
+            forms = forms,
+            records = records,
+            links = main.select(".pagination a[href]").map { it.text().trim() to it.attr("href") }
+                .filter { it.second.startsWith("/") && !it.second.startsWith("//") }.distinct(),
+        )
+    }
+
+    /** 新版私信联系人列表（/direct_messages）。 */
+    fun parseDirectMessageContacts(html: String): List<DirectMessageContact> {
+        val d = doc(html)
+        return d.select("a.direct-messages-conversation[href^=/direct_messages/]").mapNotNull { a ->
+            val uid = idFrom(a.attr("href"))
+            if (uid <= 0) return@mapNotNull null
+            DirectMessageContact(
+                userId = uid,
+                username = a.selectFirst("strong")?.text()?.trim() ?: "",
+                avatarUrl = absUrl(avatarOf(a)),
+                timeText = a.selectFirst("time")?.text()?.trim() ?: "",
+                preview = a.selectFirst("small")?.text()?.trim() ?: "",
+            )
+        }.distinctBy { it.userId }
+    }
+
+    /** 新版服务端私信会话（/direct_messages/{uid}），服务端消息为权威数据源。 */
+    fun parseDirectMessageThread(html: String, partnerId: Long): DirectMessageThread {
+        val d = doc(html)
+        val header = d.selectFirst(".direct-messages-thread-header a[href^=/user/]")
+            ?: d.selectFirst("main a[href=/user/$partnerId]")
+        val partnerName = header?.selectFirst("strong")?.text()?.trim()
+            ?: header?.attr("aria-label")?.substringBefore(" 私信")?.trim().orEmpty()
+        val partnerAvatar = header?.let(::avatarOf).orEmpty().let(::absUrl)
+        val messages = d.select("article.direct-messages-message").mapIndexedNotNull { index, article ->
+            val content = article.selectFirst(".direct-messages-content")?.text()?.trim() ?: return@mapIndexedNotNull null
+            val incoming = !article.hasClass("is-mine")
+            val time = article.selectFirst("time")
+            val rawTime = time?.text()?.trim().orEmpty()
+            val ts = runCatching {
+                java.time.OffsetDateTime.parse(time?.attr("datetime")).toInstant().toEpochMilli()
+            }.getOrElse {
+                runCatching {
+                    java.time.LocalDateTime.parse(rawTime, java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                }.getOrDefault(0L)
+            }
+            PmMessage(
+                partnerId = partnerId,
+                partnerName = partnerName,
+                avatarUrl = if (incoming) absUrl(avatarOf(article)) else partnerAvatar,
+                incoming = incoming,
+                content = content,
+                timeText = rawTime,
+                ts = ts,
+                seq = index.toLong(),
+            )
+        }
+        return DirectMessageThread(partnerId, partnerName, partnerAvatar, messages)
+    }
+
+    /** 源站 meta 文本可能自带前导分隔符（· / | 等），显示层自己排版，这里统一剥掉。 */
+    private fun trimMetaSeparator(text: String): String =
+        text.trim().trimStart('·', '•', '|', '/', '-', '–', '—', ' ', ' ').trim()
+
+    /** 淘帖中心专辑卡片（/topic_collections?tab=mine|everyone）。 */
+    fun parseTopicCollections(html: String): List<TopicCollectionCard> {
+        val d = doc(html)
+        // 源站列表容器：优先 forum-main 下的 li，其次裸 li，再其次任何含 topic_collection 链接的容器。
+        val rows = d.select(".forum-main li.topic-collections-collection-row").ifEmpty {
+            d.select("li.topic-collections-collection-row")
+        }.ifEmpty {
+            // 兜底：源站可能改了类名，只要列表项里有指向 /topic_collection/{id} 的链接就尝试解析。
+            d.select("li:has(a[href^=/topic_collection/])")
+        }
+        return rows.mapNotNull { li ->
+            val title = li.selectFirst("a[href^=/topic_collection/]") ?: return@mapNotNull null
+            val author = li.selectFirst("a[href^=/user/]")
+            // meta 文本：取 .post-meta 下的 span，兜底取所有非链接的 span
+            val meta = li.select(".post-meta > span").eachText().ifEmpty {
+                li.select("span:not(:has(a))").eachText()
+            }
+            val collectionId = idFrom(title.attr("href"))
+            if (collectionId <= 0) return@mapNotNull null
+            TopicCollectionCard(
+                collectionId = collectionId,
+                title = title.text().trim(),
+                authorId = idFrom(author?.attr("href")),
+                authorName = author?.text()?.trim() ?: "",
+                avatarUrl = absUrl(avatarOf(li)),
+                visibility = li.selectFirst(".topic-collections-tag")?.text()?.trim() ?: "",
+                articleCount = meta.firstOrNull { it.contains("篇") || it.contains("文章") }?.let(::trimMetaSeparator) ?: "",
+                updatedText = meta.firstOrNull { it.startsWith("更新") || it.contains("前") }?.let(::trimMetaSeparator) ?: "",
+                description = (li.selectFirst(".topic-collections-card-desc") ?: li.selectFirst("p, .desc, .description"))?.text()?.trim() ?: "",
+                subscribed = li.selectFirst(".topic-collections-tag-subscribed, [class*=subscribed]") != null,
+            )
+        }.distinctBy { it.collectionId }
     }
 
 

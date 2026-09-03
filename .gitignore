@@ -2,6 +2,7 @@
 .gradle/
 **/.gradle/
 .kotlin/
+gradle/gradle-daemon-jvm.properties
 build/
 **/build/
 app/release/
@@ -41,6 +42,7 @@ lsb-release.b64
 .fleet/
 
 # Local tool metadata
+.claude/
 .codeartsdoer/
 .codegraph/
 
@@ -54,5 +56,15 @@ desktop.ini
 
 # Local task checklist (not tracked)
 checklist.md
+
+# Local development tests
+app/src/test/
+app/src/androidTest/
+
+# Local work logs and acceptance notes
+MEMORY.md
+REQUEST-*.md
+TESTING-*.md
+FEATURE-AUDIT.md
 
 #

@@ -25,6 +25,7 @@ import androidx.navigation.NavHostController
 import sb.linux.client.LocalMasterNav
 import sb.linux.client.data.Session
 import sb.linux.client.ui.Avatar
+import sb.linux.client.ui.TitleBadgeView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,14 +61,27 @@ fun MeScreen(session: Session, nav: NavHostController) {
                         .clip(RoundedCornerShape(22.dp))
                         .clickable { nav.navigate("user/${state.userId}") },
                     shape = RoundedCornerShape(22.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
                 ) {
                     Column(Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Avatar(state.avatarUrl, 60)
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(state.username, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                // 称号跟在名字后面同一行：名字可省略号截断，称号先占位不被挤走
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Text(
+                                        state.username,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                    )
+                                    state.titleBadge?.let { TitleBadgeView(it, small = true) }
+                                }
                                 Spacer(Modifier.height(3.dp))
                                 Text(
                                     "${state.userGroup.ifBlank { "饼友" }} · UID ${state.userId}",
@@ -83,21 +97,19 @@ fun MeScreen(session: Session, nav: NavHostController) {
                             )
                         }
                         Spacer(Modifier.height(14.dp))
-                        // 积分 / 签到 摘要条
+                        // 积分摘要
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             SummaryChip(Icons.Filled.Paid, "积分 ${state.points.ifBlank { "-" }}")
-                            if (session.checkinText.isNotBlank()) {
-                                SummaryChip(Icons.Filled.CheckCircle, session.checkinText)
-                            }
                         }
                     }
                 }
 
                 MenuGroup("功能") {
-                    MenuRow(Icons.Filled.CheckCircle, "每日签到") { nav.navigate("checkin") }
                     MenuRow(Icons.Filled.Leaderboard, "用户榜单") { nav.navigate("leaderboard?type=points") }
                     MenuRow(Icons.Filled.PersonAdd, "邀请中心") { nav.navigate("inviteCenter") }
                     MenuRow(Icons.Filled.MilitaryTech, "我的称号") { nav.navigate("gachaProfile") }
+                    MenuRow(Icons.Filled.Email, "我的私信") { nav.navigate("directMessages") }
+                    MenuRow(Icons.Filled.CollectionsBookmark, "我的淘帖") { nav.navigate("topicCollections?tab=mine") }
                     MenuRow(Icons.Filled.History, "浏览历史") { nav.navigate("footprint") }
                     MenuRow(Icons.Filled.Favorite, "收藏内容") { nav.navigate("favorites") }
                 }
@@ -135,7 +147,7 @@ fun MeScreen(session: Session, nav: NavHostController) {
                         Text("未登录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "登录后可发帖、回帖、投币、签到与私信",
+                            "登录后可发帖、回帖、投币与私信",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

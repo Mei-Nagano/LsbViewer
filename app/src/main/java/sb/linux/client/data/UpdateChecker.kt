@@ -32,7 +32,7 @@ object UpdateChecker {
         val notes: String,
     )
 
-    private val http = OkHttpClient.Builder()
+    private val http = AppNetwork.clientBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build()

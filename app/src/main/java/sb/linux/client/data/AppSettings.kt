@@ -5,11 +5,42 @@ import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
+data class AiConfigPreset(
+    val name: String,
+    val url: String,
+    val key: String,
+    val model: String,
+    val temperature: Float,
+    val prompt: String,
+    val includeComments: Boolean,
+)
+
+data class CardRedemptionRecord(
+    val topicId: Long,
+    val topicTitle: String,
+    val cardTitle: String,
+    val code: String,
+    val price: String,
+    val sourceTime: String,
+    val recordedAt: Long,
+)
+
+data class UsageEvent(
+    val type: String,
+    val topicId: Long,
+    val title: String,
+    val value: Int,
+    val at: Long,
+)
+
 /**
  * 应用设置（区别于源站个人设置）：
  * 滚动模式 / 快速点赞 / 屏蔽词 / AI 总结 / 浏览历史 / 签到摘要缓存。
  */
 class AppSettings(context: Context) {
+    private val aiRecords = context.getSharedPreferences("lsb_ai_summaries", Context.MODE_PRIVATE)
+    private val drafts = context.getSharedPreferences("lsb_topic_drafts", Context.MODE_PRIVATE)
+    private val readingRecords = context.getSharedPreferences("lsb_reading_positions", Context.MODE_PRIVATE)
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("lsb_app_settings", Context.MODE_PRIVATE)
@@ -29,6 +60,11 @@ class AppSettings(context: Context) {
     var homeKeepCache: Boolean
         get() = prefs.getBoolean("home_keep_cache", false)
         set(v) = prefs.edit().putBoolean("home_keep_cache", v).apply()
+
+    /** 刷新首页时把新增帖子折叠为顶部提示，不改变当前阅读位置。 */
+    var collapseNewTopics: Boolean
+        get() = prefs.getBoolean("collapse_new_topics", false)
+        set(v) = prefs.edit().putBoolean("collapse_new_topics", v).apply()
 
     /** 帖子内打赏弹幕开关 */
     var danmakuOn: Boolean
@@ -64,13 +100,31 @@ class AppSettings(context: Context) {
 
     /** 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择） */
     var commentSortOrder: Int
-        get() = prefs.getInt("comment_sort_order", 0)
+        get() = prefs.getInt("comment_sort_order", 1)
         set(v) = prefs.edit().putInt("comment_sort_order", v).apply()
 
     /** 评论翻页模式下每页展示的评论数量（默认 20，3.11） */
     var commentsPerPage: Int
         get() = prefs.getInt("comments_per_page", 20)
         set(v) = prefs.edit().putInt("comments_per_page", v.coerceIn(5, 100)).apply()
+
+    /** Markdown 表格展示：0 = 自适应屏幕等分列，1 = 保持可读列宽并横向滑动 */
+    var tableDisplayMode: Int
+        get() = prefs.getInt("table_display_mode", 0).coerceIn(0, 1)
+        set(v) = prefs.edit().putInt("table_display_mode", v.coerceIn(0, 1)).apply()
+
+    /** 帖内头像下方显示纯数字 UID */
+    var showUid: Boolean
+        get() = prefs.getBoolean("show_uid", true)
+        set(v) = prefs.edit().putBoolean("show_uid", v).apply()
+
+    var smartDecodeEnabled: Boolean
+        get() = prefs.getBoolean("smart_decode_enabled", false)
+        set(v) = prefs.edit().putBoolean("smart_decode_enabled", v).apply()
+
+    var autoClearItems: Set<String>
+        get() = prefs.getStringSet("auto_clear_items", emptySet())?.toSet() ?: emptySet()
+        set(v) = prefs.edit().putStringSet("auto_clear_items", v).apply()
 
     /** 首页排序抽屉（全部/仅抽奖/仅发卡 上方的 新评论/新帖子/精华）折叠状态：true = 展开，false = 折叠 */
     var homeSortDrawerOpen: Boolean
@@ -99,6 +153,59 @@ class AppSettings(context: Context) {
         get() = prefs.getInt("link_open_mode", 0)
         set(v) = prefs.edit().putInt("link_open_mode", v).apply()
 
+    var linkPreviewEnabled: Boolean
+        get() = prefs.getBoolean("link_preview_enabled", true)
+        set(v) = prefs.edit().putBoolean("link_preview_enabled", v).apply()
+
+    /** DNS over HTTPS。VPN 存在时可自动旁路，防止与 VPN 自身 DNS 策略冲突。 */
+    var dohEnabled: Boolean
+        get() = prefs.getBoolean("doh_enabled", false)
+        set(v) = prefs.edit().putBoolean("doh_enabled", v).apply()
+
+    var dohUrl: String
+        get() = prefs.getString("doh_url", null) ?: DohServers.defaults.first().url
+        set(v) = prefs.edit().putString("doh_url", v.trim()).apply()
+
+    fun dohServers(): List<DohServer> {
+        val saved = runCatching {
+            val array = JSONArray(prefs.getString("doh_servers", "[]"))
+            (0 until array.length()).map { array.getJSONObject(it) }.map {
+                DohServer(it.getString("id"), it.getString("name"), it.getString("url"), it.optString("note"))
+            }
+        }.getOrDefault(emptyList())
+        return DohServers.merge(saved, dohUrl)
+    }
+
+    fun saveDohServers(servers: List<DohServer>) {
+        val array = JSONArray()
+        servers.forEach { server ->
+            require(server.name.isNotBlank() && AppNetwork.isValidEndpoint(server.url))
+            array.put(JSONObject().put("id", server.id).put("name", server.name.trim()).put("url", server.url.trim()).put("note", server.note.trim()))
+        }
+        prefs.edit().putString("doh_servers", array.toString()).apply()
+    }
+
+    var dohDisableOnVpn: Boolean
+        get() = prefs.getBoolean("doh_disable_on_vpn", true)
+        set(v) = prefs.edit().putBoolean("doh_disable_on_vpn", v).apply()
+
+    /** 默认使用应用内置的 Catbox 匿名上传；关闭后才读取下面的自定义接口配置。 */
+    var useBuiltInImageHost: Boolean
+        get() = prefs.getBoolean("use_builtin_image_host", true)
+        set(v) = prefs.edit().putBoolean("use_builtin_image_host", v).apply()
+
+    var imageHostUrl: String
+        get() = prefs.getString("image_host_url", "") ?: ""
+        set(v) = prefs.edit().putString("image_host_url", v).apply()
+
+    var imageHostToken: String
+        get() = prefs.getString("image_host_token", "") ?: ""
+        set(v) = prefs.edit().putString("image_host_token", v).apply()
+
+    var imageHostField: String
+        get() = prefs.getString("image_host_field", "file") ?: "file"
+        set(v) = prefs.edit().putString("image_host_field", v.ifBlank { "file" }).apply()
+
     /** 检查更新时机：0 = 每次打开应用，1 = 按间隔，2 = 从不 */
     var updateCheckMode: Int
         get() = prefs.getInt("update_check_mode", 0)
@@ -122,13 +229,35 @@ class AppSettings(context: Context) {
     /** 底栏样式：0 = 经典（通栏 NavigationBar），1 = 液态玻璃悬浮胶囊。
      *  读取时夹取到 0..1：原「贴底通栏」铺满样式（2）已移除，旧值自动回落到悬浮胶囊 */
     var bottomBarStyle: Int
-        get() = prefs.getInt("bottom_bar_style", 1).coerceIn(0, 1)
+        get() = prefs.getInt("bottom_bar_style", 0).coerceIn(0, 1)
         set(v) = prefs.edit().putInt("bottom_bar_style", v.coerceIn(0, 1)).apply()
+
+    /** 主底栏项目及顺序；至少保留两项，旧版默认为首页+我的。 */
+    var bottomBarItems: List<String>
+        get() {
+            val allowed = setOf("home", "topicCollections", "directMessages", "newTopic", "me")
+            val value = (prefs.getString("bottom_bar_items", "home,topicCollections,directMessages,me") ?: "")
+                .split(',').map { if (it.trim() == "forums") "topicCollections" else it.trim() }.filter { it in allowed }.distinct()
+            val valid = value.takeIf { it.size >= 2 } ?: listOf("home", "topicCollections", "directMessages", "me")
+            if (prefs.getInt("bottom_navigation_version", 0) < 2) {
+                val migrated = valid.toMutableList()
+                if ("topicCollections" !in migrated) migrated.add((migrated.indexOf("me").takeIf { it >= 0 } ?: migrated.size), "topicCollections")
+                if ("directMessages" !in migrated) migrated.add((migrated.indexOf("me").takeIf { it >= 0 } ?: migrated.size), "directMessages")
+                prefs.edit().putString("bottom_bar_items", migrated.joinToString(",")).putInt("bottom_navigation_version", 2).apply()
+                return migrated
+            }
+            return valid
+        }
+        set(v) {
+            val allowed = setOf("home", "topicCollections", "directMessages", "newTopic", "me")
+            val clean = v.filter { it in allowed }.distinct().takeIf { it.size >= 2 } ?: listOf("home", "me")
+            prefs.edit().putString("bottom_bar_items", clean.joinToString(",")).putInt("bottom_navigation_version", 2).apply()
+        }
 
     /** 评论底栏样式（帖子内底部快捷回复栏）：0 = 经典（通栏 Surface），
      *  1 = 液态玻璃悬浮胶囊（实时折射身后滚动内容） */
     var replyBarStyle: Int
-        get() = prefs.getInt("reply_bar_style", 1).coerceIn(0, 1)
+        get() = prefs.getInt("reply_bar_style", 0).coerceIn(0, 1)
         set(v) = prefs.edit().putInt("reply_bar_style", v.coerceIn(0, 1)).apply()
 
     // ---------------- WebDAV 备份（3.19） ----------------
@@ -149,13 +278,29 @@ class AppSettings(context: Context) {
         get() = prefs.getString("webdav_dir", "/linuxsb/") ?: ""
         set(v) = prefs.edit().putString("webdav_dir", v).apply()
 
+    /** 本地导出与 WebDAV 共用的备份范围。 */
+    var backupItems: Set<String>
+        get() {
+            val allowed = setOf("settings", "history", "favorites", "ai", "usage", "cards", "drafts")
+            return (prefs.getStringSet("backup_items", allowed) ?: allowed).filter { it in allowed }.toSet().ifEmpty { allowed }
+        }
+        set(v) {
+            val allowed = setOf("settings", "history", "favorites", "ai", "usage", "cards", "drafts")
+            prefs.edit().putStringSet("backup_items", v.filter { it in allowed }.toSet().ifEmpty { setOf("settings") }).apply()
+        }
+
     // ---------------- 分类重置（3.9） ----------------
 
     /** 重置浏览设置 */
     fun resetBrowse() = prefs.edit()
-        .remove("infinite_scroll").remove("home_keep_cache").remove("danmaku_on")
+        .remove("infinite_scroll").remove("home_keep_cache").remove("collapse_new_topics").remove("danmaku_on")
+        .remove("home_topic_preview_enabled")
         .remove("sidebar_two_columns").remove("sidebar_show_online_users").remove("topics_per_page")
         .remove("comment_sort_order").remove("comments_per_page")
+        .remove("table_display_mode")
+        .remove("show_uid")
+        .remove("smart_decode_enabled")
+        .remove("selection_menu_items")
         .remove("scroll_mode_overrides").remove("home_sort_drawer_open")
         .remove("unfavorite_confirm")
         .apply()
@@ -163,12 +308,18 @@ class AppSettings(context: Context) {
     /** 重置 AI 设置 */
     fun resetAi() = prefs.edit()
         .remove("ai_auto").remove("ai_auto_run").remove("ai_url").remove("ai_key")
-        .remove("ai_model").remove("ai_temp").remove("ai_include_comments")
+        .remove("ai_model").remove("ai_prompt").remove("ai_temp").remove("ai_include_comments")
+        .remove("ai_config_presets")
         .apply()
 
     /** 重置常规设置 */
     fun resetGeneral() = prefs.edit()
         .remove("link_open_mode").remove("update_check_mode")
+        .remove("link_preview_enabled")
+        .remove("doh_enabled").remove("doh_url").remove("doh_disable_on_vpn")
+        .remove("doh_servers")
+        .remove("use_builtin_image_host")
+        .remove("image_host_url").remove("image_host_token").remove("image_host_field")
         .remove("update_check_interval_hours")
         .apply()
 
@@ -204,6 +355,56 @@ class AppSettings(context: Context) {
     var aiModel: String
         get() = prefs.getString("ai_model", "gpt-4o-mini") ?: ""
         set(v) = prefs.edit().putString("ai_model", v).apply()
+
+    var aiPrompt: String
+        get() = prefs.getString("ai_prompt", "") ?: ""
+        set(v) = prefs.edit().putString("ai_prompt", v).apply()
+
+    fun aiConfigPresets(): List<AiConfigPreset> = runCatching {
+        val arr = JSONArray(prefs.getString("ai_config_presets", "[]") ?: "[]")
+        (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val name = o.optString("name").trim()
+            if (name.isBlank()) return@mapNotNull null
+            AiConfigPreset(
+                name, o.optString("url"), o.optString("key"), o.optString("model"),
+                o.optDouble("temperature", 0.3).toFloat(), o.optString("prompt"),
+                o.optBoolean("includeComments", true),
+            )
+        }
+    }.getOrDefault(emptyList())
+
+    fun saveCurrentAiPreset(name: String) {
+        val clean = name.trim()
+        if (clean.isBlank()) return
+        val all = aiConfigPresets().filterNot { it.name == clean } + AiConfigPreset(
+            clean, aiUrl, aiKey, aiModel, aiTemp, aiPrompt, aiIncludeComments,
+        )
+        val arr = JSONArray()
+        all.forEach { p ->
+            arr.put(JSONObject().put("name", p.name).put("url", p.url).put("key", p.key)
+                .put("model", p.model).put("temperature", p.temperature.toDouble())
+                .put("prompt", p.prompt).put("includeComments", p.includeComments))
+        }
+        prefs.edit().putString("ai_config_presets", arr.toString()).apply()
+    }
+
+    fun applyAiPreset(preset: AiConfigPreset) {
+        aiUrl = preset.url; aiKey = preset.key; aiModel = preset.model
+        aiTemp = preset.temperature; aiPrompt = preset.prompt
+        aiIncludeComments = preset.includeComments
+    }
+
+    fun removeAiPreset(name: String) {
+        val keep = aiConfigPresets().filterNot { it.name == name }
+        val arr = JSONArray()
+        keep.forEach { p ->
+            arr.put(JSONObject().put("name", p.name).put("url", p.url).put("key", p.key)
+                .put("model", p.model).put("temperature", p.temperature.toDouble())
+                .put("prompt", p.prompt).put("includeComments", p.includeComments))
+        }
+        prefs.edit().putString("ai_config_presets", arr.toString()).apply()
+    }
 
     var aiTemp: Float
         get() = prefs.getFloat("ai_temp", 0.3f)
@@ -355,6 +556,127 @@ class AppSettings(context: Context) {
     }
 
     fun clearHistory() = prefs.edit().remove("local_history").apply()
+
+    // ---------------- 发卡兑换自动记录 ----------------
+
+    private fun cardRedemptionArray(): JSONArray = runCatching {
+        JSONArray(prefs.getString("card_redemptions", "[]") ?: "[]")
+    }.getOrDefault(JSONArray())
+
+    /** 从帖子“我的购买记录”同步本机档案。按帖子 + 兑换码去重，最新发现的记录置顶。 */
+    fun recordCardRedemptions(topicId: Long, topicTitle: String, card: VirtualCard?) {
+        if (topicId <= 0 || card == null || card.orders.isEmpty()) return
+        val old = cardRedemptionArray()
+        val incomingKeys = card.orders.map { "$topicId\u0000${it.code}" }.toSet()
+        val out = JSONArray()
+        val now = System.currentTimeMillis()
+        card.orders.forEach { order ->
+            out.put(
+                JSONObject()
+                    .put("topicId", topicId).put("topicTitle", topicTitle)
+                    .put("cardTitle", card.title).put("code", order.code)
+                    .put("price", order.price).put("sourceTime", order.time)
+                    .put("recordedAt", now)
+            )
+        }
+        for (i in 0 until old.length()) {
+            val item = old.optJSONObject(i) ?: continue
+            val key = "${item.optLong("topicId")}\u0000${item.optString("code")}"
+            if (key !in incomingKeys) out.put(item)
+        }
+        while (out.length() > 500) out.remove(out.length() - 1)
+        prefs.edit().putString("card_redemptions", out.toString()).apply()
+    }
+
+    fun cardRedemptions(): List<CardRedemptionRecord> {
+        val arr = cardRedemptionArray()
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val item = arr.optJSONObject(i) ?: continue
+                add(
+                    CardRedemptionRecord(
+                        topicId = item.optLong("topicId"),
+                        topicTitle = item.optString("topicTitle"),
+                        cardTitle = item.optString("cardTitle"),
+                        code = item.optString("code"),
+                        price = item.optString("price"),
+                        sourceTime = item.optString("sourceTime"),
+                        recordedAt = item.optLong("recordedAt"),
+                    )
+                )
+            }
+        }
+    }
+
+    fun clearCardRedemptions() = prefs.edit().remove("card_redemptions").apply()
+
+    // ---------------- 使用统计 ----------------
+
+    private fun usageEventArray(): JSONArray = runCatching {
+        JSONArray(prefs.getString("usage_events", "[]") ?: "[]")
+    }.getOrDefault(JSONArray())
+
+    /** 仅记录应用内实际发生的操作；最多保留 2000 条，避免统计数据无限增长。 */
+    fun recordUsageEvent(type: String, topicId: Long = 0, title: String = "", value: Int = 0) {
+        if (type !in setOf("view", "favorite", "topic", "reply", "coin", "donate")) return
+        val old = usageEventArray()
+        val out = JSONArray().put(
+            JSONObject().put("type", type).put("topicId", topicId).put("title", title)
+                .put("value", value).put("at", System.currentTimeMillis())
+        )
+        for (i in 0 until old.length().coerceAtMost(1999)) old.optJSONObject(i)?.let(out::put)
+        prefs.edit().putString("usage_events", out.toString()).apply()
+    }
+
+    fun usageEvents(): List<UsageEvent> {
+        val arr = usageEventArray()
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val item = arr.optJSONObject(i) ?: continue
+                add(
+                    UsageEvent(
+                        type = item.optString("type"), topicId = item.optLong("topicId"),
+                        title = item.optString("title"), value = item.optInt("value"),
+                        at = item.optLong("at"),
+                    )
+                )
+            }
+        }
+    }
+
+    var usageAiSummary: String
+        get() = prefs.getString("usage_ai_summary", "") ?: ""
+        set(v) = prefs.edit().putString("usage_ai_summary", v).apply()
+
+    var sourceUsageJson: String
+        get() = prefs.getString("source_usage", "{}") ?: "{}"
+        set(value) = prefs.edit().putString("source_usage", value).apply()
+    var builtInImageHostProvider: String
+        get() = prefs.getString("builtin_image_provider", "pixhost") ?: "pixhost"
+        set(value) = prefs.edit().putString("builtin_image_provider", value).apply()
+
+    var confirmGachaPull: Boolean
+        get() = prefs.getBoolean("confirm_gacha_pull", true)
+        set(value) = prefs.edit().putBoolean("confirm_gacha_pull", value).apply()
+
+    fun saveSourcePoints(rows: List<PointRow>) {
+        val array = JSONArray()
+        rows.forEach { row -> array.put(JSONObject().put("time", row.timeText).put("reason", row.reason)
+            .put("change", row.change).put("positive", row.positive).put("timestamp", row.timestamp).put("topicId", row.topicId)) }
+        prefs.edit().putString("source_points", array.toString()).putLong("source_points_synced_at", System.currentTimeMillis()).apply()
+    }
+
+    fun sourcePoints(): List<PointRow> = runCatching {
+        val array = JSONArray(prefs.getString("source_points", "[]"))
+        (0 until array.length()).map { array.getJSONObject(it) }.map {
+            PointRow(it.optString("time"), it.optString("reason"), it.optString("change"), it.optBoolean("positive"), it.optLong("timestamp"), it.optLong("topicId"))
+        }
+    }.getOrDefault(emptyList())
+
+    val sourcePointsSyncedAt: Long get() = prefs.getLong("source_points_synced_at", 0L)
+
+    fun clearUsageStats() = prefs.edit().remove("usage_events").remove("usage_ai_summary")
+        .remove("source_points").remove("source_points_synced_at").remove("source_usage").apply()
 
     // ---------------- 本地收藏内容（收藏时本地快照，不额外访问源站） ----------------
 
@@ -673,6 +995,20 @@ class AppSettings(context: Context) {
         }.sortedWith(compareBy({ dayKey(it.ts) }, { it.seq }))
     }
 
+    /** 源站完整线程覆盖该联系人本地快照，保留其他会话；避免同文消息被错误去重。 */
+    fun savePmThread(thread: DirectMessageThread) {
+        val out = JSONArray()
+        val old = pmArray()
+        for (i in 0 until old.length()) old.optJSONObject(i)?.takeIf { it.optLong("partnerId") != thread.partnerId }?.let(out::put)
+        thread.messages.forEachIndexed { index, message ->
+            out.put(JSONObject().put("partnerId", thread.partnerId).put("partnerName", thread.partnerName)
+                .put("avatarUrl", thread.avatarUrl).put("incoming", message.incoming).put("content", message.content)
+                .put("ts", message.ts).put("seq", index.toLong()).put("timeExact", true).put("read", true)
+                .put("quote", message.quoteText))
+        }
+        prefs.edit().putString("local_pm_messages", out.toString()).apply()
+    }
+
     /** 把某人的未读私信标记为已读 */
     fun markPmRead(partnerId: Long) {
         val arr = pmArray()
@@ -689,22 +1025,42 @@ class AppSettings(context: Context) {
 
     fun exportJson(): String {
         val o = JSONObject()
+        o.put("ai_summaries", JSONObject(aiRecords.all))
+        o.put("drafts", JSONObject(drafts.all))
+        o.put("reading_positions", JSONObject(readingRecords.all))
         o.put("infinite_scroll", infiniteScroll)
         o.put("danmaku_on", danmakuOn)
         o.put("sidebar_two_columns", sidebarTwoColumns)
         o.put("sidebar_show_online_users", sidebarShowOnlineUsers)
         o.put("home_keep_cache", homeKeepCache)
+        o.put("collapse_new_topics", collapseNewTopics)
         o.put("topics_per_page", topicsPerPage)
         o.put("comment_sort_order", commentSortOrder)
         o.put("comments_per_page", commentsPerPage)
+        o.put("table_display_mode", tableDisplayMode)
+        o.put("show_uid", showUid)
+        o.put("smart_decode_enabled", smartDecodeEnabled)
+        o.put("auto_clear_items", JSONArray(autoClearItems.toList()))
         o.put("scroll_mode_overrides", JSONObject(scrollModeOverrides))
         o.put("home_sort_drawer_open", homeSortDrawerOpen)
         o.put("unfavorite_confirm", unfavoriteConfirm)
         o.put("link_open_mode", linkOpenMode)
+        o.put("link_preview_enabled", linkPreviewEnabled)
+        o.put("doh_enabled", dohEnabled)
+        o.put("doh_url", dohUrl)
+        o.put("doh_disable_on_vpn", dohDisableOnVpn)
+        o.put("doh_servers", JSONArray().also { array -> dohServers().forEach { server ->
+            array.put(JSONObject().put("id", server.id).put("name", server.name).put("url", server.url).put("note", server.note))
+        } })
+        o.put("use_builtin_image_host", useBuiltInImageHost)
+        o.put("image_host_url", imageHostUrl)
+        o.put("image_host_token", imageHostToken)
+        o.put("image_host_field", imageHostField)
         o.put("update_check_mode", updateCheckMode)
         o.put("update_check_interval_hours", updateCheckIntervalHours)
         o.put("tablet_mode", tabletMode)
         o.put("bottom_bar_style", bottomBarStyle)
+        o.put("bottom_bar_items", JSONArray(bottomBarItems))
         o.put("reply_bar_style", replyBarStyle)
         o.put("webdav_url", webdavUrl)
         o.put("webdav_user", webdavUser)
@@ -715,6 +1071,8 @@ class AppSettings(context: Context) {
         o.put("ai_url", aiUrl)
         o.put("ai_key", aiKey)
         o.put("ai_model", aiModel)
+        o.put("ai_prompt", aiPrompt)
+        o.put("ai_config_presets", JSONArray(prefs.getString("ai_config_presets", "[]") ?: "[]"))
         o.put("ai_temp", aiTemp.toDouble())
         o.put("ai_include_comments", aiIncludeComments)
         o.put("blocked_words", JSONArray(blockedWords))
@@ -725,6 +1083,14 @@ class AppSettings(context: Context) {
         // 本地收藏的帖子与浏览历史：纯本地数据，源站不存，不导出则换机即丢
         o.put("favorites", JSONArray(prefs.getString("local_favorites", "[]") ?: "[]"))
         o.put("history", JSONArray(prefs.getString("local_history", "[]") ?: "[]"))
+        o.put("card_redemptions", JSONArray(prefs.getString("card_redemptions", "[]") ?: "[]"))
+        o.put("usage_events", JSONArray(prefs.getString("usage_events", "[]") ?: "[]"))
+        o.put("usage_ai_summary", usageAiSummary)
+        o.put("source_points", JSONArray(prefs.getString("source_points", "[]")))
+        o.put("source_points_synced_at", sourcePointsSyncedAt)
+        o.put("source_usage", sourceUsageJson)
+        o.put("builtin_image_provider", builtInImageHostProvider)
+        o.put("confirm_gacha_pull", confirmGachaPull)
         // 26：外观主题与字体（lsb_prefs 全量导出，导入后立即生效）
         val t = JSONObject()
         t.put("theme_mode", themePrefs.getInt("theme_mode", 0))
@@ -736,12 +1102,21 @@ class AppSettings(context: Context) {
         t.put("theme_primary_override", themePrefs.getString("theme_primary_override", "") ?: "")
         t.put("theme_secondary_override", themePrefs.getString("theme_secondary_override", "") ?: "")
         t.put("theme_tertiary_override", themePrefs.getString("theme_tertiary_override", "") ?: "")
+        t.put("theme_background_override", themePrefs.getString("theme_background_override", "") ?: "")
+        t.put("keep_background_color", themePrefs.getBoolean("keep_background_color", true))
+        t.put("exact_theme_colors", themePrefs.getBoolean("exact_theme_colors", false))
+        t.put("background_image", themePrefs.getString("background_image", ""))
+        t.put("background_image_enabled", themePrefs.getBoolean("background_image_enabled", false))
+        t.put("background_image_opacity", themePrefs.getFloat("background_image_opacity", 0.25f).toDouble())
+        t.put("surface_opacity", themePrefs.getFloat("surface_opacity", 1f).toDouble())
         t.put(
             "theme_custom_colors",
             JSONArray((themePrefs.getStringSet("theme_custom_colors", emptySet()) ?: emptySet()).toList())
         )
         t.put("card_colors", themePrefs.getString("card_colors", "") ?: "")
         t.put("font_key", themePrefs.getString("font_key", "default") ?: "default")
+        t.put("font_scale", themePrefs.getFloat("font_scale", 1f).toDouble())
+        t.put("font_weight_level", themePrefs.getInt("font_weight_level", 0))
         // 自定义字体的显示名：不导出会导致导入后字体档位显示为「自定义」但名称空白
         // （字体文件本身在私有目录，无法随 JSON 一起搬走，导入端会自动回落默认字体）
         t.put("custom_font_name", themePrefs.getString("custom_font_name", "") ?: "")
@@ -749,29 +1124,82 @@ class AppSettings(context: Context) {
         return o.toString(2)
     }
 
+    /** 按用户勾选的范围生成备份；本地文件与 WebDAV 使用同一份逻辑。 */
+    fun exportJson(items: Set<String>): String {
+        val full = JSONObject(exportJson())
+        val dataKeys = mapOf(
+            "history" to setOf("history", "reading_positions"),
+            "drafts" to setOf("drafts"),
+            "favorites" to setOf("favorites", "comment_favorites"),
+            "cards" to setOf("card_redemptions"),
+            "usage" to setOf("usage_events", "usage_ai_summary", "source_points", "source_points_synced_at", "source_usage"),
+            "ai" to setOf("ai_auto", "ai_auto_run", "ai_url", "ai_key", "ai_model", "ai_prompt", "ai_config_presets", "ai_temp", "ai_include_comments", "ai_summaries"),
+        )
+        dataKeys.forEach { (group, keys) -> if (group !in items) keys.forEach(full::remove) }
+        if ("settings" !in items) {
+            val keep = dataKeys.filterKeys { it in items }.values.flatten().toSet()
+            full.keys().asSequence().toList().filterNot { it in keep }.forEach(full::remove)
+        }
+        full.put("backup_scope", JSONArray(items.sorted()))
+        return full.toString(2)
+    }
+
     /** @return null 表示导入成功，否则为错误信息 */
     fun importJson(text: String): String? {
         return try {
             val o = JSONObject(text)
+            // 先验证独立数据区再写入，缺少的区不触碰本地数据。
+            val sections = listOf("ai_summaries" to aiRecords, "drafts" to drafts, "reading_positions" to readingRecords)
+            sections.forEach { (name, _) -> if (o.has(name)) require(o.get(name) is JSONObject) }
             val p = prefs.edit()
             if (o.has("infinite_scroll")) p.putBoolean("infinite_scroll", o.getBoolean("infinite_scroll"))
             if (o.has("danmaku_on")) p.putBoolean("danmaku_on", o.getBoolean("danmaku_on"))
             if (o.has("sidebar_two_columns")) p.putBoolean("sidebar_two_columns", o.getBoolean("sidebar_two_columns"))
             if (o.has("sidebar_show_online_users")) p.putBoolean("sidebar_show_online_users", o.getBoolean("sidebar_show_online_users"))
             if (o.has("home_keep_cache")) p.putBoolean("home_keep_cache", o.getBoolean("home_keep_cache"))
+            if (o.has("collapse_new_topics")) p.putBoolean("collapse_new_topics", o.getBoolean("collapse_new_topics"))
             if (o.has("topics_per_page")) p.putInt("topics_per_page", o.optInt("topics_per_page", 15).coerceIn(5, 50))
             if (o.has("comment_sort_order")) p.putInt("comment_sort_order", o.optInt("comment_sort_order", 0).coerceIn(0, 2))
             if (o.has("comments_per_page")) p.putInt("comments_per_page", o.optInt("comments_per_page", 20).coerceIn(5, 100))
+            if (o.has("table_display_mode")) p.putInt("table_display_mode", o.optInt("table_display_mode", 0).coerceIn(0, 1))
+            if (o.has("show_uid")) p.putBoolean("show_uid", o.getBoolean("show_uid"))
+            if (o.has("smart_decode_enabled")) p.putBoolean("smart_decode_enabled", o.getBoolean("smart_decode_enabled"))
+            if (o.has("auto_clear_items")) {
+                val arr = o.getJSONArray("auto_clear_items")
+                p.putStringSet("auto_clear_items", (0 until arr.length()).map { arr.getString(it) }.toSet())
+            }
             if (o.has("scroll_mode_overrides")) p.putString("scroll_mode_overrides", o.getJSONObject("scroll_mode_overrides").toString())
             if (o.has("home_sort_drawer_open")) p.putBoolean("home_sort_drawer_open", o.getBoolean("home_sort_drawer_open"))
             if (o.has("unfavorite_confirm")) p.putBoolean("unfavorite_confirm", o.getBoolean("unfavorite_confirm"))
             if (o.has("link_open_mode")) p.putInt("link_open_mode", o.optInt("link_open_mode", 0).coerceIn(0, 1))
+            if (o.has("link_preview_enabled")) p.putBoolean("link_preview_enabled", o.getBoolean("link_preview_enabled"))
+            if (o.has("doh_enabled")) p.putBoolean("doh_enabled", o.getBoolean("doh_enabled"))
+            if (o.has("doh_url")) p.putString("doh_url", o.getString("doh_url"))
+            if (o.has("doh_disable_on_vpn")) p.putBoolean("doh_disable_on_vpn", o.getBoolean("doh_disable_on_vpn"))
+            if (o.has("doh_servers")) {
+                val servers = o.getJSONArray("doh_servers")
+                for (index in 0 until servers.length()) {
+                    val server = servers.getJSONObject(index)
+                    require(server.getString("id").isNotBlank() && server.getString("name").isNotBlank() && AppNetwork.isValidEndpoint(server.getString("url")))
+                }
+                p.putString("doh_servers", servers.toString())
+            }
+            if (o.has("use_builtin_image_host")) p.putBoolean("use_builtin_image_host", o.getBoolean("use_builtin_image_host"))
+            if (o.has("image_host_url")) p.putString("image_host_url", o.getString("image_host_url"))
+            if (o.has("image_host_token")) p.putString("image_host_token", o.getString("image_host_token"))
+            if (o.has("image_host_field")) p.putString("image_host_field", o.getString("image_host_field"))
             // 0 = 每次打开，1 = 按间隔，2 = 从不：上限必须是 2，夹到 1 会把用户
             // 选的「从不」在恢复备份后悄悄改成「按间隔」
             if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 2))
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))
             if (o.has("tablet_mode")) p.putBoolean("tablet_mode", o.getBoolean("tablet_mode"))
             if (o.has("bottom_bar_style")) p.putInt("bottom_bar_style", o.optInt("bottom_bar_style", 1).coerceIn(0, 1))
+            if (o.has("bottom_bar_items")) {
+                val arr = o.getJSONArray("bottom_bar_items")
+                val allowed = setOf("home", "forums", "topicCollections", "directMessages", "newTopic", "me")
+                val items = (0 until arr.length()).map { arr.getString(it) }.filter { it in allowed }.distinct()
+                if (items.size >= 2) p.putString("bottom_bar_items", items.joinToString(","))
+            }
             if (o.has("reply_bar_style")) p.putInt("reply_bar_style", o.optInt("reply_bar_style", 1).coerceIn(0, 1))
             if (o.has("webdav_url")) p.putString("webdav_url", o.getString("webdav_url"))
             if (o.has("webdav_user")) p.putString("webdav_user", o.getString("webdav_user"))
@@ -782,6 +1210,8 @@ class AppSettings(context: Context) {
             if (o.has("ai_url")) p.putString("ai_url", o.getString("ai_url"))
             if (o.has("ai_key")) p.putString("ai_key", o.getString("ai_key"))
             if (o.has("ai_model")) p.putString("ai_model", o.getString("ai_model"))
+            if (o.has("ai_prompt")) p.putString("ai_prompt", o.getString("ai_prompt"))
+            if (o.has("ai_config_presets")) p.putString("ai_config_presets", o.getJSONArray("ai_config_presets").toString())
             if (o.has("ai_temp")) p.putFloat("ai_temp", o.getDouble("ai_temp").toFloat())
             if (o.has("ai_include_comments")) p.putBoolean("ai_include_comments", o.getBoolean("ai_include_comments"))
             if (o.has("blocked_words")) {
@@ -801,13 +1231,44 @@ class AppSettings(context: Context) {
             // 本地收藏的帖子与浏览历史
             if (o.has("favorites")) p.putString("local_favorites", o.getJSONArray("favorites").toString())
             if (o.has("history")) p.putString("local_history", o.getJSONArray("history").toString())
-            p.apply()
+            if (o.has("card_redemptions")) p.putString("card_redemptions", o.getJSONArray("card_redemptions").toString())
+            if (o.has("usage_events")) p.putString("usage_events", o.getJSONArray("usage_events").toString())
+            if (o.has("usage_ai_summary")) p.putString("usage_ai_summary", o.getString("usage_ai_summary"))
+            if (o.has("source_points")) p.putString("source_points", o.getJSONArray("source_points").toString())
+            if (o.has("source_points_synced_at")) p.putLong("source_points_synced_at", o.getLong("source_points_synced_at"))
+            if (o.has("source_usage")) p.putString("source_usage", o.getString("source_usage"))
+            if (o.has("builtin_image_provider")) p.putString("builtin_image_provider", o.getString("builtin_image_provider"))
+            if (o.has("confirm_gacha_pull")) p.putBoolean("confirm_gacha_pull", o.getBoolean("confirm_gacha_pull"))
+            val pendingEditors = mutableListOf(p)
+            sections.forEach { (name, destination) ->
+                if (o.has(name)) {
+                    val values = o.getJSONObject(name)
+                    pendingEditors += destination.edit().also { editor ->
+                        values.keys().forEach { key ->
+                            when (val value = values.get(key)) {
+                                is Boolean -> editor.putBoolean(key, value)
+                                is Number -> editor.putLong(key, value.toLong())
+                                else -> editor.putString(key, value.toString())
+                            }
+                        }
+                    }
+                }
+            }
             // 26：外观主题与字体写入 lsb_prefs
             if (o.has("theme")) {
                 val t = o.getJSONObject("theme")
                 val tp = themePrefs.edit()
                 if (t.has("theme_mode")) tp.putInt("theme_mode", t.optInt("theme_mode", 0).coerceIn(0, 2))
                 if (t.has("dynamic_color")) tp.putBoolean("dynamic_color", t.getBoolean("dynamic_color"))
+                if (t.has("exact_theme_colors")) tp.putBoolean("exact_theme_colors", t.getBoolean("exact_theme_colors"))
+                if (t.has("background_image")) {
+                    val encoded = t.getString("background_image")
+                    require(encoded.length <= 6 * 1024 * 1024) { "备份中的背景图片过大" }
+                    tp.putString("background_image", encoded)
+                }
+                if (t.has("background_image_enabled")) tp.putBoolean("background_image_enabled", t.getBoolean("background_image_enabled"))
+                if (t.has("background_image_opacity")) tp.putFloat("background_image_opacity", t.getDouble("background_image_opacity").toFloat().coerceIn(0.05f, 0.65f))
+                if (t.has("surface_opacity")) tp.putFloat("surface_opacity", t.getDouble("surface_opacity").toFloat().coerceIn(0.2f, 1f))
                 if (t.has("theme_color")) tp.putString("theme_color", t.getString("theme_color"))
                 if (t.has("oled_dark")) tp.putBoolean("oled_dark", t.getBoolean("oled_dark"))
                 if (t.has("theme_style")) tp.putInt("theme_style", t.optInt("theme_style", 0).coerceIn(0, 15))
@@ -815,17 +1276,22 @@ class AppSettings(context: Context) {
                 if (t.has("theme_primary_override")) tp.putString("theme_primary_override", t.getString("theme_primary_override"))
                 if (t.has("theme_secondary_override")) tp.putString("theme_secondary_override", t.getString("theme_secondary_override"))
                 if (t.has("theme_tertiary_override")) tp.putString("theme_tertiary_override", t.getString("theme_tertiary_override"))
+                if (t.has("theme_background_override")) tp.putString("theme_background_override", t.getString("theme_background_override"))
+                if (t.has("keep_background_color")) tp.putBoolean("keep_background_color", t.getBoolean("keep_background_color"))
                 if (t.has("theme_custom_colors")) {
                     val arr = t.getJSONArray("theme_custom_colors")
                     tp.putStringSet("theme_custom_colors", (0 until arr.length()).map { arr.getString(it) }.toSet())
                 }
                 if (t.has("card_colors")) tp.putString("card_colors", t.getString("card_colors"))
                 if (t.has("font_key")) tp.putString("font_key", t.getString("font_key"))
+                if (t.has("font_scale")) tp.putFloat("font_scale", t.getDouble("font_scale").toFloat().coerceIn(0.85f, 1.30f))
+                if (t.has("font_weight_level")) tp.putInt("font_weight_level", t.optInt("font_weight_level", 0).coerceIn(0, 2))
                 // 字体文件在私有目录、随不了 JSON；导入后 MainActivity 发现文件不存在会
                 // 自动回落默认字体，这里只把名称补上以免设置页显示为空白的「自定义」
                 if (t.has("custom_font_name")) tp.putString("custom_font_name", t.getString("custom_font_name"))
-                tp.apply()
+                pendingEditors += tp
             }
+            pendingEditors.forEach { it.apply() }
             null
         } catch (e: Exception) {
             "导入失败：不是有效的设置 JSON"

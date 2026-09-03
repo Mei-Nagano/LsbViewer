@@ -34,6 +34,8 @@ class LsbException(message: String) : Exception(message)
  */
 class LsbClient(private val context: Context) {
 
+    init { AppNetwork.init(context) }
+
     private val prefs = context.getSharedPreferences("lsb_session", Context.MODE_PRIVATE)
 
     private val cookieJar = object : CookieJar {
@@ -116,12 +118,13 @@ class LsbClient(private val context: Context) {
         }
     }
 
-    val http: OkHttpClient = OkHttpClient.Builder()
+    val http: OkHttpClient = AppNetwork.clientBuilder()
         .cookieJar(cookieJar)
+        .apply { interceptors().removeAll { it is CronetFallbackInterceptor } }
         .followRedirects(true)
         // 显式 keep-alive：登录的 GET/POST 必须复用同一连接（同源 IP），
         // 否则服务端会判定"网络环境变化"拒绝提交
-        .connectionPool(okhttp3.ConnectionPool(5, 10, java.util.concurrent.TimeUnit.MINUTES))
+        .connectionPool(AppNetwork.connectionPool)
         .connectTimeout(java.time.Duration.ofSeconds(20))
         .readTimeout(java.time.Duration.ofSeconds(30))
         // 固定真实浏览器请求头：让防护侧看到与正常手机浏览器一致的请求特征
@@ -130,10 +133,13 @@ class LsbClient(private val context: Context) {
                 .header("User-Agent", UA)
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
                 .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                .header("Cache-Control", "max-age=0")
+                .apply {
+                    if (chain.request().tag(ImageTraffic::class.java) == null) header("Cache-Control", "max-age=0")
+                }
                 .build()
             chain.proceed(req)
         }
+        .addInterceptor(CronetFallbackInterceptor(cookieJar))
         .build()
 
     /** 全局验证页回调：设置后验证页会通过 UI 展示给用户 */
@@ -395,7 +401,7 @@ class LsbClient(private val context: Context) {
             wv.settings.userAgentString = UA
             CookieManager.getInstance().setAcceptCookie(true)
             wv.webViewClient = WebViewClient()
-            wv.loadUrl(url)
+            WebViewDoh.load(wv, url)
 
             val passed = withTimeoutOrNull(30_000) { waitForUamPass(wv) } ?: false
             val cookies = CookieManager.getInstance().getCookie(url)

@@ -9,11 +9,23 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalTonalElevationEnabled
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.materialkolor.PaletteStyle
 
@@ -103,6 +115,8 @@ fun paletteStyleLabel(style: PaletteStyle): String = when (style) {
 }
 
 /** 全局形状：比默认更圆润的 MD3 风格 */
+val LocalSurfaceOpacity = androidx.compose.runtime.staticCompositionLocalOf { 1f }
+
 private val LsbShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
@@ -112,26 +126,25 @@ private val LsbShapes = Shapes(
 )
 
 /** 应用字体（24）：把所选 FontFamily 应用到全部文字样式（保持 M3 默认字号/行高/字重） */
-private fun appTypography(ff: FontFamily?): Typography {
+private fun appTypography(ff: FontFamily?, scale: Float, weightLevel: Int): Typography {
     val t = Typography()
-    if (ff == null) return t
-    fun TextStyle.withFont() = copy(fontFamily = ff)
+    val sizeScale = scale.coerceIn(0.85f, 1.30f)
+    val weightDelta = weightLevel.coerceIn(0, 2) * 100
+    fun TextStyle.adjusted() = copy(
+        fontFamily = ff ?: fontFamily,
+        fontSize = fontSize * sizeScale,
+        lineHeight = lineHeight * sizeScale,
+        fontWeight = FontWeight(((fontWeight ?: FontWeight.Normal).weight + weightDelta).coerceAtMost(900)),
+    )
     return t.copy(
-        displayLarge = t.displayLarge.withFont(),
-        displayMedium = t.displayMedium.withFont(),
-        displaySmall = t.displaySmall.withFont(),
-        headlineLarge = t.headlineLarge.withFont(),
-        headlineMedium = t.headlineMedium.withFont(),
-        headlineSmall = t.headlineSmall.withFont(),
-        titleLarge = t.titleLarge.withFont(),
-        titleMedium = t.titleMedium.withFont(),
-        titleSmall = t.titleSmall.withFont(),
-        bodyLarge = t.bodyLarge.withFont(),
-        bodyMedium = t.bodyMedium.withFont(),
-        bodySmall = t.bodySmall.withFont(),
-        labelLarge = t.labelLarge.withFont(),
-        labelMedium = t.labelMedium.withFont(),
-        labelSmall = t.labelSmall.withFont(),
+        displayLarge = t.displayLarge.adjusted(), displayMedium = t.displayMedium.adjusted(),
+        displaySmall = t.displaySmall.adjusted(), headlineLarge = t.headlineLarge.adjusted(),
+        headlineMedium = t.headlineMedium.adjusted(), headlineSmall = t.headlineSmall.adjusted(),
+        titleLarge = t.titleLarge.adjusted(), titleMedium = t.titleMedium.adjusted(),
+        titleSmall = t.titleSmall.adjusted(), bodyLarge = t.bodyLarge.adjusted(),
+        bodyMedium = t.bodyMedium.adjusted(), bodySmall = t.bodySmall.adjusted(),
+        labelLarge = t.labelLarge.adjusted(), labelMedium = t.labelMedium.adjusted(),
+        labelSmall = t.labelSmall.adjusted(),
     )
 }
 
@@ -146,7 +159,14 @@ fun LsbTheme(
     primary: Color? = null,
     secondary: Color? = null,
     tertiary: Color? = null,
+    customBackground: Color? = null,
+    keepBackgroundColor: Boolean = true,
+    backgroundImage: String = "",
+    backgroundImageOpacity: Float = 0.25f,
+    surfaceOpacity: Float = 1f,
     fontFamily: FontFamily? = null,
+    fontScale: Float = 1f,
+    fontWeightLevel: Int = 0,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (themeMode) {
@@ -174,23 +194,10 @@ fun LsbTheme(
             contrastLevel = contrastLevel,
         )
     }
-    // 调色风格算法覆盖预览可调色的全部元素（3.12）：
-    // 中性色（卡片背景 surfaceContainerLow / 时间与评论数 onSurfaceVariant 等）向主题色轻微偏移，
-    // 偏移强度随各风格主色饱和度联动——切风格时所有元素同步变化；
-    // 单色/中性风格下主色近灰，偏移自然趋近于 0，不破坏 MD3 层级。
-    val styledScheme = if (!useDynamic) colorScheme.copy(
-        background = androidx.compose.ui.graphics.lerp(colorScheme.background, colorScheme.primary, 0.05f),
-        surface = androidx.compose.ui.graphics.lerp(colorScheme.surface, colorScheme.primary, 0.05f),
-        surfaceContainerLowest = androidx.compose.ui.graphics.lerp(colorScheme.surfaceContainerLowest, colorScheme.primary, 0.04f),
-        surfaceContainerLow = androidx.compose.ui.graphics.lerp(colorScheme.surfaceContainerLow, colorScheme.primary, 0.05f),
-        surfaceContainer = androidx.compose.ui.graphics.lerp(colorScheme.surfaceContainer, colorScheme.primary, 0.06f),
-        surfaceContainerHigh = androidx.compose.ui.graphics.lerp(colorScheme.surfaceContainerHigh, colorScheme.primary, 0.07f),
-        surfaceContainerHighest = androidx.compose.ui.graphics.lerp(colorScheme.surfaceContainerHighest, colorScheme.primary, 0.08f),
-        onSurfaceVariant = androidx.compose.ui.graphics.lerp(colorScheme.onSurfaceVariant, colorScheme.primary, 0.10f),
-        outlineVariant = androidx.compose.ui.graphics.lerp(colorScheme.outlineVariant, colorScheme.primary, 0.06f),
-    ) else colorScheme
+    // 统一固定所有中性色角色；同时覆盖系统动态色，不能只固定 background 一个字段。
+    val styledScheme = if (keepBackgroundColor) neutralPageColors(colorScheme, darkTheme) else colorScheme
     // OLED 纯黑模式：深色下把所有表面压到纯黑/近黑，省电且对比更强
-    val finalScheme = if (darkTheme && pureDark) styledScheme.copy(
+    val darkScheme = if (darkTheme && pureDark) styledScheme.copy(
         background = Color.Black,
         surface = Color.Black,
         surfaceVariant = Color(0xFF121212),
@@ -203,10 +210,48 @@ fun LsbTheme(
         surfaceContainerHighest = Color(0xFF1C1C1C),
         outlineVariant = Color(0xFF262626),
     ) else styledScheme
-    MaterialTheme(
-        colorScheme = finalScheme,
-        typography = appTypography(fontFamily),
-        shapes = LsbShapes,
-        content = content
+    // 自定义背景只覆盖页面底色，且按取色器的原始色值应用，不交给主题引擎二次调色。
+    val finalScheme = customBackground?.let { bg ->
+        darkScheme.copy(
+            background = bg,
+            onBackground = if (bg.luminance() > 0.48f) Color.Black else Color.White,
+        )
+    } ?: darkScheme
+    val wallpaper = remember(backgroundImage) {
+        backgroundImage.takeIf { it.isNotEmpty() && it.length <= 6 * 1024 * 1024 }?.let { raw ->
+            runCatching {
+                val bytes = android.util.Base64.decode(raw, android.util.Base64.DEFAULT)
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                require(bounds.outWidth in 1..1920 && bounds.outHeight in 1..1920)
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    val surfaces = if (wallpaper == null) finalScheme else finalScheme.copy(
+        background = Color.Transparent,
+        surface = finalScheme.surface.copy(alpha = surfaceOpacity),
+        surfaceVariant = finalScheme.surfaceVariant.copy(alpha = surfaceOpacity),
+        surfaceContainer = finalScheme.surfaceContainer.copy(alpha = surfaceOpacity),
+        surfaceContainerLowest = finalScheme.surfaceContainerLowest.copy(alpha = surfaceOpacity),
+        surfaceContainerLow = finalScheme.surfaceContainerLow.copy(alpha = surfaceOpacity),
+        surfaceContainerHigh = finalScheme.surfaceContainerHigh.copy(alpha = surfaceOpacity),
+        surfaceContainerHighest = finalScheme.surfaceContainerHighest.copy(alpha = surfaceOpacity),
     )
+    MaterialTheme(
+        colorScheme = surfaces,
+        typography = appTypography(fontFamily, fontScale, fontWeightLevel),
+        shapes = LsbShapes,
+    ) {
+        // 防止 Surface 的色调海拔再次用主色给中性面板叠色。
+        CompositionLocalProvider(LocalTonalElevationEnabled provides !keepBackgroundColor,
+            LocalSurfaceOpacity provides if (wallpaper == null) 1f else surfaceOpacity) {
+            if (wallpaper == null) content()
+            else Box(Modifier.fillMaxSize().background(finalScheme.background)) {
+                Image(wallpaper, contentDescription = null, modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop, alpha = backgroundImageOpacity.coerceIn(0.05f, 0.65f))
+                content()
+            }
+        }
+    }
 }

@@ -169,7 +169,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        color = MaterialTheme.colorScheme.surfaceContainerLow
                     ) {
                         Column(Modifier.padding(18.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -218,9 +218,6 @@ fun UserScreen(session: Session, nav: NavHostController) {
                             ) {
                                 UserInfoPill(Icons.Filled.Star, "积分 ${p.points.ifBlank { "-" }}")
                                 UserInfoPill(Icons.Filled.Badge, "UID ${p.userId}")
-                                if (p.rankText.isNotBlank() && p.userGroup.isBlank()) {
-                                    UserInfoPill(Icons.Filled.MilitaryTech, p.rankText)
-                                }
                             }
                             if (p.bio.isNotBlank()) {
                                 Spacer(Modifier.height(12.dp))

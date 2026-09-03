@@ -173,7 +173,7 @@ fun VerificationDialog(
                                         }, 1500)
                                     }
                                 }
-                                loadUrl(url)
+                                sb.linux.client.data.WebViewDoh.load(this, url)
                             }
                         },
                         modifier = Modifier.fillMaxSize(),

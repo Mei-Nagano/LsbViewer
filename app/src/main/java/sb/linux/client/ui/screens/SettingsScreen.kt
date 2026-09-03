@@ -57,6 +57,9 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(msg) {
+        msg?.let { session.showToast(it); msg = null }
+    }
     val scope = rememberCoroutineScope()
 
     fun load() {
@@ -98,25 +101,12 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
     ) { pad ->
         Box(Modifier.padding(pad)) {
             when {
-                !session.loginState.loggedIn -> Column(
-                    Modifier.fillMaxSize().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text("个人信息与源站账号绑定", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(6.dp))
-                    Text("登录后可管理头像、简介、密码与邮箱", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(12.dp))
-                    Button(onClick = { nav.navigate("login") }) { Text("去登录") }
-                }
+                !session.loginState.loggedIn -> LoginRequiredBox(
+                    "个人信息与源站账号绑定",
+                    "登录后可管理头像、简介、密码与邮箱",
+                ) { nav.navigate("login") }
                 loading -> LoadingBox()
-                error != null -> Column(
-                    Modifier.fillMaxSize().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    ErrorBox(error!!) { load() }
-                }
+                error != null -> ErrorBox(error!!) { load() }
                 else -> {
                     val p = page ?: return@Box
                     LazyColumn(
@@ -124,24 +114,6 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        msg?.let { m ->
-                            item {
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = if (m.startsWith("✓")) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.errorContainer,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        m,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (m.startsWith("✓")) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                                    )
-                                }
-                            }
-                        }
                         // ---------- 个人资料卡 ----------
                         item {
                             ProfileHeaderCard(
@@ -154,14 +126,12 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
                         }
                         // ---------- 屏蔽词管理 ----------
                         item {
-                            OutlinedButton(
-                                onClick = { nav.navigate("blockWords") },
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Filled.Block, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("屏蔽词管理")
+                            GroupCard {
+                                SettingMenuRow(
+                                    "屏蔽词管理",
+                                    "关键词与屏蔽用户，与网页端同步",
+                                    Icons.Filled.Block,
+                                ) { nav.navigate("blockWords") }
                             }
                         }
                         // ---------- 各表单卡片（上传头像/简介/密码…按源站实际动态渲染） ----------

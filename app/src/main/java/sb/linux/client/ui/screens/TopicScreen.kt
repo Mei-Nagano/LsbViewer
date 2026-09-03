@@ -1,6 +1,9 @@
 package sb.linux.client.ui.screens
 
 import android.view.WindowManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -16,6 +19,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -28,6 +32,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState as rememberRowStat
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -43,6 +49,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CopyAll
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Flag
@@ -50,6 +58,7 @@ import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -58,7 +67,10 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Paid
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SentimentSatisfied
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Title
@@ -78,9 +90,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -89,6 +104,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -111,11 +127,14 @@ import kotlinx.coroutines.withContext
 import sb.linux.client.data.AiClient
 import sb.linux.client.data.DanmakuItem
 import sb.linux.client.data.HtmlParser
+import sb.linux.client.data.ImageHostClient
 import sb.linux.client.data.LotteryPanel
 import sb.linux.client.data.PostEntry
 import sb.linux.client.data.Session
 import sb.linux.client.data.TopicExport
 import sb.linux.client.data.TopicPageData
+import sb.linux.client.data.TopicPoll
+import sb.linux.client.data.TopicPollOption
 import sb.linux.client.data.VirtualCard
 import sb.linux.client.ui.*
 import java.io.File
@@ -126,16 +145,47 @@ import java.io.File
  */
 private const val FLOOR_PILL_ENABLED = false
 
+private data class TopicSearchHit(val post: PostEntry, val snippet: String)
+
+@Composable
+private fun SearchHighlightedText(text: String, query: String, maxLines: Int) {
+    val highlight = MaterialTheme.colorScheme.tertiaryContainer
+    val marked = remember(text, query, highlight) {
+        buildAnnotatedString {
+            append(text)
+            if (query.isNotBlank()) {
+                Regex(Regex.escape(query), RegexOption.IGNORE_CASE).findAll(text).forEach { match ->
+                    addStyle(
+                        SpanStyle(background = highlight, fontWeight = FontWeight.SemiBold),
+                        match.range.first,
+                        match.range.last + 1,
+                    )
+                }
+            }
+        }
+    }
+    Text(marked, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TopicScreen(session: Session, nav: NavHostController) {
     val entry = nav.currentBackStackEntry ?: return
     val tid = entry.arguments?.getLong("tid") ?: return
-    val initialPage = entry.arguments?.getInt("p") ?: 1
+    val initialPage = 1
     // 定位楼层（收藏评论跳转用，34）：>0 时首屏加载完成后自动跳到该楼
     val initialFloor = entry.arguments?.getInt("floor") ?: 0
     val context = LocalContext.current
+    val searchKeyboard = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
+
+    val pinnedSnapshot = remember(tid) {
+        session.floatingTopicSnapshot?.takeIf { session.floatingTopicId == tid && it.topic.topicId == tid }
+    }
+    val previousReading = remember(tid) { session.getReadingPosition(tid) }
+    var offerPreviousReading by remember(tid) { mutableStateOf(pinnedSnapshot == null && previousReading?.let { it.listIndex > 0 || it.scrollOffset > 0 } == true) }
+    // 通过首页浮窗或其他方式重新进入已钉住帖子后，浮窗自动完成使命。
+    LaunchedEffect(tid) { session.clearFloatingTopic(tid) }
 
     var data by remember { mutableStateOf<TopicPageData?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -152,10 +202,20 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var userRepliesTitle by remember { mutableStateOf("") }
     var showFloorDialog by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+    var topicSearchOpen by remember { mutableStateOf(false) }
+    var topicSearchListOpen by remember { mutableStateOf(false) }
+    var topicSearchIndex by remember { mutableIntStateOf(0) }
+    var allSearchPagesLoaded by remember(tid) { mutableStateOf(false) }
+    var pendingSearchPost by remember { mutableStateOf<PostEntry?>(null) }
+    val searchPositions = remember(tid) { mutableMapOf<Long, Pair<String, Float>>() }
+    var tocOpen by remember { mutableStateOf(false) }
+    var topicSearchQuery by remember { mutableStateOf("") }
     var showExportDialog by remember { mutableStateOf(false) }
     var exportBusy by remember { mutableStateOf<String?>(null) }
     // 打赏：底部弹层，不再跳转独立页面（28）
     var showDonate by remember { mutableStateOf(false) }
+    var pollBusy by remember { mutableStateOf(false) }
+    var essenceBusy by remember { mutableStateOf(false) }
 
     // 评论区排序：0 = 热度（楼主正文固定首位 + 其余按点赞数降序，同赞按楼层号升序保证稳定），
     //           1 = 正序（楼层号升序），2 = 倒序（楼层号降序）；记住上次选择
@@ -170,11 +230,14 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var threadLoading by remember { mutableStateOf(false) }
     var threadError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    val listState = remember(tid) { androidx.compose.foundation.lazy.LazyListState() }
 
     // 楼层定位：高亮目标楼层 + 记住原位置以便返回（2.13）
     var highlightPostId by remember { mutableStateOf<Long?>(null) }
     var returnPos by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var pendingRestoreOffset by remember(tid) { mutableStateOf<Int?>(null) }
+    var readingPositionRestored by remember(tid) { mutableStateOf(false) }
+    var usageViewRecorded by rememberSaveable(tid) { mutableStateOf(false) }
 
     // 顶栏常驻显示（11）：正文标题滑出顶栏下沿后，顶栏显示帖子标题，此外隐藏。
     // 标题行底边与内容区顶边实时测量（root 坐标），标题完全没入顶栏即切换。
@@ -226,6 +289,20 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     val idToFloor = remember(data) {
         (data?.posts ?: emptyList()).associate { it.id to it.floor }
     }
+    val latestIdToFloor by rememberUpdatedState(idToFloor)
+    DisposableEffect(tid) {
+        onDispose {
+            val first = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+            val replyId = (first?.key as? String)?.removePrefix("r-")?.toLongOrNull()
+            val floor = replyId?.let { latestIdToFloor[it] } ?: 0
+            session.saveReadingPosition(
+                topicId = tid,
+                floor = floor,
+                listIndex = listState.firstVisibleItemIndex,
+                scrollOffset = listState.firstVisibleItemScrollOffset,
+            )
+        }
+    }
     val currentFloor by remember(idToFloor) {
         derivedStateOf {
             listState.layoutInfo.visibleItemsInfo
@@ -240,18 +317,69 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 正序档按楼层号升序（源站页面顺序）。未登录时源站不输出点赞计数（全 0），热度档自然退化为正序
     val sortedPosts = remember(data, sortOrder) {
         val d = data ?: return@remember emptyList()
-        val main = d.posts.firstOrNull()
+        val main = d.posts.firstOrNull { it.floor == 0 }
+        val comments = d.posts.filter { it.id != main?.id }
         val rest = when (sortOrder) {
-            1 -> d.posts.drop(1).sortedBy { it.floor }
+            1 -> comments.sortedBy { it.floor }
             // 倒序：楼层号降序
-            2 -> d.posts.drop(1).sortedByDescending { it.floor }
-            else -> d.posts.drop(1).sortedWith(
+            2 -> comments.sortedByDescending { it.floor }
+            else -> comments.sortedWith(
                 compareByDescending<PostEntry> { it.likeCount }.thenBy { it.floor }
             )
         }
         if (main != null) listOf(main) + rest else rest
     }
-    val mainPost = sortedPosts.firstOrNull()
+    val mainPost = sortedPosts.firstOrNull { it.floor == 0 }
+    val topicSearchHits = remember(data?.posts, topicSearchQuery) {
+        val query = topicSearchQuery.trim()
+        if (query.isBlank()) emptyList() else data?.posts.orEmpty().sortedBy { it.floor }.mapNotNull { post ->
+            val text = HtmlParser.htmlToSearchText(post.contentHtml)
+            val inAuthor = post.authorName.contains(query, ignoreCase = true)
+            val at = text.indexOf(query, ignoreCase = true)
+            if (!inAuthor && at < 0) null else {
+                val center = at.coerceAtLeast(0)
+                val start = (center - 45).coerceAtLeast(0)
+                val end = (center + query.length + 90).coerceAtMost(text.length)
+                TopicSearchHit(post, buildString {
+                    if (start > 0) append('…')
+                    append(text.substring(start, end).replace(Regex("""\s+"""), " "))
+                    if (end < text.length) append('…')
+                }.ifBlank { "用户名匹配" })
+            }
+        }.orEmpty()
+    }
+    LaunchedEffect(topicSearchQuery, topicSearchHits.size) {
+        topicSearchIndex = topicSearchIndex.coerceIn(0, (topicSearchHits.size - 1).coerceAtLeast(0))
+    }
+    val readingStats = remember(mainPost?.contentHtml) {
+        mainPost?.contentHtml?.let { estimateReading(HtmlParser.htmlToText(it)) }
+    }
+    data class TocHeading(val text: String, val level: Int)
+    val tocHeadings = remember(mainPost?.contentHtml) {
+        mainPost?.contentHtml?.let { html ->
+            org.jsoup.Jsoup.parseBodyFragment(html).select("h1,h2,h3,h4,h5,h6").mapNotNull { node ->
+                node.text().trim().takeIf { it.isNotBlank() }?.let {
+                    TocHeading(it, node.tagName().removePrefix("h").toIntOrNull() ?: 1)
+                }
+            }
+        }.orEmpty()
+    }
+    val headingPositions = remember(tid) { mutableStateMapOf<Int, Float>() }
+    var bodyTop by remember(tid) { mutableFloatStateOf(0f) }
+    var bodyHeight by remember(tid) { mutableFloatStateOf(0f) }
+    val bodyVisible by remember {
+        derivedStateOf {
+            listState.layoutInfo.visibleItemsInfo.any { (it.key as? String)?.startsWith("main-") == true } &&
+                bodyHeight > 0 && bodyTop + bodyHeight > contentTopInRoot + topBarPx &&
+                bodyTop < contentTopInRoot + listState.layoutInfo.viewportEndOffset
+        }
+    }
+    val readingProgress by remember {
+        derivedStateOf {
+            val viewportHeight = (listState.layoutInfo.viewportEndOffset - topBarPx).coerceAtLeast(1f)
+            ((contentTopInRoot + topBarPx - bodyTop) / (bodyHeight - viewportHeight).coerceAtLeast(1f)).coerceIn(0f, 1f)
+        }
+    }
 
     // 帖子分类生效的滚动模式（浏览设置可按分类覆盖，3.13）
     val topicInfinite = session.effectiveInfiniteScroll("topic")
@@ -262,6 +390,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 已载入 data 的源站分页范围（加载是顺序的，恒为 1..loadedMaxPage）。
     // 保存后返回本帖时据此从缓存重建 data，避免只加载第一页导致滚动位置丢失。
     var loadedMaxPage by rememberSaveable(tid) { mutableIntStateOf(1) }
+    // 每条有子回复的评论独立折叠，不再用评论区统一开关。
+    var collapsedReplyIds by remember(tid) { mutableStateOf(emptySet<Long>()) }
     // 滚动模式切换的触发标记：scrollModeOverrides 存于 SharedPreferences（非 Compose 状态），
     // 切换后靠此标记强制重组，让 topicInfinite 从源设置重新读取，菜单选项与分页即时同步。
     var replyModeTick by remember { mutableIntStateOf(0) }
@@ -269,7 +399,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 记录停下时的页码：下面那个 LaunchedEffect 以 loadingMore 为 key，若不记录会在
     // 守卫跳出后立刻重新触发，形成 effect 级别的无限重试。
     var reverseStalledAtPage by remember { mutableIntStateOf(0) }
-    val replies = sortedPosts.drop(1)
+    val replies = sortedPosts.filter { it.floor > 0 }
     // 楼层号 → 回复：树形「回复 #N」胶囊展示父楼作者头像用（父楼未加载时无头像，胶囊降级为图标）
     val repliesByFloor = remember(replies) { replies.associateBy { it.floor } }
     // 树形评论（源站 data-quote-threads-parent-floor）：存在回复关系时按树形嵌套展示，
@@ -277,6 +407,17 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     val hasTree = remember(replies) { replies.any { it.parentFloor > 0 } }
     val replyTree = remember(replies, sortOrder) {
         if (hasTree) buildReplyTree(replies, sortOrder) else emptyList()
+    }
+    val treeChildCounts = remember(replyTree) {
+        buildMap<Long, Int> {
+            fun collect(nodes: List<ReplyNode>) {
+                nodes.forEach { node ->
+                    if (node.children.isNotEmpty()) put(node.post.id, flattenTree(node.children).size)
+                    collect(node.children)
+                }
+            }
+            collect(replyTree)
+        }
     }
     // 「对话串联」开关（默认关闭）：源站已支持树形结构评论（data-quote-threads-parent-floor），
     // 楼层卡直接展示「回复 #N」标识并支持点击跳转，引用链弹窗仅作兼容保留
@@ -291,10 +432,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     val pagedReplies = if (topicInfinite) replies
     else replies.drop((localReplyPage - 1) * repliesPer).take(repliesPer)
     // 树形模式的可见列表：翻页按「顶层节点」分页，子树整棵跟随顶层所在页（不拆散对话）
-    val flatTree = remember(replyTree, localReplyPage, topicInfinite, repliesPer) {
+    val flatTree = remember(replyTree, localReplyPage, topicInfinite, repliesPer, collapsedReplyIds) {
         if (!hasTree) emptyList()
-        else if (topicInfinite) flattenTree(replyTree)
-        else flattenTree(replyTree.drop((localReplyPage - 1) * repliesPer).take(repliesPer))
+        else if (topicInfinite) flattenTree(replyTree, collapsedReplyIds)
+        else flattenTree(replyTree.drop((localReplyPage - 1) * repliesPer).take(repliesPer), collapsedReplyIds)
     }
     // 本地总页数：已加载评论的整页数；源站还有更多页时 +1（允许继续翻页触发加载）。
     // 树形模式按顶层节点数计页
@@ -323,14 +464,24 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 // 强制刷新：先清掉本帖分页缓存，确保下面的 getTopicPage 命中为 null 而从源站重抓
                 if (force) session.clearTopicPageCache(tid)
                 val d = session.getTopicPage(tid, p) ?: run {
-                    val resp = session.client.get(if (p <= 1) "/topic/$tid" else "/topic/$tid?p=$p")
+                    val resp = session.client.get("/topic/$tid?p=$p")
                     HtmlParser.parseTopicPage(resp.html, tid).also { session.saveTopicPage(tid, p, it) }
                 }
+                val missingPosts = mutableListOf<PostEntry>()
+                if (append && data != null) {
+                    for (missingPage in (data!!.page + 1) until p) {
+                        val earlier = session.getTopicPage(tid, missingPage) ?: HtmlParser.parseTopicPage(
+                            session.client.get("/topic/$tid?p=$missingPage").html, tid,
+                        ).also { session.saveTopicPage(tid, missingPage, it) }
+                        missingPosts += earlier.posts
+                    }
+                }
                 data = if (append && data != null) data!!.copy(
-                    posts = (data!!.posts + d.posts).distinctBy { it.id },
+                    posts = (data!!.posts + missingPosts + d.posts).associateBy { it.id }.values.toList(),
                     page = d.page,
                     totalPages = d.totalPages,
                 ) else d
+                if (!append) session.settings.recordCardRedemptions(tid, d.title, d.virtualCard)
                 // 记录已载入的源站分页范围（1..loadedMaxPage）
                 loadedMaxPage = if (append) maxOf(loadedMaxPage, d.page.coerceAtLeast(1))
                 else d.page.coerceAtLeast(1)
@@ -347,6 +498,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         forumId = 0, forumName = "",
                         avatarUrl = op?.avatarUrl ?: "", titleColor = "",
                     )
+                    if (!usageViewRecorded) {
+                        session.settings.recordUsageEvent("view", tid, d.title)
+                        usageViewRecorded = true
+                    }
                 }
             } catch (e: Exception) {
                 if (!append) error = e.message
@@ -430,6 +585,36 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         }
     }
 
+    /** 搜索全帖从源站第一页补齐，兼容从深层楼层直接进入时缺少前几页。 */
+    fun loadAllForSearch() {
+        if (loading || loadingMore) return
+        scope.launch {
+            loadingMore = true
+            try {
+                var page = 1
+                var lastPage = data?.totalPages ?: 1
+                while (page <= lastPage) {
+                    val loaded = session.getTopicPage(tid, page) ?: run {
+                        val response = session.client.get("/topic/$tid?p=$page")
+                        HtmlParser.parseTopicPage(response.html, tid).also { session.saveTopicPage(tid, page, it) }
+                    }
+                    check(loaded.page == page) { "源站未返回第 $page 页，已保留当前搜索结果" }
+                    data = data?.copy(
+                        posts = (data!!.posts + loaded.posts).associateBy { it.id }.values.toList(),
+                        page = maxOf(data!!.page, loaded.page),
+                        totalPages = loaded.totalPages,
+                    ) ?: loaded
+                    lastPage = loaded.totalPages
+                    loadedMaxPage = maxOf(loadedMaxPage, page)
+                    page++
+                }
+                allSearchPagesLoaded = true
+            } catch (e: Exception) {
+                session.showToast(e.message ?: "加载失败，可重试搜索全帖")
+            } finally { loadingMore = false }
+        }
+    }
+
     // 倒序被选中（含进入帖子时记住的上次选择）：评论未加载完就全量补齐，保证完整真实倒序。
     // loading/loadingMore 也作为 key：首次 load(1) 结束时 data 与 loading 几乎同时落定，
     // 仅依赖 data key 重启会读到 loading=true 而漏触发。
@@ -449,128 +634,96 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             try {
                 val resp = session.client.get("/topic/$tid?floor=$floor")
                 val p = Regex("""[?&]p=(\d+)""").find(resp.url)?.groupValues?.get(1)?.toIntOrNull() ?: 1
-                data = HtmlParser.parseTopicPage(resp.html, tid)
+                val targetPage = HtmlParser.parseTopicPage(resp.html, tid)
+                val collected = mutableListOf<PostEntry>()
+                for (page in 1 until p) {
+                    val earlier = session.getTopicPage(tid, page) ?: HtmlParser.parseTopicPage(
+                        session.client.get("/topic/$tid?p=$page").html, tid
+                    ).also { session.saveTopicPage(tid, page, it) }
+                    collected += earlier.posts
+                }
+                data = targetPage.copy(posts = (collected + targetPage.posts).distinctBy { it.id })
                 sortOrder = 1 // 跨页跳楼层需按楼层序渲染，data.posts 索引才能对上滚动位置
                 localReplyPage = 1
                 loadedMaxPage = p.coerceAtLeast(1)
                 loading = false
-                // 滚动到目标楼层附近并高亮。必须按「UI 实际渲染的列表」计算索引：
-                // 分页模式下树形按顶层分页（子树整棵跟页）、平铺按 repliesPer 切片，
-                // 直接用全量索引会错位——目标可能不在当前渲染的本地页里，滚动落空
-                val posts = data?.posts ?: emptyList()
-                val loaded = posts.drop(1)
-                val tree = if (loaded.any { it.parentFloor > 0 }) buildReplyTree(loaded, 1) else null
-                if (tree != null) {
-                    // 无限模式 = 全量展平；分页模式 = 目标顶层祖先所在本地页的切片
-                    val flat = if (topicInfinite) flattenTree(tree) else run {
-                        val target = loaded.firstOrNull { it.floor == floor } ?: return@launch
-                        var cur = target
-                        while (true) {
-                            val parent = loaded.firstOrNull { it.floor == cur.parentFloor } ?: break
-                            cur = parent
-                        }
-                        val topIdx = tree.indexOfFirst { it.post.floor == cur.floor }
-                        if (topIdx < 0) return@launch
-                        val page = topIdx / repliesPer + 1
-                        localReplyPage = page
-                        flattenTree(tree.drop((page - 1) * repliesPer).take(repliesPer))
-                    }
-                    val fi = flat.indexOfFirst { it.first.floor == floor }
-                    if (fi >= 0) {
-                        highlightPostId = flat[fi].first.id
-                        scope.launch {
-                            listState.animateScrollToItem(fi + 3)
-                            delay(1500)
-                            highlightPostId = null
-                        }
-                    }
-                } else {
-                    val idx = posts.indexOfFirst { it.floor == floor }
-                    if (idx >= 0) {
-                        highlightPostId = posts[idx].id
-                        // 平铺渲染从 LazyColumn index 2 起；分页模式换算到目标所在本地页
-                        val lazyIdx = if (topicInfinite) idx + 2 else run {
-                            val replyIdx = idx - 1
-                            val page = replyIdx / repliesPer + 1
-                            localReplyPage = page
-                            replyIdx - (page - 1) * repliesPer + 2
-                        }
-                        scope.launch {
-                            listState.animateScrollToItem(lazyIdx)
-                            delay(1500)
-                            highlightPostId = null
-                        }
-                    }
-                }
+                collapsedReplyIds = emptySet()
+                pendingSearchPost = data?.posts?.firstOrNull { it.floor == floor }
+                if (pendingSearchPost == null) session.showToast("未找到该楼层")
             } catch (e: Exception) {
                 error = e.message; loading = false
             }
         }
     }
 
-    /** 定位楼层（本页优先）：直接滚动到目标楼层并高亮，同时记录原位置供返回（2.13）。
-     *  树形模式目标不在当前页时，先切换到其顶层节点所在本地页再定位（子树整棵跟页）。
-     *  LazyColumn 前置项：header=0、主楼=1、「全部回复」标题=2，回复从 3 开始。 */
+    /** 所有楼层入口共用定位：先切页、展开祖先，再等待新布局滚动。 */
     fun jumpToFloor(floor: Int) {
-        fun scrollAndHighlight(lazyIdx: Int, postId: Long) {
-            returnPos = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-            highlightPostId = postId
-            scope.launch {
-                listState.animateScrollToItem(lazyIdx)
-                delay(1500)
-                highlightPostId = null
-            }
-        }
-        if (hasTree) {
-            val idx = flatTree.indexOfFirst { it.first.floor == floor }
-            if (idx >= 0) {
-                scrollAndHighlight(idx + 3, flatTree[idx].first.id)
-                return
-            }
-            // 已加载但不在当前本地页：向上找到顶层祖先，切到其所在页
-            // ?.let 的 lambda 参数保证非空，不依赖 target 的智能转换
-            replies.firstOrNull { it.floor == floor }
-                ?.takeIf { !topicInfinite }
-                ?.let { target ->
-                    var cur = target
-                    while (true) {
-                        val parent = replies.firstOrNull { it.floor == cur.parentFloor } ?: break
-                        cur = parent
-                    }
-                    val topIdx = replyTree.indexOfFirst { it.post.floor == cur.floor }
-                    if (topIdx >= 0) {
-                        val page = topIdx / repliesPer + 1
-                        val newFlat = flattenTree(
-                            replyTree.drop((page - 1) * repliesPer).take(repliesPer)
-                        )
-                        val ni = newFlat.indexOfFirst { it.first.floor == floor }
-                        if (ni >= 0) {
-                            localReplyPage = page
-                            scrollAndHighlight(ni + 3, target.id)
-                            return
-                        }
-                    }
-                }
-            jumpFloor(floor)
-            return
-        }
-        val posts = sortedPosts
-        val idx = posts.indexOfFirst { it.floor == floor }
-        if (idx >= 0) {
-            if (topicInfinite) {
-                scrollAndHighlight(idx + 2, posts[idx].id)
-            } else {
-                // 分页模式：目标可能不在当前本地页，按 repliesPer 换算页码与页内索引
-                val replyIdx = idx - 1
-                val page = replyIdx / repliesPer + 1
-                localReplyPage = page
-                scrollAndHighlight(replyIdx - (page - 1) * repliesPer + 2, posts[idx].id)
-            }
-        } else {
-            jumpFloor(floor)
-        }
+        returnPos = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        val target = sortedPosts.firstOrNull { it.floor == floor }
+        if (target == null) jumpFloor(floor) else pendingSearchPost = target
     }
 
+    LaunchedEffect(pendingSearchPost, flatTree, localReplyPage, collapsedReplyIds, sortedPosts) {
+        val target = pendingSearchPost ?: return@LaunchedEffect
+        val isMain = target.id == mainPost?.id
+        if (!isMain && hasTree) {
+            var root = target
+            val ancestors = mutableSetOf<Long>()
+            val visited = mutableSetOf(target.floor)
+            while (true) {
+                val parent = repliesByFloor[root.parentFloor] ?: break
+                if (!visited.add(parent.floor)) break
+                ancestors.add(parent.id)
+                root = parent
+            }
+            val topIndex = replyTree.indexOfFirst { it.post.id == root.id }
+            val page = if (topicInfinite || topIndex < 0) localReplyPage else topIndex / repliesPer + 1
+            val expanded = collapsedReplyIds - ancestors
+            if (expanded != collapsedReplyIds || page != localReplyPage) {
+                collapsedReplyIds = expanded
+                localReplyPage = page
+                return@LaunchedEffect
+            }
+        } else if (!isMain && !topicInfinite) {
+            val index = replies.indexOfFirst { it.id == target.id }
+            if (index < 0) { pendingSearchPost = null; return@LaunchedEffect }
+            val page = index / repliesPer + 1
+            if (page != localReplyPage) {
+                localReplyPage = page
+                return@LaunchedEffect
+            }
+        }
+        val visible = if (hasTree) flatTree.map { it.first } else pagedReplies
+        val replyIndex = visible.indexOfFirst { it.id == target.id }
+        if (!isMain && replyIndex < 0) { pendingSearchPost = null; return@LaunchedEffect }
+        // header、主楼、可选打赏弹幕、评论标题：必须与 LazyColumn 的真实条目一致。
+        val replyStart = 1 + (if (mainPost != null) 1 else 0) +
+            (if (danmakuLocalOn && danmaku.isNotEmpty()) 1 else 0) +
+            (if (replies.isNotEmpty() || (data?.loginVisibleReplies ?: -1) >= 0) 1 else 0)
+        withFrameNanos { }
+        highlightPostId = target.id
+        listState.animateScrollToItem(if (isMain) 1 else replyStart + replyIndex, pendingRestoreOffset ?: 0)
+        pendingRestoreOffset = null
+        if (topicSearchOpen && topicSearchQuery.isNotBlank()) {
+            withFrameNanos { }
+            withFrameNanos { }
+            searchPositions[target.id]?.takeIf { it.first == topicSearchQuery }?.let { (_, y) ->
+                listState.scrollBy(y - contentTopInRoot - 12f)
+            }
+        }
+        pendingSearchPost = null
+    }
+
+    LaunchedEffect(highlightPostId) {
+        if (highlightPostId != null) { delay(1800); highlightPostId = null }
+    }
+
+    LaunchedEffect(topicSearchQuery, topicSearchOpen) {
+        if (topicSearchOpen && topicSearchQuery.isNotBlank()) {
+            delay(300)
+            topicSearchHits.firstOrNull()?.let { pendingSearchPost = it.post }
+        }
+    }
     // 收藏评论定位（34）：首屏数据加载完成后自动跳到目标楼层（仅进入时执行一次）
     var floorJumped by remember { mutableStateOf(false) }
     LaunchedEffect(loading, data) {
@@ -578,6 +731,17 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             floorJumped = true
             if (data!!.posts.any { it.floor == initialFloor }) jumpToFloor(initialFloor)
             else jumpFloor(initialFloor)
+        }
+    }
+
+    LaunchedEffect(loading, data, initialFloor) {
+        if (readingPositionRestored || loading || data == null) return@LaunchedEffect
+        readingPositionRestored = true
+        if (pinnedSnapshot != null) {
+            withFrameNanos { }
+            listState.scrollToItem(pinnedSnapshot.listIndex, pinnedSnapshot.offset)
+            returnPos = null
+            offerPreviousReading = false
         }
     }
 
@@ -655,7 +819,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         "donate_reaction_reason" to reason,
                     )
                 )
-                session.showToast(json.optString("message", if (json.optInt("ok") == 1) "已点赞" else "操作失败"))
+                val ok = json.optInt("ok") == 1
+                session.showToast(json.optString("message", if (ok) "已点赞" else "操作失败"))
+                if (ok && points > 0) session.settings.recordUsageEvent("coin", tid, d.title, points)
                 load(d.page)
                 if (points > 0) loadDanmaku()
             } catch (e: Exception) {
@@ -696,6 +862,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             forumId = 0, forumName = "",
                             avatarUrl = op?.avatarUrl ?: "", titleColor = "",
                         )
+                        session.settings.recordUsageEvent("favorite", d.topicId, d.title)
                     }
                 }
             } catch (e: Exception) { session.showToast(e.message ?: "失败") }
@@ -711,22 +878,35 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 长图所见即所得：捕获当前主题色（供导出使用，深色模式下导出深色长图）
     val colorScheme = MaterialTheme.colorScheme
 
-    fun export(kind: String) {
+    fun export(kind: String, scopeMode: String, fromFloor: Int, toFloor: Int, multiPage: Boolean, selectedIds: Set<Long>) {
         val d = data ?: return
         exportBusy = kind
         val exportTheme = TopicExport.ExportTheme.fromColorScheme(colorScheme)
+        val selectedPosts = when (scopeMode) {
+            "main" -> d.posts.filter { it.floor == 0 }.take(1)
+            "range" -> d.posts.filter { it.floor in fromFloor.coerceAtMost(toFloor)..fromFloor.coerceAtLeast(toFloor) }
+            "selected" -> d.posts.filter { it.id in selectedIds }
+            else -> d.posts
+        }
+        if (selectedPosts.isEmpty()) {
+            exportBusy = null
+            session.showToast("所选范围没有可导出的楼层，请先加载完整帖子")
+            return
+        }
         scope.launch {
             try {
                 val url = sb.linux.client.data.Endpoints.abs("/topic/$tid")
-                val file: File = withContext(Dispatchers.IO) {
+                val files: List<File> = withContext(Dispatchers.IO) {
                     when (kind) {
-                        "html" -> TopicExport.exportHtml(context, d.title, d.posts, url)
-                        "md" -> TopicExport.exportMarkdown(context, d.title, d.posts, url)
-                        else -> TopicExport.renderLongImage(context, d.title, d.posts, url, exportTheme)
+                        "html" -> listOf(TopicExport.exportHtml(context, d.title, selectedPosts, url))
+                        "md" -> listOf(TopicExport.exportMarkdown(context, d.title, selectedPosts, url))
+                        else -> {
+                            TopicExport.renderLongImages(context, d.title, selectedPosts, url, exportTheme, multiPage)
+                        }
                     }
                 }
-                TopicExport.shareFile(
-                    context, file,
+                TopicExport.shareFiles(
+                    context, files,
                     when (kind) {
                         "html" -> "text/html"; "md" -> "text/markdown"; else -> "image/png"
                     }
@@ -764,7 +944,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 }
                 val summary = AiClient.summarize(session.settings, d.title, content) { }
                 aiSummary = summary
-                session.saveAiSummary(tid, summary)
+                session.saveAiSummary(tid, summary, d.title)
             } catch (e: Exception) {
                 aiError = e.message
             } finally { aiBusy = false }
@@ -772,6 +952,17 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     }
 
     LaunchedEffect(tid) {
+        if (pinnedSnapshot != null) {
+            sortOrder = pinnedSnapshot.sort
+            localReplyPage = pinnedSnapshot.localPage
+            collapsedReplyIds = pinnedSnapshot.collapsed
+            loadedMaxPage = pinnedSnapshot.topic.page
+            data = pinnedSnapshot.topic
+            danmaku = pinnedSnapshot.danmaku
+            danmakuLocalOn = pinnedSnapshot.danmakuEnabled
+            loading = false
+            return@LaunchedEffect
+        }
         // 返回本帖（比如从用户主页 pop 回来）时，若之前在评论区翻到过较深位置，
         // 用 topicPageCache 重建 1..loadedMaxPage 的全部 data，让 rememberLazyListState
         // 恢复的滚动位置能落到对应的评论上；缓存缺失则退化为常规加载。
@@ -803,7 +994,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         if (session.loginState.loggedIn != lastLoggedIn) {
             lastLoggedIn = session.loginState.loggedIn
             val cur = data?.page ?: initialPage
-            load(cur)
+            load(1)
             loadDanmaku()
         }
     }
@@ -839,12 +1030,90 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 评论底栏样式（0=经典 1=液态玻璃，设置内可选）：经典为 Scaffold bottomBar 普通底栏；
     // 液态玻璃为悬浮胶囊——帖子列表画进 backdrop 图层，玻璃条实时折射身后滚动内容
     val replyGlass = session.replyBarStyle != 0
+    BackHandler(enabled = topicSearchOpen) { topicSearchOpen = false; topicSearchListOpen = false }
     val glassBg = MaterialTheme.colorScheme.background
     val replyBackdrop = rememberLayerBackdrop {
         drawRect(glassBg)
         drawContent()
     }
     Scaffold(
+        topBar = {
+    if (topicSearchOpen) {
+        fun openHit(index: Int) {
+            if (topicSearchHits.isEmpty()) return
+            topicSearchIndex = (index + topicSearchHits.size) % topicSearchHits.size
+            searchKeyboard?.hide()
+            pendingSearchPost = topicSearchHits[topicSearchIndex].post
+        }
+                Surface(
+                    shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp),
+                    tonalElevation = 8.dp,
+                    shadowElevation = 12.dp,
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            IconButton(onClick = { topicSearchOpen = false; topicSearchListOpen = false }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "关闭搜索")
+                            }
+                            OutlinedTextField(
+                                value = topicSearchQuery,
+                                onValueChange = { topicSearchQuery = it; topicSearchIndex = 0 },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = { openHit(topicSearchIndex) }),
+                                placeholder = { Text("搜索正文、代码块、评论或用户名") },
+                                leadingIcon = { Icon(Icons.Filled.Search, null) },
+                                trailingIcon = {
+                                    if (topicSearchQuery.isNotEmpty()) IconButton(onClick = { topicSearchQuery = "" }) {
+                                        Icon(Icons.Filled.Close, "清空")
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (topicSearchQuery.isBlank()) "正文 · 代码 · 评论 · 用户"
+                                else if (topicSearchHits.isEmpty()) "没有找到结果"
+                                else "${topicSearchIndex + 1} / ${topicSearchHits.size}",
+                                modifier = Modifier.weight(1f).padding(start = 8.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            IconButton(enabled = topicSearchHits.isNotEmpty(), onClick = { openHit(topicSearchIndex - 1) }) {
+                                Icon(Icons.Filled.KeyboardArrowUp, "上一个")
+                            }
+                            IconButton(enabled = topicSearchHits.isNotEmpty(), onClick = { openHit(topicSearchIndex + 1) }) {
+                                Icon(Icons.Filled.ExpandMore, "下一个")
+                            }
+                            IconButton(enabled = topicSearchHits.isNotEmpty(), onClick = { topicSearchListOpen = !topicSearchListOpen }) {
+                                Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "全部结果")
+                            }
+                        }
+                        if (!allSearchPagesLoaded && (data?.totalPages ?: 1) > 1) {
+                            TextButton(onClick = { loadAllForSearch() }, enabled = !loadingMore) {
+                                Text(if (loadingMore) "正在加载剩余评论…" else "当前为已加载内容，点击搜索全帖")
+                            }
+                        }
+                        if (topicSearchListOpen && topicSearchHits.isNotEmpty()) {
+                            LazyColumn(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.36f).dp)) {
+                                itemsIndexed(topicSearchHits, key = { _, hit -> hit.post.id }) { index, hit ->
+                                    val post = hit.post
+                                    ListItem(
+                                        headlineContent = { SearchHighlightedText(if (post.floor > 0) "#${post.floor} · ${post.authorName}" else "楼主 · ${post.authorName}", topicSearchQuery.trim(), maxLines = 1) },
+                                        supportingContent = { SearchHighlightedText(hit.snippet, topicSearchQuery.trim(), maxLines = 2) },
+                                        leadingContent = {
+                                            if (index == topicSearchIndex) Icon(Icons.Filled.Search, null, tint = MaterialTheme.colorScheme.primary)
+                                        },
+                                        modifier = Modifier.clickable { topicSearchListOpen = false; openHit(index) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+    }
+        },
         bottomBar = {
             // 底部快捷栏：回复入口 + 点赞主楼 + 收藏（未登录点击跳转登录）；常驻显示
             //（液态玻璃样式改走内容区悬浮覆盖层，不占 bottomBar 槽位）
@@ -856,8 +1125,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     likeCount = mainPost?.likeCount ?: 0,
                     showLike = mainPost?.canLike == true,
                     showFavorite = data?.canFavorite == true,
+                    pinned = session.floatingTopicId == tid,
                     onReply = {
-                        if (session.loginState.loggedIn) { quoteText = ""; showReply = true }
+                        if (session.loginState.loggedIn) {
+                            quoteText = ""; showReply = true
+                        }
                         else nav.navigate("login")
                     },
                     onLike = {
@@ -867,6 +1139,14 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     onFavorite = {
                         if (session.loginState.loggedIn) onFavoriteClick()
                         else nav.navigate("login")
+                    },
+                    onPin = {
+                        data?.let { page -> session.floatingTopicSnapshot = sb.linux.client.data.PinnedTopicSnapshot(
+                            page, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset,
+                            localReplyPage, sortOrder, collapsedReplyIds, danmaku, danmakuLocalOn,
+                        ) }
+                        session.pinFloatingTopic(tid, data?.title.orEmpty())
+                        nav.navigate("home") { popUpTo("home") { inclusive = false }; launchSingleTop = true }
                     },
                 )
             }
@@ -889,7 +1169,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         .fillMaxSize()
                         // 液态玻璃样式：列表绘制进 backdrop 图层，供悬浮玻璃评论栏取样折射
                         .then(if (replyGlass) Modifier.layerBackdrop(replyBackdrop) else Modifier),
-                    contentPadding = PaddingValues(top = 72.dp, bottom = 8.dp)
+                    contentPadding = PaddingValues(top = if (topicSearchOpen) 8.dp else 72.dp, bottom = 8.dp)
                 ) {
                     // ---------- 头部信息块（完整标题/统计/弹幕/AI/抽奖） ----------
                     item(key = "header") {
@@ -912,6 +1192,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                         )
                                     ) {
                                         append("  ${d.viewsText.ifBlank { "-" }}阅读 · ${d.repliesText.ifBlank { "${d.posts.size}" }}评论")
+                                        readingStats?.let { (words, minutes) ->
+                                            append(" · ${words}字 · 约${minutes}分钟")
+                                        }
                                     }
                                 },
                                 style = MaterialTheme.typography.titleLarge.copy(
@@ -974,6 +1257,32 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                     },
                                 )
                             }
+                            d.poll?.let { poll ->
+                                TopicPollView(
+                                    poll = poll,
+                                    loggedIn = session.loginState.loggedIn,
+                                    busy = pollBusy,
+                                    onLogin = { nav.navigate("login") },
+                                    onVote = { selected, reason ->
+                                        scope.launch {
+                                            pollBusy = true
+                                            try {
+                                                val form = buildList {
+                                                    add("_csrf" to d.csrf.ifBlank { session.client.csrf() })
+                                                    addAll(poll.fields.toList())
+                                                    selected.forEach { add(it.name to it.value) }
+                                                    if (poll.reasonName.isNotBlank()) add(poll.reasonName to reason)
+                                                }
+                                                val resp = session.client.postFormPairs(poll.action, form)
+                                                val ok = !resp.url.contains("form_error")
+                                                session.showToast(if (ok) "投票已提交" else HtmlParser.extractError(resp.html).ifBlank { "投票失败" })
+                                                if (ok) load(d.page, force = true)
+                                            } catch (e: Exception) { session.showToast(e.message ?: "投票失败") }
+                                            finally { pollBusy = false }
+                                        }
+                                    },
+                                )
+                            }
                             // 发卡帖兑换卡片
                             d.virtualCard?.let { vc ->
                                 VirtualCardView(
@@ -1007,7 +1316,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 isMainPost = true,
                                 onUser = { nav.navigate("user/${main.authorId}") },
                                 onQuote = {
-                                    quoteText = "@${main.authorName}\n"
+                                    quoteText = "@${main.authorName} "
                                     showReply = true
                                 },
                                 onLike = { doLike(main, 0) },
@@ -1018,6 +1327,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 threadEnabled = threadEnabled,
                                 threadReplyCount = threadReplyCount[main.floor] ?: 0,
                                 onCopy = { copyPost = main },
+                                onHeadingPosition = { index, y -> headingPositions[index] = y },
+                                onBodyLayout = { top, height -> bodyTop = top; bodyHeight = height },
+                                onSearchPosition = { y -> searchPositions[main.id] = topicSearchQuery to y },
+                                searchHighlight = topicSearchQuery.takeIf { topicSearchOpen }.orEmpty(),
                                 // 打赏按钮仅登录时显示（源站打赏页需登录），入口见操作行
                                 onDonate = if (d.donateUrl != null && session.loginState.loggedIn) ({ showDonate = true }) else null,
                                 onEditUser = { uid -> nav.navigate("user/$uid") },
@@ -1121,11 +1434,18 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 // 父楼作者头像置于楼层号前，正文首段的「@用户 #N」锚点已在解析层剥离
                                 replyParentAvatar = post.parentFloor.takeIf { it > 0 }
                                     ?.let { repliesByFloor[it]?.avatarUrl } ?: "",
+                                showReplyCapsule = !hasTree,
+                                childReplyCount = treeChildCounts[post.id] ?: 0,
+                                childrenCollapsed = post.id in collapsedReplyIds,
+                                onToggleChildren = {
+                                    collapsedReplyIds = if (post.id in collapsedReplyIds) collapsedReplyIds - post.id
+                                    else collapsedReplyIds + post.id
+                                },
                                 onUser = { nav.navigate("user/${post.authorId}") },
                                 onQuote = {
                                     quoteText = buildString {
-                                        if (post.floor > 0) append("@${post.authorName} #${post.floor}\n")
-                                        else append("@${post.authorName}\n")
+                                        if (post.floor > 0) append("@${post.authorName} #${post.floor} ")
+                                        else append("@${post.authorName} ")
                                     }
                                     showReply = true
                                 },
@@ -1140,7 +1460,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 onEditUser = { uid -> nav.navigate("user/$uid") },
                                 // 本地收藏评论（34）：操作行收藏按钮，收藏后图标填充
                                 commentFavorited = post.id in favCommentIds,
+                                onSearchPosition = { y -> searchPositions[post.id] = topicSearchQuery to y },
                                 onFavComment = { toggleCommentFav(post) },
+                                searchHighlight = topicSearchQuery.takeIf { topicSearchOpen }.orEmpty(),
                             )
                         }
                     }
@@ -1179,6 +1501,71 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             }
             }
 
+            // Markdown 目录与右侧阅读进度（36）。点进度条展开目录，标题按正文层级缩进。
+            if (tocHeadings.isNotEmpty() && bodyVisible) {
+                Surface(
+                    onClick = { tocOpen = true },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 3.dp)
+                        .width(14.dp)
+                        .height(150.dp),
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f),
+                ) {
+                    Box(Modifier.fillMaxSize().padding(4.dp)) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(readingProgress.coerceAtLeast(0.025f))
+                                .align(Alignment.TopCenter)
+                                .clip(RoundedCornerShape(50))
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                }
+            }
+
+            if (tocOpen) {
+                AlertDialog(
+                    onDismissRequest = { tocOpen = false },
+                    title = { Text("文章目录") },
+                    text = {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            itemsIndexed(tocHeadings) { index, heading ->
+                                Text(
+                                    heading.text,
+                                    style = when (heading.level) {
+                                        1 -> MaterialTheme.typography.titleMedium
+                                        2 -> MaterialTheme.typography.titleSmall
+                                        else -> MaterialTheme.typography.bodyMedium
+                                    },
+                                    fontWeight = if (heading.level <= 2) FontWeight.SemiBold else FontWeight.Normal,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            tocOpen = false
+                                            scope.launch {
+                                                listState.scrollToItem(1)
+                                                withFrameNanos { }
+                                                withFrameNanos { }
+                                                headingPositions[index]?.let { y ->
+                                                    listState.scrollBy(bodyTop + y - contentTopInRoot - topBarPx - 8f)
+                                                }
+                                            }
+                                        }
+                                        .padding(start = ((heading.level - 1).coerceAtLeast(0) * 14).dp, top = 9.dp, bottom = 9.dp),
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { tocOpen = false }) { Text("关闭") } },
+                )
+            }
+
             // 一键回顶按钮
             val showBackTop by remember {
                 derivedStateOf { listState.firstVisibleItemIndex > 1 }
@@ -1190,7 +1577,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 exit = scaleOut(),
             ) {
                 SmallFloatingActionButton(
-                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    onClick = {
+                        returnPos = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                        scope.launch { listState.animateScrollToItem(0) }
+                    },
                     // 液态玻璃评论栏为悬浮覆盖层：回顶按钮需抬高避开玻璃条
                     modifier = Modifier.padding(end = 16.dp, bottom = if (replyGlass) 74.dp else 16.dp),
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
@@ -1227,7 +1617,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
 
             // 楼层定位后的「回到原位置」按钮（2.13）
             AnimatedVisibility(
-                visible = returnPos != null,
+                visible = returnPos != null || offerPreviousReading,
                 modifier = Modifier.align(Alignment.BottomCenter),
                 enter = scaleIn(),
                 exit = scaleOut(),
@@ -1240,8 +1630,14 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 ) {
                     SmallFloatingActionButton(
                         onClick = {
-                            returnPos?.let { (idx, off) ->
-                                scope.launch { listState.scrollToItem(idx, off) }
+                            if (offerPreviousReading && previousReading != null) {
+                                offerPreviousReading = false
+                                if (previousReading.floor > 0) { pendingRestoreOffset = previousReading.scrollOffset; jumpToFloor(previousReading.floor) }
+                                else scope.launch {
+                                    listState.scrollToItem(previousReading.listIndex, previousReading.scrollOffset)
+                                }
+                            } else returnPos?.let { (idx, off) ->
+                                scope.launch { listState.animateScrollToItem(idx, off) }
                             }
                             returnPos = null
                         },
@@ -1259,7 +1655,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     }
                     // × 关闭：仅收起按钮，不回滚位置
                     SmallFloatingActionButton(
-                        onClick = { returnPos = null },
+                        onClick = { returnPos = null; offerPreviousReading = false },
                         containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f),
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ) {
@@ -1270,7 +1666,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
 
         // 常驻顶栏（覆盖层，不参与布局，杜绝内容顶到状态栏的抖动问题 2.1）：
         // 滑动到标题外后顶栏显示帖子标题，此外隐藏（11）
-        TopAppBar(
+        if (!topicSearchOpen) TopAppBar(
             modifier = Modifier.align(Alignment.TopCenter),
             title = {
                 AnimatedVisibility(visible = showTitleInTopBar, enter = fadeIn(), exit = fadeOut()) {
@@ -1303,6 +1699,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 text = { Text("跳转楼层") },
                                 leadingIcon = { Icon(Icons.Filled.FormatListNumbered, null) },
                                 onClick = { menuOpen = false; showFloorDialog = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("帖内搜索") },
+                                leadingIcon = { Icon(Icons.Filled.Search, null) },
+                                onClick = { menuOpen = false; topicSearchOpen = true }
                             )
                             // 在浏览器打开（2.7）
                             DropdownMenuItem(
@@ -1345,6 +1746,37 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 onClick = { menuOpen = false; showExportDialog = true }
                             )
                             DropdownMenuItem(
+                                text = { Text("收录到淘帖专辑") },
+                                onClick = { menuOpen = false; nav.navigate("collectionActions?path=${android.net.Uri.encode("/topic/$tid")}") }
+                            )
+                            // 申精按钮：仅当源站返回了申请面板且用户已登录时显示
+                            if (session.loginState.loggedIn && data?.essenceApplication != null) {
+                                val ea = data!!.essenceApplication!!
+                                DropdownMenuItem(
+                                    text = { Text(if (essenceBusy) "提交中…" else ea.label) },
+                                    leadingIcon = { Icon(Icons.Filled.AutoAwesome, null) },
+                                    enabled = ea.enabled && !essenceBusy && ea.action.isNotBlank(),
+                                    onClick = {
+                                        menuOpen = false
+                                        val d = data ?: return@DropdownMenuItem
+                                        scope.launch {
+                                            essenceBusy = true
+                                            try {
+                                                val form = buildList {
+                                                    add("_csrf" to d.csrf.ifBlank { session.client.csrf() })
+                                                    addAll(ea.fields.toList())
+                                                }
+                                                val resp = session.client.postFormPairs(ea.action, form)
+                                                val ok = !resp.url.contains("form_error")
+                                                session.showToast(if (ok) "申精已提交" else HtmlParser.extractError(resp.html).ifBlank { "申请失败" })
+                                                if (ok) load(d.page, force = true)
+                                            } catch (e: Exception) { session.showToast(e.message ?: "申请失败") }
+                                            finally { essenceBusy = false }
+                                        }
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
                                 text = { Text("刷新") },
                                 leadingIcon = { Icon(Icons.Filled.Refresh, null) },
                                 onClick = { menuOpen = false; load(data?.page ?: 1, force = true); loadDanmaku() }
@@ -1371,7 +1803,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
                 // Scaffold 内容区已含状态栏内边距，这里置零避免双重叠加
                 // （此前顶栏被垫高，遮住标题顶部并与悬浮菜单按钮重叠）
@@ -1390,8 +1822,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     likeCount = mainPost?.likeCount ?: 0,
                     showLike = mainPost?.canLike == true,
                     showFavorite = d.canFavorite,
+                    pinned = session.floatingTopicId == tid,
                     onReply = {
-                        if (session.loginState.loggedIn) { quoteText = ""; showReply = true }
+                        if (session.loginState.loggedIn) {
+                            quoteText = ""; showReply = true
+                        }
                         else nav.navigate("login")
                     },
                     onLike = {
@@ -1401,6 +1836,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     onFavorite = {
                         if (session.loginState.loggedIn) onFavoriteClick()
                         else nav.navigate("login")
+                    },
+                    onPin = {
+                        session.pinFloatingTopic(tid, d.title)
+                        nav.navigate("home") { popUpTo("home") { inclusive = false }; launchSingleTop = true }
                     },
                 )
             }
@@ -1428,6 +1867,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         LaunchedEffect(Unit) { captchaOverride = null }
         val activeCaptcha = captchaOverride ?: data?.replyCaptcha
         ReplyDialog(
+            session = session,
             initial = quoteText,
             captcha = activeCaptcha,
             onRefreshCaptcha = {
@@ -1456,6 +1896,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             put("_csrf", csrf)
                             put("topic_id", tid.toString())
                             put("body", body)
+                            // 源站当前表单只提交 topic_id/body；评论树由正文开头严格的
+                            // “@用户名 #楼层 ”前缀识别。不要附加不存在的父节点字段。
                             // 人机验证：用户答案 + 客户端计算 PoW（用弹窗当前展示的那份，而非页面初始解析的）
                             activeCaptcha?.let { c ->
                                 put("native_captcha_token", c.token)
@@ -1475,12 +1917,16 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             }
                         } else {
                             session.showToast("回复成功")
+                            session.settings.recordUsageEvent("reply", tid, data?.title.orEmpty())
                             showReply = false
                             // 强制刷新末页并与已加载页合并（append）：
                             // 整页替换会丢弃前序页——树形评论的父楼层多在前面页，
                             // 丢失后自己的新回复挂不上树（显示为顶层），且会把用户踢回第 1 页。
                             // force 清缓存确保新回复立即可见（否则命中旧缓存表现为「评论显示不完全」）
-                            load(data?.totalPages ?: 1, append = true, force = true)
+                            val responsePage = runCatching {
+                                android.net.Uri.parse(resp.url).getQueryParameter("p")?.toIntOrNull()
+                            }.getOrNull() ?: (data?.totalPages ?: 1)
+                            load(responsePage, append = true, force = true)
                         }
                     } catch (e: Exception) {
                         session.showToast(e.message ?: "回复失败")
@@ -1502,6 +1948,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             }
         )
     }
+
 
     // #N 对话串联弹窗
     if (threadLoading || threadError != null || threadPosts != null) {
@@ -1567,11 +2014,15 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     // 导出弹窗：统一入口，选择导出格式
     if (showExportDialog) {
         ExportDialog(
+            posts = data?.posts.orEmpty(),
             busy = exportBusy,
+            loadingPosts = loadingMore,
+            onLoadAll = { loadAllForSearch() },
+            allLoaded = allSearchPagesLoaded,
             onDismiss = { if (exportBusy == null) showExportDialog = false },
-            onExport = {
+            onExport = { kind, scopeMode, fromFloor, toFloor, multiPage, selectedIds ->
                 showExportDialog = false
-                export(it)
+                export(kind, scopeMode, fromFloor, toFloor, multiPage, selectedIds)
             }
         )
     }
@@ -1595,6 +2046,66 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun TopicPollView(
+    poll: TopicPoll,
+    loggedIn: Boolean,
+    busy: Boolean,
+    onLogin: () -> Unit,
+    onVote: (List<TopicPollOption>, String) -> Unit,
+) {
+    var selectedValues by remember(poll.action, poll.options) {
+        mutableStateOf(poll.options.filter { it.selected }.map { it.value }.toSet())
+    }
+    var reason by remember(poll.action) { mutableStateOf("") }
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(poll.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (poll.note.isNotBlank()) Text(poll.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            poll.options.forEach { option ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(enabled = !poll.closed && !option.disabled) {
+                        selectedValues = if (poll.multiple) {
+                            if (option.value in selectedValues) selectedValues - option.value else selectedValues + option.value
+                        } else setOf(option.value)
+                    }.padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (poll.multiple) Checkbox(
+                        checked = option.value in selectedValues,
+                        enabled = !poll.closed && !option.disabled,
+                        onCheckedChange = null,
+                    ) else RadioButton(
+                        selected = option.value in selectedValues,
+                        enabled = !poll.closed && !option.disabled,
+                        onClick = null,
+                    )
+                    Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            if (poll.reasonName.isNotBlank()) OutlinedTextField(
+                value = reason, onValueChange = { reason = it.take(poll.reasonMaxLength) },
+                label = { Text(if (poll.reasonRequired) "投票理由（必填）" else "投票理由") },
+                supportingText = { Text(poll.reasonHint.ifBlank { "${reason.length}/${poll.reasonMaxLength}" }) },
+                modifier = Modifier.fillMaxWidth(), enabled = !busy && !poll.closed,
+            )
+            when {
+                poll.closed -> Text("当前不可投票", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                !loggedIn -> Button(onClick = onLogin, Modifier.fillMaxWidth()) { Text("登录后投票") }
+                else -> Button(
+                    onClick = { onVote(poll.options.filter { it.value in selectedValues }, reason.trim()) },
+                    enabled = !busy && selectedValues.isNotEmpty() && poll.action.isNotBlank() && (!poll.reasonRequired || reason.isNotBlank()),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (busy) "提交中…" else poll.submitLabel) }
+            }
+        }
     }
 }
 
@@ -1657,9 +2168,11 @@ private fun ReplyBar(
     likeCount: Int,
     showLike: Boolean,
     showFavorite: Boolean,
+    pinned: Boolean,
     onReply: () -> Unit,
     onLike: () -> Unit,
     onFavorite: () -> Unit,
+    onPin: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
         Row(
@@ -1667,75 +2180,53 @@ private fun ReplyBar(
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 伪输入条：点击弹出回复编辑
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(50))
-                    .clickable(onClick = onReply)
+                modifier = Modifier.weight(1.8f).height(52.dp),
             ) {
-                Text(
-                    if (loggedIn) "说点什么…" else "登录后参与回复",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (showLike) {
-                // 点赞主楼
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onLike)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                Row(
+                    Modifier.fillMaxSize().padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        if (liked) "已点赞" else "点赞",
-                        Modifier.size(19.dp),
-                        tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     Text(
-                        if (likeCount > 0) "$likeCount" else "点赞",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
+                        if (loggedIn) "说点什么…" else "登录后回复",
+                        Modifier.weight(1f).clip(RoundedCornerShape(50)).clickable(onClick = onReply).padding(horizontal = 10.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
+                    if (showLike) TopicBarAction(if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (likeCount > 0) "$likeCount" else "点赞", liked, onLike)
                 }
             }
-            if (showFavorite) {
-                // 收藏：已收藏时图标填充 + 主题色高亮（12）
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onFavorite)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.weight(1f).height(52.dp),
+            ) {
+                Row(
+                    Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    Icon(
-                        if (favorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                        if (favorited) "已收藏" else "收藏",
-                        Modifier.size(19.dp),
-                        tint = if (favorited) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        if (favorited) "已收藏" else "收藏",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (favorited) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
+                    TopicBarAction(Icons.Filled.PushPin, if (pinned) "已钉住" else "钉住", pinned, onPin)
+                    if (showFavorite) TopicBarAction(if (favorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, if (favorited) "已收藏" else "收藏", favorited, onFavorite)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TopicBarAction(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 3.dp),
+    ) {
+        val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        Icon(icon, label, Modifier.size(18.dp), tint = color)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color, maxLines = 1)
     }
 }
 
@@ -1753,98 +2244,47 @@ private fun GlassReplyBar(
     likeCount: Int,
     showLike: Boolean,
     showFavorite: Boolean,
+    pinned: Boolean,
     onReply: () -> Unit,
     onLike: () -> Unit,
     onFavorite: () -> Unit,
+    onPin: () -> Unit,
 ) {
     // 玻璃表面色调：浅色主题垫白、深色主题垫黑，保证内容可读性（同玻璃底栏）
     val light = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val surfaceTint = if (light) Color.White.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.4f)
     Row(
-        modifier
-            .padding(start = 14.dp, end = 14.dp, bottom = 10.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedCornerShape(50) },
-                effects = {
-                    vibrancy()
-                    blur(6.dp.toPx())
-                    // Backdrop 2.0 高级效果：depthEffect 深度折射 + chromaticAberration 边缘色散
-                    lens(18.dp.toPx(), 18.dp.toPx(), depthEffect = true, chromaticAberration = true)
-                },
-                onDrawSurface = { drawRect(surfaceTint) }
-            )
-            .fillMaxWidth()
-            .height(52.dp)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier.padding(start = 14.dp, end = 14.dp, bottom = 10.dp).fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // 伪输入条：点击弹出回复编辑
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
-            modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(50))
-                .clickable(onClick = onReply)
+        Row(
+            Modifier.weight(1f).height(52.dp).drawBackdrop(
+                backdrop, { RoundedCornerShape(50) },
+                effects = { vibrancy(); blur(6.dp.toPx()); lens(18.dp.toPx(), 18.dp.toPx(), depthEffect = true, chromaticAberration = true) },
+                onDrawSurface = { drawRect(surfaceTint) },
+            ).padding(horizontal = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (loggedIn) "说点什么…" else "登录后参与回复",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                if (loggedIn) "说点什么…" else "登录后回复",
+                Modifier.weight(1f).clip(RoundedCornerShape(50)).clickable(onClick = onReply).padding(horizontal = 9.dp, vertical = 9.dp),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
+            if (showLike) TopicBarAction(if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (likeCount > 0) "$likeCount" else "点赞", liked, onLike)
         }
-        if (showLike) {
-            // 点赞主楼：图标 + 数量
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = onLike)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Icon(
-                    if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    if (liked) "已点赞" else "点赞",
-                    Modifier.size(18.dp),
-                    tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    if (likeCount > 0) "$likeCount" else "点赞",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-            }
-        }
-        if (showFavorite) {
-            // 收藏：已收藏时图标填充 + 主题色高亮（12）
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = onFavorite)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Icon(
-                    if (favorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                    if (favorited) "已收藏" else "收藏",
-                    Modifier.size(18.dp),
-                    tint = if (favorited) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    if (favorited) "已收藏" else "收藏",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (favorited) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-            }
+        Row(
+            Modifier.weight(1f).height(52.dp).drawBackdrop(
+                backdrop, { RoundedCornerShape(50) },
+                effects = { vibrancy(); blur(6.dp.toPx()); lens(18.dp.toPx(), 18.dp.toPx(), depthEffect = true, chromaticAberration = true) },
+                onDrawSurface = { drawRect(surfaceTint) },
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            TopicBarAction(Icons.Filled.PushPin, if (pinned) "已钉住" else "钉住", pinned, onPin)
+            if (showFavorite) TopicBarAction(if (favorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, if (favorited) "已收藏" else "收藏", favorited, onFavorite)
         }
     }
 }
@@ -1889,14 +2329,14 @@ private fun LoginPromptCard(count: Int, onLogin: () -> Unit) {
 // ==================== 楼层卡片 ====================
 
 /** 树形评论节点（源站 data-quote-threads-parent-floor 还原的多级回复结构） */
-private data class ReplyNode(val post: PostEntry, val depth: Int, val children: List<ReplyNode>)
+internal data class ReplyNode(val post: PostEntry, val depth: Int, val children: List<ReplyNode>)
 
 /**
  * 由已加载回复构建评论树：parentFloor 指向的楼层已加载且楼层号更小时挂为其子节点，
  * 否则视为顶层（父楼层必然小于子楼层——回复只能针对已有楼层，天然无环）。
  * 顶层节点按排序模式（0 热度 / 1 正序 / 2 倒序）排列，子节点恒按楼层正序。
  */
-private fun buildReplyTree(replies: List<PostEntry>, sortOrder: Int): List<ReplyNode> {
+internal fun buildReplyTree(replies: List<PostEntry>, sortOrder: Int): List<ReplyNode> {
     val byFloor = replies.filter { it.floor > 0 }.associateBy { it.floor }
     val childrenOf = HashMap<Int, MutableList<PostEntry>>()
     val tops = mutableListOf<PostEntry>()
@@ -1917,8 +2357,47 @@ private fun buildReplyTree(replies: List<PostEntry>, sortOrder: Int): List<Reply
 }
 
 /** 树 → 展平列表（楼层 + 层级深度），子树整棵跟随顶层节点（翻页按顶层分页不拆散对话） */
-private fun flattenTree(nodes: List<ReplyNode>): List<Pair<PostEntry, Int>> =
-    nodes.flatMap { n -> listOf(n.post to n.depth) + flattenTree(n.children) }
+internal fun flattenTree(nodes: List<ReplyNode>, collapsedIds: Set<Long> = emptySet()): List<Pair<PostEntry, Int>> =
+    nodes.flatMap { n ->
+        listOf(n.post to n.depth) + if (n.post.id in collapsedIds) emptyList() else flattenTree(n.children, collapsedIds)
+    }
+
+private data class SmartDecodedContent(val type: String, val source: String, val decoded: String)
+
+/** 保守识别常用文本编码：只展示高可读结果，二进制、乱码和过短片段不提示。 */
+private fun detectSmartEncodedContent(html: String): List<SmartDecodedContent> {
+    val plain = HtmlParser.htmlToText(html)
+    val found = mutableListOf<SmartDecodedContent>()
+    fun add(type: String, source: String, result: String?) {
+        val decoded = result?.trim().orEmpty()
+        if (source.length > 8_000 || decoded.length < 4 || decoded == source || decoded.contains('\uFFFD')) return
+        val readable = decoded.count { it == '\n' || it == '\r' || it == '\t' || !it.isISOControl() }
+        if (readable.toFloat() / decoded.length >= 0.9f) found += SmartDecodedContent(type, source, decoded)
+    }
+    Regex("(?<![A-Za-z0-9_+/=-])([A-Za-z0-9_+/-]{16,}={0,2})(?![A-Za-z0-9_+/=-])")
+        .findAll(plain).forEach { m ->
+            val source = m.groupValues[1]
+            val padded = source + "=".repeat((4 - source.length % 4) % 4)
+            val flags = if (source.contains('-') || source.contains('_')) android.util.Base64.URL_SAFE else android.util.Base64.DEFAULT
+            val decoded = runCatching { android.util.Base64.decode(padded, flags).toString(Charsets.UTF_8) }.getOrNull()
+            add(if (flags == android.util.Base64.URL_SAFE) "Base64 URL" else "Base64", source, decoded)
+        }
+    Regex("(?<![0-9A-Fa-f])([0-9A-Fa-f]{16,})(?![0-9A-Fa-f])").findAll(plain).forEach { m ->
+        val source = m.groupValues[1]
+        if (source.length % 2 == 0) add("Hex", source, runCatching {
+            source.chunked(2).map { it.toInt(16).toByte() }.toByteArray().toString(Charsets.UTF_8)
+        }.getOrNull())
+    }
+    Regex("(?:%[0-9A-Fa-f]{2}){4,}").findAll(plain).forEach { m -> add("URL", m.value, runCatching { java.net.URLDecoder.decode(m.value, "UTF-8") }.getOrNull()) }
+    Regex("(?:\\\\u[0-9A-Fa-f]{4}){2,}").findAll(plain).forEach { m ->
+        add("Unicode", m.value, Regex("\\\\u([0-9A-Fa-f]{4})").replace(m.value) { it.groupValues[1].toInt(16).toChar().toString() })
+    }
+    Regex("(?i)rot13\\s*[:：]\\s*([A-Za-z][A-Za-z ]{3,})").findAll(plain).forEach { m ->
+        val source = m.groupValues[1].trim()
+        add("ROT13", source, source.map { c -> when (c) { in 'a'..'z' -> 'a' + (c - 'a' + 13) % 26; in 'A'..'Z' -> 'A' + (c - 'A' + 13) % 26; else -> c } }.joinToString(""))
+    }
+    return found.distinctBy { it.type to it.source }.take(6)
+}
 
 /**
  * 楼层条目。
@@ -1945,8 +2424,16 @@ fun PostCard(
     threadEnabled: Boolean = true,
     threadReplyCount: Int = 0,
     replyParentAvatar: String = "",
+    showReplyCapsule: Boolean = true,
+    childReplyCount: Int = 0,
+    childrenCollapsed: Boolean = false,
+    onToggleChildren: () -> Unit = {},
     commentFavorited: Boolean = false,
     onFavComment: (() -> Unit)? = null,
+    onHeadingPosition: (Int, Float) -> Unit = { _, _ -> },
+    onBodyLayout: (Float, Float) -> Unit = { _, _ -> },
+    searchHighlight: String = "",
+    onSearchPosition: (Float) -> Unit = {},
 ) {
     if (isMainPost) {
         // ---------- 楼主正文：正文长按为系统原生文本选择，不再弹功能菜单（2.6） ----------
@@ -1955,7 +2442,7 @@ fun PostCard(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.13f))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.13f))
                 .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 2.dp)
         ) {
             PostCardContent(
@@ -1968,7 +2455,15 @@ fun PostCard(
                 onEditUser = onEditUser,
                 threadEnabled = threadEnabled,
                 threadReplyCount = threadReplyCount,
+                showReplyCapsule = showReplyCapsule,
                 replyParentAvatar = replyParentAvatar,
+                childReplyCount = childReplyCount,
+                childrenCollapsed = childrenCollapsed,
+                onToggleChildren = onToggleChildren,
+                onHeadingPosition = onHeadingPosition,
+                onBodyLayout = onBodyLayout,
+                searchHighlight = searchHighlight,
+                onSearchPosition = onSearchPosition,
             )
         }
     } else {
@@ -2012,9 +2507,17 @@ fun PostCard(
                     onEditUser = onEditUser,
                     threadEnabled = threadEnabled,
                     threadReplyCount = threadReplyCount,
-                    replyParentAvatar = replyParentAvatar,
+                    showReplyCapsule = showReplyCapsule,
+                replyParentAvatar = replyParentAvatar,
+                    childReplyCount = childReplyCount,
+                    childrenCollapsed = childrenCollapsed,
+                    onToggleChildren = onToggleChildren,
                     commentFavorited = commentFavorited,
                     onFavComment = onFavComment,
+                    onHeadingPosition = onHeadingPosition,
+                onBodyLayout = onBodyLayout,
+                    searchHighlight = searchHighlight,
+                    onSearchPosition = onSearchPosition,
                 )
             }
         }
@@ -2064,15 +2567,33 @@ private fun PostCardContent(
     threadEnabled: Boolean = true,
     threadReplyCount: Int = 0,
     replyParentAvatar: String = "",
+    showReplyCapsule: Boolean = true,
+    childReplyCount: Int = 0,
+    childrenCollapsed: Boolean = false,
+    onToggleChildren: () -> Unit = {},
     commentFavorited: Boolean = false,
     onFavComment: (() -> Unit)? = null,
+    onHeadingPosition: (Int, Float) -> Unit = { _, _ -> },
+    onBodyLayout: (Float, Float) -> Unit = { _, _ -> },
+    searchHighlight: String = "",
+    onSearchPosition: (Float) -> Unit = {},
 ) {
     Column(modifier) {
         // 作者行：头像 + 名称/徽章 + 元信息，楼层号固定右上角
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(post.avatarUrl, avatarSize, Modifier.clickable(onClick = onUser), online = post.online)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Avatar(post.avatarUrl, avatarSize, Modifier.clickable(onClick = onUser), online = post.online)
+                if (LocalShowUid.current && post.authorUid > 0) {
+                    Text(
+                        post.authorUid.toString(),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+            }
             Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).offset(y = (-2).dp)) {
                 // 用户信息行（源站格式）：名字后面直接跟 UID，随后是组别/楼主徽章。
                 // 用 FlowRow 在放不下时自动换行，避免徽章挤占导致用户名被截断
                 FlowRow(
@@ -2080,15 +2601,12 @@ private fun PostCardContent(
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Text(
-                        post.authorName,
+                        addSearchHighlights(AnnotatedString(post.authorName), searchHighlight, MaterialTheme.colorScheme.tertiaryContainer),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (post.authorUid > 0) {
-                        PillBadge("UID ${post.authorUid}", MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surfaceVariant, Modifier.align(Alignment.CenterVertically))
-                    }
                     if (isOpAuthor) {
                         PillBadge("楼主", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer, Modifier.align(Alignment.CenterVertically))
                     }
@@ -2102,14 +2620,8 @@ private fun PostCardContent(
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     post.titleBadge?.let { t ->
-                        val (fg, bg) = sb.linux.client.ui.titleRarityColor(t.rarity)
-                        PillBadge(
-                            buildString {
-                                append(t.name)
-                                if (t.rarity.isNotBlank()) append("·").append(t.rarity)
-                            },
-                            fg, bg
-                        )
+                        // 称号独立渲染，避免与用户组/头衔/积分拼成一个标签；UR 保留序列号特化。
+                        TitleBadgeView(t, small = true)
                     }
                     Text(
                         buildString {
@@ -2141,48 +2653,83 @@ private fun PostCardContent(
             }
         }
         Spacer(Modifier.height(10.dp))
-        // 树形评论标识（源站 data-quote-threads-parent-floor）：本楼回复的是第 N 楼，
-        // 点击在帖子内定位到目标楼层并高亮。嵌套子回复也显示——长对话树中
-        // 父楼层可能已滚出屏幕，胶囊是快速定位入口
-        if (post.parentFloor > 0) {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .clickable { onFloor(post.parentFloor) }
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    // 父楼作者头像置于楼层号前；父楼未加载（跨页/已删除）时降级为回复图标
-                    if (replyParentAvatar.isNotBlank()) {
-                        Avatar(replyParentAvatar, 16)
-                    } else {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Reply,
-                            null,
-                            Modifier.size(12.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+        // 正文：交给系统原生长按选择菜单（复制/翻译/搜索由系统提供）；#楼层号可点击跳转
+        SelectionContainer {
+            HtmlContent(post.contentHtml, modifier = Modifier.onGloballyPositioned { onBodyLayout(it.positionInRoot().y, it.size.height.toFloat()) }, onFloor = onFloor, onHeadingPosition = onHeadingPosition, highlightQuery = searchHighlight, onSearchPosition = onSearchPosition)
+        }
+        if (LocalSmartDecode.current) {
+            val decodedItems = remember(post.contentHtml) { detectSmartEncodedContent(post.contentHtml) }
+            if (decodedItems.isNotEmpty()) {
+                val clipboard = LocalClipboardManager.current
+                Spacer(Modifier.height(8.dp))
+                decodedItems.forEach { decoded ->
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    ) {
+                        Column(Modifier.padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "识别到 ${decoded.type}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(
+                                    onClick = { clipboard.setText(AnnotatedString(decoded.decoded)) },
+                                    modifier = Modifier.size(30.dp),
+                                ) { Icon(Icons.Filled.ContentCopy, "复制解码结果", Modifier.size(16.dp)) }
+                            }
+                            SelectionContainer {
+                                Text(decoded.decoded, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
                     }
-                    Text(
-                        "回复 #${post.parentFloor}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
                 }
             }
-            Spacer(Modifier.height(6.dp))
         }
-        // 正文：楼主正文支持系统原生长按选择文本（2.6）；#楼层号可点击跳转
-        if (showFloorBadge) {
-            HtmlContent(post.contentHtml, onFloor = onFloor)
-        } else {
-            SelectionContainer {
-                HtmlContent(post.contentHtml, onFloor = onFloor)
+        // 回复目标与本评论的子树折叠均位于卡片右下角；二者互不抢占点击区域。
+        if ((showReplyCapsule && post.parentFloor > 0) || childReplyCount > 0) {
+            Spacer(Modifier.height(6.dp))
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (showReplyCapsule && post.parentFloor > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+                        modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onFloor(post.parentFloor) }
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            if (replyParentAvatar.isNotBlank()) Avatar(replyParentAvatar, 16)
+                            else Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Text("回复 #${post.parentFloor}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        }
+                    }
+                }
+                if (childReplyCount > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.58f),
+                        modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onToggleChildren),
+                    ) {
+                        Row(Modifier.padding(horizontal = 9.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (childrenCollapsed) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                                null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                if (childrenCollapsed) "展开 $childReplyCount 条回复" else "折叠 $childReplyCount 条回复",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            )
+                        }
+                    }
+                }
             }
         }
         // 对话串联入口（默认关闭，设置中可开启）：本楼引用了其他楼层、或被其他楼层回复时显示
@@ -2288,6 +2835,17 @@ private fun PostCardContent(
             Spacer(Modifier.weight(1f))
         }
     }
+}
+
+/** 中文按单字计，拉丁/数字连续串按一个词计；按约 300 字/分钟给出保守阅读时长。 */
+internal fun estimateReading(text: String): Pair<Int, Int> {
+    val cjk = text.count { c ->
+        c.code in 0x3400..0x4DBF || c.code in 0x4E00..0x9FFF ||
+            c.code in 0xF900..0xFAFF || c.code in 0x3040..0x30FF || c.code in 0xAC00..0xD7AF
+    }
+    val words = Regex("[A-Za-z0-9]+(?:['_-][A-Za-z0-9]+)*").findAll(text).count()
+    val total = (cjk + words).coerceAtLeast(text.trim().takeIf { it.isNotEmpty() }?.let { 1 } ?: 0)
+    return total to ((total + 299) / 300).coerceAtLeast(if (total > 0) 1 else 0)
 }
 
 /** 最后编辑信息：编辑人名字高亮可点击，跳转其个人主页 */
@@ -2403,7 +2961,7 @@ private fun DonateSheet(
     var preset by remember { mutableStateOf("6") }
     var custom by remember { mutableStateOf(false) }
     var customText by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("好帖！赞一个！") }
+    var message by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -2436,6 +2994,11 @@ private fun DonateSheet(
                     Modifier.fillMaxWidth().height(200.dp),
                     contentAlignment = Alignment.Center
                 ) { CircularProgressIndicator() }
+                info?.unavailableReason?.isNotBlank() == true -> {
+                    Text("暂时无法打赏", style = MaterialTheme.typography.titleLarge)
+                    Text(info!!.unavailableReason)
+                    TextButton(onClick = onDismiss) { Text("知道了") }
+                }
                 else -> {
                     val i = info!!
                     Text(
@@ -3001,6 +3564,7 @@ fun FloorJumpDialog(maxFloor: Int, onDismiss: () -> Unit, onJump: (Int) -> Unit,
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReplyDialog(
+    session: Session,
     initial: String,
     captcha: sb.linux.client.data.NativeCaptcha?,
     onDismiss: () -> Unit,
@@ -3010,10 +3574,18 @@ fun ReplyDialog(
     showToolbar: Boolean = true,
     onRefreshCaptcha: (() -> Unit)? = null,
 ) {
-    var body by remember { mutableStateOf(TextFieldValue(initial)) }
+    // 引用回复必须保持 @用户名 #楼层 位于正文最开头；光标默认放到预填内容末尾，
+    // 否则用户输入会插到引用前面，源站无法把回复加入评论树。
+    var body by remember(initial) {
+        mutableStateOf(TextFieldValue(initial, selection = TextRange(initial.length)))
+    }
     var answer by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    var previewReply by remember { mutableStateOf(false) }
+    var imageUploadBusy by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val canSubmit = body.text.isNotBlank() && !busy && (captcha == null || answer.isNotBlank())
     // 换题后清空旧答案，避免带着上一题的答案提交
     LaunchedEffect(captcha) { if (answer.isNotBlank()) answer = "" }
@@ -3031,6 +3603,41 @@ fun ReplyDialog(
         val newText = text.substring(0, start) + before + mid + after + text.substring(end)
         val cursor = start + before.length + mid.length + after.length
         body = TextFieldValue(newText, selection = TextRange(cursor))
+    }
+
+    fun insertUploadedImage(url: String) {
+        val text = body.text
+        val start = body.selection.min.coerceIn(0, text.length)
+        val end = body.selection.max.coerceIn(0, text.length)
+        val markdown = "![图片]($url)"
+        body = TextFieldValue(
+            text = text.substring(0, start) + markdown + text.substring(end),
+            selection = TextRange(start + markdown.length),
+        )
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            imageUploadBusy = true
+            scope.launch {
+                try {
+                    insertUploadedImage(ImageHostClient.upload(context, session.settings, uri))
+                    session.showToast("图片上传成功")
+                } catch (e: Exception) {
+                    session.showToast(e.message ?: "图片上传失败")
+                } finally {
+                    imageUploadBusy = false
+                }
+            }
+        }
+    }
+
+    fun chooseImage() {
+        if (!session.settings.useBuiltInImageHost && session.settings.imageHostUrl.isBlank()) {
+            session.showToast("请先在设置中配置图床")
+        } else {
+            imagePicker.launch("image/*")
+        }
     }
 
     fun submit() {
@@ -3067,15 +3674,24 @@ fun ReplyDialog(
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
+                if (showToolbar) TextButton(onClick = { previewReply = !previewReply }) { Text(if (previewReply) "编辑" else "预览") }
                         TextButton(onClick = { if (!busy) expanded = false }) { Text("收起") }
                         TextButton(onClick = { submit() }, enabled = canSubmit) {
                             Text(if (busy) "发送中…" else submitLabel)
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    if (showToolbar) ReplyToolbar(onInsert = { b, a, p -> insert(b, a, p) })
+                    if (showToolbar) ReplyToolbar(
+                        onInsert = { b, a, p -> insert(b, a, p) },
+                        onUploadImage = ::chooseImage,
+                        imageUploadBusy = imageUploadBusy,
+                    )
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
+                    if (previewReply) {
+                        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+                            HtmlContent(remember(body.text) { HtmlParser.markdownToHtml(body.text) }, cacheable = false)
+                        }
+                    } else OutlinedTextField(
                         value = body,
                         onValueChange = { body = it },
                         modifier = Modifier
@@ -3117,15 +3733,24 @@ fun ReplyDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
+                if (showToolbar) TextButton(onClick = { previewReply = !previewReply }) { Text(if (previewReply) "编辑" else "预览") }
                 TextButton(onClick = { submit() }, enabled = canSubmit) {
                     Text(if (busy) "发送中…" else submitLabel)
                 }
             }
             Spacer(Modifier.height(4.dp))
-            if (showToolbar) ReplyToolbar(onInsert = { b, a, p -> insert(b, a, p) })
+            if (showToolbar) ReplyToolbar(
+                onInsert = { b, a, p -> insert(b, a, p) },
+                onUploadImage = ::chooseImage,
+                imageUploadBusy = imageUploadBusy,
+            )
             Spacer(Modifier.height(8.dp))
             // 紧凑输入框：「展开」按钮嵌入输入框尾随槽位（trailingIcon），点按进入全屏编辑
-            OutlinedTextField(
+            if (previewReply) {
+                Column(Modifier.fillMaxWidth().heightIn(min = 96.dp, max = 320.dp).verticalScroll(rememberScrollState())) {
+                    HtmlContent(remember(body.text) { HtmlParser.markdownToHtml(body.text) }, cacheable = false)
+                }
+            } else OutlinedTextField(
                 value = body,
                 onValueChange = { body = it },
                 modifier = Modifier
@@ -3157,29 +3782,15 @@ fun ReplyDialog(
 
 /** Markdown 工具栏（横向滚动；私信等场景隐藏），onInsert(before, after, placeholder) */
 @Composable
-private fun ReplyToolbar(onInsert: (String, String, String) -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            IconButton(onClick = { onInsert("**", "**", "粗体") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatBold, "粗体", Modifier.size(18.dp)) }
-            IconButton(onClick = { onInsert("*", "*", "斜体") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatItalic, "斜体", Modifier.size(18.dp)) }
-            IconButton(onClick = { onInsert("## ", "", "标题") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Title, "标题", Modifier.size(18.dp)) }
-            IconButton(onClick = { onInsert("> ", "", "引用") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.FormatQuote, "引用", Modifier.size(18.dp)) }
-            IconButton(onClick = { onInsert("`", "`", "代码") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Code, "代码", Modifier.size(18.dp)) }
-            IconButton(onClick = { onInsert("```\n", "\n```", "代码块") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Code, "代码块", Modifier.size(18.dp)) }
-            IconButton(onClick = { onInsert("- ", "", "列表项") }, modifier = Modifier.size(38.dp)) { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "列表", Modifier.size(18.dp)) }
-            IconButton(onClick = { onInsert("[", "](https://)", "链接文字") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Link, "链接", Modifier.size(18.dp)) }
-            IconButton(onClick = { onInsert("![", "](https://)", "图片描述") }, modifier = Modifier.size(38.dp)) { Icon(Icons.Filled.Image, "图片", Modifier.size(18.dp)) }
-        }
-    }
+private fun ReplyToolbar(
+    onInsert: (String, String, String) -> Unit,
+    onUploadImage: (() -> Unit)? = null,
+    imageUploadBusy: Boolean = false,
+) {
+    sb.linux.client.ui.MarkdownEditorTools(
+        onInsert = onInsert, onUpload = { onUploadImage?.invoke() ?: onInsert("![", "](https://)", "图片描述") },
+        uploading = imageUploadBusy,
+    )
 }
 
 /** 人机验证输入框（抽奖帖等）：题目展示，答案由用户填写；提供「换一题」刷新按钮。captcha 为 null 时不显示 */
@@ -3389,9 +4000,23 @@ private fun FreeCopyDialog(
 /** 导出格式选择弹窗：MD3 底部弹层，圆角色调图标容器 + 标题/副标题 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExportDialog(busy: String?, onDismiss: () -> Unit, onExport: (String) -> Unit) {
-    ModalBottomSheet(onDismissRequest = { if (busy == null) onDismiss() }) {
-        Column(Modifier.padding(horizontal = 16.dp)) {
+fun ExportDialog(
+    posts: List<PostEntry>,
+    busy: String?,
+    loadingPosts: Boolean = false,
+    allLoaded: Boolean = false,
+    onLoadAll: () -> Unit = {},
+    onDismiss: () -> Unit,
+    onExport: (kind: String, scopeMode: String, fromFloor: Int, toFloor: Int, multiPage: Boolean, selectedIds: Set<Long>) -> Unit,
+) {
+    var scopeMode by remember { mutableStateOf("all") }
+    var fromFloor by remember { mutableStateOf("0") }
+    var toFloor by remember { mutableStateOf("20") }
+    var multiPage by remember { mutableStateOf(true) }
+    var selectedIds by remember { mutableStateOf(posts.map { it.id }.toSet()) }
+    ModalBottomSheet(onDismissRequest = { if (busy == null) onDismiss() },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), sheetGesturesEnabled = false) {
+        Column(Modifier.fillMaxHeight(0.9f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Row(
                 Modifier.padding(start = 4.dp, top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -3401,11 +4026,62 @@ fun ExportDialog(busy: String?, onDismiss: () -> Unit, onExport: (String) -> Uni
                 TextButton(onClick = onDismiss, enabled = busy == null) { Text("关闭") }
             }
             Text(
-                "选择导出格式，文件保存后可在「设置 → 已导出的帖子」查看",
+                "选择内容范围和格式，文件保存后可在「设置 → 已导出的帖子」查看",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
             )
+            TextButton(enabled = busy == null && !loadingPosts && !allLoaded, onClick = onLoadAll) {
+                Text(if (loadingPosts) "正在加载完整帖子…" else if (allLoaded) "已加载完整帖子（${posts.size} 楼）" else "加载完整帖子后导出（当前 ${posts.size} 楼）")
+            }
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                listOf("all" to "已加载", "main" to "仅正文", "range" to "范围", "selected" to "勾选").forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = scopeMode == value,
+                        onClick = { scopeMode = value },
+                        shape = SegmentedButtonDefaults.itemShape(index, 4),
+                    ) { Text(label) }
+                }
+            }
+            if (scopeMode == "range") {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = fromFloor, onValueChange = { fromFloor = it.filter(Char::isDigit) },
+                        label = { Text("起始楼层") }, singleLine = true, modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = toFloor, onValueChange = { toFloor = it.filter(Char::isDigit) },
+                        label = { Text("结束楼层") }, singleLine = true, modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            if (scopeMode == "selected") {
+                Row {
+                    TextButton(onClick = { selectedIds = posts.map { it.id }.toSet() }) { Text("全选") }
+                    TextButton(onClick = { selectedIds = emptySet() }) { Text("清空") }
+                    Text("已选 ${selectedIds.size} 层", modifier = Modifier.padding(12.dp))
+                }
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
+                    items(posts, key = { it.id }) { post ->
+                        Row(Modifier.fillMaxWidth().clickable {
+                            selectedIds = if (post.id in selectedIds) selectedIds - post.id else selectedIds + post.id
+                        }, verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = post.id in selectedIds, onCheckedChange = null)
+                            Text(if (post.floor == 0) "正文 · ${post.authorName}" else "#${post.floor} · ${post.authorName}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("长图自动分页", style = MaterialTheme.typography.bodyMedium)
+                    Text("按实际高度分页，单篇超长正文也完整导出", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = multiPage, onCheckedChange = { multiPage = it })
+            }
             listOf(
                 Triple("html", "导出 HTML", "保留原帖结构与样式，适合存档"),
                 Triple("md", "导出 Markdown", "纯文本轻量格式，便于编辑"),
@@ -3420,8 +4096,17 @@ fun ExportDialog(busy: String?, onDismiss: () -> Unit, onExport: (String) -> Uni
                     title = label,
                     subtitle = subtitle,
                     busy = busy == kind,
-                    enabled = busy == null,
-                    onClick = { onExport(kind) }
+                    enabled = busy == null && !loadingPosts && (scopeMode != "selected" || selectedIds.isNotEmpty()),
+                    onClick = {
+                        onExport(
+                            kind,
+                            scopeMode,
+                            fromFloor.toIntOrNull() ?: 0,
+                            toFloor.toIntOrNull() ?: Int.MAX_VALUE,
+                            multiPage,
+                            selectedIds,
+                        )
+                    }
                 )
             }
             Spacer(Modifier.height(24.dp))

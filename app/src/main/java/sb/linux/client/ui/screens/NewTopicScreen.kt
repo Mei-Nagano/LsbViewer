@@ -1,5 +1,9 @@
 package sb.linux.client.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,15 +16,24 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.FormatStrikethrough
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SentimentSatisfied
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +43,7 @@ import kotlinx.coroutines.launch
 import org.jsoup.Jsoup
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.LsbException
+import sb.linux.client.data.ImageHostClient
 import sb.linux.client.data.Session
 
 private data class ForumOption(val id: String, val name: String)
@@ -63,6 +77,41 @@ private fun parseEditValues(html: String): Triple<String, String, String> {
         form.selectFirst("textarea[name=body]")?.text() ?: "",
         form.selectFirst("input[name=id]")?.attr("value") ?: "0",
     )
+}
+
+private data class SourceEditMeta(
+    val confirmation: String = "",
+    val notice: String = "",
+    val hiddenFields: Map<String, String> = emptyMap(),
+)
+
+/** 保留源站付费编辑确认文案及对应的一次性报价字段。 */
+private fun parseSourceEditMeta(html: String): SourceEditMeta {
+    val d = Jsoup.parse(html, "https://linux.sb")
+    val form = d.selectFirst("form:has(input[name=title])") ?: return SourceEditMeta()
+    val hidden = form.select("input[type=hidden][name]")
+        .filter { it.attr("name").startsWith("sb_limit_edit_time_") }
+        .associate { it.attr("name") to it.attr("value") }
+    return SourceEditMeta(
+        confirmation = form.attr("data-confirm").trim(),
+        notice = d.selectFirst(".sb-limit-edit-time-quote")?.text()?.trim()
+            ?.replace(Regex("\\s+"), " ").orEmpty(),
+        hiddenFields = hidden,
+    )
+}
+
+private fun parseSelectedForumId(html: String): String {
+    val d = Jsoup.parse(html, "https://linux.sb")
+    return d.selectFirst("form select[name=forum_id] option[selected]")?.attr("value").orEmpty()
+}
+
+/** 编辑页源站回帖排序选项；新建页不存在该控件。 */
+private fun parseReplyOrderOptions(html: String): Pair<String, List<Pair<String, String>>> {
+    val select = Jsoup.parse(html, "https://linux.sb").selectFirst("form select[name=reply_order]")
+        ?: return "" to emptyList()
+    val options = select.select("option").map { it.attr("value") to it.text().trim() }
+    val selected = select.selectFirst("option[selected]")?.attr("value") ?: options.firstOrNull()?.first.orEmpty()
+    return selected to options
 }
 
 /** 解析已选帖子类型（编辑抽奖帖/发卡帖时 radio 带 checked） */
@@ -140,7 +189,8 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
     var forumId by remember { mutableStateOf<String?>(null) }
     var forumExpanded by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
-    var body by remember { mutableStateOf("") }
+    var body by rememberSaveable { mutableStateOf("") }
+    var bodySelection by remember { mutableStateOf(TextRange.Zero) }
     var internalId by remember { mutableStateOf("0") }
     // 帖子类型：空 = 普通帖 / lottery 抽奖帖 / virtual_card 发卡帖（与源站 radio topic_special_type 一致）
     var specialType by remember { mutableStateOf("") }
@@ -162,22 +212,74 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
     var prizeTypeMenu by remember { mutableStateOf<Int?>(null) }
     // 发帖公告（源站发布警告），每次发布前确认弹窗展示
     var announcement by remember { mutableStateOf("") }
+    var sourceEditMeta by remember { mutableStateOf(SourceEditMeta()) }
+    var replyOrder by remember { mutableStateOf("") }
+    var replyOrderOptions by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var replyOrderMenu by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmOpen by remember { mutableStateOf(false) }
+    var restoreDraftOpen by remember { mutableStateOf(false) }
+    var exitDraftOpen by remember { mutableStateOf(false) }
+    var draftMenuOpen by remember { mutableStateOf(false) }
     // 预览模式：正文 Markdown 实时渲染为帖子样式（HtmlContent）
     var previewMode by remember { mutableStateOf(false) }
+    var emojiMenuOpen by remember { mutableStateOf(false) }
+    var imageUploadBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val draftPrefs = remember { context.getSharedPreferences("lsb_topic_drafts", android.content.Context.MODE_PRIVATE) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            imageUploadBusy = true
+            try {
+                val url = ImageHostClient.upload(context, session.settings, uri)
+                val at = bodySelection.min.coerceIn(0, body.length)
+                val end = bodySelection.max.coerceIn(at, body.length)
+                val image = "![图片]($url)"
+                body = body.replaceRange(at, end, image)
+                bodySelection = TextRange(at + image.length)
+                session.showToast("图片上传成功")
+            } catch (e: Exception) {
+                session.showToast(e.message ?: "图片上传失败")
+            } finally { imageUploadBusy = false }
+        }
+    }
+
+    fun saveDraft() {
+        if (editId > 0) return
+        val extra = org.json.JSONObject().apply {
+            put("specialType", specialType); put("drawAt", drawAt); put("participantTarget", participantTarget)
+            put("minReplyChars", minReplyChars); put("replyCaptcha", replyCaptcha)
+            put("prizes", org.json.JSONArray(prizes.map { prize -> org.json.JSONObject().apply {
+                put("name", prize.name); put("type", prize.type); put("quantity", prize.quantity); put("value", prize.value)
+            } }))
+            put("cardName", cardName); put("cardCurrency", cardCurrency); put("cardPrice", cardPrice)
+            put("cardLimit", cardLimit); put("cardAutoReply", cardAutoReply)
+            put("cardAutoReplyContent", cardAutoReplyContent); put("cardValues", cardValues)
+        }
+        draftPrefs.edit()
+            .putString("title", title).putString("body", body)
+            .putString("extra", extra.toString())
+            .putString("forum_id", forumId ?: "").putLong("saved_at", System.currentTimeMillis())
+            .apply()
+        session.showToast("草稿已保存")
+    }
+    fun clearDraft() = draftPrefs.edit().clear().apply()
 
     LaunchedEffect(editId) {
         try {
-            val path = if (editId > 0) "/topic_edit?id=$editId" else "/topic_edit"
+            val path = if (editId > 0) "/topic_edit/$editId" else "/topic_edit"
             val resp = session.client.get(path)
             forums = parseForums(resp.html)
             announcement = parseAnnouncement(resp.html)
+            sourceEditMeta = parseSourceEditMeta(resp.html)
+            parseReplyOrderOptions(resp.html).let { (selected, options) ->
+                replyOrder = selected; replyOrderOptions = options
+            }
             specialType = parseSpecialType(resp.html)
-            forumId = forums.firstOrNull()?.id
+            forumId = parseSelectedForumId(resp.html).ifBlank { forums.firstOrNull()?.id.orEmpty() }
             if (editId > 0) {
                 val (t, b, id) = parseEditValues(resp.html)
                 title = t; body = b; internalId = id
@@ -197,6 +299,9 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                 }
             } else {
                 internalId = "0"
+                if (!draftPrefs.getString("body", "").isNullOrBlank() ||
+                    !draftPrefs.getString("title", "").isNullOrBlank() || draftPrefs.contains("extra")
+                ) restoreDraftOpen = true
             }
         } catch (e: Exception) {
             error = e.message
@@ -204,13 +309,13 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
     }
 
     fun insert(before: String, after: String = before, placeholder: String = "") {
-        body = buildString {
-            append(body)
-            if (body.isNotEmpty() && !body.endsWith("\n")) append("\n")
-            append(before)
-            if (placeholder.isNotBlank()) append(placeholder)
-            append(after)
-        }
+        val start = bodySelection.min.coerceIn(0, body.length)
+        val end = bodySelection.max.coerceIn(start, body.length)
+        val selection = body.substring(start, end).ifEmpty { placeholder }
+        val replacement = before + selection + after
+        body = body.replaceRange(start, end, replacement)
+        bodySelection = if (before.isEmpty() && after.isEmpty()) TextRange(start + replacement.length)
+            else TextRange(start + before.length, start + before.length + selection.length)
     }
 
     /** 确认公告后的实际提交：按帖子类型组装表单字段（与源站网页端一致） */
@@ -228,6 +333,8 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                     "title" to title,
                     "body" to body,
                 )
+                if (editId > 0) form += sourceEditMeta.hiddenFields.toList()
+                if (editId > 0 && replyOrder.isNotBlank()) form += "reply_order" to replyOrder
                 when (specialType) {
                     "lottery" -> {
                         // 抽奖帖：datetime-local 原始格式 yyyy-MM-ddTHH:mm
@@ -260,11 +367,14 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                         form += "virtual_card_values" to cardValues
                     }
                 }
-                val resp = session.client.postFormPairs("/topic_edit", form)
+                val submitPath = if (editId > 0) "/topic_edit/$editId" else "/topic_edit"
+                val resp = session.client.postFormPairs(submitPath, form)
                 if (resp.url.contains("form_error")) {
                     error = HtmlParser.extractError(resp.html).ifBlank { "发布失败" }
                 } else {
-                    session.showToast("发布成功")
+                    if (editId == 0L) clearDraft()
+                    if (editId == 0L) session.settings.recordUsageEvent("topic", title = title)
+                    session.showToast(if (editId > 0) "编辑成功" else "发布成功")
                     nav.popBackStack()
                 }
             } catch (e: Exception) {
@@ -273,14 +383,70 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
         }
     }
 
+    val hasDraftContent = title.isNotBlank() || body.isNotBlank() || specialType.isNotBlank()
+    BackHandler(enabled = editId == 0L && hasDraftContent) { exitDraftOpen = true }
+
+    if (restoreDraftOpen) {
+        AlertDialog(
+            onDismissRequest = { restoreDraftOpen = false },
+            title = { Text("发现未发布草稿") },
+            text = { Text("是否恢复标题、正文、版块及抽奖/发卡配置？") },
+            confirmButton = { TextButton(onClick = {
+                title = draftPrefs.getString("title", "").orEmpty()
+                body = draftPrefs.getString("body", "").orEmpty()
+                draftPrefs.getString("forum_id", "")?.takeIf { it.isNotBlank() }?.let { forumId = it }
+                runCatching { org.json.JSONObject(draftPrefs.getString("extra", "{}").orEmpty()) }.getOrNull()?.let { extra ->
+                    specialType = extra.optString("specialType")
+                    drawAt = extra.optString("drawAt"); participantTarget = extra.optString("participantTarget", "0")
+                    minReplyChars = extra.optString("minReplyChars", "5"); replyCaptcha = extra.optBoolean("replyCaptcha", true)
+                    extra.optJSONArray("prizes")?.let { rows ->
+                        prizes = (0 until rows.length()).mapNotNull { index -> rows.optJSONObject(index)?.let {
+                            PrizeRow(it.optString("name"), it.optString("type", "points"), it.optString("quantity", "1"), it.optString("value"))
+                        } }.ifEmpty { listOf(PrizeRow()) }
+                    }
+                    cardName = extra.optString("cardName"); cardCurrency = extra.optString("cardCurrency", "points")
+                    cardPrice = extra.optString("cardPrice", "1"); cardLimit = extra.optString("cardLimit", "1")
+                    cardAutoReply = extra.optBoolean("cardAutoReply"); cardAutoReplyContent = extra.optString("cardAutoReplyContent")
+                    cardValues = extra.optString("cardValues")
+                }
+                restoreDraftOpen = false
+            }) { Text("恢复") } },
+            dismissButton = { TextButton(onClick = { clearDraft(); restoreDraftOpen = false }) { Text("丢弃") } }
+        )
+    }
+    if (exitDraftOpen) {
+        AlertDialog(
+            onDismissRequest = { exitDraftOpen = false },
+            title = { Text("保存到草稿箱？") },
+            text = { Text("当前内容尚未发布，可以保存后下次继续编辑。") },
+            confirmButton = { TextButton(onClick = { saveDraft(); exitDraftOpen = false; nav.popBackStack() }) { Text("保存并退出") } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { exitDraftOpen = false }) { Text("取消") }
+                    TextButton(onClick = { clearDraft(); exitDraftOpen = false; nav.popBackStack() }) { Text("不保存") }
+                }
+            }
+        )
+    }
+
     // 发帖前确认弹窗：展示源站发帖公告，每次发布前都要确认
     if (confirmOpen) {
         AlertDialog(
             onDismissRequest = { confirmOpen = false },
-            title = { Text(if (announcement.isNotBlank()) "发帖公告" else "确认发布") },
+            title = {
+                Text(
+                    if (editId > 0) "确认编辑"
+                    else if (announcement.isNotBlank()) "发帖公告"
+                    else "确认发布"
+                )
+            },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    if (announcement.isNotBlank()) {
+                    val editMessage = listOf(sourceEditMeta.notice, sourceEditMeta.confirmation)
+                        .filter { it.isNotBlank() }.distinct().joinToString("\n\n")
+                    if (editId > 0 && editMessage.isNotBlank()) {
+                        Text(editMessage, style = MaterialTheme.typography.bodyMedium)
+                    } else if (announcement.isNotBlank()) {
                         Text(announcement, style = MaterialTheme.typography.bodyMedium)
                     } else {
                         Text(
@@ -293,7 +459,7 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
             },
             confirmButton = {
                 TextButton(onClick = { confirmOpen = false; doSubmit() }, enabled = !busy) {
-                    Text(if (busy) "发布中…" else "确认发布")
+                    Text(if (busy) "提交中…" else if (editId > 0) "确认保存" else "确认发布")
                 }
             },
             dismissButton = {
@@ -307,11 +473,23 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
             TopAppBar(
                 title = { Text(if (editId > 0) "编辑主题" else "发布新主题") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
+                    IconButton(onClick = {
+                        if (editId == 0L && hasDraftContent) exitDraftOpen = true
+                        else nav.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
                 actions = {
+                    if (editId == 0L) {
+                        Box {
+                            IconButton(onClick = { draftMenuOpen = true }) { Icon(Icons.Filled.Save, "草稿箱") }
+                            DropdownMenu(expanded = draftMenuOpen, onDismissRequest = { draftMenuOpen = false }) {
+                                DropdownMenuItem(text = { Text("保存当前草稿") }, enabled = hasDraftContent, onClick = { saveDraft(); draftMenuOpen = false })
+                                DropdownMenuItem(text = { Text("恢复已保存草稿") }, enabled = draftPrefs.contains("saved_at"), onClick = { draftMenuOpen = false; restoreDraftOpen = true })
+                            }
+                        }
+                    }
                     // 正文 Markdown 实时预览开关
                     IconButton(onClick = { previewMode = !previewMode }) {
                         Icon(
@@ -341,7 +519,7 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                             confirmOpen = true
                         },
                         enabled = !busy
-                    ) { Text(if (busy) "发布中…" else "发布") }
+                    ) { Text(if (busy) "提交中…" else if (editId > 0) "保存" else "发布") }
                 }
             )
         }
@@ -661,26 +839,27 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Markdown 工具栏（预览模式下隐藏）
-            if (!previewMode) Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    IconButton(onClick = { insert("**", "**", "粗体") }) { Icon(Icons.Filled.FormatBold, "粗体") }
-                    IconButton(onClick = { insert("*", "*", "斜体") }) { Icon(Icons.Filled.FormatItalic, "斜体") }
-                    IconButton(onClick = { insert("## ", "", "标题") }) { Icon(Icons.Filled.Title, "标题") }
-                    IconButton(onClick = { insert("> ", "", "引用") }) { Icon(Icons.Filled.FormatQuote, "引用") }
-                    IconButton(onClick = { insert("`", "`", "代码") }) { Icon(Icons.Filled.Code, "代码") }
-                    IconButton(onClick = { insert("```\n", "\n```", "代码块") }) { Icon(Icons.Filled.Code, "代码块") }
-                    IconButton(onClick = { insert("- ", "", "列表项") }) { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "列表") }
-                    IconButton(onClick = { insert("[", "](https://)", "链接文字") }) { Icon(Icons.Filled.Link, "链接") }
+            if (editId > 0 && replyOrderOptions.isNotEmpty()) {
+                Box {
+                    OutlinedButton(onClick = { replyOrderMenu = true }, shape = RoundedCornerShape(14.dp)) {
+                        Text("回帖排序：${replyOrderOptions.firstOrNull { it.first == replyOrder }?.second.orEmpty()}")
+                    }
+                    DropdownMenu(expanded = replyOrderMenu, onDismissRequest = { replyOrderMenu = false }) {
+                        replyOrderOptions.forEach { (value, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = { replyOrder = value; replyOrderMenu = false },
+                            )
+                        }
+                    }
                 }
             }
+
+            if (!previewMode) sb.linux.client.ui.MarkdownEditorTools(
+                onInsert = { b, a, p -> insert(b, a, p) },
+                onUpload = { imagePicker.launch("image/*") },
+                uploading = imageUploadBusy,
+            )
 
             if (previewMode) {
                 // 预览：Markdown → HTML 后用帖子同款渲染器展示（表格/代码块/链接等所见即所得）
@@ -711,8 +890,8 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                 }
             } else {
                 OutlinedTextField(
-                    value = body,
-                    onValueChange = { body = it },
+                    value = TextFieldValue(body, bodySelection),
+                    onValueChange = { body = it.text; bodySelection = it.selection },
                     label = { Text("内容 (Markdown)") },
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier

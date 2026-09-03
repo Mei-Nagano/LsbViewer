@@ -55,7 +55,7 @@ object TopicExport {
 
             /** 从应用 ColorScheme 生成导出主题 */
             fun fromColorScheme(cs: androidx.compose.material3.ColorScheme): ExportTheme {
-                val bg = cs.background.toArgb()
+                val bg = (if (cs.background.alpha < 1f) cs.surface else cs.background).toArgb()
                 val pc = cs.primaryContainer.toArgb()
                 return ExportTheme(
                     background = bg,
@@ -206,8 +206,13 @@ object TopicExport {
 
     // ---------------- 长图 ----------------
 
-    /** 长图高度上限（px）：防止超长帖子导出时 OOM，超出部分截断并提示 */
-    private const val MAX_IMAGE_HEIGHT = 12000
+    /** 每页高度上限：逐页分配位图，超长正文不截断。 */
+    private const val MAX_IMAGE_HEIGHT = 6000
+
+    internal fun imagePageSlices(height: Int, pageHeight: Int): List<IntRange> {
+        require(height > 0 && pageHeight > 0)
+        return (0 until height step pageHeight).map { start -> start..minOf(start + pageHeight - 1, height - 1) }
+    }
 
     /** 长图内容图片加载数量上限：保护内存与导出耗时 */
     private const val MAX_CONTENT_IMAGES = 80
@@ -223,13 +228,14 @@ object TopicExport {
      * 头像（圆形）、楼主/楼层徽章、正文图片真实加载、跟随应用当前主题色（所见即所得）。
      * 需在 IO 线程调用（内部同步加载图片）。
      */
-    suspend fun renderLongImage(
+    suspend fun renderLongImages(
         context: Context,
         title: String,
         posts: List<PostEntry>,
         url: String,
         theme: ExportTheme = ExportTheme.Light,
-    ): File {
+        multiPage: Boolean = true,
+    ): List<File> {
         val widthPx = 1080
         val pad = (widthPx * 0.04f).toInt()          // 页面左右边距
         val cardPad = (widthPx * 0.032f).toInt()     // 卡片内边距
@@ -324,9 +330,6 @@ object TopicExport {
             lp().apply { topMargin = (2 * dp).toInt() }
         )
 
-        var renderedPosts = 0
-        var truncated = false
-
         for (p in posts) {
             // 预加载正文图片（ImageGetter 内无法挂起，先取好）
             val imgs = runCatching {
@@ -338,7 +341,10 @@ object TopicExport {
                 val bmp = fetchBitmap(src, contentMaxW)
                 if (bmp != null) {
                     imageBudget--
-                    imgMap[src] = android.graphics.drawable.BitmapDrawable(context.resources, bmp)
+                    val resolvedSrc = if (src.startsWith("http")) src else Endpoints.abs(src)
+                    imgMap[resolvedSrc] = android.graphics.drawable.BitmapDrawable(context.resources, bmp).apply {
+                        setBounds(0, 0, bmp.width, bmp.height)
+                    }
                 }
             }
             fun resolved(s: String) = if (s.startsWith("http")) s else Endpoints.abs(s)
@@ -403,10 +409,16 @@ object TopicExport {
             }
             card.addView(headRow)
 
-            // 正文：富文本 + 真实图片（与应用 HtmlContent 展示一致）
+            // 图片加载失败或达到内存保护上限时保留 URL，不能无声遗漏原帖图片。
+            val exportBody = Jsoup.parseBodyFragment(p.contentHtml).body().apply {
+                select("img").forEach { image ->
+                    val src = resolved(image.attr("src"))
+                    if (src !in imgMap) image.replaceWith(org.jsoup.nodes.Element("p").text("[图片未嵌入，可打开原图] $src"))
+                }
+            }.html()
             val body = tv(14f, color = theme.onSurface).apply {
                 text = Html.fromHtml(
-                    p.contentHtml,
+                    exportBody,
                     Html.FROM_HTML_MODE_LEGACY,
                     Html.ImageGetter { src -> imgMap[resolved(src)] },
                     null
@@ -434,37 +446,28 @@ object TopicExport {
                 topMargin = (10 * dp).toInt()
             })
 
-            // 高度保护：接近上限时停止渲染
-            val specW = android.view.View.MeasureSpec.makeMeasureSpec(widthPx, android.view.View.MeasureSpec.EXACTLY)
-            root.measure(specW, android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED))
-            if (root.measuredHeight > MAX_IMAGE_HEIGHT) {
-                truncated = true
-                root.removeView(card)
-                break
-            }
-            renderedPosts++
         }
 
-        if (truncated || renderedPosts < posts.size) {
-            root.addView(
-                tv("内容过长，仅导出前 $renderedPosts 楼", 11f, color = theme.onSurfaceVariant),
-                lp().apply { topMargin = (10 * dp).toInt() }
-            )
-        }
-
-        // 测量 + 布局
+        // 只分配一页位图；同一楼层跨页也完整保留，不再丢弃超过高度上限的正文。
         val specW = android.view.View.MeasureSpec.makeMeasureSpec(widthPx, android.view.View.MeasureSpec.EXACTLY)
         root.measure(specW, android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED))
-        val h = root.measuredHeight.coerceAtLeast(200)
-        root.layout(0, 0, widthPx, h)
-
-        val bmp = Bitmap.createBitmap(widthPx, h, Bitmap.Config.ARGB_8888)
-        root.draw(Canvas(bmp))
-
-        val file = File(exportDir(context), "${safeName(title)}.png")
-        file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 95, it) }
-        bmp.recycle()
-        return file
+        val height = root.measuredHeight.coerceAtLeast(200)
+        require(multiPage || height <= MAX_IMAGE_HEIGHT) { "内容超过单张长图上限，请开启自动分页后导出" }
+        root.layout(0, 0, widthPx, height)
+        val slices = imagePageSlices(height, MAX_IMAGE_HEIGHT)
+        val stamp = System.currentTimeMillis()
+        return slices.mapIndexed { index, slice ->
+            val bmp = Bitmap.createBitmap(widthPx, slice.last - slice.first + 1, Bitmap.Config.ARGB_8888)
+            try {
+                val canvas = Canvas(bmp)
+                canvas.translate(0f, -slice.first.toFloat())
+                root.draw(canvas)
+                val suffix = if (slices.size > 1) "_第${index + 1}页" else ""
+                File(exportDir(context), "${safeName(title)}_${stamp}${suffix}.png").also { file ->
+                    file.outputStream().use { check(bmp.compress(Bitmap.CompressFormat.PNG, 95, it)) { "图片写入失败" } }
+                }
+            } finally { bmp.recycle() }
+        }
     }
 
     // ---------------- 分享 ----------------
@@ -477,6 +480,23 @@ object TopicExport {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(Intent.createChooser(intent, "分享帖子").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    fun shareFiles(context: Context, files: List<File>, mime: String) {
+        if (files.isEmpty()) return
+        if (files.size == 1) {
+            shareFile(context, files.single(), mime)
+            return
+        }
+        val uris = ArrayList(files.map {
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", it)
+        })
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = mime
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(Intent.createChooser(intent, "分享帖子（${files.size} 页）").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     fun exportHtml(context: Context, title: String, posts: List<PostEntry>, url: String): File {

@@ -1,59 +1,64 @@
+<div align="center">
+
 # LinuxSB
 
-基于对 [linux.sb](https://linux.sb) 网页解析制作的第三方 Android 社区客户端，使用 Kotlin + Jetpack Compose 构建，遵循 Material Design 3 设计规范。
+**面向 Android 的 Linux.sb 第三方社区客户端**
 
-> 本项目仅作学习交流用途，所有数据内容均来自 linux.sb 源站，版权归原网站及发帖用户所有。
+专注阅读、交流与内容整理 · Kotlin · Jetpack Compose · Material Design 3
 
-## 功能特性
+[下载安装](https://github.com/Mei-Nagano/LsbViewer/releases) · [问题反馈](https://github.com/Mei-Nagano/LsbViewer/issues) · [社区网站](https://linux.sb)
 
-- **浏览**：首页分类（新评论 / 新帖子 / 精华）、板块列表、搜索、无限滚动与翻页双模式（可按首页 / 板块 / 帖子分类生效）
-- **帖子**：楼层跳转与高亮、#楼层号对话串联、代码块折叠与复制、评论排序、打赏弹幕、导出 HTML / Markdown / 长图
-- **互动**：登录、发帖、回帖、点赞、投币、举报、每日签到、用户榜单、通知、私信
-- **个性化**：HCT 主题引擎（主题色 / 调色风格 / 对比度）、卡片元素级改色、深浅模式与 OLED 纯黑、动态取色
-- **工具**：AI 帖子总结（OpenAI 兼容 API）、本地浏览历史、屏蔽词 / 屏蔽用户、本地缓存分析、设置备份（JSON / WebDAV）
-- **更新**：应用内检查 GitHub Release 新版本，可配置检查时机
+</div>
 
-## 下载
+---
 
-前往 [Releases](https://github.com/Mei-Nagano/LsbViewer/releases) 下载最新版本：
+LinuxSB 通过解析 Linux.sb 网页提供移动端社区体验。账号、帖子与互动规则以源站为准；本项目不隶属于源站，也不代表源站运营方。
 
-| 文件名 | 适用设备 |
-| --- | --- |
-| `LinuxSB-vX.Y.Z-armv8a.apk` | 64 位 ARM 设备（主流现代手机） |
-| `LinuxSB-vX.Y.Z-armv7a.apk` | 32 位 ARM 设备（旧设备） |
-| `LinuxSB-vX.Y.Z-universal.apk` | 通用版（包含全部架构，体积较大） |
+## 阅读与交流
 
-## 构建
+- 首页分类、板块浏览、申精帖子、站内搜索与屏蔽管理。
+- Markdown 正文、代码块、可横向滚动的表格、目录导航和全文搜索。
+- 树形评论、折叠回复、引用选文、编辑预览和草稿保存。
+- 私信、通知、淘帖专辑订阅、称号管理及社区榜单。
+- 帖子钉住、阅读位置、收藏与浏览历史。
 
-```bash
-# 克隆仓库
-git clone https://github.com/Mei-Nagano/LsbViewer.git
-cd LsbViewer
+## 个性化与工具
 
-# 构建 Debug APK（输出三个架构版本）
+- Material Design 3 配色、深浅模式、独立中性表面、自定义背景及表面透明度。
+- 字体选择、字号与字重、自定义底部导航、经典或玻璃底栏。
+- 可配置的 DoH、服务器测速和 VPN 场景自动停用选项。
+- 匿名图床与自定义上传接口。
+- OpenAI 兼容接口的 AI 总结、模型选择、提示词和多方案管理。
+- HTML、Markdown、分页长图导出；分类数据清理与 JSON / WebDAV 备份。
+
+## 安装
+
+从 [Releases](https://github.com/Mei-Nagano/LsbViewer/releases) 下载适合设备的 APK。最低支持 Android 8.0。
+
+| 安装包 | 适用设备 |
+| :--- | :--- |
+| `armv8a` | 64 位 ARM 手机和平板 |
+| `armv7a` | 32 位 ARM 设备 |
+| `universal` | 通用版本，包含多个架构 |
+
+## 本地构建
+
+准备 JDK 17 或更新版本，以及 Android SDK 37。在 Android Studio 中打开项目，或使用项目附带的 Gradle Wrapper：
+
+```sh
 ./gradlew assembleDebug
-
-# 构建 Release APK（默认使用仓库内测试 keystore，可用环境变量覆盖）
-LSB_STORE_FILE=/path/to.jks LSB_STORE_PASSWORD=*** LSB_KEY_ALIAS=*** LSB_KEY_PASSWORD=*** \
-  ./gradlew assembleRelease
 ```
 
-要求：JDK 17+，Android SDK 35。
+Windows 使用 `gradlew.bat assembleDebug`。安装包输出至 `app/build/outputs/apk/debug/`。正式发布应配置自己的签名密钥，并妥善保管签名凭据。
 
-推送 `v*` 标签（如 `v1.0.0`）后 GitHub Actions 会使用仓库 Secrets 中的签名材料自动构建并发布 Release，APK 命名带版本号，Release 说明自动生成。签名 Secret 配置：`LSB_KEYSTORE_BASE64`（keystore 的 base64）、`LSB_STORE_PASSWORD`、`LSB_KEY_ALIAS`、`LSB_KEY_PASSWORD`。
+## 隐私与使用说明
 
-## 技术栈
+浏览和互动会连接 Linux.sb；图片上传会连接所选图床。匿名上传的图片通常可被持有链接的人访问，请勿上传敏感资料。AI 总结仅在相关功能启用和请求触发时，将所选内容发送至用户配置的接口。包含 API 密钥或账号信息的备份应妥善保管。
 
-- Kotlin · Jetpack Compose · Material 3
-- Jsoup（HTML 解析）· OkHttp（网络与 Cookie）
-- Coil（图片加载，含 SVG）· materialkolor（HCT 主题引擎）
-- [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)（液态玻璃底栏）
-- Navigation Compose · WebView（应用内浏览 / 人机验证）
+部分功能依赖源站结构、账号权限及网络环境。遇到问题时，请附上应用版本、Android 版本、复现步骤及去除敏感信息的截图。请勿在反馈中公开密码、Cookie 或 API 密钥。
 
-## 开源协议
+## 致谢与许可
 
-[MIT License](LICENSE)
+感谢 Linux.sb 社区，以及 Jetpack Compose、Jsoup、OkHttp、Cronet、Coil、materialkolor 和 [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) 等开源项目。
 
-## 致谢
-
-- [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) —— 本应用的液态玻璃底栏基于 Kyant0 的 Backdrop 库实现，实时折射身后内容、动态模糊与透镜质感为界面带来了独特的视觉体验，感谢作者的开源分享。
+项目采用 [MIT License](LICENSE)。社区内容及第三方资源的权利归各自权利人所有。
