@@ -6,6 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -36,12 +38,14 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.jsoup.Jsoup
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.LsbException
@@ -184,7 +188,7 @@ private fun parseCardInit(html: String): CardInit {
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) {
     var forums by remember { mutableStateOf<List<ForumOption>>(emptyList()) }
@@ -230,6 +234,10 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
     var fullScreenEditor by rememberSaveable { mutableStateOf(false) }
     var emojiMenuOpen by remember { mutableStateOf(false) }
     var imageUploadBusy by remember { mutableStateOf(false) }
+    val pageScrollState = rememberScrollState()
+    val bodyBringIntoViewRequester = remember { BringIntoViewRequester() }
+    var bodyFocused by remember { mutableStateOf(false) }
+    val imeVisible = WindowInsets.isImeVisible
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val draftPrefs = remember { context.getSharedPreferences("lsb_topic_drafts", android.content.Context.MODE_PRIVATE) }
@@ -247,6 +255,15 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
             } catch (e: Exception) {
                 session.showToast(e.message ?: "图片上传失败")
             } finally { imageUploadBusy = false }
+        }
+    }
+
+    // adjustResize 在 edge-to-edge 窗口中不会替滚动页保证焦点位置；IME 完成展开后再请求一次，
+    // 让普通编辑模式和全屏模式一样，光标始终处于键盘上方。
+    LaunchedEffect(bodyFocused, imeVisible) {
+        if (bodyFocused && imeVisible) {
+            delay(120)
+            bodyBringIntoViewRequester.bringIntoView()
         }
     }
 
@@ -568,8 +585,8 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
             Modifier
                 .padding(pad)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
                 .imePadding()
+                .verticalScroll(pageScrollState)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -933,7 +950,9 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 260.dp),
+                        .heightIn(min = 260.dp)
+                        .bringIntoViewRequester(bodyBringIntoViewRequester)
+                        .onFocusChanged { bodyFocused = it.isFocused },
                     textStyle = TextStyle(fontFamily = FontFamily.Monospace)
                 )
             }

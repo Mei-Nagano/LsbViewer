@@ -107,6 +107,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -128,6 +129,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sb.linux.client.data.AiClient
 import sb.linux.client.data.DanmakuItem
+import sb.linux.client.data.EssenceApplication
+import sb.linux.client.data.EssenceReview
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.ImageHostClient
 import sb.linux.client.data.LotteryPanel
@@ -216,6 +219,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var showDonate by remember { mutableStateOf(false) }
     var pollBusy by remember { mutableStateOf(false) }
     var essenceBusy by remember { mutableStateOf(false) }
+    var essenceTopUpBusy by remember { mutableStateOf(false) }
 
     // 评论区排序：0 = 热度（楼主正文固定首位 + 其余按点赞数降序，同赞按楼层号升序保证稳定），
     //           1 = 正序（楼层号升序），2 = 倒序（楼层号降序）；记住上次选择
@@ -1257,13 +1261,51 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                     },
                                 )
                             }
-                            d.poll?.let { poll ->
+                            if (d.poll != null || d.essenceReview != null || d.essenceApplication != null) {
                                 TopicPollView(
-                                    poll = poll,
+                                    poll = d.poll,
+                                    essence = d.essenceReview,
+                                    application = d.essenceApplication,
                                     loggedIn = session.loginState.loggedIn,
-                                    busy = pollBusy,
+                                    busy = pollBusy || essenceBusy,
+                                    topUpBusy = essenceTopUpBusy,
                                     onLogin = { nav.navigate("login") },
+                                    onApply = { application ->
+                                        scope.launch {
+                                            essenceBusy = true
+                                            try {
+                                                val form = buildList {
+                                                    add("_csrf" to d.csrf.ifBlank { session.client.csrf() })
+                                                    addAll(application.fields.filterKeys { it != "_csrf" }.toList())
+                                                }
+                                                val resp = session.client.postFormPairs(application.action, form)
+                                                val ok = !resp.url.contains("form_error")
+                                                session.showToast(if (ok) "申精已提交" else HtmlParser.extractError(resp.html).ifBlank { "申请失败" })
+                                                if (ok) load(d.page, force = true)
+                                            } catch (e: Exception) { session.showToast(e.message ?: "申请失败") }
+                                            finally { essenceBusy = false }
+                                        }
+                                    },
+                                    onTopUp = { amount ->
+                                        val topUp = d.essenceReview?.topUp ?: return@TopicPollView
+                                        scope.launch {
+                                            essenceTopUpBusy = true
+                                            try {
+                                                val form = buildList {
+                                                    add("_csrf" to d.csrf.ifBlank { session.client.csrf() })
+                                                    addAll(topUp.fields.filterKeys { it != "_csrf" }.toList())
+                                                    add(topUp.amountName to amount.toString())
+                                                }
+                                                val resp = session.client.postFormPairs(topUp.action, form)
+                                                val ok = !resp.url.contains("form_error")
+                                                session.showToast(if (ok) "已追加 $amount 积分" else HtmlParser.extractError(resp.html).ifBlank { "追加失败" })
+                                                if (ok) load(d.page, force = true)
+                                            } catch (e: Exception) { session.showToast(e.message ?: "追加失败") }
+                                            finally { essenceTopUpBusy = false }
+                                        }
+                                    },
                                     onVote = { selected, reason ->
+                                        val poll = d.poll ?: return@TopicPollView
                                         scope.launch {
                                             pollBusy = true
                                             try {
@@ -1744,33 +1786,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 leadingIcon = { Icon(Icons.Filled.CollectionsBookmark, null) },
                                 onClick = { menuOpen = false; nav.navigate("collectionActions?path=${android.net.Uri.encode("/topic/$tid")}") }
                             )
-                            // 申精按钮：仅当源站返回了申请面板且用户已登录时显示
-                            if (session.loginState.loggedIn && data?.essenceApplication != null) {
-                                val ea = data!!.essenceApplication!!
-                                DropdownMenuItem(
-                                    text = { Text(if (essenceBusy) "提交中…" else ea.label) },
-                                    leadingIcon = { Icon(Icons.Filled.AutoAwesome, null) },
-                                    enabled = ea.enabled && !essenceBusy && ea.action.isNotBlank(),
-                                    onClick = {
-                                        menuOpen = false
-                                        val d = data ?: return@DropdownMenuItem
-                                        scope.launch {
-                                            essenceBusy = true
-                                            try {
-                                                val form = buildList {
-                                                    add("_csrf" to d.csrf.ifBlank { session.client.csrf() })
-                                                    addAll(ea.fields.toList())
-                                                }
-                                                val resp = session.client.postFormPairs(ea.action, form)
-                                                val ok = !resp.url.contains("form_error")
-                                                session.showToast(if (ok) "申精已提交" else HtmlParser.extractError(resp.html).ifBlank { "申请失败" })
-                                                if (ok) load(d.page, force = true)
-                                            } catch (e: Exception) { session.showToast(e.message ?: "申请失败") }
-                                            finally { essenceBusy = false }
-                                        }
-                                    }
-                                )
-                            }
                             DropdownMenuItem(
                                 text = { Text("刷新") },
                                 leadingIcon = { Icon(Icons.Filled.Refresh, null) },
@@ -2046,18 +2061,28 @@ fun TopicScreen(session: Session, nav: NavHostController) {
 
 @Composable
 private fun TopicPollView(
-    poll: TopicPoll,
+    poll: TopicPoll?,
+    essence: EssenceReview?,
+    application: EssenceApplication?,
     loggedIn: Boolean,
     busy: Boolean,
+    topUpBusy: Boolean,
     onLogin: () -> Unit,
+    onApply: (EssenceApplication) -> Unit,
+    onTopUp: (Int) -> Unit,
     onVote: (List<TopicPollOption>, String) -> Unit,
 ) {
-    var selectedValues by remember(poll.action, poll.options) {
-        mutableStateOf(poll.options.filter { it.selected }.map { it.value }.toSet())
+    val vote = poll
+    var selectedValues by remember(vote?.action, vote?.options) {
+        mutableStateOf(vote?.options.orEmpty().filter { it.selected }.map { it.value }.toSet())
     }
-    var reason by remember(poll.action) { mutableStateOf("") }
+    var reason by remember(vote?.action) { mutableStateOf("") }
+    val topUp = essence?.topUp
+    var topUpText by remember(topUp?.action) { mutableStateOf(topUp?.defaultAmount.orEmpty()) }
+    var confirmTopUp by remember { mutableStateOf<Int?>(null) }
     @Composable
     fun optionCard(option: TopicPollOption, modifier: Modifier = Modifier) {
+        val currentPoll = vote ?: return
         val selected = option.value in selectedValues
         Surface(
             shape = RoundedCornerShape(13.dp),
@@ -2068,16 +2093,16 @@ private fun TopicPollView(
         ) {
             Row(
                 Modifier.fillMaxWidth().clickable(
-                    enabled = !poll.closed && poll.unavailableReason.isBlank() && !option.disabled
+                    enabled = !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled
                 ) {
-                    selectedValues = if (poll.multiple) {
+                    selectedValues = if (currentPoll.multiple) {
                         if (option.value in selectedValues) selectedValues - option.value else selectedValues + option.value
                     } else setOf(option.value)
                 }.padding(horizontal = 8.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (poll.multiple) Checkbox(selected, null, enabled = !poll.closed && poll.unavailableReason.isBlank() && !option.disabled)
-                else RadioButton(selected, null, enabled = !poll.closed && poll.unavailableReason.isBlank() && !option.disabled)
+                if (currentPoll.multiple) Checkbox(selected, null, enabled = !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled)
+                else RadioButton(selected, null, enabled = !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled)
                 Text(option.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             }
         }
@@ -2097,13 +2122,15 @@ private fun TopicPollView(
                     Icon(Icons.Filled.AutoAwesome, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(poll.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(essence?.title ?: vote?.title.orEmpty(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
                         when {
-                            poll.unavailableReason.isNotBlank() -> poll.unavailableReason
-                            poll.closed -> "投票已结束"
-                            poll.multiple -> "可选择多项"
-                            else -> "请选择一项"
+                            essence?.subtitle?.isNotBlank() == true -> essence.subtitle
+                            vote?.unavailableReason?.isNotBlank() == true -> vote.unavailableReason
+                            vote?.closed == true -> "投票已结束"
+                            vote?.multiple == true -> "可选择多项"
+                            vote != null -> "请选择一项"
+                            else -> "申精评议"
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2111,58 +2138,144 @@ private fun TopicPollView(
                 }
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = if (poll.closed || poll.unavailableReason.isNotBlank()) MaterialTheme.colorScheme.surfaceContainerHighest
-                        else MaterialTheme.colorScheme.primaryContainer,
+                    color = if (essence?.status in setOf("voting", "featured", "pending_approval") || (vote != null && !vote.closed && vote.unavailableReason.isBlank()))
+                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
                 ) {
                     Text(
-                        if (poll.closed) "已结束" else if (poll.unavailableReason.isNotBlank()) "不可参与" else "进行中",
+                        essence?.statusLabel?.ifBlank { null }
+                            ?: if (vote?.closed == true) "已结束" else if (vote?.unavailableReason?.isNotBlank() == true) "不可参与" else "进行中",
                         Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (poll.closed) MaterialTheme.colorScheme.onSurfaceVariant
-                            else MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = if (essence?.status in setOf("voting", "featured", "pending_approval") || (vote != null && !vote.closed && vote.unavailableReason.isBlank()))
+                            MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-            if (poll.note.isNotBlank()) Surface(
+            essence?.takeIf { it.target > 0 || it.progressText.isNotBlank() }?.let { review ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(50))
+                            .background(if (review.progress < 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHighest)
+                    ) {
+                        Box(
+                            Modifier.fillMaxHeight()
+                                .fillMaxWidth((review.progress.coerceAtLeast(0).toFloat() / review.target.coerceAtLeast(1)).coerceIn(0f, 1f))
+                                .background(if (review.progress < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                    Text(review.progressText.ifBlank { "${review.progress} / ${review.target}" }, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                }
+                if (review.progressNote.isNotBlank()) Text(
+                    review.progressNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            essence?.meta?.takeIf { it.isNotEmpty() }?.let { items ->
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items.forEach { StatChip(null, it) }
+                }
+            }
+            essence?.takeIf { it.poolTitle.isNotBlank() || it.poolItems.isNotEmpty() }?.let { review ->
+                Surface(shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Paid, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                            Spacer(Modifier.width(6.dp))
+                            Text(review.poolTitle.ifBlank { "积分奖池" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            review.poolItems.forEach { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onTertiaryContainer) }
+                        }
+                    }
+                }
+            }
+            val panelNote = essence?.actionNote.orEmpty().ifBlank { vote?.note.orEmpty() }
+            if (panelNote.isNotBlank()) Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Text(
-                    poll.note,
+                    panelNote,
                     Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (poll.title.contains("精华") && poll.options.size == 2) {
+            if (vote != null && (essence != null || vote.title.contains("精华")) && vote.options.size == 2) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    poll.options.forEach { option -> optionCard(option, Modifier.weight(1f)) }
+                    vote.options.forEach { option -> optionCard(option, Modifier.weight(1f)) }
                 }
-            } else poll.options.forEach { option -> optionCard(option, Modifier.fillMaxWidth()) }
-            if (poll.reasonName.isNotBlank()) OutlinedTextField(
-                value = reason, onValueChange = { reason = it.take(poll.reasonMaxLength) },
-                label = { Text(if (poll.reasonRequired) "投票理由（必填）" else "投票理由") },
-                supportingText = { Text(poll.reasonHint.ifBlank { "${reason.length}/${poll.reasonMaxLength}" }) },
-                modifier = Modifier.fillMaxWidth(), enabled = !busy && !poll.closed,
+            } else vote?.options.orEmpty().forEach { option -> optionCard(option, Modifier.fillMaxWidth()) }
+            if (vote?.reasonName?.isNotBlank() == true) OutlinedTextField(
+                value = reason, onValueChange = { reason = it.take(vote.reasonMaxLength) },
+                label = { Text(if (vote.reasonRequired) "投票理由（必填）" else "投票理由") },
+                supportingText = { Text(vote.reasonHint.ifBlank { "${reason.length}/${vote.reasonMaxLength}" }) },
+                modifier = Modifier.fillMaxWidth(), enabled = !busy && !vote.closed,
                 shape = RoundedCornerShape(14.dp),
             )
-            when {
-                poll.unavailableReason.isNotBlank() -> Text(
-                    poll.unavailableReason,
+            if (vote != null) when {
+                vote.unavailableReason.isNotBlank() -> Text(
+                    vote.unavailableReason,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                poll.closed -> Text("当前不可投票", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                vote.closed -> Text("当前不可投票", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 !loggedIn -> Button(onClick = onLogin, Modifier.fillMaxWidth()) { Text("登录后投票") }
                 else -> Button(
-                    onClick = { onVote(poll.options.filter { it.value in selectedValues }, reason.trim()) },
-                    enabled = !busy && selectedValues.isNotEmpty() && poll.action.isNotBlank() && (!poll.reasonRequired || reason.isNotBlank()),
+                    onClick = { onVote(vote.options.filter { it.value in selectedValues }, reason.trim()) },
+                    enabled = !busy && selectedValues.isNotEmpty() && vote.action.isNotBlank() && (!vote.reasonRequired || reason.isNotBlank()),
                     modifier = Modifier.align(Alignment.End),
                     shape = RoundedCornerShape(50),
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
-                ) { Text(if (busy) "提交中…" else poll.submitLabel) }
+                ) { Text(if (busy) "提交中…" else vote.submitLabel) }
+            }
+            if (application != null) {
+                Button(
+                    onClick = { if (loggedIn) onApply(application) else onLogin() },
+                    enabled = !busy && (!loggedIn || application.enabled) && application.action.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(50),
+                ) { Text(if (busy) "提交中…" else if (loggedIn) application.label else "登录后申请加精") }
+            }
+            if (topUp != null) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = topUpText,
+                        onValueChange = { value -> topUpText = value.filter(Char::isDigit).take(9) },
+                        label = { Text(topUp.label) },
+                        supportingText = {
+                            Text(topUp.hint.ifBlank {
+                                if (topUp.max == Int.MAX_VALUE) "至少 ${topUp.min} 积分" else "${topUp.min}～${topUp.max} 积分"
+                            })
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        enabled = !topUpBusy,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f),
+                    )
+                    val amount = topUpText.toIntOrNull()
+                    FilledTonalButton(
+                        onClick = { confirmTopUp = amount },
+                        enabled = !topUpBusy && topUp.enabled && amount != null && amount in topUp.min..topUp.max,
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) { Text(if (topUpBusy) "追加中…" else topUp.submitLabel) }
+                }
             }
         }
+    }
+    confirmTopUp?.let { amount ->
+        AlertDialog(
+            onDismissRequest = { confirmTopUp = null },
+            title = { Text("确认追加积分") },
+            text = { Text("将向本帖的申精奖池追加 $amount 积分。提交后积分会按源站规则扣除。") },
+            confirmButton = {
+                TextButton(onClick = { confirmTopUp = null; onTopUp(amount) }) { Text("确认追加") }
+            },
+            dismissButton = { TextButton(onClick = { confirmTopUp = null }) { Text("取消") } },
+        )
     }
 }
 
@@ -2669,6 +2782,23 @@ private fun PostCardContent(
                     }
                     if (post.userGroup.isNotBlank()) {
                         PillBadge(post.userGroup, MaterialTheme.colorScheme.onSecondaryContainer, MaterialTheme.colorScheme.secondaryContainer, Modifier.align(Alignment.CenterVertically))
+                    }
+                    if (post.essenceVoteLabel.isNotBlank()) {
+                        val support = post.essenceVoteSupport
+                        PillBadge(
+                            post.essenceVoteLabel,
+                            when (support) {
+                                true -> MaterialTheme.colorScheme.onTertiaryContainer
+                                false -> MaterialTheme.colorScheme.onErrorContainer
+                                null -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            when (support) {
+                                true -> MaterialTheme.colorScheme.tertiaryContainer
+                                false -> MaterialTheme.colorScheme.errorContainer
+                                null -> MaterialTheme.colorScheme.surfaceContainerHighest
+                            },
+                            Modifier.align(Alignment.CenterVertically),
+                        )
                     }
                 }
                 // 元信息行：称号矮胶囊（字号与时间一致）· 发送时间 · IP 属地

@@ -70,6 +70,8 @@ data class PostEntry(
     val referencedFloors: List<Int> = emptyList(), // 本楼引用的楼层（整楼 HTML 解析，含正文外的引用块）
     val online: Boolean = false,     // 作者在线（源站 data-online-users-ids 在线集合）
     val titleBadge: TitleBadge? = null, // 作者称号（源站 gacha-title-badge）
+    val essenceVoteLabel: String = "", // 申精评议回复标签（支持/反对）
+    val essenceVoteSupport: Boolean? = null,
 )
 
 data class TopicPageData(
@@ -93,6 +95,7 @@ data class TopicPageData(
     val poll: TopicPoll? = null,            // 源站投票表单/结果
     val replyCaptcha: NativeCaptcha? = null, // 回复表单人机验证（抽奖帖等）
     val essenceApplication: EssenceApplication? = null,
+    val essenceReview: EssenceReview? = null,
 )
 
 /** 未申请状态与可用操作均来自源站，不在客户端猜测字数、权限或冷却规则。 */
@@ -103,6 +106,37 @@ data class EssenceApplication(
     val fields: Map<String, String> = emptyMap(),
     val label: String = "申请加精",
     val enabled: Boolean = false,
+)
+
+/** 申精评议面板。进度可能为负数，因此不能直接复用 progress 的非负 value。 */
+data class EssenceReview(
+    val title: String = "精华申请",
+    val subtitle: String = "",
+    val status: String = "",
+    val statusLabel: String = "",
+    val progress: Int = 0,
+    val target: Int = 0,
+    val progressText: String = "",
+    val progressNote: String = "",
+    val meta: List<String> = emptyList(),
+    val poolTitle: String = "",
+    val poolItems: List<String> = emptyList(),
+    val actionNote: String = "",
+    val topUp: EssencePointsTopUp? = null,
+)
+
+/** 作者给申精奖池追加积分的动态表单，字段名和额度限制均以源站 HTML 为准。 */
+data class EssencePointsTopUp(
+    val action: String,
+    val fields: Map<String, String> = emptyMap(),
+    val amountName: String,
+    val defaultAmount: String = "",
+    val min: Int = 1,
+    val max: Int = Int.MAX_VALUE,
+    val label: String = "追加积分",
+    val hint: String = "",
+    val submitLabel: String = "追加",
+    val enabled: Boolean = true,
 )
 
 /** 源站 native-captcha 人机验证组件（数学题 + PoW） */

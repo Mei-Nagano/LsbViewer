@@ -445,9 +445,58 @@ object HtmlParser {
                 title = panel.selectFirst(".topic-essence-review-head strong")?.text().orEmpty().ifBlank { "申请帖子加精" },
                 note = panel.clone().apply { select("form, .topic-essence-review-head").remove() }.text(),
                 action = form?.attr("action").orEmpty(),
-                fields = hiddenFields(form),
+                fields = buildMap {
+                    putAll(hiddenFields(form))
+                    button?.attr("name")?.takeIf { it.isNotBlank() }?.let { put(it, button.attr("value")) }
+                },
                 label = button?.text().orEmpty().ifBlank { "申请加精" },
                 enabled = form != null && button != null && !button.hasAttr("disabled"),
+            )
+        }
+        val essenceReview = essencePanel?.let { panel ->
+            val head = panel.selectFirst(".topic-essence-review-head")
+            val progressEl = panel.selectFirst(".topic-essence-review-progress-row progress")
+            val progressText = panel.selectFirst(".topic-essence-review-progress-row strong")?.text()?.trim().orEmpty()
+            val progressMatch = Regex("""(-?\d+)\s*/\s*(\d+)""").find(progressText)
+            val topUpRoot = panel.selectFirst("form.topic-essence-review-pool-topup[action]")
+                ?: panel.selectFirst(".topic-essence-review-pool-topup form[action]")
+            val amountInput = topUpRoot?.selectFirst("input[type=number][name], input[name*=point], input[name*=amount]")
+                ?: topUpRoot?.selectFirst("input:not([type=hidden])[name]")
+            val topUpButton = topUpRoot?.selectFirst("button[type=submit], input[type=submit]")
+            val topUp = if (topUpRoot != null && amountInput != null) EssencePointsTopUp(
+                action = topUpRoot.attr("action"),
+                fields = buildMap {
+                    putAll(hiddenFields(topUpRoot))
+                    topUpButton?.attr("name")?.takeIf { it.isNotBlank() }?.let { put(it, topUpButton.attr("value")) }
+                },
+                amountName = amountInput.attr("name"),
+                defaultAmount = amountInput.attr("value"),
+                min = amountInput.attr("min").toIntOrNull()?.coerceAtLeast(1) ?: 1,
+                max = amountInput.attr("max").toIntOrNull()?.coerceAtLeast(1) ?: Int.MAX_VALUE,
+                label = topUpRoot.selectFirst("label")?.ownText()?.trim().orEmpty().ifBlank { "追加积分" },
+                hint = topUpRoot.selectFirst("small, .form-help")?.text()?.trim().orEmpty(),
+                submitLabel = topUpButton?.let { it.text().ifBlank { it.attr("value") } }?.trim().orEmpty().ifBlank { "追加" },
+                enabled = topUpRoot.attr("action").isNotBlank() && topUpButton?.hasAttr("disabled") != true && !amountInput.hasAttr("disabled"),
+            ) else null
+            val pool = panel.selectFirst(".topic-essence-review-pool-summary")
+            EssenceReview(
+                title = head?.selectFirst("strong")?.text()?.trim().orEmpty().ifBlank { "精华申请" },
+                subtitle = head?.selectFirst("div > span")?.text()?.trim().orEmpty(),
+                status = panel.attr("data-status").trim(),
+                statusLabel = head?.selectFirst(".topic-essence-review-status")?.text()?.trim().orEmpty(),
+                progress = progressMatch?.groupValues?.get(1)?.toIntOrNull()
+                    ?: progressEl?.attr("value")?.toIntOrNull() ?: 0,
+                target = progressMatch?.groupValues?.get(2)?.toIntOrNull()
+                    ?: progressEl?.attr("max")?.toIntOrNull() ?: 0,
+                progressText = progressText,
+                progressNote = panel.selectFirst(".topic-essence-review-progress-note")?.text()?.trim().orEmpty(),
+                meta = panel.select(".topic-essence-review-meta > *").eachText().map { it.trim() }.filter { it.isNotBlank() },
+                poolTitle = pool?.children()?.firstOrNull { it.tagName() == "span" }?.text()?.trim().orEmpty(),
+                poolItems = pool?.children()?.firstOrNull { it.tagName() == "div" }?.children()
+                    ?.map { it.text().trim() }?.filter { it.isNotBlank() }.orEmpty(),
+                actionNote = panel.select(".topic-essence-review-actions > .topic-essence-review-note, .topic-essence-review-actions > p")
+                    .eachText().joinToString(" ").trim(),
+                topUp = topUp,
             )
         }
         // 投票组件：申请表单与评议投票分开，不能把“可以申请”误判为已结束投票。
@@ -554,6 +603,15 @@ object HtmlParser {
             // 源站 v8.6+ 点赞改版：like-coin-* → donate-reaction-*（按钮 data-liked/data-coined/计数 span + 表单 donate-reaction-form）
             val likeBtn = li.selectFirst("[data-donate-reaction]")
             val likeForm = li.selectFirst("form.donate-reaction-form")
+            val essenceVoteEl = li.selectFirst(".topic-essence-review-reply-label")
+            val essenceVoteLabel = essenceVoteEl?.text()?.trim().orEmpty()
+            val essenceVoteSupport = essenceVoteEl?.let {
+                when {
+                    it.hasClass("is-support") -> true
+                    it.hasClass("is-oppose") -> false
+                    else -> null
+                }
+            }
             // 正文：把"最后编辑"信息从正文拆出，单独用分割线展示
             val contentEl = ownContent?.clone()
             var editInfo = ""
@@ -579,6 +637,7 @@ object HtmlParser {
                         // 应用已有独立淘帖入口和帖子菜单，这些不属于 Markdown 正文。
                         + ", [class*=topic-collection], [data-topic-collection], "
                         + "form[action*=topic_collection], form[action*=topic_collections]"
+                        + ", .topic-essence-review-reply-label"
                 ).remove()
                 // 编辑信息节点：专用类名优先（含源站新类 sb-limit-edit-time-note）；
                 // 兜底查找正文内任意含「最后编辑」的尾部元素
@@ -663,6 +722,8 @@ object HtmlParser {
                 isOp = li.selectFirst(".quick-reply-main-action") != null || li.selectFirst("form.topic-favorites-action") != null,
                 online = idFrom(authorA?.attr("href")) in onlineIds || onlineOf(li),
                 titleBadge = gachaTitleOf(li),
+                essenceVoteLabel = essenceVoteLabel,
+                essenceVoteSupport = essenceVoteSupport,
             )
         }
         val favForm = d.selectFirst("form.topic-favorites-action")
@@ -718,6 +779,7 @@ object HtmlParser {
             poll = poll,
             replyCaptcha = replyCaptcha,
             essenceApplication = essenceApplication,
+            essenceReview = essenceReview,
         )
     }
 
