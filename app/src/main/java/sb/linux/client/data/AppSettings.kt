@@ -110,7 +110,7 @@ class AppSettings(context: Context) {
 
     /** Markdown 表格展示：0 = 自适应屏幕等分列，1 = 保持可读列宽并横向滑动 */
     var tableDisplayMode: Int
-        get() = prefs.getInt("table_display_mode", 0).coerceIn(0, 1)
+        get() = prefs.getInt("table_display_mode", 1).coerceIn(0, 1)
         set(v) = prefs.edit().putInt("table_display_mode", v.coerceIn(0, 1)).apply()
 
     /** 帖内头像下方显示纯数字 UID */
@@ -157,10 +157,36 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("link_preview_enabled", true)
         set(v) = prefs.edit().putBoolean("link_preview_enabled", v).apply()
 
+    /** 应用代理：0 = 关闭，1 = HTTP，2 = SOCKS5。 */
+    var proxyType: Int
+        get() = prefs.getInt("proxy_type", 0).coerceIn(0, 2)
+        set(v) = prefs.edit().putInt("proxy_type", v.coerceIn(0, 2)).apply()
+
+    var proxyHost: String
+        get() = prefs.getString("proxy_host", "127.0.0.1") ?: "127.0.0.1"
+        set(v) = prefs.edit().putString("proxy_host", v.trim()).apply()
+
+    var proxyPort: Int
+        get() = prefs.getInt("proxy_port", 7890).coerceIn(1, 65535)
+        set(v) = prefs.edit().putInt("proxy_port", v.coerceIn(1, 65535)).apply()
+
+    fun saveProxy(type: Int, host: String, port: Int) {
+        prefs.edit()
+            .putString("proxy_host", host.trim())
+            .putInt("proxy_port", port.coerceIn(1, 65535))
+            .putInt("proxy_type", type.coerceIn(0, 2))
+            .apply()
+    }
+
     /** DNS over HTTPS。VPN 存在时可自动旁路，防止与 VPN 自身 DNS 策略冲突。 */
     var dohEnabled: Boolean
         get() = prefs.getBoolean("doh_enabled", false)
-        set(v) = prefs.edit().putBoolean("doh_enabled", v).apply()
+        set(v) = prefs.edit()
+            .putBoolean("doh_enabled", v)
+            // DoH 与应用代理共用网络入口；启用 DoH 时关闭代理，避免两套
+            // DNS/转发策略叠加后行为不一致。
+            .apply { if (v) putInt("proxy_type", 0) }
+            .apply()
 
     var dohUrl: String
         get() = prefs.getString("doh_url", null) ?: DohServers.defaults.first().url
@@ -188,6 +214,10 @@ class AppSettings(context: Context) {
     var dohDisableOnVpn: Boolean
         get() = prefs.getBoolean("doh_disable_on_vpn", true)
         set(v) = prefs.edit().putBoolean("doh_disable_on_vpn", v).apply()
+
+    var dohAutoWithoutVpn: Boolean
+        get() = prefs.getBoolean("doh_auto_without_vpn", true)
+        set(v) = prefs.edit().putBoolean("doh_auto_without_vpn", v).apply()
 
     /** 默认使用应用内置的 Catbox 匿名上传；关闭后才读取下面的自定义接口配置。 */
     var useBuiltInImageHost: Boolean
@@ -316,11 +346,15 @@ class AppSettings(context: Context) {
     fun resetGeneral() = prefs.edit()
         .remove("link_open_mode").remove("update_check_mode")
         .remove("link_preview_enabled")
-        .remove("doh_enabled").remove("doh_url").remove("doh_disable_on_vpn")
-        .remove("doh_servers")
         .remove("use_builtin_image_host")
         .remove("image_host_url").remove("image_host_token").remove("image_host_field")
         .remove("update_check_interval_hours")
+        .apply()
+
+    fun resetNetwork() = prefs.edit()
+        .remove("proxy_type").remove("proxy_host").remove("proxy_port")
+        .remove("doh_enabled").remove("doh_url").remove("doh_disable_on_vpn").remove("doh_auto_without_vpn")
+        .remove("doh_servers")
         .apply()
 
     /** 重置 WebDAV 备份配置 */
@@ -1046,9 +1080,13 @@ class AppSettings(context: Context) {
         o.put("unfavorite_confirm", unfavoriteConfirm)
         o.put("link_open_mode", linkOpenMode)
         o.put("link_preview_enabled", linkPreviewEnabled)
+        o.put("proxy_type", proxyType)
+        o.put("proxy_host", proxyHost)
+        o.put("proxy_port", proxyPort)
         o.put("doh_enabled", dohEnabled)
         o.put("doh_url", dohUrl)
         o.put("doh_disable_on_vpn", dohDisableOnVpn)
+        o.put("doh_auto_without_vpn", dohAutoWithoutVpn)
         o.put("doh_servers", JSONArray().also { array -> dohServers().forEach { server ->
             array.put(JSONObject().put("id", server.id).put("name", server.name).put("url", server.url).put("note", server.note))
         } })
@@ -1161,7 +1199,7 @@ class AppSettings(context: Context) {
             if (o.has("topics_per_page")) p.putInt("topics_per_page", o.optInt("topics_per_page", 15).coerceIn(5, 50))
             if (o.has("comment_sort_order")) p.putInt("comment_sort_order", o.optInt("comment_sort_order", 0).coerceIn(0, 2))
             if (o.has("comments_per_page")) p.putInt("comments_per_page", o.optInt("comments_per_page", 20).coerceIn(5, 100))
-            if (o.has("table_display_mode")) p.putInt("table_display_mode", o.optInt("table_display_mode", 0).coerceIn(0, 1))
+            if (o.has("table_display_mode")) p.putInt("table_display_mode", o.optInt("table_display_mode", 1).coerceIn(0, 1))
             if (o.has("show_uid")) p.putBoolean("show_uid", o.getBoolean("show_uid"))
             if (o.has("smart_decode_enabled")) p.putBoolean("smart_decode_enabled", o.getBoolean("smart_decode_enabled"))
             if (o.has("auto_clear_items")) {
@@ -1173,9 +1211,13 @@ class AppSettings(context: Context) {
             if (o.has("unfavorite_confirm")) p.putBoolean("unfavorite_confirm", o.getBoolean("unfavorite_confirm"))
             if (o.has("link_open_mode")) p.putInt("link_open_mode", o.optInt("link_open_mode", 0).coerceIn(0, 1))
             if (o.has("link_preview_enabled")) p.putBoolean("link_preview_enabled", o.getBoolean("link_preview_enabled"))
+            if (o.has("proxy_type")) p.putInt("proxy_type", o.optInt("proxy_type", 0).coerceIn(0, 2))
+            if (o.has("proxy_host")) p.putString("proxy_host", o.getString("proxy_host").trim())
+            if (o.has("proxy_port")) p.putInt("proxy_port", o.optInt("proxy_port", 7890).coerceIn(1, 65535))
             if (o.has("doh_enabled")) p.putBoolean("doh_enabled", o.getBoolean("doh_enabled"))
             if (o.has("doh_url")) p.putString("doh_url", o.getString("doh_url"))
             if (o.has("doh_disable_on_vpn")) p.putBoolean("doh_disable_on_vpn", o.getBoolean("doh_disable_on_vpn"))
+            if (o.has("doh_auto_without_vpn")) p.putBoolean("doh_auto_without_vpn", o.getBoolean("doh_auto_without_vpn"))
             if (o.has("doh_servers")) {
                 val servers = o.getJSONArray("doh_servers")
                 for (index in 0 until servers.length()) {

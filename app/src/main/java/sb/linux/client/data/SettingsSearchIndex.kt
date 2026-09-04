@@ -9,7 +9,8 @@ internal object SettingsSearchIndex {
         }
         group("常规设置", "generalSettings", "链接打开方式|浏览器 内置 外部", "链接悬浮预览|网站 图标 简介",
             "匿名免费图床|Catbox 图片上传 免登录", "自定义图床接口|token 文件字段", "检查更新|版本 频率")
-        group("DNS over HTTPS", "dohSettings", "DNS over HTTPS|DoH 加密 域名解析", "VPN 自动停用 DoH|代理",
+        group("网络设置", "networkSettings", "应用代理|HTTP SOCKS5 翻墙 代理模式 主机 端口",
+            "DNS over HTTPS|DoH 加密 域名解析", "VPN 自动停用 DoH|代理",
             "DoH 默认服务器|digitale-gesellschaft telekom t53 aa.net.uk", "DoH 自定义服务器|名称 备注 地址", "DoH 测速|延迟 毫秒 DNS 解析")
         group("浏览设置", "browseSettings", "滚动模式|分页 无限", "每页帖子数量", "每页评论数量", "评论排序|热度 正序 倒序",
             "启动保留首页缓存", "刷新后新帖折叠", "Markdown 表格|横向滑动 适应屏幕",

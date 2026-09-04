@@ -242,36 +242,47 @@ private fun GachaTitleRow(
     item: GachaTitleItem,
     enabled: Boolean,
     onAction: (GachaAction) -> Unit,
+    onGift: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 5.dp)
             .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         // 色条与文字块等高，稀有度靠色条表达，不再额外占一行标签。
         Box(
             Modifier.width(3.dp).fillMaxHeight()
                 .clip(RoundedCornerShape(50)).background(rarityAccent(item.badge.rarity))
         )
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TitleBadgeView(item.badge, modifier = Modifier.weight(1f, fill = false))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TitleBadgeView(item.badge, modifier = Modifier.weight(1f, fill = false), small = true)
                 if (item.count > 1) GachaCountPill("×${item.count}")
-                Spacer(Modifier.weight(1f))
-                if (item.equipped) EquippedPill()
             }
-            if (item.actions.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item.actions.forEach { action ->
-                        FilledTonalButton(
-                            enabled = enabled && action.enabled,
-                            onClick = { onAction(action) },
-                            shape = RoundedCornerShape(50),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                        ) { Text(action.label, style = MaterialTheme.typography.labelLarge) }
-                    }
-                }
+            if (item.equipped) Text(
+                "已装备",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+            item.actions.forEach { action ->
+                TextButton(
+                    enabled = enabled && action.enabled,
+                    onClick = { onAction(action) },
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.heightIn(min = 34.dp),
+                ) { Text(action.label, style = MaterialTheme.typography.labelMedium) }
             }
+            TextButton(
+                enabled = enabled && item.count > 0,
+                onClick = onGift,
+                shape = RoundedCornerShape(50),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                modifier = Modifier.heightIn(min = 34.dp),
+            ) { Text("赠送", style = MaterialTheme.typography.labelMedium) }
         }
     }
 }
@@ -342,6 +353,7 @@ internal fun GachaSystemCard(
     )
     // 默认折叠：称号多时会把下面的入口行整个推走，需要看时再点开（旋转不丢展开状态）。
     var open by rememberSaveable { mutableStateOf(false) }
+    var showAllTitles by rememberSaveable { mutableStateOf(false) }
     val divider = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     Surface(
         shape = RoundedCornerShape(20.dp),
@@ -369,9 +381,21 @@ internal fun GachaSystemCard(
                     )
                 } else {
                     // 已装备的排在前面，其余按稀有度从高到低。
-                    titles.sortedWith(
+                    val sortedTitles = titles.sortedWith(
                         compareByDescending<GachaTitleItem> { it.equipped }.thenBy { rarityOrder(it.badge.rarity) }
-                    ).forEach { item -> GachaTitleRow(item, enabled, onAction) }
+                    )
+                    sortedTitles.take(if (showAllTitles) sortedTitles.size else 6)
+                        .forEach { item ->
+                            GachaTitleRow(item, enabled, onAction) {
+                                nav.navigate("gachaOperation/gift?title=${android.net.Uri.encode(item.badge.name)}")
+                            }
+                        }
+                    if (sortedTitles.size > 6) {
+                        TextButton(
+                            onClick = { showAllTitles = !showAllTitles },
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                        ) { Text(if (showAllTitles) "收起更多称号" else "查看其余 ${sortedTitles.size - 6} 种") }
+                    }
                     Spacer(Modifier.height(4.dp))
                 }
             }

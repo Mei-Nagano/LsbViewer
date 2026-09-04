@@ -1110,11 +1110,13 @@ private data class PendingGachaSubmit(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GachaOperationScreen(session: Session, nav: NavHostController, kind: String) {
+    val preferredTitle = nav.currentBackStackEntry?.arguments?.getString("title").orEmpty()
     // 熔炼/回收改走与其它称号操作相同的原生解析：内嵌 WebView 依赖 ProxyController，
     // 机型不支持时 DoH 下会整页失败；解析源站表单后用应用自己的网络栈提交更可靠。
     val config = when (kind) {
         "forge" -> "称号熔炼" to "/gacha_forge_center"
         "recycle" -> "称号回收" to "/gacha_recycle_center"
+        "gift" -> "称号赠送" to "/gacha_profile"
         "recipes" -> "UR 合成" to "/gacha_recipes"
         "marketMine" -> "发布称号" to "/gacha_market_mine"
         "marketOrders" -> "交易记录" to "/gacha_market_orders"
@@ -1134,7 +1136,23 @@ fun GachaOperationScreen(session: Session, nav: NavHostController, kind: String)
         try {
             val response = session.client.get(operationPath)
             check(!response.url.contains("login")) { "请先登录" }
-            data = HtmlParser.parseGachaOperationPage(response.html)
+            val parsed = HtmlParser.parseGachaOperationPage(response.html)
+            data = if (kind == "gift") parsed.copy(forms = parsed.forms.filter { form ->
+                val signature = buildString {
+                    append(form.label); append(' '); append(form.action); append(' ')
+                    form.fields.forEach { append(it.name); append(' '); append(it.label); append(' ') }
+                }
+                (signature.contains("赠送", true) || signature.contains("gift", true) ||
+                    signature.contains("recipient", true) || signature.contains("receiver", true)
+                ) && (preferredTitle.isBlank() || signature.contains(preferredTitle, true))
+            }.ifEmpty {
+                // 源站表单未把称号名写进可见文字时保留全部赠送表单，避免误过滤为空。
+                parsed.forms.filter { form ->
+                    val signature = form.label + " " + form.action + " " + form.fields.joinToString { it.name + " " + it.label }
+                    signature.contains("赠送", true) || signature.contains("gift", true) ||
+                        signature.contains("recipient", true) || signature.contains("receiver", true)
+                }
+            }) else parsed
         }
         catch (e: Exception) { error = e.message ?: "加载失败" }
         finally { loading = false }
@@ -1268,6 +1286,7 @@ private fun GachaFormField.optionText(): String = when {
     else -> name
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun GachaDynamicForm(
     form: GachaOperationForm,
@@ -1297,18 +1316,74 @@ internal fun GachaDynamicForm(
         form.fields.forEachIndexed { index, field -> map[index] = field.options.filter { it.selected && !it.disabled }.map { it.value }.toSet() }
     } }
     var validationError by remember(form) { mutableStateOf<String?>(null) }
+    val selectedChoiceCount = form.fields.indices.count { index ->
+        val field = form.fields[index]
+        (field.type == "checkbox" && checked[index] == true) ||
+            (field.type == "radio" && radioValues[field.name] == field.value)
+    } + form.fields.indices.sumOf { index ->
+        form.fields[index].takeIf { it.type == "select" && it.multiple }
+            ?.let { multiValues[index].orEmpty().size } ?: 0
+    }
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val checkboxIndices = form.fields.indices.filter { form.fields[it].type == "checkbox" }
+            if (checkboxIndices.isNotEmpty()) {
+                val groups = checkboxIndices.groupBy { index ->
+                    form.fields[index].groupLabel.ifBlank {
+                        form.fields[index].optionText()
+                            .replace(Regex("""\s*[·|]?(?:#|No\.?|序号)\s*\d+.*$""", RegexOption.IGNORE_CASE), "")
+                            .trim().ifBlank { form.fields[index].name }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    groups.forEach { (groupLabel, indices) ->
+                        val selectedIndices = indices.filter { checked[it] == true }
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selectedIndices.isNotEmpty()) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            border = if (selectedIndices.isNotEmpty()) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(groupLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "已选 ${selectedIndices.size} / 持有 ${indices.size}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                FilledTonalIconButton(
+                                    onClick = { selectedIndices.lastOrNull()?.let { checked[it] = false } },
+                                    enabled = enabled && selectedIndices.isNotEmpty(),
+                                    modifier = Modifier.size(34.dp),
+                                ) { Text("−", style = MaterialTheme.typography.titleMedium) }
+                                Text(
+                                    selectedIndices.size.toString(),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.widthIn(min = 20.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                )
+                                FilledTonalIconButton(
+                                    onClick = {
+                                        indices.firstOrNull { checked[it] != true }?.let { checked[it] = true }
+                                    },
+                                    enabled = enabled && selectedIndices.size < indices.size,
+                                    modifier = Modifier.size(34.dp),
+                                ) { Text("+", style = MaterialTheme.typography.titleMedium) }
+                                    }
+                        }
+                    }
+                }
+            }
             form.fields.forEachIndexed { index, field ->
                 when (field.type) {
-                    "checkbox" -> Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .clickable(enabled = enabled) { checked[index] = checked[index] != true },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = checked[index] == true, onCheckedChange = { checked[index] = it }, enabled = enabled)
-                        Text(field.optionText(), style = MaterialTheme.typography.bodyMedium)
-                    }
+                    "checkbox" -> Unit
                     "radio" -> Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                             .clickable(enabled = enabled) { radioValues[field.name] = field.value },
@@ -1400,7 +1475,7 @@ internal fun GachaDynamicForm(
                 )
             }
             Button(
-                enabled = enabled && form.enabled,
+                enabled = enabled && form.enabled && selectedChoiceCount >= form.minSelections,
                 shape = RoundedCornerShape(50),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
                 onClick = {
@@ -1419,6 +1494,14 @@ internal fun GachaDynamicForm(
                 },
                 modifier = Modifier.align(Alignment.End),
             ) { Text(form.label) }
+            if (form.minSelections > 0) {
+                Text(
+                    "已选择 $selectedChoiceCount/${form.minSelections}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.End),
+                )
+            }
         }
     }
 }

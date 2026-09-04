@@ -15,6 +15,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -182,8 +184,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     val pinnedSnapshot = remember(tid) {
         session.floatingTopicSnapshot?.takeIf { session.floatingTopicId == tid && it.topic.topicId == tid }
     }
-    val previousReading = remember(tid) { session.getReadingPosition(tid) }
-    var offerPreviousReading by remember(tid) { mutableStateOf(pinnedSnapshot == null && previousReading?.let { it.listIndex > 0 || it.scrollOffset > 0 } == true) }
     // 通过首页浮窗或其他方式重新进入已钉住帖子后，浮窗自动完成使命。
     LaunchedEffect(tid) { session.clearFloatingTopic(tid) }
 
@@ -230,7 +230,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var threadLoading by remember { mutableStateOf(false) }
     var threadError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val listState = remember(tid) { androidx.compose.foundation.lazy.LazyListState() }
+    // Navigation 返回时由 SaveableStateHolder 保留精确索引与像素偏移。
+    val listState = rememberLazyListState()
 
     // 楼层定位：高亮目标楼层 + 记住原位置以便返回（2.13）
     var highlightPostId by remember { mutableStateOf<Long?>(null) }
@@ -741,7 +742,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             withFrameNanos { }
             listState.scrollToItem(pinnedSnapshot.listIndex, pinnedSnapshot.offset)
             returnPos = null
-            offerPreviousReading = false
         }
     }
 
@@ -1617,7 +1617,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
 
             // 楼层定位后的「回到原位置」按钮（2.13）
             AnimatedVisibility(
-                visible = returnPos != null || offerPreviousReading,
+                visible = returnPos != null,
                 modifier = Modifier.align(Alignment.BottomCenter),
                 enter = scaleIn(),
                 exit = scaleOut(),
@@ -1630,13 +1630,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 ) {
                     SmallFloatingActionButton(
                         onClick = {
-                            if (offerPreviousReading && previousReading != null) {
-                                offerPreviousReading = false
-                                if (previousReading.floor > 0) { pendingRestoreOffset = previousReading.scrollOffset; jumpToFloor(previousReading.floor) }
-                                else scope.launch {
-                                    listState.scrollToItem(previousReading.listIndex, previousReading.scrollOffset)
-                                }
-                            } else returnPos?.let { (idx, off) ->
+                            returnPos?.let { (idx, off) ->
                                 scope.launch { listState.animateScrollToItem(idx, off) }
                             }
                             returnPos = null
@@ -1655,7 +1649,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     }
                     // × 关闭：仅收起按钮，不回滚位置
                     SmallFloatingActionButton(
-                        onClick = { returnPos = null; offerPreviousReading = false },
+                        onClick = { returnPos = null },
                         containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f),
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ) {
@@ -1747,6 +1741,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             )
                             DropdownMenuItem(
                                 text = { Text("收录到淘帖专辑") },
+                                leadingIcon = { Icon(Icons.Filled.CollectionsBookmark, null) },
                                 onClick = { menuOpen = false; nav.navigate("collectionActions?path=${android.net.Uri.encode("/topic/$tid")}") }
                             )
                             // 申精按钮：仅当源站返回了申请面板且用户已登录时显示
@@ -2061,48 +2056,110 @@ private fun TopicPollView(
         mutableStateOf(poll.options.filter { it.selected }.map { it.value }.toSet())
     }
     var reason by remember(poll.action) { mutableStateOf("") }
+    @Composable
+    fun optionCard(option: TopicPollOption, modifier: Modifier = Modifier) {
+        val selected = option.value in selectedValues
+        Surface(
+            shape = RoundedCornerShape(13.dp),
+            color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+            modifier = modifier,
+        ) {
+            Row(
+                Modifier.fillMaxWidth().clickable(
+                    enabled = !poll.closed && poll.unavailableReason.isBlank() && !option.disabled
+                ) {
+                    selectedValues = if (poll.multiple) {
+                        if (option.value in selectedValues) selectedValues - option.value else selectedValues + option.value
+                    } else setOf(option.value)
+                }.padding(horizontal = 8.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (poll.multiple) Checkbox(selected, null, enabled = !poll.closed && poll.unavailableReason.isBlank() && !option.disabled)
+                else RadioButton(selected, null, enabled = !poll.closed && poll.unavailableReason.isBlank() && !option.disabled)
+                Text(option.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            }
+        }
+    }
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(poll.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            if (poll.note.isNotBlank()) Text(poll.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            poll.options.forEach { option ->
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(enabled = !poll.closed && !option.disabled) {
-                        selectedValues = if (poll.multiple) {
-                            if (option.value in selectedValues) selectedValues - option.value else selectedValues + option.value
-                        } else setOf(option.value)
-                    }.padding(vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier.size(38.dp).clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    if (poll.multiple) Checkbox(
-                        checked = option.value in selectedValues,
-                        enabled = !poll.closed && !option.disabled,
-                        onCheckedChange = null,
-                    ) else RadioButton(
-                        selected = option.value in selectedValues,
-                        enabled = !poll.closed && !option.disabled,
-                        onClick = null,
+                    Icon(Icons.Filled.AutoAwesome, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(poll.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        when {
+                            poll.unavailableReason.isNotBlank() -> poll.unavailableReason
+                            poll.closed -> "投票已结束"
+                            poll.multiple -> "可选择多项"
+                            else -> "请选择一项"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                }
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = if (poll.closed || poll.unavailableReason.isNotBlank()) MaterialTheme.colorScheme.surfaceContainerHighest
+                        else MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Text(
+                        if (poll.closed) "已结束" else if (poll.unavailableReason.isNotBlank()) "不可参与" else "进行中",
+                        Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (poll.closed) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
                 }
             }
+            if (poll.note.isNotBlank()) Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Text(
+                    poll.note,
+                    Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (poll.title.contains("精华") && poll.options.size == 2) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    poll.options.forEach { option -> optionCard(option, Modifier.weight(1f)) }
+                }
+            } else poll.options.forEach { option -> optionCard(option, Modifier.fillMaxWidth()) }
             if (poll.reasonName.isNotBlank()) OutlinedTextField(
                 value = reason, onValueChange = { reason = it.take(poll.reasonMaxLength) },
                 label = { Text(if (poll.reasonRequired) "投票理由（必填）" else "投票理由") },
                 supportingText = { Text(poll.reasonHint.ifBlank { "${reason.length}/${poll.reasonMaxLength}" }) },
                 modifier = Modifier.fillMaxWidth(), enabled = !busy && !poll.closed,
+                shape = RoundedCornerShape(14.dp),
             )
             when {
+                poll.unavailableReason.isNotBlank() -> Text(
+                    poll.unavailableReason,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 poll.closed -> Text("当前不可投票", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 !loggedIn -> Button(onClick = onLogin, Modifier.fillMaxWidth()) { Text("登录后投票") }
                 else -> Button(
                     onClick = { onVote(poll.options.filter { it.value in selectedValues }, reason.trim()) },
                     enabled = !busy && selectedValues.isNotEmpty() && poll.action.isNotBlank() && (!poll.reasonRequired || reason.isNotBlank()),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.align(Alignment.End),
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
                 ) { Text(if (busy) "提交中…" else poll.submitLabel) }
             }
         }

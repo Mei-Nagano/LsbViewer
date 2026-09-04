@@ -106,6 +106,8 @@ class CronetFallbackInterceptor(
         } catch (e: IOException) {
             e
         }
+        // 用户明确启用代理时不能用 Cronet 直连回退，否则会绕过代理泄漏连接。
+        if (AppNetwork.isProxyActive()) throw failure
         // 已取消的调用不重试；仅 https 可能走 QUIC（http 无绕过意义，直抛原错误）
         if (chain.call().isCanceled() || !canRetryWithCronet(request, failure, attempt.mayHaveSent)) throw failure
         return try {

@@ -133,7 +133,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     var topicsPerPage by mutableIntStateOf(15)
     // 评论区排序：0 = 热度，1 = 正序，2 = 倒序（记住上次选择）
     var commentSortOrder by mutableIntStateOf(0)
-    var tableDisplayMode by mutableIntStateOf(0)
+    var tableDisplayMode by mutableIntStateOf(1)
     var showUid by mutableStateOf(true)
     var smartDecodeEnabled by mutableStateOf(false)
     // 平板模式（宽屏双栏布局）：Compose 响应式镜像，改动即时切换布局
@@ -568,6 +568,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         resetBrowseSettings()
         settings.resetAi()
         settings.resetGeneral()
+        settings.resetNetwork()
         settings.resetWebdav()
         saveTabletMode(false)
     }
@@ -782,17 +783,24 @@ class Session(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    // 阅读位置只用于短时间离开帖子后的返回恢复，避免几天后重新打开仍跳到旧位置。
+    private val readingPositionTtlMs = 2L * 60L * 60L * 1000L
+
     fun saveReadingPosition(topicId: Long, floor: Int, listIndex: Int, scrollOffset: Int) {
         if (topicId <= 0) return
         readingPositionPrefs.edit().putString(
-            topicId.toString(), "$floor,$listIndex,$scrollOffset"
+            topicId.toString(), "$floor,$listIndex,$scrollOffset,${System.currentTimeMillis()}"
         ).apply()
     }
 
     fun getReadingPosition(topicId: Long): TopicReadingPosition? {
         val values = readingPositionPrefs.getString(topicId.toString(), null)
             ?.split(',') ?: return null
-        if (values.size != 3) return null
+        val savedAt = values.getOrNull(3)?.toLongOrNull()
+        if (values.size != 4 || savedAt == null || System.currentTimeMillis() - savedAt > readingPositionTtlMs) {
+            readingPositionPrefs.edit().remove(topicId.toString()).apply()
+            return null
+        }
         return TopicReadingPosition(
             floor = values[0].toIntOrNull() ?: return null,
             listIndex = values[1].toIntOrNull() ?: return null,

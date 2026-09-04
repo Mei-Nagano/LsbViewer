@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Save
@@ -225,6 +227,7 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
     var draftMenuOpen by remember { mutableStateOf(false) }
     // 预览模式：正文 Markdown 实时渲染为帖子样式（HtmlContent）
     var previewMode by remember { mutableStateOf(false) }
+    var fullScreenEditor by rememberSaveable { mutableStateOf(false) }
     var emojiMenuOpen by remember { mutableStateOf(false) }
     var imageUploadBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -384,7 +387,9 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
     }
 
     val hasDraftContent = title.isNotBlank() || body.isNotBlank() || specialType.isNotBlank()
-    BackHandler(enabled = editId == 0L && hasDraftContent) { exitDraftOpen = true }
+    BackHandler(enabled = fullScreenEditor || (editId == 0L && hasDraftContent)) {
+        if (fullScreenEditor) fullScreenEditor = false else exitDraftOpen = true
+    }
 
     if (restoreDraftOpen) {
         AlertDialog(
@@ -474,13 +479,22 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                 title = { Text(if (editId > 0) "编辑主题" else "发布新主题") },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (editId == 0L && hasDraftContent) exitDraftOpen = true
+                        if (fullScreenEditor) fullScreenEditor = false
+                        else if (editId == 0L && hasDraftContent) exitDraftOpen = true
                         else nav.popBackStack()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
                 actions = {
+                    if (!previewMode) {
+                        IconButton(onClick = { fullScreenEditor = !fullScreenEditor }) {
+                            Icon(
+                                if (fullScreenEditor) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                                if (fullScreenEditor) "退出全屏编辑" else "全屏编辑",
+                            )
+                        }
+                    }
                     if (editId == 0L) {
                         Box {
                             IconButton(onClick = { draftMenuOpen = true }) { Icon(Icons.Filled.Save, "草稿箱") }
@@ -491,7 +505,7 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
                         }
                     }
                     // 正文 Markdown 实时预览开关
-                    IconButton(onClick = { previewMode = !previewMode }) {
+                    if (!fullScreenEditor) IconButton(onClick = { previewMode = !previewMode }) {
                         Icon(
                             if (previewMode) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                             if (previewMode) "退出预览" else "预览"
@@ -528,11 +542,34 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L) 
             sb.linux.client.ui.LoadingBox()
             return@Scaffold
         }
+        if (fullScreenEditor) {
+            Column(
+                Modifier.padding(pad).fillMaxSize().imePadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                sb.linux.client.ui.MarkdownEditorTools(
+                    onInsert = { b, a, p -> insert(b, a, p) },
+                    onUpload = { imagePicker.launch("image/*") },
+                    uploading = imageUploadBusy,
+                )
+                OutlinedTextField(
+                    value = TextFieldValue(body, bodySelection),
+                    onValueChange = { body = it.text; bodySelection = it.selection },
+                    label = { Text("内容 (Markdown)") },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace),
+                )
+            }
+            return@Scaffold
+        }
         Column(
             Modifier
                 .padding(pad)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

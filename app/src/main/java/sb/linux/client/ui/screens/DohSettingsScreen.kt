@@ -33,6 +33,7 @@ fun DohSettingsScreen(session: Session, nav: NavHostController) {
     var selectedUrl by remember { mutableStateOf(settings.dohUrl) }
     var enabled by remember { mutableStateOf(settings.dohEnabled) }
     var bypassVpn by remember { mutableStateOf(settings.dohDisableOnVpn) }
+    var autoWithoutVpn by remember { mutableStateOf(settings.dohAutoWithoutVpn) }
     var customTab by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<DohServer?>(null) }
     var deleting by remember { mutableStateOf<DohServer?>(null) }
@@ -106,6 +107,13 @@ fun DohSettingsScreen(session: Session, nav: NavHostController) {
                     )
                     SwitchRow("VPN 开启时自动停用", "保留 DoH 配置，VPN 结束后恢复；测速也遵守此规则", bypassVpn) {
                         bypassVpn = it; settings.dohDisableOnVpn = it
+                    }
+                    HorizontalDivider(
+                        Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                    )
+                    SwitchRow("无 VPN 时自动优化", "自动启用 DoH，并在后台静默选择最快可用服务器", autoWithoutVpn) {
+                        autoWithoutVpn = it; settings.dohAutoWithoutVpn = it
                     }
                 }
             }

@@ -33,9 +33,29 @@ suspend fun Session.syncSourceUsage() = withContext(Dispatchers.IO) {
         } while (page <= last)
         totals[tab] = total
     }
+    run {
+        var page = 1
+        var last = 1
+        var total = 0
+        val ids = mutableSetOf<Long>()
+        do {
+            val response = client.get("/topic_collections?tab=mine&p=$page")
+            check(response.code in 200..299 && !response.url.contains("login")) { "同步失败，请检查网络及登录状态" }
+            val doc = Jsoup.parse(response.html)
+            HtmlParser.parseTopicCollections(response.html).forEach { card ->
+                if (ids.add(card.collectionId)) total++
+            }
+            last = maxOf(last, doc.select(".pagination-bar a[href], .pagination a[href], .pagination option[value]").mapNotNull {
+                Regex("[?&]p=(\\d+)").find(it.attr("href").ifBlank { it.attr("value") })?.groupValues?.get(1)?.toIntOrNull()
+            }.maxOrNull() ?: 1)
+            page++
+        } while (page <= last)
+        totals["collections"] = total
+    }
     check(loginState.userId == uid && loginState.loggedIn) { "账号已切换，请重新同步" }
     settings.sourceUsageJson = JSONObject().put("userId", uid).put("topics", totals["topics"])
         .put("replies", totals["replies"]).put("favorites", totals["favorites"])
+        .put("collections", totals["collections"])
         .put("syncedAt", System.currentTimeMillis()).toString()
     settings.saveSourcePoints(points)
 }

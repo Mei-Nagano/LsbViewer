@@ -12,6 +12,31 @@ import java.util.concurrent.ConcurrentHashMap
 import android.content.SharedPreferences
 import android.net.Network
 import java.net.Inet4Address
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.ProxySelector
+import java.net.SocketAddress
+import java.net.URI
+import java.net.Socket
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+data class AppProxyConfig(val type: Int, val host: String, val port: Int) {
+    val enabled: Boolean get() = type in 1..2 && host.isNotBlank() && port in 1..65535
+    val proxyUrl: String get() {
+        val formattedHost = if (host.contains(':') && !host.startsWith('[')) "[$host]" else host
+        return "${if (type == 2) "socks5" else "http"}://$formattedHost:$port"
+    }
+    fun asJavaProxy(): Proxy = Proxy(
+        if (type == 2) Proxy.Type.SOCKS else Proxy.Type.HTTP,
+        InetSocketAddress.createUnresolved(host, port),
+    )
+}
 
 /** 全应用共享 DNS 策略。设置在每次解析时读取，因此切换 DoH 无需重启或重建会话。 */
 object AppNetwork {
@@ -24,12 +49,21 @@ object AppNetwork {
     internal val recoveryEvents: kotlinx.coroutines.flow.SharedFlow<Unit> = recoverySignal
 
     private val generation = java.util.concurrent.atomic.AtomicLong()
-    internal fun policyKey(): String = "${generation.get()}|${if (isDohActive()) appContext?.let { AppSettings(it).dohUrl } else "system"}"
+    internal fun policyKey(): String = "${generation.get()}|${if (isDohActive()) appContext?.let { AppSettings(it).dohUrl } else "system"}|${proxyConfig()}"
     private val dohCache = ConcurrentHashMap<String, DohTransport>()
     private val activeTests = ConcurrentHashMap.newKeySet<DohTransport>()
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val autoTuneRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val lastAutoTuneAt = java.util.concurrent.atomic.AtomicLong(0L)
     val connectionPool = okhttp3.ConnectionPool(5, 10, java.util.concurrent.TimeUnit.MINUTES)
     private val settingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == null || key in setOf("doh_enabled", "doh_url", "doh_disable_on_vpn")) invalidate()
+        if (key == null || key in setOf(
+                "doh_enabled", "doh_url", "doh_disable_on_vpn", "doh_auto_without_vpn",
+                "proxy_type", "proxy_host", "proxy_port",
+            )) {
+            invalidate()
+            if (key == "doh_auto_without_vpn") scheduleAutomaticDoh()
+        }
     }
 
     @Synchronized fun init(context: Context) {
@@ -44,6 +78,7 @@ object AppNetwork {
             override fun onLost(network: Network) {
                 if (validated == network) validated = null
                 invalidate()
+                scheduleAutomaticDoh()
             }
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                 cancelTestsOnVpn()
@@ -51,14 +86,107 @@ object AppNetwork {
                 if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
                     if (validated != network) { validated = network; recoverySignal.tryEmit(Unit) }
                 } else if (validated == network) validated = null
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) scheduleAutomaticDoh()
             }
         }) }
+        scheduleAutomaticDoh()
+    }
+
+    /** 无 VPN 时在后台启用 DoH，并发选择当前配置中最快的可用服务器。 */
+    private fun scheduleAutomaticDoh() {
+        val context = appContext ?: return
+        if (!AppSettings(context).dohAutoWithoutVpn || isVpnActive(context)) return
+        if (!autoTuneRunning.compareAndSet(false, true)) return
+        backgroundScope.launch {
+            try {
+                // 等网络能力与 VPN 路由稳定，避免切网瞬间误判。
+                delay(800)
+                val settings = AppSettings(context)
+                if (!settings.dohAutoWithoutVpn || isVpnActive(context)) return@launch
+                settings.dohEnabled = true
+                val now = System.currentTimeMillis()
+                if (now - lastAutoTuneAt.get() < 30L * 60L * 1000L) return@launch
+                lastAutoTuneAt.set(now)
+                val fastest = coroutineScope {
+                    settings.dohServers().map { server ->
+                        async {
+                            val result = runCatching { benchmark(server.url) }.getOrNull()
+                            server to result?.timesMs?.minOrNull()
+                        }
+                    }.map { it.await() }
+                        .filter { it.second != null }
+                        .minByOrNull { it.second!! }
+                }?.first
+                if (fastest != null && settings.dohAutoWithoutVpn && !isVpnActive(context)) {
+                    settings.dohUrl = fastest.url
+                }
+            } finally {
+                autoTuneRunning.set(false)
+            }
+        }
     }
 
     fun isDohActive(): Boolean {
         val context = appContext ?: return false
         val settings = AppSettings(context)
         return settings.dohEnabled && !(settings.dohDisableOnVpn && isVpnActive(context))
+    }
+
+    fun proxyConfig(): AppProxyConfig {
+        val context = appContext ?: return AppProxyConfig(0, "", 0)
+        if (isDohActive()) return AppProxyConfig(0, "", 0)
+        val settings = AppSettings(context)
+        return AppProxyConfig(settings.proxyType, settings.proxyHost.trim(), settings.proxyPort)
+    }
+
+    fun isProxyActive(): Boolean = proxyConfig().enabled
+
+    /** 扫描常见本地端口并做协议握手，不依赖代理软件包名或系统 VPN 状态。 */
+    suspend fun detectLocalProxy(preferredPort: Int? = null): AppProxyConfig? = coroutineScope {
+        val ports = listOfNotNull(preferredPort?.takeIf { it in 1..65535 }) +
+            listOf(7890, 7891, 1080, 10808, 10809, 20170, 2080, 8080, 8888, 9090)
+        ports.distinct().map { port ->
+            async(Dispatchers.IO) {
+                when {
+                    probeSocks5(port) -> AppProxyConfig(2, "127.0.0.1", port)
+                    probeHttpProxy(port) -> AppProxyConfig(1, "127.0.0.1", port)
+                    else -> null
+                }
+            }
+        }.map { it.await() }.firstOrNull { it != null }
+    }
+
+    private fun probeSocks5(port: Int): Boolean = runCatching {
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress("127.0.0.1", port), 300)
+            socket.soTimeout = 400
+            socket.getOutputStream().apply { write(byteArrayOf(0x05, 0x01, 0x00)); flush() }
+            val input = socket.getInputStream()
+            input.read() == 0x05 && input.read() == 0x00
+        }
+    }.getOrDefault(false)
+
+    private fun probeHttpProxy(port: Int): Boolean = runCatching {
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress("127.0.0.1", port), 300)
+            socket.soTimeout = 500
+            socket.getOutputStream().apply {
+                write("CONNECT 127.0.0.1:1 HTTP/1.1\r\nHost: 127.0.0.1:1\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+                flush()
+            }
+            val line = socket.getInputStream().bufferedReader(Charsets.US_ASCII).readLine().orEmpty()
+            val status = line.split(' ').getOrNull(1)?.toIntOrNull()
+            line.startsWith("HTTP/") && status in setOf(200, 400, 403, 407, 500, 502, 503)
+        }
+    }.getOrDefault(false)
+
+    private val dynamicProxySelector = object : ProxySelector() {
+        override fun select(uri: URI?): List<Proxy> {
+            val config = proxyConfig()
+            return listOf(if (config.enabled) config.asJavaProxy() else Proxy.NO_PROXY)
+        }
+
+        override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: java.io.IOException?) = Unit
     }
 
     private fun invalidate() {
@@ -111,6 +239,7 @@ object AppNetwork {
      * 业务客户端可将回退应用拦截器移至自定义请求头之后，仍能捕获连接阶段异常。
      */
     fun clientBuilder(): OkHttpClient.Builder = OkHttpClient.Builder().dns(dns).connectionPool(connectionPool)
+        .proxySelector(dynamicProxySelector)
         .addInterceptor(CronetFallbackInterceptor())
         .addNetworkInterceptor { chain ->
             chain.request().tag(CronetAttempt::class.java)?.mayHaveSent = true

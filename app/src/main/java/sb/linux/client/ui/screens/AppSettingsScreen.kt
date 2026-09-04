@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -80,6 +81,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -570,7 +572,8 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
     var redemptionRevision by remember { mutableIntStateOf(0) }
     val cardRedemptions = remember(showCardRedemptions, redemptionRevision) { session.settings.cardRedemptions() }
     val entries = listOf(
-        Triple("常规设置", "打开链接方式 · DoH · 匿名免费图床 · 检查更新", "generalSettings"),
+        Triple("常规设置", "打开链接方式 · 匿名免费图床 · 检查更新", "generalSettings"),
+        Triple("网络设置", "HTTP / SOCKS5 应用代理 · 自动检测 · DNS over HTTPS", "networkSettings"),
         Triple("浏览设置", "滚动模式 · 新帖子折叠 · Base64 · 表格 · UID · 评论 · 弹幕", "browseSettings"),
         Triple("数据管理", "缓存分析 · 分类清理 · 历史 · 收藏 · AI 数据 · 自动清理", "dataManagement"),
         Triple("使用统计", "浏览 · 收藏 · 发帖回帖 · 积分支出 · AI 总结", "usageStats"),
@@ -586,6 +589,7 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
     // 按目标路由取图标：搜索结果命中的是具体选项，也能借父分类的图标定位
     val entryIcons = mapOf(
         "generalSettings" to Icons.Filled.Tune,
+        "networkSettings" to Icons.Filled.Dns,
         "dohSettings" to Icons.Filled.Dns,
         "browseSettings" to Icons.AutoMirrored.Filled.MenuBook,
         "dataManagement" to Icons.Filled.Storage,
@@ -826,7 +830,7 @@ fun DataManagementScreen(session: Session, nav: NavHostController) {
     }
 }
 
-/** 本地使用统计：只统计应用内真实完成的行为；AI 分析同时参考浏览历史与收藏快照。 */
+/** 本地使用统计：只统计应用内真实完成的行为；AI 分析同时参考收藏快照。 */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun UsageStatsScreen(session: Session, nav: NavHostController) {
@@ -843,7 +847,6 @@ fun UsageStatsScreen(session: Session, nav: NavHostController) {
     }
     val counts = remember(events) { events.groupingBy { it.type }.eachCount() }
     val pointsSpent = remember(events) { events.filter { it.type == "coin" || it.type == "donate" }.sumOf { it.value } }
-    val history = remember(revision) { session.settings.historyList() }
     val favorites = remember(revision) { session.settings.favoriteList() }
     val sourcePoints = remember(revision, cutoff, sourceTotals) {
         if (sourceTotals == null) emptyList() else session.settings.sourcePoints().filter { it.timestamp >= cutoff }
@@ -868,8 +871,8 @@ fun UsageStatsScreen(session: Session, nav: NavHostController) {
                 val content = buildString {
                     appendLine("统计范围：${if (days == 0) "全部" else "最近 ${days} 天"}")
                     appendLine("浏览 ${counts["view"] ?: 0} 次，收藏 ${counts["favorite"] ?: 0} 次，发帖 ${counts["topic"] ?: 0} 次，回帖 ${counts["reply"] ?: 0} 次，源站积分支出 $sourceExpense。")
-                    appendLine("源站当前总数：发帖 ${sourceTotals?.optInt("topics")}，回帖 ${sourceTotals?.optInt("replies")}，收藏 ${sourceTotals?.optInt("favorites")}。")
-                    appendLine("本地浏览历史现有 ${history.size} 帖，本地帖子收藏 ${favorites.size} 帖，评论收藏 ${session.settings.commentFavoriteList().size} 条。")
+                    appendLine("源站当前总数：发帖 ${sourceTotals?.optInt("topics")}，回帖 ${sourceTotals?.optInt("replies")}，收藏 ${sourceTotals?.optInt("favorites")}，淘帖 ${sourceTotals?.optInt("collections")}。")
+                    appendLine("本地帖子收藏 ${favorites.size} 帖，评论收藏 ${session.settings.commentFavoriteList().size} 条。")
                     appendLine("已同步源站积分流水 ${sourcePoints.size} 条，收入 $sourceIncome，支出 $sourceExpense。源站流水和本地操作统计可能重叠，不得相加；仅分析已同步范围。")
                     appendLine(sourcePoints.take(40).joinToString("\n") { "${it.timeText} ${it.reason} ${if (it.positive) "+" else "-"}${it.change}" })
                     if (topViewed.isNotEmpty()) appendLine("常看主题：${topViewed.joinToString { "${it.key}（${it.value}次）" }}")
@@ -923,7 +926,7 @@ fun UsageStatsScreen(session: Session, nav: NavHostController) {
                     listOf(
                         "浏览" to (counts["view"] ?: 0), "收藏（源站）" to (sourceTotals?.optInt("favorites") ?: "未同步"),
                         "发帖（源站）" to (sourceTotals?.optInt("topics") ?: "未同步"), "回帖（源站）" to (sourceTotals?.optInt("replies") ?: "未同步"),
-                        "积分支出" to sourceExpense, "历史帖子" to history.size,
+                        "积分支出" to sourceExpense, "淘帖" to (sourceTotals?.optInt("collections") ?: "未同步"),
                     ).forEach { (label, value) ->
                         Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.width(104.dp)) {
                             Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -946,7 +949,7 @@ fun UsageStatsScreen(session: Session, nav: NavHostController) {
                                 try {
                                     session.syncSourceUsage()
                                     revision++
-                                    session.showToast("源站帖子、回帖、收藏及积分已同步")
+                                    session.showToast("源站帖子、回帖、收藏、淘帖及积分已同步")
                                 } catch (e: Exception) { session.showToast(e.message ?: "同步失败") }
                                 finally { syncingPoints = false }
                             }
@@ -3118,6 +3121,118 @@ data class UpdateUiState(
     val dismiss: () -> Unit,
 )
 
+/** 应用联网策略：代理与 DoH 统一收纳，代理优先于 WebView DoH 通路。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
+    var resetTick by remember { mutableIntStateOf(0) }
+    var proxyType by remember(resetTick) { mutableIntStateOf(session.settings.proxyType) }
+    var proxyHost by remember(resetTick) { mutableStateOf(session.settings.proxyHost) }
+    var proxyPort by remember(resetTick) { mutableStateOf(session.settings.proxyPort.toString()) }
+    var proxyError by remember(resetTick) { mutableStateOf<String?>(null) }
+    var detecting by remember(resetTick) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("网络设置") },
+                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                } },
+                actions = { ResetAction("重置网络设置") {
+                    session.settings.resetNetwork(); resetTick++; session.showToast("已重置网络设置")
+                } },
+            )
+        },
+    ) { pad ->
+        Column(
+            Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            GroupCard {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("应用代理", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Text(
+                        "供翻墙软件的仅代理模式使用。覆盖应用请求、图片和在线网页；启用后不会使用 Cronet 直连回退。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        listOf("关闭", "HTTP", "SOCKS5").forEachIndexed { index, label ->
+                            SegmentedButton(
+                                selected = proxyType == index,
+                                onClick = { proxyType = index; proxyError = null },
+                                shape = SegmentedButtonDefaults.itemShape(index, 3),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(label, maxLines = 1) }
+                        }
+                    }
+                    if (proxyType != 0) {
+                        OutlinedTextField(
+                            value = proxyHost, onValueChange = { proxyHost = it; proxyError = null },
+                            label = { Text("代理主机") }, placeholder = { Text("127.0.0.1") },
+                            singleLine = true, isError = proxyError != null, modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = proxyPort,
+                            onValueChange = { proxyPort = it.filter(Char::isDigit).take(5); proxyError = null },
+                            label = { Text("代理端口") }, placeholder = { Text("7890") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true, isError = proxyError != null, modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    proxyError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                    OutlinedButton(
+                        onClick = {
+                            detecting = true; proxyError = null
+                            scope.launch {
+                                val found = sb.linux.client.data.AppNetwork.detectLocalProxy(proxyPort.toIntOrNull())
+                                detecting = false
+                                if (found == null) proxyError = "未检测到本地 HTTP 或 SOCKS5 代理，请确认代理软件已开启本地监听"
+                                else {
+                                    proxyType = found.type; proxyHost = found.host; proxyPort = found.port.toString()
+                                    session.settings.saveProxy(found.type, found.host, found.port)
+                                    session.showToast("已检测并启用 ${if (found.type == 2) "SOCKS5" else "HTTP"} 代理 ${found.host}:${found.port}")
+                                }
+                            }
+                        },
+                        enabled = !detecting,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(if (detecting) "正在检测…" else "自动检测本地代理") }
+                    Button(onClick = {
+                        val host = proxyHost.trim()
+                        val port = proxyPort.toIntOrNull()
+                        val validHost = host.isNotBlank() && !host.contains("://") && !host.contains('/') && host.none(Char::isWhitespace)
+                        if (proxyType != 0 && (!validHost || port == null || port !in 1..65535)) {
+                            proxyError = "请输入有效的代理主机和 1–65535 端口"
+                        } else {
+                            session.settings.saveProxy(
+                                proxyType,
+                                if (proxyType == 0) session.settings.proxyHost else host,
+                                if (proxyType == 0) session.settings.proxyPort else port!!,
+                            )
+                            proxyError = null
+                            session.showToast(if (proxyType == 0) "应用代理已关闭" else "应用代理已保存并生效")
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("保存代理设置") }
+                }
+            }
+            GroupCard {
+                SettingMenuRow(
+                    "DNS over HTTPS",
+                    "启用状态 · 默认与自定义服务器 · VPN 旁路 · 查询测速",
+                    Icons.Filled.Dns,
+                ) { nav.navigate("dohSettings") }
+            }
+        }
+    }
+}
+
 /** 常规设置子页面：打开链接方式 + 检查更新时机（3.20） */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -3132,7 +3247,6 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
     var imageHostUrl by remember(resetTick) { mutableStateOf(session.settings.imageHostUrl) }
     var imageHostToken by remember(resetTick) { mutableStateOf(session.settings.imageHostToken) }
     var imageHostField by remember(resetTick) { mutableStateOf(session.settings.imageHostField) }
-    val scope = rememberCoroutineScope()
     var updateMode by remember(resetTick) { mutableStateOf(session.settings.updateCheckMode) }
     // 重置后强制刷新输入框
     var intervalText by remember(resetTick, session.settings.updateCheckIntervalHours) {
@@ -3214,9 +3328,6 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                 )
             }
 
-            GroupCard {
-                SettingMenuRow("DNS over HTTPS", "默认与自定义服务器 · 名称和备注 · 查询测速", Icons.Filled.Dns) { nav.navigate("dohSettings") }
-            }
             GroupCard {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),

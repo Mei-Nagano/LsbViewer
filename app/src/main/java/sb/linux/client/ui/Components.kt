@@ -7,11 +7,15 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
@@ -23,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -57,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -78,6 +84,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
@@ -90,6 +97,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.Image
@@ -119,7 +128,7 @@ import sb.linux.client.LsbApp
  */
 val LocalLinkHandler = staticCompositionLocalOf<((String) -> Unit)?> { null }
 /** 0 = 表格适应屏幕，1 = 保持列宽横向滑动 */
-val LocalTableDisplayMode = staticCompositionLocalOf { 0 }
+val LocalTableDisplayMode = staticCompositionLocalOf { 1 }
 val LocalShowUid = staticCompositionLocalOf { true }
 val LocalSmartDecode = staticCompositionLocalOf { false }
 
@@ -779,6 +788,7 @@ fun LinkText(
     style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
     fontWeight: FontWeight? = null,
     onFloor: (Int) -> Unit = {},
+    onAnchor: (String) -> Unit = {},
     searchQuery: String = "",
     onSearchPosition: (Float) -> Unit = {},
 ) {
@@ -799,6 +809,10 @@ fun LinkText(
                 // 优先响应 #楼层号 跳转，其次打开链接
                 text.getStringAnnotations("FLOOR", offset, offset).firstOrNull()?.let {
                     it.item.toIntOrNull()?.let { f -> onFloor(f) }
+                    return@detectTapGestures
+                }
+                text.getStringAnnotations("ANCHOR", offset, offset).firstOrNull()?.let {
+                    onAnchor(it.item)
                     return@detectTapGestures
                 }
                 text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let {
@@ -828,6 +842,8 @@ internal data class TableCellData(
     val text: String,
     val isHeader: Boolean,
     val annotated: AnnotatedString? = null,
+    val imageUrls: List<String> = emptyList(),
+    val textAlign: TextAlign? = null,
 )
 
 internal data class ContentBlock(
@@ -835,6 +851,13 @@ internal data class ContentBlock(
     val imageUrl: String? = null,
     val imageUrls: List<String> = emptyList(), // 连续多图：合并为一个翻页块
     val isQuote: Boolean = false,
+    val quoteDepth: Int = 0,
+    val textAlign: TextAlign? = null,
+    val detailsId: Int? = null,
+    val isDetailsSummary: Boolean = false,
+    val detailsOpenByDefault: Boolean = false,
+    val foldPath: List<Int> = emptyList(),
+    val anchorIds: List<String> = emptyList(),
     val isCode: Boolean = false,
     val isDivider: Boolean = false,
     val isHeading: Boolean = false,
@@ -897,15 +920,83 @@ fun HtmlContent(
                 block.tableRows.flatten().any { it.text.contains(highlightQuery.trim(), ignoreCase = true) }
         }
     }
+    val detailsOpen = remember(blocks) {
+        mutableStateMapOf<Int, Boolean>().apply {
+            blocks.filter { it.isDetailsSummary }.forEach { block ->
+                block.detailsId?.let { put(it, block.detailsOpenByDefault) }
+            }
+        }
+    }
+    val blockAnchorRequesters = remember(blocks) {
+        blocks.indices.filter { blocks[it].anchorIds.isNotEmpty() }.associateWith { BringIntoViewRequester() }
+    }
+    val anchorRequesters = remember(blocks, blockAnchorRequesters) {
+        buildMap {
+            blocks.forEachIndexed { index, block ->
+                blockAnchorRequesters[index]?.let { requester ->
+                    block.anchorIds.forEach { anchor -> put(anchor, requester) }
+                }
+            }
+        }
+    }
+    val contentScope = rememberCoroutineScope()
+    val anchorTopInset = with(LocalDensity.current) { 72.dp.toPx() }
+    fun jumpToAnchor(anchor: String) {
+        val id = anchor.removePrefix("#")
+        anchorRequesters[id]?.let { requester ->
+            contentScope.launch {
+                blocks.firstOrNull { id in it.anchorIds }?.foldPath?.forEach { detailsOpen[it] = true }
+                kotlinx.coroutines.delay(32)
+                // 顶栏悬浮在正文上方；把目标上方的区域也请求为可见，避免锚点
+                // 虽已滚入视口却被顶栏盖住。
+                requester.bringIntoView(Rect(0f, -anchorTopInset, 1f, 1f))
+            }
+        }
+    }
+    LaunchedEffect(highlightQuery, blocks) {
+        if (highlightQuery.isNotBlank()) {
+            blocks.filter { it.annotated?.text?.contains(highlightQuery.trim(), ignoreCase = true) == true }
+                .flatMap { it.foldPath }.forEach { detailsOpen[it] = true }
+        }
+    }
     Column(modifier) {
         var headingOrdinal = 0
         blocks.forEachIndexed { idx, b ->
+            if (b.foldPath.any { detailsOpen[it] == false }) return@forEachIndexed
             val reportMatch: (Float) -> Unit = { y -> if (idx == firstMatch) onSearchPosition(y) }
             val currentHeading = if (b.isHeading) headingOrdinal++ else -1
+            val anchorModifier = blockAnchorRequesters[idx]
+                ?.let { Modifier.bringIntoViewRequester(it) } ?: Modifier
             when {
-                b.imageUrls.size > 1 -> ImagePager(b.imageUrls, Modifier.padding(vertical = 4.dp)) { viewer = b.imageUrls to it }
+                b.isDetailsSummary -> {
+                    val id = b.detailsId ?: return@forEachIndexed
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = anchorModifier.fillMaxWidth().padding(vertical = 3.dp)
+                            .clickable { detailsOpen[id] = !(detailsOpen[id] ?: false) },
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                if (detailsOpen[id] == true) Icons.Filled.UnfoldLess else Icons.Filled.UnfoldMore,
+                                if (detailsOpen[id] == true) "折叠" else "展开",
+                                Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = searched(b.annotated ?: AnnotatedString("详情")),
+                                style = bodyStyle.copy(textAlign = b.textAlign ?: TextAlign.Start),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+                b.imageUrls.size > 1 -> ImagePager(b.imageUrls, anchorModifier.padding(vertical = 4.dp)) { viewer = b.imageUrls to it }
                 b.imageUrl != null -> {
-                    BodyImage(b.imageUrl, Modifier.padding(vertical = 4.dp)) { viewer = listOf(b.imageUrl) to 0 }
+                    BodyImage(b.imageUrl, anchorModifier.padding(vertical = 4.dp)) { viewer = listOf(b.imageUrl) to 0 }
                 }
                 b.isDivider -> {
                     HorizontalDivider(
@@ -914,12 +1005,15 @@ fun HtmlContent(
                     )
                 }
                 b.isCode -> CodeBlockView(b.annotated!!.text, highlightQuery, reportMatch)
-                b.tableRows.isNotEmpty() -> TableView(b.tableRows, ::open, onFloor, highlightQuery, reportMatch)
+                b.tableRows.isNotEmpty() -> TableView(
+                    b.tableRows, ::open, onFloor, highlightQuery, reportMatch, ::jumpToAnchor,
+                    onImageClick = { urls, index -> viewer = urls to index },
+                )
                 b.isQuote -> {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        modifier = anchorModifier.padding(start = (b.quoteDepth * 12).dp, top = 3.dp, bottom = 3.dp)
                     ) {
                         Row(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)) {
                             Box(
@@ -932,9 +1026,11 @@ fun HtmlContent(
                             Spacer(Modifier.width(10.dp))
                             LinkText(
                                 text = searched(b.annotated!!),
-                                style = quoteStyle,
+                                style = quoteStyle.copy(textAlign = b.textAlign ?: TextAlign.Start),
+                                modifier = Modifier.fillMaxWidth(),
                                 onOpenUrl = ::open,
                                 onFloor = onFloor,
+                                onAnchor = ::jumpToAnchor,
                                 searchQuery = highlightQuery,
                                 onSearchPosition = reportMatch,
                             )
@@ -961,13 +1057,16 @@ fun HtmlContent(
                         text = searched(b.annotated),
                         onOpenUrl = ::open,
                         onFloor = onFloor,
-                        style = txtStyle,
+                        onAnchor = ::jumpToAnchor,
+                        style = txtStyle.copy(textAlign = b.textAlign ?: TextAlign.Start),
                         fontWeight = fontWeight,
                         searchQuery = highlightQuery,
                         onSearchPosition = reportMatch,
-                        modifier = if (currentHeading >= 0) base.onGloballyPositioned {
+                        modifier = anchorModifier.then(if (b.textAlign != null) base.fillMaxWidth() else base).let { alignedBase ->
+                            if (currentHeading >= 0) alignedBase.onGloballyPositioned {
                             onHeadingPosition(currentHeading, it.positionInParent().y)
-                        } else base
+                            } else alignedBase
+                        }
                     )
                 }
             }
@@ -1091,6 +1190,8 @@ private fun TableView(
     onFloor: (Int) -> Unit = {},
     highlightQuery: String = "",
     onSearchPosition: (Float) -> Unit = {},
+    onAnchor: (String) -> Unit = {},
+    onImageClick: (List<String>, Int) -> Unit = { _, _ -> },
 ) {
     val colCount = rows.maxOf { it.size }
     val horizontal = LocalTableDisplayMode.current == 1
@@ -1106,6 +1207,7 @@ private fun TableView(
             horizontalState.scrollTo(with(density) { (column * 160).dp.roundToPx() })
         }
     }
+    Column(Modifier.fillMaxWidth()) {
     Box(Modifier.fillMaxWidth().then(if (horizontal) Modifier.horizontalScroll(horizontalState) else Modifier)) {
       Surface(
           shape = RoundedCornerShape(12.dp),
@@ -1133,26 +1235,38 @@ private fun TableView(
                                 .padding(horizontal = 5.dp, vertical = 4.dp)
                         ) {
                             val c = cell
-                            if (c != null && c.text.isNotBlank()) {
-                                if (c.annotated != null) {
+                            if (c != null && (c.text.isNotBlank() || c.imageUrls.isNotEmpty())) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (c.annotated != null && c.text.isNotBlank()) {
                                     // 富文本单元格：链接可点击（颜色已烘焙进注解 SpanStyle）
                                     LinkText(
                                         text = addSearchHighlights(c.annotated, highlightQuery, MaterialTheme.colorScheme.tertiaryContainer),
                                         onOpenUrl = onOpenUrl,
                                         onFloor = onFloor,
-                                        style = MaterialTheme.typography.bodySmall,
+                                        onAnchor = onAnchor,
+                                        style = MaterialTheme.typography.bodySmall.copy(textAlign = c.textAlign ?: TextAlign.Start),
                                         fontWeight = if (c.isHeader) FontWeight.Bold else null,
                                         searchQuery = highlightQuery,
                                         onSearchPosition = { y -> if (c === firstMatchCell) onSearchPosition(y) },
+                                        modifier = Modifier.fillMaxWidth(),
                                     )
-                                } else {
+                                } else if (c.text.isNotBlank()) {
                                     Text(
                                         addSearchHighlights(AnnotatedString(c.text), highlightQuery, MaterialTheme.colorScheme.tertiaryContainer),
-                                        style = MaterialTheme.typography.bodySmall,
+                                        style = MaterialTheme.typography.bodySmall.copy(textAlign = c.textAlign ?: TextAlign.Start),
                                         fontWeight = if (c.isHeader) FontWeight.Bold else null,
                                         color = if (c.isHeader) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface
+                                        else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.fillMaxWidth(),
                                     )
+                                }
+                                c.imageUrls.forEachIndexed { imageIndex, imageUrl ->
+                                    BodyImage(
+                                        url = imageUrl,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onClick = { onImageClick(c.imageUrls, imageIndex) },
+                                    )
+                                }
                                 }
                             }
                         }
@@ -1167,6 +1281,34 @@ private fun TableView(
             }
         }
       }
+    }
+    if (horizontal && horizontalState.maxValue > 0) {
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp)
+        ) {
+            val viewportFraction = (maxWidth / tableWidth).coerceIn(0.12f, 1f)
+            val thumbWidth = maxWidth * viewportFraction
+            val travel = maxWidth - thumbWidth
+            val progress = horizontalState.value.toFloat() / horizontalState.maxValue.toFloat()
+            val travelPx = with(LocalDensity.current) { travel.toPx() }.coerceAtLeast(1f)
+            Box(
+                Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            )
+            Box(
+                Modifier.offset(x = travel * progress).width(thumbWidth).height(6.dp)
+                    .clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary)
+                    .pointerInput(horizontalState.maxValue, travelPx) {
+                        detectHorizontalDragGestures { change, dragAmount ->
+                            change.consume()
+                            horizontalState.dispatchRawDelta(
+                                dragAmount * horizontalState.maxValue.toFloat() / travelPx
+                            )
+                        }
+                    }
+            )
+        }
+    }
     }
 }
 
@@ -1453,6 +1595,31 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
 
     fun renderInlineTo(el: Element): AnnotatedString = renderInline(el, linkColor, codeBg)
 
+    fun blockAlignment(el: Element): TextAlign? {
+        val aligned = generateSequence(el) { parent -> parent.parent() }
+            .firstOrNull { candidate ->
+                candidate.hasAttr("align") || candidate.attr("style").contains("text-align", ignoreCase = true)
+            } ?: return null
+        val value = aligned.attr("align").ifBlank {
+            Regex("""(?i)text-align\s*:\s*(left|center|right|justify)""")
+                .find(aligned.attr("style"))?.groupValues?.get(1).orEmpty()
+        }.lowercase()
+        return when (value) {
+            "left" -> TextAlign.Left
+            "center" -> TextAlign.Center
+            "right" -> TextAlign.Right
+            "justify" -> TextAlign.Justify
+            else -> null
+        }
+    }
+
+    fun anchorIds(el: Element): List<String> = buildList {
+        el.id().takeIf(String::isNotBlank)?.let(::add)
+        el.select("[id]").map(Element::id).filter(String::isNotBlank).forEach(::add)
+        el.attr("name").takeIf(String::isNotBlank)?.let(::add)
+        el.select("[name]").map { it.attr("name") }.filter(String::isNotBlank).forEach(::add)
+    }.distinct()
+
     /** 去掉图片占位符"[图片]"（图片会单独成块展示）。
      *  删除时保留原有样式/链接注解与 <br> 产生的换行，避免正文被压成一行或链接失效。 */
     fun cleanImgPlaceholder(sb: AnnotatedString): AnnotatedString {
@@ -1507,13 +1674,25 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
         return when {
             tag == "img" -> ContentBlock(imageUrl = abs(el))
             tag == "hr" -> ContentBlock(isDivider = true)
-            tag == "pre" -> ContentBlock(annotated = buildAnnotatedString { append(el.wholeText()) }, isCode = true)
+            tag == "pre" -> ContentBlock(
+                annotated = buildAnnotatedString { append(el.wholeText()) },
+                isCode = true,
+                textAlign = blockAlignment(el),
+                anchorIds = anchorIds(el),
+            )
             tag == "blockquote" -> {
                 val sb = renderInlineTo(el)
-                if (sb.text.isBlank()) null else ContentBlock(annotated = sb, isQuote = true)
+                if (sb.text.isBlank()) null else ContentBlock(
+                    annotated = sb,
+                    isQuote = true,
+                    textAlign = blockAlignment(el),
+                    anchorIds = anchorIds(el),
+                )
             }
             else -> renderInlineTo(el).let { sb ->
-                if (sb.text.isBlank()) null else ContentBlock(annotated = sb)
+                if (sb.text.isBlank()) null else ContentBlock(
+                    annotated = sb, textAlign = blockAlignment(el), anchorIds = anchorIds(el)
+                )
             }
         }
     }
@@ -1521,10 +1700,11 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
     /** 按源站节点顺序拆分一段内的文字与图片，避免把穿插图片统一挪到段尾。 */
     fun collectInlineContent(el: Element) {
         var wrapper = Element("span")
+        val alignment = blockAlignment(el)
 
         fun flushText() {
             val sb = trimEdges(cleanImgPlaceholder(renderInlineTo(wrapper)))
-            if (sb.text.isNotBlank()) blocks.add(ContentBlock(annotated = sb))
+            if (sb.text.isNotBlank()) blocks.add(ContentBlock(annotated = sb, textAlign = alignment))
             wrapper = Element("span")
         }
 
@@ -1562,7 +1742,8 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
                     blocks.add(
                         ContentBlock(
                             annotated = buildAnnotatedString { append(bullet); append(" "); append(sb) },
-                            isList = true, indent = level
+                            isList = true, indent = level, textAlign = blockAlignment(child),
+                            anchorIds = anchorIds(child),
                         )
                     )
                 }
@@ -1585,15 +1766,45 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
                     text = rich.text.trim(),
                     isHeader = td.tagName().lowercase() == "th",
                     annotated = rich.takeIf { it.text.isNotBlank() },
+                    imageUrls = td.select("img").map(::abs).filter(String::isNotBlank),
+                    textAlign = blockAlignment(td),
                 )
             }
-            if (cells.any { it.text.isNotBlank() }) cells else null
+            if (cells.any { it.text.isNotBlank() || it.imageUrls.isNotEmpty() }) cells else null
         }
 
     val structuralTags = setOf(
         "p", "div", "section", "article", "blockquote", "pre", "ul", "ol",
-        "h1", "h2", "h3", "h4", "h5", "h6", "img", "table", "hr"
+        "h1", "h2", "h3", "h4", "h5", "h6", "img", "table", "hr", "details"
     )
+
+    fun collectQuote(el: Element, depth: Int) {
+        val children = el.children()
+        if (children.isEmpty()) {
+            val sb = renderInlineTo(el)
+            if (sb.text.isNotBlank()) blocks.add(ContentBlock(
+                annotated = sb, isQuote = true, quoteDepth = depth, textAlign = blockAlignment(el),
+                anchorIds = anchorIds(el),
+            ))
+            return
+        }
+        children.forEach { child ->
+            if (child.tagName().equals("blockquote", ignoreCase = true)) {
+                collectQuote(child, depth + 1)
+            } else {
+                val own = child.clone().also { it.select("blockquote").remove() }
+                val sb = renderInlineTo(own)
+                if (sb.text.isNotBlank()) blocks.add(ContentBlock(
+                    annotated = sb, isQuote = true, quoteDepth = depth, textAlign = blockAlignment(child),
+                    anchorIds = anchorIds(child),
+                ))
+                child.children().filter { it.tagName().equals("blockquote", ignoreCase = true) }
+                    .forEach { collectQuote(it, depth + 1) }
+            }
+        }
+    }
+
+    var nextDetailsId = 0
 
     fun collect(el: Element) {
         el.children().forEach { c ->
@@ -1614,7 +1825,28 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
                     } else renderBlock(c)?.let { blocks.add(it) }
                 }
                 "article" -> collect(c)
-                "blockquote", "pre", "hr" -> renderBlock(c)?.let { blocks.add(it) }
+                "blockquote" -> collectQuote(c, 0)
+                "details" -> {
+                    val id = ++nextDetailsId
+                    val summary = c.children().firstOrNull { it.tagName().equals("summary", ignoreCase = true) }
+                    blocks.add(ContentBlock(
+                        annotated = summary?.let(::renderInlineTo)?.takeIf { it.text.isNotBlank() }
+                            ?: AnnotatedString("详情"),
+                        detailsId = id,
+                        isDetailsSummary = true,
+                        detailsOpenByDefault = c.hasAttr("open"),
+                        textAlign = summary?.let(::blockAlignment) ?: blockAlignment(c),
+                        anchorIds = anchorIds(summary ?: c),
+                    ))
+                    val body = c.clone()
+                    body.children().firstOrNull { it.tagName().equals("summary", ignoreCase = true) }?.remove()
+                    val contentStart = blocks.size
+                    collect(body)
+                    for (index in contentStart until blocks.size) {
+                        blocks[index] = blocks[index].copy(foldPath = listOf(id) + blocks[index].foldPath)
+                    }
+                }
+                "pre", "hr" -> renderBlock(c)?.let { blocks.add(it) }
                 "ul", "ol" -> collectList(c, 0)
                 "h1", "h2", "h3", "h4", "h5", "h6" -> {
                     val sb = renderInlineTo(c)
@@ -1622,7 +1854,9 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
                         ContentBlock(
                             annotated = sb,
                             isHeading = true,
-                            headingLevel = c.tagName().substring(1).toIntOrNull() ?: 1
+                            headingLevel = c.tagName().substring(1).toIntOrNull() ?: 1,
+                            textAlign = blockAlignment(c),
+                            anchorIds = anchorIds(c),
                         )
                     )
                 }
@@ -1645,7 +1879,7 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
     val hasBlock = root.children().any {
         it.tagName().lowercase() in setOf(
             "p", "div", "section", "article", "br", "blockquote", "pre", "ul", "ol",
-            "h1", "h2", "h3", "h4", "h5", "h6", "img", "table", "section", "hr"
+            "h1", "h2", "h3", "h4", "h5", "h6", "img", "table", "section", "hr", "details"
         )
     }
     if (!hasBlock) {
@@ -1661,7 +1895,7 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
         for (b in blocks) {
             if (b.imageUrl != null) {
                 val last = merged.lastOrNull()
-                if (last != null && last.imageUrl != null) {
+                if (last != null && last.imageUrl != null && last.foldPath == b.foldPath) {
                     merged[merged.size - 1] = last.copy(imageUrls = last.imageUrls + b.imageUrl)
                 } else {
                     merged.add(b.copy(imageUrls = listOf(b.imageUrl)))
@@ -1714,7 +1948,28 @@ private fun abs(el: Element): String =
     el.attr("abs:src").ifBlank { el.attr("src") }.let { if (it.startsWith("http")) it else Endpoints.abs(it) }
 
 private fun renderInline(el: Element, linkColor: Color, codeBg: Color): AnnotatedString = buildAnnotatedString {
-    fun appendNode(node: Node, bold: Boolean, italic: Boolean, strike: Boolean, code: Boolean, link: String?) {
+    fun localAnchor(link: String): String? {
+        val raw = when {
+            link.startsWith("#") -> link.removePrefix("#")
+            else -> runCatching { java.net.URI(link).rawFragment }.getOrNull()
+                ?.takeIf { fragment ->
+                    fragment.startsWith("fn", ignoreCase = true) ||
+                        fragment.contains("footnote", ignoreCase = true)
+                }
+        } ?: return null
+        return runCatching { java.net.URLDecoder.decode(raw, "UTF-8") }.getOrDefault(raw)
+    }
+
+    fun appendNode(
+        node: Node,
+        bold: Boolean,
+        italic: Boolean,
+        strike: Boolean,
+        code: Boolean,
+        link: String?,
+        baseline: Int,
+        marked: Boolean,
+    ) {
         when (node) {
             is TextNode -> {
                 val text = node.text()
@@ -1726,14 +1981,26 @@ private fun renderInline(el: Element, linkColor: Color, codeBg: Color): Annotate
                             fontStyle = if (italic) FontStyle.Italic else null,
                             textDecoration = if (strike) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                             fontFamily = if (code) FontFamily.Monospace else null,
-                            background = if (code) codeBg else Color.Unspecified,
+                            background = when {
+                                code -> codeBg
+                                marked -> Color(0x66FFD54F)
+                                else -> Color.Unspecified
+                            },
                             color = if (link != null) linkColor else Color.Unspecified,
+                            baselineShift = when {
+                                baseline > 0 -> BaselineShift.Superscript
+                                baseline < 0 -> BaselineShift.Subscript
+                                else -> null
+                            },
+                            fontSize = if (baseline != 0) 0.8.em else androidx.compose.ui.unit.TextUnit.Unspecified,
                         )
                     ) { append(text) }
                     if (link != null) {
-                        addStringAnnotation("URL", link, start, length)
+                        val anchor = localAnchor(link)
+                        if (anchor != null) addStringAnnotation("ANCHOR", anchor, start, length)
+                        else addStringAnnotation("URL", link, start, length)
                         // 楼层链接（/topic/xxx?floor=N）：额外打 FLOOR 注解，点击在当前帖内跳转
-                        Regex("""[?&]floor=(\d+)""").find(link)?.let { m ->
+                        if (anchor == null) Regex("""[?&]floor=(\d+)""").find(link)?.let { m ->
                             addStringAnnotation("FLOOR", m.groupValues[1], start, length)
                         }
                     } else if (!code) {
@@ -1777,12 +2044,14 @@ private fun renderInline(el: Element, linkColor: Color, codeBg: Color): Annotate
                         italic || tag == "em" || tag == "i",
                         strike || tag == "del" || tag == "s",
                         code || tag == "code",
-                        newLink
+                        newLink,
+                        when (tag) { "sup" -> 1; "sub" -> -1; else -> baseline },
+                        marked || tag == "mark",
                     )
                 }
             }
             else -> {}
         }
     }
-    el.childNodes().forEach { appendNode(it, false, false, false, false, null) }
+    el.childNodes().forEach { appendNode(it, false, false, false, false, null, 0, false) }
 }

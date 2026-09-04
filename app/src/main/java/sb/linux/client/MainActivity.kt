@@ -277,23 +277,64 @@ fun LsbApp(session: Session) {
         val url = Endpoints.abs(raw)
         val internalUri = android.net.Uri.parse(url)
         if (internalUri.host in setOf("linux.sb", "www.linux.sb")) {
-            val internalPath = internalUri.path.orEmpty()
-            if (internalPath == "/topic_collections") {
-                val tab = if (internalUri.getQueryParameter("tab") == "everyone") "everyone" else "mine"
-                linkNav.navigate("topicCollections?tab=$tab"); return
+            val internalPath = internalUri.path.orEmpty().let { if (it.length > 1) it.trimEnd('/') else it }
+            when (internalPath) {
+                "/", "" -> { linkNav.navigate("home"); return }
+                "/forum_list" -> { linkNav.navigate("forums"); return }
+                "/topic_collections" -> {
+                    val tab = if (internalUri.getQueryParameter("tab") == "everyone") "everyone" else "mine"
+                    linkNav.navigate("topicCollections?tab=$tab"); return
+                }
+                "/direct_messages" -> { linkNav.navigate("directMessages"); return }
+                "/notifications" -> { linkNav.navigate("notifications"); return }
+                "/invite_center" -> { linkNav.navigate("inviteCenter"); return }
+                "/gacha" -> { linkNav.navigate("gachaCenter"); return }
+                "/gacha_profile" -> { linkNav.navigate("gachaProfile"); return }
+                "/gacha_market" -> { linkNav.navigate("gachaMarket"); return }
+                "/gacha_forge_center" -> { linkNav.navigate("gachaOperation/forge"); return }
+                "/gacha_recycle_center" -> { linkNav.navigate("gachaOperation/recycle"); return }
+                "/gacha_recipes" -> { linkNav.navigate("gachaOperation/recipes"); return }
+                "/gacha_market_mine" -> { linkNav.navigate("gachaOperation/marketMine"); return }
+                "/leaderboard" -> {
+                    val type = internalUri.getQueryParameter("type") ?: "points"
+                    linkNav.navigate("leaderboard?type=${android.net.Uri.encode(type)}"); return
+                }
+                "/search" -> {
+                    val query = internalUri.getQueryParameter("q") ?: internalUri.getQueryParameter("keyword") ?: ""
+                    val field = internalUri.getQueryParameter("field") ?: "title"
+                    linkNav.navigate("search?q=${android.net.Uri.encode(query)}&field=${android.net.Uri.encode(field)}"); return
+                }
+                "/identity_center", "/daily_checkin" -> {
+                    session.showToast("此功能暂不提供"); return
+                }
             }
-            if (Regex("^/topic_collection/\\d+$").matches(internalPath)) {
-                linkNav.navigate("collectionActions?path=${android.net.Uri.encode(internalPath)}"); return
+            Regex("^/topic_collection/\\d+$").takeIf { it.matches(internalPath) }?.let {
+                val path = internalPath + internalUri.query?.let { "?$it" }.orEmpty()
+                linkNav.navigate("collectionActions?path=${android.net.Uri.encode(path)}"); return
             }
-            if (internalPath == "/direct_messages") { linkNav.navigate("directMessages"); return }
-            if (internalPath == "/identity_center" || internalPath == "/daily_checkin") {
-                session.showToast("此功能暂不提供"); return
+            Regex("^/direct_messages/(\\d+)$").find(internalPath)?.let {
+                linkNav.navigate("chat/${it.groupValues[1]}"); return
+            }
+            Regex("^/topic/(\\d+)$").find(internalPath)?.let {
+                val page = internalUri.getQueryParameter("p")?.toIntOrNull() ?: 1
+                val floor = internalUri.getQueryParameter("floor")?.toIntOrNull() ?: 0
+                linkNav.navigate("topic/${it.groupValues[1]}?p=$page&floor=$floor"); return
+            }
+            Regex("^/forum/(\\d+)$").find(internalPath)?.let {
+                val page = internalUri.getQueryParameter("p")?.toIntOrNull() ?: 1
+                linkNav.navigate("forum/${it.groupValues[1]}?p=$page"); return
+            }
+            Regex("^/user/(\\d+)$").find(internalPath)?.let {
+                val tab = internalUri.getQueryParameter("tab") ?: "topics"
+                if (tab == "notifications") linkNav.navigate("notifications")
+                else linkNav.navigate("user/${it.groupValues[1]}?tab=${android.net.Uri.encode(tab)}")
+                return
             }
         }
         if (session.settings.linkOpenMode == 0) {
             val uri = android.net.Uri.parse(url)
             val path = uri.path ?: ""
-            if ((uri.host ?: "").endsWith("linux.sb")) {
+            if (uri.host in setOf("linux.sb", "www.linux.sb")) {
                 Regex("""/topic/(\d+)""").find(path)?.let { m -> linkNav.navigate("topic/${m.groupValues[1]}"); return }
                 Regex("""/user/(\d+)""").find(path)?.let { m -> linkNav.navigate("user/${m.groupValues[1]}"); return }
                 Regex("""/forum/(\d+)""").find(path)?.let { m -> linkNav.navigate("forum/${m.groupValues[1]}"); return }
@@ -316,7 +357,7 @@ fun LsbApp(session: Session) {
         val url = Endpoints.abs(raw)
         val host = runCatching { android.net.Uri.parse(url).host.orEmpty() }.getOrDefault("")
         // 站内帖子/用户/版块继续直接走原生路由；预览只拦截外部网站。
-        if (!session.linkPreviewEnabled || host.endsWith("linux.sb")) {
+        if (!session.linkPreviewEnabled || host in setOf("linux.sb", "www.linux.sb")) {
             openLinkDirect(url)
         } else {
             linkPreviewInfo = null
@@ -371,8 +412,7 @@ fun LsbApp(session: Session) {
                         linkPreviewTarget = null; linkPreviewInfo = null
                         openLinkDirect(target)
                     },
-                    enabled = !linkPreviewLoading,
-                ) { Text("打开网站") }
+                ) { Text("打开链接") }
             },
             dismissButton = {
                 TextButton(onClick = { linkPreviewTarget = null; linkPreviewInfo = null }) { Text("取消") }
@@ -778,6 +818,7 @@ private fun androidx.navigation.NavGraphBuilder.detailRoutes(session: Session, n
     ) { UserScreen(session, nav) }
     settingsComposable("settings") { SettingsScreen(session, nav) }
     settingsComposable("generalSettings") { GeneralSettingsScreen(session, nav) }
+    settingsComposable("networkSettings") { NetworkSettingsScreen(session, nav) }
     settingsComposable("dohSettings") { DohSettingsScreen(session, nav) }
     settingsComposable("browseSettings") { BrowseSettingsScreen(session, nav) }
     settingsComposable("dataManagement") { DataManagementScreen(session, nav) }
@@ -806,9 +847,13 @@ private fun androidx.navigation.NavGraphBuilder.detailRoutes(session: Session, n
     composable("gachaProfile") { GachaProfileScreen(session, nav) }
     composable("gachaCenter") { GachaCenterScreen(session, nav) }
     composable("gachaMarket") { GachaMarketScreen(session, nav) }
-    composable("gachaOperation/{kind}") { entry ->
-        GachaOperationScreen(session, nav, entry.arguments?.getString("kind").orEmpty())
-    }
+    composable(
+        "gachaOperation/{kind}?title={title}",
+        arguments = listOf(
+            navArgument("kind") { type = androidx.navigation.NavType.StringType },
+            navArgument("title") { type = androidx.navigation.NavType.StringType; defaultValue = "" },
+        ),
+    ) { entry -> GachaOperationScreen(session, nav, entry.arguments?.getString("kind").orEmpty()) }
     composable(
         "leaderboard?type={type}",
         arguments = listOf(navArgument("type") { type = androidx.navigation.NavType.StringType; defaultValue = "points" })

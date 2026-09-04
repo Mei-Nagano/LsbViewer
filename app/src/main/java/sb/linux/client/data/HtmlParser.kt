@@ -67,6 +67,9 @@ object HtmlParser {
                 .replace(Regex("""\*\*([^*\n]+)\*\*"""), "<strong>$1</strong>")
                 .replace(Regex("""\*([^*\n]+)\*"""), "<em>$1</em>")
                 .replace(Regex("""~~([^~\n]+)~~"""), "<del>$1</del>")
+                .replace(Regex("""==([^=\n]+)=="""), "<mark>$1</mark>")
+                .replace(Regex("""\^([^\^\n]+)\^"""), "<sup>$1</sup>")
+                .replace(Regex("""(?<!~)~([^~\n]+)~(?!~)"""), "<sub>$1</sub>")
             // 还原代码 span
             t = Regex("\u0000(\\d+)\u0000").replace(t) { codeSpans[it.groupValues[1].toInt()] }
             return t
@@ -97,13 +100,25 @@ object HtmlParser {
                 out.append("<h$lvl>").append(inline(h.groupValues[2])).append("</h$lvl>\n")
                 i++; continue
             }
-            // 引用（连续 > 行合并）
+            // 引用：按每行 > 的数量生成真正嵌套的 blockquote。
             if (line.trimStart().startsWith(">")) {
-                val sb = StringBuilder()
+                var depth = 0
                 while (i < lines.size && lines[i].trimStart().startsWith(">")) {
-                    sb.append(lines[i].trimStart().removePrefix(">").removePrefix(" ")).append('\n'); i++
+                    val current = lines[i].trimStart()
+                    var pos = 0
+                    var targetDepth = 0
+                    while (pos < current.length && current[pos] == '>') {
+                        targetDepth++
+                        pos++
+                        while (pos < current.length && current[pos] == ' ') pos++
+                    }
+                    while (depth < targetDepth) { out.append("<blockquote>"); depth++ }
+                    while (depth > targetDepth) { out.append("</blockquote>"); depth-- }
+                    out.append("<p>").append(inline(current.substring(pos))).append("</p>")
+                    i++
                 }
-                out.append("<blockquote>").append(inline(sb.toString().trim())).append("</blockquote>\n")
+                while (depth > 0) { out.append("</blockquote>"); depth-- }
+                out.append('\n')
                 continue
             }
             // 表格：| a | b | 且下一行是 |---|---|
@@ -445,6 +460,12 @@ object HtmlParser {
                 el.classNames().any { it.contains("poll", ignoreCase = true) || it == "topic-essence-review-panel" }
             } ?: form
             val inputs = form.select("input[type=radio][name], input[type=checkbox][name]")
+            val panelText = root.text().replace(Regex("""\s+"""), " ").trim()
+            val unavailableReason = when {
+                panelText.contains("不能给自己", true) || panelText.contains("不能为自己", true) ||
+                    panelText.contains("作者不能", true) -> "作者不能参与自己的申精投票"
+                else -> ""
+            }
             val options = inputs.mapNotNull { input ->
                 val name = input.attr("name"); val value = input.attr("value")
                 if (name.isBlank() || value.isBlank()) return@mapNotNull null
@@ -465,14 +486,27 @@ object HtmlParser {
                 options = options,
                 multiple = inputs.any { it.attr("type").equals("checkbox", true) },
                 submitLabel = form.selectFirst("button[type=submit], input[type=submit]")?.let { it.text().ifBlank { it.attr("value") } }?.trim().orEmpty().ifBlank { "提交投票" },
-                closed = options.isEmpty() || inputs.all { it.hasAttr("disabled") },
+                closed = unavailableReason.isBlank() && (options.isEmpty() || inputs.all { it.hasAttr("disabled") }),
+                unavailableReason = unavailableReason,
                 reasonName = form.selectFirst("textarea[name]")?.attr("name").orEmpty(),
                 reasonRequired = form.selectFirst("textarea[name]")?.hasAttr("required") == true,
                 reasonHint = form.selectFirst("textarea[name]")?.attr("placeholder").orEmpty(),
                 reasonMaxLength = form.selectFirst("textarea[name]")?.attr("maxlength")?.toIntOrNull()?.coerceAtLeast(1) ?: 300,
             )
         } ?: essencePanel?.takeIf { essenceApplication == null }?.let { panel ->
-            TopicPoll(title = "精华申请 · 社区投票", note = panel.text(), closed = true)
+            val text = panel.text().replace(Regex("""\s+"""), " ").trim()
+            val status = panel.attr("data-status").lowercase()
+            val authorBlocked = text.contains("不能给自己", true) || text.contains("不能为自己", true) ||
+                text.contains("作者不能", true) || status in setOf("author", "self", "owner")
+            val ended = status in setOf("closed", "expired", "approved", "rejected", "finished") ||
+                listOf("投票已结束", "评议已结束", "已过期").any { text.contains(it) }
+            TopicPoll(
+                title = "精华申请 · 社区投票",
+                note = text,
+                closed = ended,
+                unavailableReason = if (authorBlocked) "作者不能参与自己的申精投票"
+                    else if (!ended) "当前账号不能参与此投票" else "",
+            )
         }
 
         val postElements = d.select("ul.topic-post-list li.post-entry, ul.post-list.topic-post-list li.post-entry")
@@ -541,6 +575,10 @@ object HtmlParser {
                         ".community-lottery-readonly-prize, .community-lottery-prize-row, " +
                         ".donate-area, [data-donate-area], .quick-reply-main-action, .virtual-card-box"
                         + ", .topic-poll, .poll-card, form[class*=poll]"
+                        // 淘帖插件会把所属专辑、收录/移除表单插进 post-content；
+                        // 应用已有独立淘帖入口和帖子菜单，这些不属于 Markdown 正文。
+                        + ", [class*=topic-collection], [data-topic-collection], "
+                        + "form[action*=topic_collection], form[action*=topic_collections]"
                 ).remove()
                 // 编辑信息节点：专用类名优先（含源站新类 sb-limit-edit-time-note）；
                 // 兜底查找正文内任意含「最后编辑」的尾部元素
@@ -1469,7 +1507,10 @@ object HtmlParser {
                     fields = hiddenFields(form),
                     enabled = !btn.hasAttr("disabled"),
                 )
-            }.filter { it.label.isNotBlank() && it.action.isNotBlank() }
+            }.filter {
+                it.label.isNotBlank() && it.action.isNotBlank() &&
+                    !it.label.contains("赠送", ignoreCase = true) && !it.label.contains("gift", ignoreCase = true)
+            }
             GachaTitleItem(badge = badge, equipped = equipped, count = count, actions = actions)
         }
         return GachaProfile(
@@ -1570,6 +1611,16 @@ object HtmlParser {
         return ""
     }
 
+    /** 同一种称号的多枚实例共用聚合标题；序号和持有数量留在实例标签中。 */
+    private fun gachaOptionGroupLabel(control: Element): String {
+        for (holder in optionHolders(control)) {
+            val badge = gachaTitleOf(holder) ?: continue
+            return listOf(badge.icon, badge.name, badge.rarity)
+                .filter { it.isNotBlank() }.joinToString(" · ")
+        }
+        return ""
+    }
+
     /** 既没有称号徽章又没有 label 的选项：退回选项行的可见文字，至少比字段名可读。 */
     private fun gachaOptionText(control: Element): String =
         optionHolders(control).firstNotNullOfOrNull { optionSideText(it).takeIf(String::isNotBlank) }.orEmpty()
@@ -1627,6 +1678,7 @@ object HtmlParser {
                     GachaFormField(
                         name = name,
                         label = label,
+                        groupLabel = if (isOption) gachaOptionGroupLabel(control) else "",
                         type = type,
                         value = if (tag == "textarea") control.text() else control.attr("value"),
                         placeholder = control.attr("placeholder"),
@@ -1649,7 +1701,10 @@ object HtmlParser {
                         multiple = control.hasAttr("multiple"),
                     )
                 }
-            val buttons = form.select("button[type=submit], input[type=submit], button:not([type])")
+            val externalButtons = main.select("button[form], input[type=submit][form]").filter {
+                form.id().isNotBlank() && it.attr("form") == form.id()
+            }
+            val buttons = (form.select("button[type=submit], input[type=submit], button:not([type])") + externalButtons).distinct()
             buttons.map { button ->
             val submitFields = hidden.toMutableList()
             button.attr("name").takeIf { it.isNotBlank() }?.let { submitName ->
@@ -1661,9 +1716,20 @@ object HtmlParser {
                 .ifBlank { "提交" }
             val submitAction = button.attr("formaction").ifBlank { action }
             // A submit override must stay within the same supported operation family.
+            val choiceDrivenForge = (action.contains("forge", ignoreCase = true) ||
+                action.contains("recycle", ignoreCase = true)) &&
+                fields.any { it.type == "checkbox" || it.type == "radio" }
+            val minSelections = if (choiceDrivenForge) {
+                listOf(button, form).firstNotNullOfOrNull { node ->
+                    listOf("data-min-selected", "data-min-selections", "data-required-count", "data-min-count")
+                        .firstNotNullOfOrNull { attr -> node.attr(attr).toIntOrNull() }
+                } ?: Regex("(?:至少选择|选择至少|需要选择|请选择)\\s*(\\d+)\\s*(?:个|枚|项)")
+                    .find(form.text())?.groupValues?.get(1)?.toIntOrNull() ?: 1
+            } else 0
             GachaOperationForm(label, if (submitAction == action) action else submitAction.takeIf {
                 if (collectionsOnly) it == "/topic_collections_action" else Regex("^/(gacha|identity|verify|creator)[a-zA-Z0-9_/?=&%-]*$").matches(it)
-            } ?: action, submitFields, fields, !button.hasAttr("disabled") && button.closest("fieldset[disabled]") == null)
+            } ?: action, submitFields, fields, choiceDrivenForge ||
+                (!button.hasAttr("disabled") && button.closest("fieldset[disabled]") == null), minSelections)
             }
         }
         val notes = main.select(".gacha-market-note, .gacha-note, .notice, .alert, .tips, .help-text")

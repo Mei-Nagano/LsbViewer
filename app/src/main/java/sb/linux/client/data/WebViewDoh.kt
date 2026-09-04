@@ -45,12 +45,27 @@ object WebViewDoh {
 
     private suspend fun prepare(): Boolean = mutex.withLock {
         val ctx = context ?: return@withLock true
-        val active = AppNetwork.isDohActive()
-        val key = if (active) AppSettings(ctx).dohUrl else "off"
+        val proxy = AppNetwork.proxyConfig()
+        val active = !proxy.enabled && AppNetwork.isDohActive()
+        val key = when {
+            proxy.enabled -> "proxy:${proxy.proxyUrl}"
+            active -> AppSettings(ctx).dohUrl
+            else -> "off"
+        }
         if (key == applied) return@withLock true
         try {
-            if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return@withLock !active
-            if (active) {
+            if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return@withLock !active && !proxy.enabled
+            if (proxy.enabled) {
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    ProxyController.getInstance().setProxyOverride(
+                        ProxyConfig.Builder().addProxyRule(proxy.proxyUrl).build(),
+                        androidx.core.content.ContextCompat.getMainExecutor(ctx),
+                    ) { if (continuation.isActive) continuation.resume(Unit) }
+                }
+                overriding = true
+                withContext(Dispatchers.IO) { tunnel?.close() }
+                tunnel = null
+            } else if (active) {
                 val bridge = tunnel ?: withContext(Dispatchers.IO) { LocalDnsTunnel(AppNetwork.dns) }.also { tunnel = it }
                 suspendCancellableCoroutine<Unit> { continuation ->
                     ProxyController.getInstance().setProxyOverride(

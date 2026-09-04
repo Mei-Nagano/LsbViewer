@@ -152,6 +152,7 @@ data class TopicPoll(
     val multiple: Boolean = false,
     val submitLabel: String = "提交投票",
     val closed: Boolean = false,
+    val unavailableReason: String = "",
     val reasonName: String = "",
     val reasonRequired: Boolean = false,
     val reasonHint: String = "",
@@ -320,11 +321,13 @@ data class GachaOperationForm(
     val hiddenFields: List<Pair<String, String>> = emptyList(),
     val fields: List<GachaFormField> = emptyList(),
     val enabled: Boolean = true,
+    val minSelections: Int = 0,
 )
 
 data class GachaFormField(
     val name: String,
     val label: String,
+    val groupLabel: String = "",
     val type: String = "text",
     val value: String = "",
     val placeholder: String = "",
