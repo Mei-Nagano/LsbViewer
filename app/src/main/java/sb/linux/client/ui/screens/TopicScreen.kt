@@ -129,6 +129,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sb.linux.client.data.AiClient
 import sb.linux.client.data.DanmakuItem
+import sb.linux.client.data.DEFAULT_COMMENT_REWARD_TIERS
 import sb.linux.client.data.EssenceApplication
 import sb.linux.client.data.EssenceReview
 import sb.linux.client.data.HtmlParser
@@ -1976,11 +1977,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         )
     }
 
-    // 投币弹窗（预设 6/33/66/88，自定义范围 1～99，理由选填）
+    // 评论投币档位完全跟随源站 data-tiers，不向接口提交未声明的金额。
     coinTarget?.let { target ->
         CoinDialog(
             onDismiss = { coinTarget = null },
-            tiers = listOf(6, 33, 66, 88),
+            tiers = target.coinTiers.ifEmpty { DEFAULT_COMMENT_REWARD_TIERS },
             onConfirm = { points, reason ->
                 coinTarget = null
                 doLike(target, points, reason)
@@ -4343,18 +4344,13 @@ private fun ExportSheetItem(
     }
 }
 
-/** 投币底部弹窗：与打赏弹窗同款样式，预设 6/33/66/88，自定义范围 1～99；理由选填（最多120字） */
+/** 评论投币底部弹窗：金额档位来自源站，理由选填（最多 120 字）。 */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CoinDialog(tiers: List<Int>, onDismiss: () -> Unit, onConfirm: (Int, String) -> Unit) {
-    var preset by remember { mutableStateOf((tiers.firstOrNull() ?: 6).toString()) }
-    var custom by remember { mutableStateOf(false) }
-    var customText by remember { mutableStateOf("") }
+    val availableTiers = remember(tiers) { tiers.filter { it > 0 }.distinct().ifEmpty { DEFAULT_COMMENT_REWARD_TIERS } }
+    var amount by remember(availableTiers) { mutableIntStateOf(availableTiers.first()) }
     var reason by remember { mutableStateOf("") }
-
-    val amount = if (custom) customText else preset
-    val amountNum = amount.toIntOrNull()
-    val validAmount = amountNum != null && amountNum in 1..99
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -4370,33 +4366,15 @@ fun CoinDialog(tiers: List<Int>, onDismiss: () -> Unit, onConfirm: (Int, String)
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            // 金额档位 + 自定义切换，放不下时自动换行
+            // 源站只接受 data-tiers 声明的金额，放不下时自动换行。
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                tiers.forEach { v ->
+                availableTiers.forEach { value ->
                     FilterChip(
-                        selected = !custom && preset == v.toString(),
-                        onClick = { custom = false; preset = v.toString() },
-                        label = { Text(v.toString(), style = MaterialTheme.typography.labelMedium) }
+                        selected = amount == value,
+                        onClick = { amount = value },
+                        label = { Text(value.toString(), style = MaterialTheme.typography.labelMedium) }
                     )
                 }
-                FilterChip(
-                    selected = custom,
-                    onClick = { custom = !custom },
-                    label = { Text("自定义", style = MaterialTheme.typography.labelMedium) }
-                )
-            }
-            if (custom) {
-                OutlinedTextField(
-                    value = customText,
-                    onValueChange = { t -> customText = t.filter { it.isDigit() }.take(2) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("自定义金额（积分）") },
-                    placeholder = { Text("范围 1～99") },
-                    shape = RoundedCornerShape(16.dp),
-                    singleLine = true,
-                    isError = customText.isNotBlank() && !validAmount,
-                    supportingText = { Text("仅支持 1～99 积分") }
-                )
             }
             OutlinedTextField(
                 value = reason,
@@ -4409,8 +4387,8 @@ fun CoinDialog(tiers: List<Int>, onDismiss: () -> Unit, onConfirm: (Int, String)
                 supportingText = { Text("${reason.length}/120") }
             )
             Button(
-                onClick = { onConfirm(amountNum ?: 0, reason.trim()) },
-                enabled = validAmount,
+                onClick = { onConfirm(amount, reason.trim()) },
+                enabled = amount in availableTiers,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {

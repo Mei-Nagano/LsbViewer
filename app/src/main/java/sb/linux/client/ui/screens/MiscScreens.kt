@@ -60,6 +60,7 @@ import sb.linux.client.data.GachaOperationPage
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.LeaderRow
 import sb.linux.client.data.Session
+import sb.linux.client.data.SourceFormProtocol
 import sb.linux.client.data.TopicCard
 import sb.linux.client.ui.*
 
@@ -1300,6 +1301,13 @@ internal fun GachaDynamicForm(
                     field.options.firstOrNull { it.selected && !it.disabled }?.value ?: field.options.firstOrNull { !it.disabled }?.value.orEmpty()
                 } else field.value
             }
+            form.fields.forEachIndexed { index, field ->
+                if (field.type == "checkbox" && !field.checked) {
+                    SourceFormProtocol.quantityFieldIndex(form, index)?.let { quantityIndex ->
+                        map[quantityIndex] = form.fields[quantityIndex].min.ifBlank { "1" }
+                    }
+                }
+            }
         }
     }
     val checked = remember(form) {
@@ -1316,14 +1324,12 @@ internal fun GachaDynamicForm(
         form.fields.forEachIndexed { index, field -> map[index] = field.options.filter { it.selected && !it.disabled }.map { it.value }.toSet() }
     } }
     var validationError by remember(form) { mutableStateOf<String?>(null) }
-    val selectedChoiceCount = form.fields.indices.count { index ->
-        val field = form.fields[index]
-        (field.type == "checkbox" && checked[index] == true) ||
-            (field.type == "radio" && radioValues[field.name] == field.value)
-    } + form.fields.indices.sumOf { index ->
-        form.fields[index].takeIf { it.type == "select" && it.multiple }
-            ?.let { multiValues[index].orEmpty().size } ?: 0
-    }
+    val quantityFieldIndices = form.fields.indices.mapNotNull {
+        SourceFormProtocol.quantityFieldIndex(form, it)
+    }.toSet()
+    val selectedChoiceCount = SourceFormProtocol.selectedChoiceCount(
+        form, values, checked, radioValues, multiValues,
+    )
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val checkboxIndices = form.fields.indices.filter { form.fields[it].type == "checkbox" }
@@ -1337,12 +1343,22 @@ internal fun GachaDynamicForm(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     groups.forEach { (groupLabel, indices) ->
-                        val selectedIndices = indices.filter { checked[it] == true }
+                        fun selectedQuantity(index: Int): Int = if (checked[index] == true) {
+                            SourceFormProtocol.quantityFieldIndex(form, index)?.let { quantityIndex ->
+                                SourceFormProtocol.boundedQuantity(form.fields[quantityIndex], values[quantityIndex])
+                            } ?: 1
+                        } else 0
+                        fun availableQuantity(index: Int): Int =
+                            SourceFormProtocol.quantityFieldIndex(form, index)?.let { quantityIndex ->
+                                form.fields[quantityIndex].max.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                            } ?: 1
+                        val selectedCount = indices.sumOf(::selectedQuantity)
+                        val availableCount = indices.sumOf(::availableQuantity)
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (selectedIndices.isNotEmpty()) MaterialTheme.colorScheme.primaryContainer
+                            color = if (selectedCount > 0) MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.surfaceContainerHigh,
-                            border = if (selectedIndices.isNotEmpty()) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                            border = if (selectedCount > 0) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(
@@ -1353,27 +1369,39 @@ internal fun GachaDynamicForm(
                                 Column(Modifier.weight(1f)) {
                                     Text(groupLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                     Text(
-                                        "已选 ${selectedIndices.size} / 持有 ${indices.size}",
+                                        "已选 $selectedCount / 可选 $availableCount",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
                                 FilledTonalIconButton(
-                                    onClick = { selectedIndices.lastOrNull()?.let { checked[it] = false } },
-                                    enabled = enabled && selectedIndices.isNotEmpty(),
+                                    onClick = {
+                                        indices.lastOrNull { selectedQuantity(it) > 0 }?.let { index ->
+                                            val quantityIndex = SourceFormProtocol.quantityFieldIndex(form, index)
+                                            val next = selectedQuantity(index) - 1
+                                            checked[index] = next > 0
+                                            if (quantityIndex != null) values[quantityIndex] = next.coerceAtLeast(1).toString()
+                                        }
+                                    },
+                                    enabled = enabled && selectedCount > 0,
                                     modifier = Modifier.size(34.dp),
                                 ) { Text("−", style = MaterialTheme.typography.titleMedium) }
                                 Text(
-                                    selectedIndices.size.toString(),
+                                    selectedCount.toString(),
                                     style = MaterialTheme.typography.titleSmall,
                                     modifier = Modifier.widthIn(min = 20.dp),
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 )
                                 FilledTonalIconButton(
                                     onClick = {
-                                        indices.firstOrNull { checked[it] != true }?.let { checked[it] = true }
+                                        indices.firstOrNull { selectedQuantity(it) < availableQuantity(it) }?.let { index ->
+                                            val quantityIndex = SourceFormProtocol.quantityFieldIndex(form, index)
+                                            val current = selectedQuantity(index)
+                                            checked[index] = true
+                                            if (quantityIndex != null) values[quantityIndex] = (current + 1).toString()
+                                        }
                                     },
-                                    enabled = enabled && selectedIndices.size < indices.size,
+                                    enabled = enabled && selectedCount < availableCount,
                                     modifier = Modifier.size(34.dp),
                                 ) { Text("+", style = MaterialTheme.typography.titleMedium) }
                                     }
@@ -1382,6 +1410,7 @@ internal fun GachaDynamicForm(
                 }
             }
             form.fields.forEachIndexed { index, field ->
+                if (index in quantityFieldIndices) return@forEachIndexed
                 when (field.type) {
                     "checkbox" -> Unit
                     "radio" -> Row(
@@ -1479,16 +1508,9 @@ internal fun GachaDynamicForm(
                 shape = RoundedCornerShape(50),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
                 onClick = {
-                    val pairs = form.hiddenFields.toMutableList()
-                    form.fields.forEachIndexed { index, field ->
-                        when (field.type) {
-                            "checkbox" -> if (checked[index] == true) pairs += field.name to field.value.ifBlank { "on" }
-                            "radio" -> if (radioValues[field.name] == field.value) pairs += field.name to field.value
-                            "select" -> if (field.multiple) multiValues[index].orEmpty().forEach { pairs += field.name to it }
-                                else pairs += field.name to values[index].orEmpty()
-                            else -> pairs += field.name to values[index].orEmpty()
-                        }
-                    }
+                    val pairs = SourceFormProtocol.buildSubmissionPairs(
+                        form, values, checked, radioValues, multiValues,
+                    )
                     validationError = sb.linux.client.data.validateSourceForm(form, pairs)
                     if (validationError == null) onSubmit(pairs)
                 },
