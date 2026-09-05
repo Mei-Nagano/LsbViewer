@@ -179,6 +179,9 @@ object HtmlParser {
 
     private fun doc(html: String): Document = Jsoup.parse(html, Endpoints.BASE)
 
+    /** 分域解析器共用的源站 Document 入口，统一基址和 Jsoup 配置。 */
+    internal fun sourceDocument(html: String): Document = doc(html)
+
     /**
      * 提取正文中的楼层引用：优先取 ?floor=N 链接（源站渲染为 "#<a href=..?floor=N>N</a>"，
      * htmlToText 后 "#" 与数字之间隔着空格，纯文本正则 #N 不可靠），兜底纯文本 #N。
@@ -1587,7 +1590,15 @@ object HtmlParser {
         val d = doc(html)
         val actions = d.select(".gacha-actions form[action]").mapNotNull { form ->
             val button = form.selectFirst("button[type=submit], button") ?: return@mapNotNull null
-            GachaAction(button.text().trim(), form.attr("action"), hiddenFields(form), !button.hasAttr("disabled"))
+            GachaAction(
+                label = button.text().trim(),
+                action = form.attr("action"),
+                fields = hiddenFields(form),
+                enabled = !button.hasAttr("disabled"),
+                cost = button.attr("data-cost").toIntOrNull()
+                    ?: Regex("""(\d[\d,，.]*)\s*积分""").find(button.text())
+                        ?.groupValues?.get(1)?.let(SourceFormProtocol::parseInteger) ?: 0,
+            )
         }
         val pool = d.select(".gacha-pool-rarity").mapNotNull { row ->
             val rarity = row.selectFirst(".gacha-pool-rarity-label")?.text()?.trim().orEmpty()

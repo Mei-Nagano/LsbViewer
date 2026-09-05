@@ -652,7 +652,7 @@ class AppSettings(context: Context) {
 
     /** 仅记录应用内实际发生的操作；最多保留 2000 条，避免统计数据无限增长。 */
     fun recordUsageEvent(type: String, topicId: Long = 0, title: String = "", value: Int = 0) {
-        if (type !in setOf("view", "favorite", "topic", "reply", "coin", "donate")) return
+        if (type !in setOf("view", "favorite", "topic", "reply", "coin", "donate", "gacha")) return
         val old = usageEventArray()
         val out = JSONArray().put(
             JSONObject().put("type", type).put("topicId", topicId).put("title", title)

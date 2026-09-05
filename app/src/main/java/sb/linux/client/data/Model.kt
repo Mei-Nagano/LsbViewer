@@ -306,6 +306,7 @@ data class GachaAction(
     val action: String,                // 表单提交地址
     val fields: Map<String, String>,   // 隐藏字段（含称号 id 等，不含 _csrf）
     val enabled: Boolean = true,
+    val cost: Int = 0,                 // 源站 data-cost；仅抽取操作使用
 )
 
 /** 称号抽取中心（/gacha）。 */
