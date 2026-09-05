@@ -57,8 +57,7 @@ desktop.ini
 # Local task checklist (not tracked)
 checklist.md
 
-# Local development tests
-app/src/test/
+# Device-only local tests
 app/src/androidTest/
 
 # Local work logs and acceptance notes

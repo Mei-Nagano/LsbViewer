@@ -63,6 +63,7 @@ data class PostEntry(
     val coined: Boolean = false,
     val likeCoinType: String = "",   // topic / reply
     val canLike: Boolean = false,
+    val coinTiers: List<Int> = emptyList(), // 源站 data-tiers 限定的评论投币档位
     val isOp: Boolean = false,
     val editInfo: String = "",       // 最后编辑信息（从正文中拆出，与正文有分割线区分）
     val editUserId: Long = 0,        // 最后编辑人用户 ID（>0 时点击可跳转其主页）

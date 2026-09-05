@@ -719,6 +719,7 @@ object HtmlParser {
                 // 但 [data-donate-reaction] 按钮仍在楼内；仅以按钮判断会漏，
                 // 两者任一存在即显示点赞投币（未登录时源站不渲染按钮与表单）
                 canLike = likeForm != null || likeBtn != null,
+                coinTiers = SourceFormProtocol.reactionTiers(likeBtn?.attr("data-tiers").orEmpty()),
                 isOp = li.selectFirst(".quick-reply-main-action") != null || li.selectFirst("form.topic-favorites-action") != null,
                 online = idFrom(authorA?.attr("href")) in onlineIds || onlineOf(li),
                 titleBadge = gachaTitleOf(li),
@@ -1616,7 +1617,9 @@ object HtmlParser {
             val badge = gachaTitleOf(card) ?: return@mapNotNull null
             val form = card.selectFirst("form.gacha-market-buy[action]") ?: return@mapNotNull null
             val text = card.selectFirst(".gacha-market-meta")?.text()?.trim().orEmpty()
-            val price = Regex("""单价\s*(\d+)""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val priceText = Regex("""单价\s*([\d,，.\s]+)\s*积分""")
+                .find(text)?.groupValues?.get(1).orEmpty()
+            val price = SourceFormProtocol.parseInteger(priceText) ?: 0
             val available = form.selectFirst("input[name=quantity]")?.attr("max")?.toIntOrNull()
                 ?: Regex("""剩余\s*(\d+)\s*个""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 1
             val timeLeft = Regex("""剩余时间\s*(.+)$""").find(text)?.groupValues?.get(1)?.trim().orEmpty()
@@ -1772,6 +1775,10 @@ object HtmlParser {
             button.attr("name").takeIf { it.isNotBlank() }?.let { submitName ->
                 submitFields += submitName to button.attr("value")
             }
+            button.attr("data-gacha-forge-source").takeIf { it.isNotBlank() }?.let { sourceRarity ->
+                submitFields.removeAll { it.first == "source_rarity" }
+                submitFields += "source_rarity" to sourceRarity
+            }
             val label = button.clone().also { it.select("small").remove() }.text().trim()
                 .ifBlank { button?.attr("value")?.trim().orEmpty() }
                 .ifBlank { form.selectFirst("h2, h3, legend")?.text()?.trim().orEmpty() }
@@ -1783,7 +1790,10 @@ object HtmlParser {
                 fields.any { it.type == "checkbox" || it.type == "radio" }
             val minSelections = if (choiceDrivenForge) {
                 listOf(button, form).firstNotNullOfOrNull { node ->
-                    listOf("data-min-selected", "data-min-selections", "data-required-count", "data-min-count")
+                    listOf(
+                        "data-min-selected", "data-min-selections", "data-required-count",
+                        "data-min-count", "data-gacha-forge-cost",
+                    )
                         .firstNotNullOfOrNull { attr -> node.attr(attr).toIntOrNull() }
                 } ?: Regex("(?:至少选择|选择至少|需要选择|请选择)\\s*(\\d+)\\s*(?:个|枚|项)")
                     .find(form.text())?.groupValues?.get(1)?.toIntOrNull() ?: 1
