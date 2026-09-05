@@ -1369,6 +1369,21 @@ internal fun GachaDynamicForm(
                             } ?: 1
                         val selectedCount = indices.sumOf(::selectedQuantity)
                         val availableCount = indices.sumOf(::availableQuantity)
+                        var quantityText by remember(form, groupLabel) {
+                            mutableStateOf(selectedCount.toString())
+                        }
+                        fun setSelectedCount(target: Int) {
+                            var remaining = target.coerceIn(0, availableCount)
+                            indices.forEach { index ->
+                                val selected = minOf(remaining, availableQuantity(index))
+                                val quantityIndex = SourceFormProtocol.quantityFieldIndex(form, index)
+                                checked[index] = selected > 0
+                                if (quantityIndex != null) {
+                                    values[quantityIndex] = selected.coerceAtLeast(1).toString()
+                                }
+                                remaining -= selected
+                            }
+                        }
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = if (selectedCount > 0) MaterialTheme.colorScheme.primaryContainer
@@ -1391,30 +1406,40 @@ internal fun GachaDynamicForm(
                                 }
                                 FilledTonalIconButton(
                                     onClick = {
-                                        indices.lastOrNull { selectedQuantity(it) > 0 }?.let { index ->
-                                            val quantityIndex = SourceFormProtocol.quantityFieldIndex(form, index)
-                                            val next = selectedQuantity(index) - 1
-                                            checked[index] = next > 0
-                                            if (quantityIndex != null) values[quantityIndex] = next.coerceAtLeast(1).toString()
-                                        }
+                                        val next = (selectedCount - 1).coerceAtLeast(0)
+                                        setSelectedCount(next)
+                                        quantityText = next.toString()
                                     },
                                     enabled = enabled && selectedCount > 0,
                                     modifier = Modifier.size(34.dp),
                                 ) { Text("−", style = MaterialTheme.typography.titleMedium) }
-                                Text(
-                                    selectedCount.toString(),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    modifier = Modifier.widthIn(min = 20.dp),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                OutlinedTextField(
+                                    value = quantityText,
+                                    onValueChange = { input ->
+                                        val filtered = input.filter(Char::isDigit).take(6)
+                                        quantityText = filtered
+                                        filtered.toIntOrNull()?.let { requested ->
+                                            val target = requested.coerceIn(0, availableCount)
+                                            setSelectedCount(target)
+                                            if (target != requested) quantityText = target.toString()
+                                        } ?: setSelectedCount(0)
+                                    },
+                                    enabled = enabled,
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(10.dp),
+                                    textStyle = MaterialTheme.typography.titleSmall.copy(
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                                    ),
+                                    modifier = Modifier.width(76.dp),
                                 )
                                 FilledTonalIconButton(
                                     onClick = {
-                                        indices.firstOrNull { selectedQuantity(it) < availableQuantity(it) }?.let { index ->
-                                            val quantityIndex = SourceFormProtocol.quantityFieldIndex(form, index)
-                                            val current = selectedQuantity(index)
-                                            checked[index] = true
-                                            if (quantityIndex != null) values[quantityIndex] = (current + 1).toString()
-                                        }
+                                        val next = (selectedCount + 1).coerceAtMost(availableCount)
+                                        setSelectedCount(next)
+                                        quantityText = next.toString()
                                     },
                                     enabled = enabled && selectedCount < availableCount,
                                     modifier = Modifier.size(34.dp),
