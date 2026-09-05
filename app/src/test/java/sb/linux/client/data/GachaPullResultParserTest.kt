@@ -44,7 +44,7 @@ class GachaPullResultParserTest {
     }
 
     @Test
-    fun parsesMultiPullItemsAndQuantities() {
+    fun ownedCountsDoNotInflatePullResultCount() {
         val result = GachaPullResultParser.parse(
             """
             <section class="gacha-result">
@@ -68,6 +68,6 @@ class GachaPullResultParserTest {
         )
 
         assertEquals(2, result.items.size)
-        assertEquals(10, result.items.sumOf { it.quantity })
+        assertEquals(listOf(8, 2), result.items.map { it.ownedCount })
     }
 }

@@ -14,7 +14,7 @@ internal object GachaPullResultParser {
             if (name.isBlank()) return@mapNotNull null
             val rarity = card.selectFirst(".gacha-result-rarity, .gacha-pull-10-rarity")
                 ?.text()?.trim().orEmpty()
-            val quantityText = card.selectFirst(".gacha-result-quantity, .gacha-pull-10-quantity")
+            val ownedCountText = card.selectFirst(".gacha-result-quantity, .gacha-pull-10-quantity")
                 ?.text().orEmpty()
             GachaPullResultItem(
                 badge = TitleBadge(
@@ -25,7 +25,8 @@ internal object GachaPullResultParser {
                     serial = card.selectFirst(".gacha-title-serial, .gacha-result-serial")
                         ?.text()?.trim().orEmpty(),
                 ),
-                quantity = SourceFormProtocol.parseInteger(quantityText)?.coerceAtLeast(1) ?: 1,
+                // quantity 节点展示抽取后的当前持有量，不代表本次获得了多枚。
+                ownedCount = SourceFormProtocol.parseInteger(ownedCountText)?.coerceAtLeast(0) ?: 0,
                 isNew = card.selectFirst(".gacha-result-new, .gacha-pull-10-new") != null,
                 description = card.selectFirst(".gacha-result-desc")?.text()?.trim().orEmpty(),
             )

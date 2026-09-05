@@ -39,7 +39,7 @@ internal fun GachaPullResultDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "获得 ${result.items.sumOf { it.quantity }} 枚称号 · 消耗 $cost 积分",
+                    "获得 ${result.items.size} 枚称号 · 消耗 $cost 积分",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -62,7 +62,9 @@ internal fun GachaPullResultDialog(
                                 if (item.isNew) {
                                     Text("NEW", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                                 }
-                                if (item.quantity > 1) Text("×${item.quantity}", fontWeight = FontWeight.Bold)
+                                if (item.ownedCount > 0) {
+                                    Text("持有 ${item.ownedCount}", style = MaterialTheme.typography.labelMedium)
+                                }
                             }
                         }
                     }

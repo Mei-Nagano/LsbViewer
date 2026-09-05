@@ -9,7 +9,7 @@ data class GachaPullResult(
 /** 抽取结果中的单种称号及数量。 */
 data class GachaPullResultItem(
     val badge: TitleBadge,
-    val quantity: Int = 1,
+    val ownedCount: Int = 0,
     val isNew: Boolean = false,
     val description: String = "",
 )
