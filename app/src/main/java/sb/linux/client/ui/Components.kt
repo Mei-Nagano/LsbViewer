@@ -120,6 +120,7 @@ import sb.linux.client.data.Endpoints
 import sb.linux.client.data.TitleBadge
 import sb.linux.client.data.TopicCard
 import sb.linux.client.LsbApp
+import sb.linux.client.ui.util.hasNestedBlockChild
 
 /**
  * 帖子内容链接打开入口（常规设置「打开链接方式」，3.20）：
@@ -1773,11 +1774,6 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
             if (cells.any { it.text.isNotBlank() || it.imageUrls.isNotEmpty() }) cells else null
         }
 
-    val structuralTags = setOf(
-        "p", "div", "section", "article", "blockquote", "pre", "ul", "ol",
-        "h1", "h2", "h3", "h4", "h5", "h6", "img", "table", "hr", "details"
-    )
-
     fun collectQuote(el: Element, depth: Int) {
         val children = el.children()
         if (children.isEmpty()) {
@@ -1818,7 +1814,7 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
                     if (onlyTable != null) {
                         val rows = parseTable(onlyTable)
                         if (rows.isNotEmpty()) blocks.add(ContentBlock(tableRows = rows))
-                    } else if (c.children().any { it.tagName().lowercase() in structuralTags }) {
+                    } else if (c.hasNestedBlockChild()) {
                         collect(c)
                     } else if (c.select("img").isNotEmpty()) {
                         collectInlineContent(c)
@@ -1868,7 +1864,7 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
                 }
                 "br" -> {}
                 else -> {
-                    if (c.children().any { it.tagName().lowercase() in structuralTags }) collect(c)
+                    if (c.hasNestedBlockChild()) collect(c)
                     else if (c.select("img").isNotEmpty()) collectInlineContent(c)
                     else renderBlock(c)?.let { blocks.add(it) }
                 }
