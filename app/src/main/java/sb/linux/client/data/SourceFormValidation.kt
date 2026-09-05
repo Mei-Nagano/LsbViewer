@@ -3,9 +3,8 @@ package sb.linux.client.data
 internal fun validateSourceForm(form: GachaOperationForm, pairs: List<Pair<String, String>>): String? {
     if (!form.enabled) return "源站暂不允许此操作"
     if (form.minSelections > 0) {
-        val choiceNames = form.fields.filter { it.type in setOf("checkbox", "radio", "select") }.map { it.name }.toSet()
-        val selected = pairs.count { it.first in choiceNames && it.second.isNotBlank() }
-        if (selected < form.minSelections) return "请至少选择 ${form.minSelections} 项"
+        val selected = SourceFormProtocol.selectedChoiceCount(form, pairs)
+        if (selected < form.minSelections) return "请至少选择 ${form.minSelections} 个"
     }
     form.fields.distinctBy { it.name }.forEach { field ->
         val values = pairs.filter { it.first == field.name }.map { it.second }

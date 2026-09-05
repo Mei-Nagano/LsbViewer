@@ -1,6 +1,7 @@
 package sb.linux.client.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -74,6 +75,18 @@ class SourceFormProtocolTest {
         assertTrue(pairs.contains("material_quantities[1]" to "2"))
         assertTrue(pairs.contains("material_quantities[2]" to "1"))
         assertEquals(2, pairs.count { it.first == "material_title_ids[]" })
+
+        val oneTitleValues = values.toMutableMap().apply { this[firstQuantity] = "3" }
+        val oneTitlePairs = SourceFormProtocol.buildSubmissionPairs(
+            form, oneTitleValues, mapOf(firstChoice to true, secondChoice to false), emptyMap(), emptyMap(),
+        )
+        assertNull(validateSourceForm(form, oneTitlePairs))
+
+        oneTitleValues[firstQuantity] = "2"
+        val insufficientPairs = SourceFormProtocol.buildSubmissionPairs(
+            form, oneTitleValues, mapOf(firstChoice to true, secondChoice to false), emptyMap(), emptyMap(),
+        )
+        assertEquals("请至少选择 3 个", validateSourceForm(form, insufficientPairs))
     }
 
     @Test

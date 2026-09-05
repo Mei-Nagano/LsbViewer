@@ -56,6 +56,31 @@ internal object SourceFormProtocol {
         }
     }
 
+    /** 服务端提交参数中的选择总数量；checkbox 关联数量字段时按数量而不是种类计数。 */
+    fun selectedChoiceCount(
+        form: GachaOperationForm,
+        pairs: List<Pair<String, String>>,
+    ): Int {
+        val checkboxCount = form.fields.indices.sumOf { index ->
+            val field = form.fields[index]
+            val submittedValue = field.value.ifBlank { "on" }
+            if (field.type != "checkbox" || pairs.none { it.first == field.name && it.second == submittedValue }) {
+                return@sumOf 0
+            }
+            quantityFieldIndex(form, index)?.let { quantityIndex ->
+                val quantityField = form.fields[quantityIndex]
+                boundedQuantity(quantityField, pairs.firstOrNull { it.first == quantityField.name }?.second)
+            } ?: 1
+        }
+        val radioCount = form.fields.asSequence().filter { it.type == "radio" }.map { it.name }.distinct()
+            .count { name -> pairs.any { it.first == name && it.second.isNotBlank() } }
+        val selectCount = form.fields.filter { it.type == "select" }.sumOf { field ->
+            val values = pairs.filter { it.first == field.name && it.second.isNotBlank() }
+            if (field.multiple) values.size else values.take(1).size
+        }
+        return checkboxCount + radioCount + selectCount
+    }
+
     fun buildSubmissionPairs(
         form: GachaOperationForm,
         values: Map<Int, String>,
