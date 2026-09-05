@@ -57,6 +57,8 @@ import sb.linux.client.data.GachaMarketListing
 import sb.linux.client.data.GachaMarketPage
 import sb.linux.client.data.GachaOperationForm
 import sb.linux.client.data.GachaOperationPage
+import sb.linux.client.data.GachaPullResult
+import sb.linux.client.data.GachaPullResultParser
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.LeaderRow
 import sb.linux.client.data.Session
@@ -770,6 +772,7 @@ fun GachaCenterScreen(session: Session, nav: NavHostController) {
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<GachaAction?>(null) }
+    var pullResult by remember { mutableStateOf<Pair<GachaPullResult, Int>?>(null) }
     var submitting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     fun load() = scope.launch {
@@ -790,7 +793,15 @@ fun GachaCenterScreen(session: Session, nav: NavHostController) {
                 })
                 check(!resp.url.contains("login")) { "请重新登录" }
                 check(!resp.url.contains("form_error")) { HtmlParser.extractError(resp.html) }
-                session.showToast("抽取完成")
+                val result = GachaPullResultParser.parse(resp.html)
+                if (action.cost > 0) {
+                    session.settings.recordUsageEvent("gacha", title = action.label, value = action.cost)
+                }
+                if (result.items.isEmpty()) {
+                    session.showToast("抽取完成，结果暂时无法解析，请在我的称号中查看")
+                } else {
+                    pullResult = result to action.cost
+                }
                 load()
             } catch (e: Exception) { session.showToast(e.message ?: "抽取失败") }
             finally { submitting = false; pending = null }
@@ -821,6 +832,10 @@ fun GachaCenterScreen(session: Session, nav: NavHostController) {
                 }) { Text(if (submitting) "处理中…" else "确认") }
             },
         )
+    }
+
+    pullResult?.let { (result, cost) ->
+        GachaPullResultDialog(result = result, cost = cost, onDismiss = { pullResult = null })
     }
 
     Scaffold(topBar = {

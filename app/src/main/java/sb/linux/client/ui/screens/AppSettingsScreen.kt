@@ -846,7 +846,10 @@ fun UsageStatsScreen(session: Session, nav: NavHostController) {
             .takeIf { it.optLong("userId") == session.loginState.userId }
     }
     val counts = remember(events) { events.groupingBy { it.type }.eachCount() }
-    val pointsSpent = remember(events) { events.filter { it.type == "coin" || it.type == "donate" }.sumOf { it.value } }
+    val pointsSpent = remember(events) {
+        events.filter { it.type == "coin" || it.type == "donate" || it.type == "gacha" }.sumOf { it.value }
+    }
+    val gachaSpent = remember(events) { events.filter { it.type == "gacha" }.sumOf { it.value } }
     val favorites = remember(revision) { session.settings.favoriteList() }
     val sourcePoints = remember(revision, cutoff, sourceTotals) {
         if (sourceTotals == null) emptyList() else session.settings.sourcePoints().filter { it.timestamp >= cutoff }
@@ -870,7 +873,7 @@ fun UsageStatsScreen(session: Session, nav: NavHostController) {
                     .groupingBy { it.title }.eachCount().entries.sortedByDescending { it.value }.take(8)
                 val content = buildString {
                     appendLine("统计范围：${if (days == 0) "全部" else "最近 ${days} 天"}")
-                    appendLine("浏览 ${counts["view"] ?: 0} 次，收藏 ${counts["favorite"] ?: 0} 次，发帖 ${counts["topic"] ?: 0} 次，回帖 ${counts["reply"] ?: 0} 次，源站积分支出 $sourceExpense。")
+                    appendLine("浏览 ${counts["view"] ?: 0} 次，收藏 ${counts["favorite"] ?: 0} 次，发帖 ${counts["topic"] ?: 0} 次，回帖 ${counts["reply"] ?: 0} 次，本机记录积分支出 $pointsSpent，其中抽卡消耗 $gachaSpent。")
                     appendLine("源站当前总数：发帖 ${sourceTotals?.optInt("topics")}，回帖 ${sourceTotals?.optInt("replies")}，收藏 ${sourceTotals?.optInt("favorites")}，淘帖 ${sourceTotals?.optInt("collections")}。")
                     appendLine("本地帖子收藏 ${favorites.size} 帖，评论收藏 ${session.settings.commentFavoriteList().size} 条。")
                     appendLine("已同步源站积分流水 ${sourcePoints.size} 条，收入 $sourceIncome，支出 $sourceExpense。源站流水和本地操作统计可能重叠，不得相加；仅分析已同步范围。")
@@ -926,7 +929,8 @@ fun UsageStatsScreen(session: Session, nav: NavHostController) {
                     listOf(
                         "浏览" to (counts["view"] ?: 0), "收藏（源站）" to (sourceTotals?.optInt("favorites") ?: "未同步"),
                         "发帖（源站）" to (sourceTotals?.optInt("topics") ?: "未同步"), "回帖（源站）" to (sourceTotals?.optInt("replies") ?: "未同步"),
-                        "积分支出" to sourceExpense, "淘帖" to (sourceTotals?.optInt("collections") ?: "未同步"),
+                        "积分支出" to sourceExpense, "抽卡消耗" to gachaSpent,
+                        "淘帖" to (sourceTotals?.optInt("collections") ?: "未同步"),
                     ).forEach { (label, value) ->
                         Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.width(104.dp)) {
                             Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -981,7 +985,8 @@ fun UsageStatsScreen(session: Session, nav: NavHostController) {
                 items(events.take(30), key = { "${it.at}-${it.type}-${it.topicId}" }) { event ->
                     val label = when (event.type) {
                         "view" -> "浏览帖子"; "favorite" -> "收藏帖子"; "topic" -> "发布帖子"
-                        "reply" -> "发表回复"; "coin" -> "投币 ${event.value} 积分"; else -> "打赏 ${event.value} 积分"
+                        "reply" -> "发表回复"; "coin" -> "投币 ${event.value} 积分"
+                        "gacha" -> "抽取称号 ${event.value} 积分"; else -> "打赏 ${event.value} 积分"
                     }
                     ListItem(
                         headlineContent = { Text(label) },
