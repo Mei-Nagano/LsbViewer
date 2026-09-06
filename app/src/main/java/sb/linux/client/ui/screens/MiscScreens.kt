@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
+import sb.linux.client.common.collection.TopicCollectionTab
 import sb.linux.client.data.GachaAction
 import sb.linux.client.data.GachaCenter
 import sb.linux.client.data.GachaFormField
@@ -1946,10 +1947,24 @@ fun TopicCollectionsScreen(session: Session, nav: NavHostController, initialMine
         loading = true; error = null
         scope.launch {
             try {
-                val tab = if (requestedMine) "mine" else "everyone"
-                val response = session.client.get("/topic_collections?tab=$tab")
-                check(!response.url.contains("/login")) { "请先登录" }
-                val parsed = HtmlParser.parseTopicCollections(response.html)
+                val tab = if (requestedMine) TopicCollectionTab.MINE else TopicCollectionTab.EVERYONE
+                val parsed = session.topicCollectionService.list(tab).items.map { summary ->
+                    sb.linux.client.data.TopicCollectionCard(
+                        collectionId = summary.collectionId,
+                        title = summary.title,
+                        authorId = summary.authorId,
+                        authorName = summary.authorName,
+                        avatarUrl = summary.avatarUrl,
+                        visibility = summary.visibility,
+                        articleCount = summary.articleCount,
+                        updatedText = summary.updatedText,
+                        description = summary.description,
+                        subscribed = summary.subscribed,
+                        subscriberCount = summary.subscriberCount,
+                        createdText = summary.createdText,
+                        managePath = summary.managePath,
+                    )
+                }
                 if (version == requestVersion && requestedMine == mine && requestedUser == session.loginState.userId) rows = parsed
             } catch (e: Exception) { error = e.message ?: "加载失败" }
             finally { loading = false }
@@ -1999,6 +2014,12 @@ fun TopicCollectionsScreen(session: Session, nav: NavHostController, initialMine
                                                 }
                                                 if (c.updatedText.isNotBlank()) {
                                                     Text("· ${c.updatedText}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                }
+                                                if (c.createdText.isNotBlank()) {
+                                                    Text("· ${c.createdText}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                }
+                                                if (c.subscriberCount.isNotBlank()) {
+                                                    Text("· ${c.subscriberCount}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                                 }
                                                 if (c.subscribed) Text("已订阅", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                             }

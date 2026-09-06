@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.json.JSONObject
+import sb.linux.client.common.collection.TopicCollectionTab
 
 /** 完整拉取个人主页分页后一次提交，失败时不覆盖上次成功的快照。 */
 suspend fun Session.syncSourceUsage() = withContext(Dispatchers.IO) {
@@ -34,23 +35,12 @@ suspend fun Session.syncSourceUsage() = withContext(Dispatchers.IO) {
         totals[tab] = total
     }
     run {
-        var page = 1
-        var last = 1
-        var total = 0
-        val ids = mutableSetOf<Long>()
-        do {
-            val response = client.get("/topic_collections?tab=mine&p=$page")
-            check(response.code in 200..299 && !response.url.contains("login")) { "同步失败，请检查网络及登录状态" }
-            val doc = Jsoup.parse(response.html)
-            HtmlParser.parseTopicCollections(response.html).forEach { card ->
-                if (ids.add(card.collectionId)) total++
-            }
-            last = maxOf(last, doc.select(".pagination-bar a[href], .pagination a[href], .pagination option[value]").mapNotNull {
-                Regex("[?&]p=(\\d+)").find(it.attr("href").ifBlank { it.attr("value") })?.groupValues?.get(1)?.toIntOrNull()
-            }.maxOrNull() ?: 1)
-            page++
-        } while (page <= last)
-        totals["collections"] = total
+        // 源站淘帖列表当前固定返回一页（p 参数会被忽略），不要按假分页重复请求。
+        totals["collections"] = topicCollectionService
+            .list(TopicCollectionTab.MINE)
+            .items
+            .distinctBy { it.collectionId }
+            .size
     }
     check(loginState.userId == uid && loginState.loggedIn) { "账号已切换，请重新同步" }
     settings.sourceUsageJson = JSONObject().put("userId", uid).put("topics", totals["topics"])

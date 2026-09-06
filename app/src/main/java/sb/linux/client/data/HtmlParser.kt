@@ -4,6 +4,8 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
+import sb.linux.client.common.collection.TopicCollectionTab
+import sb.linux.client.data.parser.TopicCollectionParser
 import sb.linux.client.util.TimeFormat
 import sb.linux.client.util.escapeHtml
 
@@ -1886,36 +1888,23 @@ object HtmlParser {
 
     /** 淘帖中心专辑卡片（/topic_collections?tab=mine|everyone）。 */
     fun parseTopicCollections(html: String): List<TopicCollectionCard> {
-        val d = doc(html)
-        // 源站列表容器：优先 forum-main 下的 li，其次裸 li，再其次任何含 topic_collection 链接的容器。
-        val rows = d.select(".forum-main li.topic-collections-collection-row").ifEmpty {
-            d.select("li.topic-collections-collection-row")
-        }.ifEmpty {
-            // 兜底：源站可能改了类名，只要列表项里有指向 /topic_collection/{id} 的链接就尝试解析。
-            d.select("li:has(a[href^=/topic_collection/])")
-        }
-        return rows.mapNotNull { li ->
-            val title = li.selectFirst("a[href^=/topic_collection/]") ?: return@mapNotNull null
-            val author = li.selectFirst("a[href^=/user/]")
-            // meta 文本：取 .post-meta 下的 span，兜底取所有非链接的 span
-            val meta = li.select(".post-meta > span").eachText().ifEmpty {
-                li.select("span:not(:has(a))").eachText()
-            }
-            val collectionId = idFrom(title.attr("href"))
-            if (collectionId <= 0) return@mapNotNull null
+        return TopicCollectionParser.parseList(html, TopicCollectionTab.EVERYONE).items.map { summary ->
             TopicCollectionCard(
-                collectionId = collectionId,
-                title = title.text().trim(),
-                authorId = idFrom(author?.attr("href")),
-                authorName = author?.text()?.trim() ?: "",
-                avatarUrl = absUrl(avatarOf(li)),
-                visibility = li.selectFirst(".topic-collections-tag")?.text()?.trim() ?: "",
-                articleCount = meta.firstOrNull { it.contains("篇") || it.contains("文章") }?.let(::trimMetaSeparator) ?: "",
-                updatedText = meta.firstOrNull { it.startsWith("更新") || it.contains("前") }?.let(::trimMetaSeparator) ?: "",
-                description = (li.selectFirst(".topic-collections-card-desc") ?: li.selectFirst("p, .desc, .description"))?.text()?.trim() ?: "",
-                subscribed = li.selectFirst(".topic-collections-tag-subscribed, [class*=subscribed]") != null,
+                collectionId = summary.collectionId,
+                title = summary.title,
+                authorId = summary.authorId,
+                authorName = summary.authorName,
+                avatarUrl = summary.avatarUrl,
+                visibility = summary.visibility,
+                articleCount = summary.articleCount,
+                updatedText = summary.updatedText,
+                description = summary.description,
+                subscribed = summary.subscribed,
+                subscriberCount = summary.subscriberCount,
+                createdText = summary.createdText,
+                managePath = summary.managePath,
             )
-        }.distinctBy { it.collectionId }
+        }
     }
 
 

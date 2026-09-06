@@ -19,6 +19,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
+import sb.linux.client.common.collection.TopicCollectionActionForm
+import sb.linux.client.common.collection.TopicCollectionOperation
 import sb.linux.client.data.*
 import sb.linux.client.ui.EmptyBox
 import sb.linux.client.ui.ErrorBox
@@ -30,8 +32,14 @@ import sb.linux.client.ui.TopicCardView
 @Composable
 fun CollectionDetailScreen(session: Session, nav: NavHostController) {
     val initialPath = nav.currentBackStackEntry?.arguments?.getString("path").orEmpty()
+    if (initialPath.startsWith("/topic/")) {
+        TopicCollectionPickerScreen(session, nav, initialPath)
+        return
+    }
     var path by remember(initialPath) { mutableStateOf(initialPath) }
     var opPage by remember { mutableStateOf<GachaOperationPage?>(null) }
+    var sourceActions by remember { mutableStateOf<List<TopicCollectionActionForm>>(emptyList()) }
+    var managePath by remember { mutableStateOf("") }
     var topics by remember { mutableStateOf<List<TopicCard>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -43,11 +51,27 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
     fun load() = scope.launch {
         loading = true; error = null
         try {
-            require(Regex("^/topic(?:_collection)?/\\d+(?:\\?p=\\d+)?$").matches(path)) { "无效的专辑路径" }
-            val response = session.client.get(path)
-            check(!response.url.contains("login")) { "请先登录" }
-            opPage = HtmlParser.parseGachaOperationPage(response.html, collectionsOnly = true)
-            topics = if (path.startsWith("/topic_collection/")) HtmlParser.parseTopicList(response.html).first else emptyList()
+            if (path.startsWith("/topic/")) {
+                val picker = session.topicCollectionService.picker(path)
+                sourceActions = picker?.actions.orEmpty()
+                managePath = ""
+                opPage = GachaOperationPage(
+                    title = "收录到淘帖专辑",
+                    forms = sourceActions.map { it.toGachaForm() },
+                )
+                topics = emptyList()
+            } else {
+                val detail = session.topicCollectionService.detail(path)
+                sourceActions = detail.actions
+                managePath = detail.managePath
+                opPage = GachaOperationPage(
+                    title = detail.summary.title,
+                    notes = listOf(detail.description).filter { it.isNotBlank() },
+                    forms = sourceActions.map { it.toGachaForm() },
+                    links = listOfNotNull(detail.pageInfo.previousPath.takeIf { it.isNotBlank() }?.let { "上一页" to it }, detail.pageInfo.nextPath.takeIf { it.isNotBlank() }?.let { "下一页" to it }),
+                )
+                topics = detail.topics
+            }
         } catch (e: Exception) { error = e.message ?: "加载失败" }
         finally { loading = false }
     }
@@ -62,10 +86,9 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
                 submitting = true
                 scope.launch {
                     try {
-                        val result = session.client.postFormPairs(form.action,
-                            listOf("_csrf" to session.client.csrf()) + fields.filterNot { it.first == "_csrf" })
-                        check(!result.url.contains("login")) { "登录已失效" }
-                        check(!result.url.contains("form_error")) { HtmlParser.extractError(result.html) }
+                        val sourceForm = sourceActions.firstOrNull { it.action == form.action && it.label == form.label }
+                            ?: error("源站操作已过期，请刷新后重试")
+                        session.topicCollectionService.execute(sourceForm, path.takeIf { it.startsWith("/topic_collection/") })
                         session.showToast("已提交并同步专辑")
                         load()
                     } catch (e: Exception) { session.showToast(e.message ?: "提交失败") }
@@ -77,11 +100,18 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
     val pageLinks = opPage?.links.orEmpty().filter { Regex("^/topic_collection/\\d+(?:\\?p=\\d+)?$").matches(it.second) }
     val forms = opPage?.forms.orEmpty()
     // 订阅/取消订阅提到顶栏：这是专辑页最常用的一步，不用和删除、移除挤在同一排里找
-    val subscribeForm = forms.firstOrNull { it.fields.isEmpty() && it.label.contains("订阅") }
+    val subscribeForm = sourceActions.firstOrNull {
+        it.operation == TopicCollectionOperation.SUBSCRIBE || it.operation == TopicCollectionOperation.UNSUBSCRIBE
+    }?.toGachaForm()
     Scaffold(topBar = { TopAppBar(
         title = { Text(if (addMode) "收录到淘帖专辑" else opPage?.title.orEmpty().ifBlank { "淘帖专辑" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
         actions = {
+            if (managePath.isNotBlank()) {
+                TextButton(enabled = !loading && !submitting, onClick = {
+                    nav.navigate("topicCollectionManage?path=${android.net.Uri.encode(managePath)}")
+                }) { Text("管理") }
+            }
             subscribeForm?.let { form ->
                 FilledTonalButton(
                     enabled = form.enabled && !submitting && !loading,
@@ -102,7 +132,7 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
                     EmptyBox("当前没有内容或可执行操作\n请确认登录状态和专辑权限")
                 else -> CollectionDetailList(
                     nav = nav, opPage = opPage, topics = topics,
-                    forms = forms.filterNot { it === subscribeForm },
+                    forms = subscribeForm?.let { topForm -> forms.filterNot { it.action == topForm.action && it.label == topForm.label } } ?: forms,
                     pageLinks = pageLinks, path = path, loading = loading, error = error, addMode = addMode,
                     submitting = submitting,
                     onPath = { path = it }, onReload = { load() }, onPending = { pending = it },
@@ -111,6 +141,13 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
         }
     }
 }
+
+private fun TopicCollectionActionForm.toGachaForm() = GachaOperationForm(
+    label = label,
+    action = action,
+    hiddenFields = fields,
+    enabled = enabled,
+)
 
 /** 专辑内容列表：操作按钮 → 说明卡 → 帖子卡片 → 分页胶囊。 */
 @OptIn(ExperimentalLayoutApi::class)

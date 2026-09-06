@@ -2,6 +2,11 @@
 
 ## 2026-09-06
 
+- 淘帖新增独立 `TopicCollectionRepository` / `TopicCollectionService` 接口，列表、详情、管理页和主题页收录操作统一经过源站解析链路。
+- 淘帖列表模型补充创建时间、订阅人数、管理路径；详情支持源站分页与独立管理入口。
+- 主题页收录支持源站 `item_add`、`item_remove`、`item_remove_all` 操作；提交前刷新 CSRF，提交后重新读取源站确认状态。
+- 淘帖列表同步不再对源站忽略的 `p` 参数做重复分页请求。
+
 - 搜索接口已对齐源站新版 Meilisearch 页面：由 `POST /search + _csrf + field` 改为 `GET /search?q=&scope=&sort=&p=`。
 - 搜索范围新增 `all`、`user`，主题排序支持 `relevance`、`latest`、`created`、`replies`、`views`。
 - 搜索结果模型同时支持主题与用户；旧的 `field` 深链会兼容映射到 `scope`。

@@ -1,0 +1,186 @@
+package sb.linux.client.data.parser
+
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import sb.linux.client.common.collection.TopicCollectionActionForm
+import sb.linux.client.common.collection.TopicCollectionDetail
+import sb.linux.client.common.collection.TopicCollectionListPage
+import sb.linux.client.common.collection.TopicCollectionOperation
+import sb.linux.client.common.collection.TopicCollectionPageInfo
+import sb.linux.client.common.collection.TopicCollectionPicker
+import sb.linux.client.common.collection.TopicCollectionPickerOption
+import sb.linux.client.common.collection.TopicCollectionRelation
+import sb.linux.client.common.collection.TopicCollectionSummary
+import sb.linux.client.common.collection.TopicCollectionTab
+import sb.linux.client.data.Endpoints
+import sb.linux.client.data.HtmlParser
+
+/** Parser for the v9 topic_collections plugin. It follows source semantics, not visual order. */
+object TopicCollectionParser {
+    fun parseList(html: String, tab: TopicCollectionTab, sourceUrl: String = ""): TopicCollectionListPage {
+        val document = Jsoup.parse(html, Endpoints.BASE)
+        val redirectedToLogin = sourceUrl.contains("/login") || document.selectFirst("form[action*=/login]") != null
+        val items = document.select("li.topic-collections-collection-row, li:has(a[href^=/topic_collection/])")
+            .mapNotNull(::parseSummary)
+            .distinctBy { it.collectionId }
+        return TopicCollectionListPage(tab, items, sourceUrl, redirectedToLogin && items.isEmpty())
+    }
+
+    fun parseDetail(html: String, sourceUrl: String = ""): TopicCollectionDetail {
+        val document = Jsoup.parse(html, Endpoints.BASE)
+        val title = document.selectFirst(".topic-collections-collection-title h1, .topic-collections-collection-title .post-content-title, h1")
+            ?.text()?.trim().orEmpty()
+        val authorLink = document.selectFirst(".topic-collections-collection-meta a[href^=/user/], .topic-collections-collection-head a[href^=/user/]")
+        val meta = document.select(".topic-collections-collection-meta > span").eachText()
+        val description = document.selectFirst(".topic-collections-collection-description")?.text()?.trim().orEmpty()
+        val collectionId = idFrom(sourceUrl)
+        val summary = TopicCollectionSummary(
+            collectionId = collectionId,
+            title = title,
+            authorId = idFrom(authorLink?.attr("href").orEmpty()),
+            authorName = authorLink?.text()?.trim().orEmpty(),
+            articleCount = meta.firstOrNull { it.contains("篇") } ?: "",
+            subscriberCount = meta.firstOrNull { it.contains("订阅") } ?: "",
+            description = description,
+            relation = relationFrom(document),
+            managePath = document.selectFirst("a[href*=/topic_collection_manage]")?.attr("href").orEmpty(),
+        )
+        val topics = runCatching { HtmlParser.parseTopicList(html).first }.getOrDefault(emptyList())
+        return TopicCollectionDetail(
+            summary = summary,
+            description = description,
+            subscriberCount = summary.subscriberCount,
+            topics = topics,
+            pageInfo = parsePageInfo(document, sourceUrl),
+            managePath = summary.managePath,
+            actions = parseActions(document),
+        )
+    }
+
+    fun parsePicker(html: String): TopicCollectionPicker? {
+        val document = Jsoup.parse(html, Endpoints.BASE)
+        val form = document.selectFirst("form[data-topic-collections-add-form]") ?: return null
+        val topicId = form.selectFirst("input[name=topic_id]")?.attr("value")?.toLongOrNull() ?: return null
+        val options = form.select("select[data-topic-collections-select] option")
+            .mapNotNull { option ->
+                val id = option.attr("value").toLongOrNull() ?: return@mapNotNull null
+                TopicCollectionPickerOption(id, option.text().trim(), option.attr("data-included") == "1")
+            }
+        val actions = parseActions(document)
+        return TopicCollectionPicker(
+            topicId = topicId,
+            options = options,
+            actions = actions,
+            createForm = actions.firstOrNull { it.operation == TopicCollectionOperation.CREATE },
+            removeAllForm = actions.firstOrNull { it.operation == TopicCollectionOperation.REMOVE_ALL_ITEMS },
+        )
+    }
+
+    fun parseActions(document: org.jsoup.nodes.Document): List<TopicCollectionActionForm> =
+        document.select("form[action]").flatMap { form -> parseFormActions(form) }
+
+    private fun parseFormActions(form: Element): List<TopicCollectionActionForm> {
+        val action = form.attr("action").trim()
+        if (action.isBlank() || action.startsWith("http", true) || action.contains("/login")) return emptyList()
+        val method = form.attr("method").trim().ifBlank { "post" }
+        if (method.equals("get", true)) return emptyList()
+        val base = buildList {
+            form.select("input[name]:not([disabled])").filterNot { input ->
+                input.attr("type").equals("submit", true) ||
+                    ((input.attr("type").equals("checkbox", true) || input.attr("type").equals("radio", true)) && !input.hasAttr("checked"))
+            }.forEach { input -> add(input.attr("name") to input.attr("value")) }
+            form.select("select[name]:not([disabled])").forEach { select ->
+                select.select("option[selected]").forEach { option -> add(select.attr("name") to option.attr("value")) }
+            }
+            form.select("textarea[name]:not([disabled])").forEach { textarea -> add(textarea.attr("name") to textarea.text()) }
+        }.toMutableList()
+        val buttons = form.select("button[type=submit], button:not([type]), input[type=submit]")
+        val candidates = if (buttons.isEmpty()) listOf<Element?>(null) else buttons
+        return candidates.map { button ->
+            val fields = base.toMutableList()
+            button?.attr("name")?.takeIf { it.isNotBlank() }?.let { fields += it to button.attr("value") }
+            val text = listOfNotNull(button?.text(), button?.attr("value"), form.text()).joinToString(" ").trim()
+            val operation = operationFrom(text, fields)
+            TopicCollectionActionForm(
+                operation = operation,
+                method = method,
+                action = button?.attr("formaction")?.ifBlank { action } ?: action,
+                fields = fields,
+                label = button?.text()?.trim().orEmpty().ifBlank { form.selectFirst("legend, h2, h3")?.text()?.trim().orEmpty() }.ifBlank { "提交" },
+                enabled = button?.hasAttr("disabled") != true,
+            )
+        }.filter { it.operation != TopicCollectionOperation.UNKNOWN }
+    }
+
+    private fun parseSummary(row: Element): TopicCollectionSummary? {
+        val link = row.selectFirst("a[href^=/topic_collection/]") ?: return null
+        val id = idFrom(link.attr("href"))
+        if (id <= 0) return null
+        val author = row.selectFirst("a[href^=/user/]")
+        val meta = row.select(".post-meta > span").eachText()
+        val tag = row.selectFirst(".topic-collections-tag")?.text()?.trim().orEmpty()
+        return TopicCollectionSummary(
+            collectionId = id,
+            title = link.text().trim(),
+            authorId = idFrom(author?.attr("href").orEmpty()),
+            authorName = author?.text()?.trim().orEmpty(),
+            avatarUrl = absoluteUrl(row.selectFirst("img")?.attr("src").orEmpty()),
+            visibility = tag,
+            articleCount = meta.firstOrNull { it.contains("篇") || it.contains("文章") }.orEmpty(),
+            subscriberCount = meta.firstOrNull { it.contains("订阅") }.orEmpty(),
+            updatedText = meta.firstOrNull { it.startsWith("更新") || it.contains("前") }.orEmpty(),
+            createdText = meta.firstOrNull { it.startsWith("创建") }.orEmpty(),
+            description = row.selectFirst(".topic-collections-card-desc")?.text()?.trim().orEmpty(),
+            relation = relationFrom(row),
+            subscribed = row.select("[class*=subscribed], .topic-collections-tag-subscribed").isNotEmpty(),
+            managePath = row.selectFirst("a[href*=/topic_collection_manage]")?.attr("href").orEmpty(),
+        )
+    }
+
+    private fun parsePageInfo(document: org.jsoup.nodes.Document, sourceUrl: String): TopicCollectionPageInfo {
+        val current = Regex("[?&]p=(\\d+)").find(sourceUrl)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+        val links = document.select("a[href*='p=']").mapNotNull { link ->
+            val page = Regex("[?&]p=(\\d+)").find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull() ?: return@mapNotNull null
+            page to link.attr("href")
+        }
+        return TopicCollectionPageInfo(current, links.maxOfOrNull { it.first } ?: current,
+            links.firstOrNull { it.first == current - 1 }?.second.orEmpty(),
+            links.firstOrNull { it.first == current + 1 }?.second.orEmpty())
+    }
+
+    private fun operationFrom(text: String, fields: List<Pair<String, String>>): TopicCollectionOperation {
+        val value = (text + " " + fields.joinToString(" ") { "${it.first}=${it.second}" }).lowercase()
+        return when {
+            "item_remove_all" in value || "全部取消收录" in text -> TopicCollectionOperation.REMOVE_ALL_ITEMS
+            "item_remove" in value || "移出专辑" in text -> TopicCollectionOperation.REMOVE_ITEM
+            "item_add" in value || "收录" in text -> TopicCollectionOperation.ADD_ITEM
+            "unsubscribe" in value || "取消订阅" in text -> TopicCollectionOperation.UNSUBSCRIBE
+            "subscribe" in value || "订阅" in text -> TopicCollectionOperation.SUBSCRIBE
+            "delete" in value || "删除专辑" in text -> TopicCollectionOperation.DELETE
+            "collaborator" in value && ("remove" in value || "移除" in text) -> TopicCollectionOperation.REMOVE_COLLABORATOR
+            "collaborator" in value || "协作者" in text -> TopicCollectionOperation.ADD_COLLABORATOR
+            "update" in value || "保存" in text || "编辑" in text -> TopicCollectionOperation.UPDATE
+            "create" in value || "创建" in text || "新建" in text -> TopicCollectionOperation.CREATE
+            else -> TopicCollectionOperation.UNKNOWN
+        }
+    }
+
+    private fun relationFrom(element: Element): TopicCollectionRelation {
+        val text = element.text()
+        return when {
+            text.contains("协作") || text.contains("协作者") -> TopicCollectionRelation.COLLABORATOR
+            text.contains("已订阅") -> TopicCollectionRelation.SUBSCRIBED
+            text.contains("我的") || text.contains("创建者") -> TopicCollectionRelation.OWNER
+            text.contains("公开") -> TopicCollectionRelation.PUBLIC
+            else -> TopicCollectionRelation.UNKNOWN
+        }
+    }
+
+    private fun idFrom(value: String): Long = Regex("/(?:topic_collection|topic)/(\\d+)").find(value)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+    private fun absoluteUrl(value: String): String = when {
+        value.isBlank() -> ""
+        value.startsWith("http", true) -> value
+        value.startsWith("//") -> "https:$value"
+        else -> Endpoints.abs(value)
+    }
+}

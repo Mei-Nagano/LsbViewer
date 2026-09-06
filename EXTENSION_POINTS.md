@@ -46,6 +46,18 @@
 
 ## 2. 源站 HTML 结构变化
 
+### 2.1 淘帖插件协议
+
+淘帖协议的扩展入口是 `data/parser/TopicCollectionParser.kt`。新增操作时应：
+
+1. 在 `TopicCollectionOperation` 增加语义操作类型；
+2. 在 `operationFrom()` 增加源站按钮值/文案映射；
+3. 保留表单原始 action、hidden 字段和 submit name/value，不在 UI 硬编码路径；
+4. 在 `TopicCollectionParserTest` 添加脱敏 HTML 夹具；
+5. 通过 `TopicCollectionService.execute()` 提交，并重新读取源站验证状态。
+
+主题页选择器的 `item_add`、`item_remove`、`item_remove_all` 是显式操作，不得用“当前状态取反”的本地逻辑替代。源站新增管理区块时，应扩展独立管理页模型与屏幕，不能重新塞回称号动态表单。
+
 源站改版时的定位路径。
 
 | 变化类型 | 改动位置 | 不需要改 |

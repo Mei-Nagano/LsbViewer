@@ -301,6 +301,9 @@ data class TopicCollectionCard(
     val updatedText: String = "",
     val description: String = "",
     val subscribed: Boolean = false,
+    val subscriberCount: String = "",
+    val createdText: String = "",
+    val managePath: String = "",
 )
 
 data class LeaderRow(

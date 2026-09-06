@@ -24,7 +24,9 @@ import sb.linux.client.common.error.LsbException
 import sb.linux.client.common.filter.KeywordFilterSettings
 import sb.linux.client.data.parser.KeywordFilterParser
 import sb.linux.client.repository.SourceKeywordFilterRepository
+import sb.linux.client.repository.SourceTopicCollectionRepository
 import sb.linux.client.service.KeywordFilterService
+import sb.linux.client.service.TopicCollectionService
 
 /** 首页各分类的浏览状态（保存在 Session，进帖返回后仍在原位置） */
 class HomeTabState {
@@ -78,6 +80,8 @@ class Session(app: Application) : AndroidViewModel(app) {
         remote = SourceKeywordFilterRepository(client),
         prefs = app.getSharedPreferences("lsb_keyword_filter", android.content.Context.MODE_PRIVATE),
     )
+    /** Source-authoritative淘帖业务入口，页面不得直接拼接淘帖表单请求。 */
+    val topicCollectionService = TopicCollectionService(SourceTopicCollectionRepository(client))
     private val keywordFilterMutex = Mutex()
 
     /** 再次点击已选中的首页标签时递增，由 HomeScreen 消费并执行真实刷新。 */

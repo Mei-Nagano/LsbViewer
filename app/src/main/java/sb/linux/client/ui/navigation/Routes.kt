@@ -165,6 +165,7 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
     composable("directMessagesRoot") { DirectMessagesScreen(session, nav, showBack = false) }
     composable("topicCollectionsRoot") { TopicCollectionsScreen(session, nav, initialMine = false, showBack = false) }
     composable("collectionActions?path={path}") { CollectionDetailScreen(session, nav) }
+    composable("topicCollectionManage?path={path}") { TopicCollectionManageScreen(session, nav) }
     composable("footprint") { FootprintScreen(session, nav) }
     composable("favorites") { FavoritesScreen(session, nav) }
     composable(

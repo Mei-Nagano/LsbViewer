@@ -148,6 +148,10 @@ fun AppRoot(session: Session) {
                 val path = internalPath + internalUri.query?.let { "?$it" }.orEmpty()
                 linkNav.navigate("collectionActions?path=${android.net.Uri.encode(path)}"); return
             }
+            Regex("^/topic_collection_manage(?:/\\d+)?$").takeIf { it.matches(internalPath) }?.let {
+                val path = internalPath + internalUri.query?.let { "?$it" }.orEmpty()
+                linkNav.navigate("topicCollectionManage?path=${android.net.Uri.encode(path)}"); return
+            }
             Regex("^/direct_messages/(\\d+)$").find(internalPath)?.let {
                 linkNav.navigate("chat/${it.groupValues[1]}"); return
             }
