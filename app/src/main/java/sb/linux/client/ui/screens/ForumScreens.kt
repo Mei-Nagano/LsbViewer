@@ -25,6 +25,7 @@ import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.Session
 import sb.linux.client.data.TopicCard
 import sb.linux.client.ui.*
+import sb.linux.client.util.TopicFilter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,6 +139,10 @@ fun ForumScreen(session: Session, nav: NavHostController) {
     val listState = rememberLazyListState()
     // 板块分类生效的滚动模式（浏览设置可按分类覆盖，3.13）
     val forumInfinite = session.effectiveInfiniteScroll("forum")
+    val filteredTopics = remember(topics, session.keywordFilter) {
+        // 源站版块页仍应用关键词/用户规则，但不应用首页版块规则。
+        TopicFilter.apply(topics, session.keywordFilter.settings, isHome = false)
+    }
 
     fun load(p: Int, append: Boolean = false) {
         scope.launch {
@@ -217,14 +222,16 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                 when {
                     loading -> LoadingBox()
                     error != null -> ErrorBox(error!!) { load(page) }
-                    topics.isEmpty() -> EmptyBox("暂无帖子")
+                    filteredTopics.isEmpty() -> EmptyBox(
+                        if (topics.isEmpty()) "暂无帖子" else "本页帖子已按屏蔽规则过滤"
+                    )
                     else -> {
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            items(topics, key = { "${it.topicId}-${it.pinned}" }) { t ->
+                            items(filteredTopics, key = { "${it.topicId}-${it.pinned}" }) { t ->
                                 TopicCardView(
                                     t,
                                     onClick = { nav.navigate("topic/${t.topicId}") },

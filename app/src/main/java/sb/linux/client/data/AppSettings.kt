@@ -5,33 +5,10 @@ import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class AiConfigPreset(
-    val name: String,
-    val url: String,
-    val key: String,
-    val model: String,
-    val temperature: Float,
-    val prompt: String,
-    val includeComments: Boolean,
-)
-
-data class CardRedemptionRecord(
-    val topicId: Long,
-    val topicTitle: String,
-    val cardTitle: String,
-    val code: String,
-    val price: String,
-    val sourceTime: String,
-    val recordedAt: Long,
-)
-
-data class UsageEvent(
-    val type: String,
-    val topicId: Long,
-    val title: String,
-    val value: Int,
-    val at: Long,
-)
+import sb.linux.client.model.local.AiConfigPreset
+import sb.linux.client.model.local.CardRedemptionRecord
+import sb.linux.client.model.local.CommentFavorite
+import sb.linux.client.model.local.UsageEvent
 
 /**
  * 应用设置（区别于源站个人设置）：

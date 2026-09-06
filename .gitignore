@@ -66,10 +66,7 @@ REQUEST-*.md
 TESTING-*.md
 FEATURE-AUDIT.md
 
-# Local refactor spec and design docs (README.md 仍入库)
+# Local agent instructions (refactor deliverables are tracked)
 agents.md
-ARCHITECTURE.md
-REFACTOR_PLAN.md
-EXTENSION_POINTS.md
 
 #

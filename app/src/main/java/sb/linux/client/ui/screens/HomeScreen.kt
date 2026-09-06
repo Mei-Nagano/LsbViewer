@@ -73,7 +73,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import sb.linux.client.LocalMasterNav
+import sb.linux.client.ui.navigation.LocalMasterNav
+import sb.linux.client.common.filter.KeywordFilterRules
 import sb.linux.client.data.ForumCount
 import sb.linux.client.data.HomeSidebar
 import sb.linux.client.data.HtmlParser
@@ -86,6 +87,7 @@ import sb.linux.client.ui.ErrorBox
 import sb.linux.client.ui.LoadingBox
 import sb.linux.client.ui.PaginationBar
 import sb.linux.client.ui.TopicCardView
+import sb.linux.client.util.TopicFilter
 
 /** 源站首页 tab：新评论 / 新帖子 / 精华（抽奖/发卡通过组合过滤进入） */
 private val SORTS = listOf(
@@ -96,7 +98,11 @@ private val SORTS = listOf(
 
 /** 顶栏搜索范围值 → 中文标签 */
 private fun fieldLabelOf(field: String): String = when (field) {
-    "body" -> "内容"; "reply" -> "回帖"; else -> "标题"
+    "all" -> "全部内容"
+    "body" -> "主题正文"
+    "reply" -> "回帖"
+    "user" -> "用户"
+    else -> "标题"
 }
 
 private fun buildPath(sort: String, page: Int): String = when {
@@ -134,7 +140,7 @@ fun HomeScreen(
     // 顶栏搜索态（t10）：搜索时整条顶栏变为搜索框；退出 / 失焦恢复
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    // 搜索范围（顶栏左侧按钮选择）：title = 标题，body = 内容，reply = 回帖
+    // 搜索范围（顶栏左侧按钮选择）：与源站 scope 参数保持一致
     var searchField by rememberSaveable { mutableStateOf("title") }
     var searchFieldMenu by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }
@@ -218,21 +224,22 @@ fun HomeScreen(
         }
     }
 
-    // 源站屏蔽词 + 屏蔽用户过滤（服务端生效，本地兜底）+ 分类组合过滤
+    // 源站屏蔽词、用户和首页版块过滤 + 分类组合过滤
     fun filterTopics(list: List<TopicCard>): List<TopicCard> {
-        val words = session.blockedWords.filter { it.isNotBlank() }
-        val users = session.blockedUsers.filter { it.isNotBlank() }
-        val base = if (words.isEmpty() && users.isEmpty()) list
-        else list.filterNot { t ->
-            words.any { t.title.contains(it) } || (users.isNotEmpty() && t.authorName in users)
-        }
+        val filter = session.keywordFilter
+        val base = TopicFilter.apply(
+            topics = list,
+            settings = filter.settings,
+            configuredForumIds = KeywordFilterRules.configuredForumIds(filter.settings, filter.policy),
+            isHome = true,
+        )
         return when (combo) {
             1 -> base.filter { it.lotteryStatus.isNotBlank() }
             2 -> base.filter { it.cardStatus.isNotBlank() }
             else -> base
         }
     }
-    val visibleTopics = remember(current.topics, session.blockedWords, session.blockedUsers, combo) {
+    val visibleTopics = remember(current.topics, session.keywordFilter, combo) {
         filterTopics(current.topics)
     }
 
@@ -451,7 +458,7 @@ fun HomeScreen(
     fun submitTopSearch() {
         if (searchQuery.isBlank()) { searchActive = false; return }
         val q = java.net.URLEncoder.encode(searchQuery.trim(), "UTF-8")
-        nav.navigate("search?q=$q&field=$searchField")
+        nav.navigate("search?q=$q&scope=$searchField&sort=relevance")
         searchQuery = ""; searchActive = false
     }
 
@@ -539,7 +546,13 @@ fun HomeScreen(
                                     expanded = searchFieldMenu,
                                     onDismissRequest = { searchFieldMenu = false }
                                 ) {
-                                    listOf("title" to "标题", "body" to "内容", "reply" to "回帖").forEach { (v, label) ->
+                                    listOf(
+                                        "all" to "全部内容",
+                                        "title" to "标题",
+                                        "body" to "主题正文",
+                                        "reply" to "回帖",
+                                        "user" to "用户",
+                                    ).forEach { (v, label) ->
                                         DropdownMenuItem(
                                             text = { Text(label) },
                                             trailingIcon = if (searchField == v) {
@@ -788,7 +801,12 @@ fun HomeScreen(
                     loading && current.topics.isEmpty() -> LoadingBox()
                     error != null && current.topics.isEmpty() -> ErrorBox(error!!) { load(1) }
                     visibleTopics.isEmpty() -> EmptyBox(
-                        if (session.blockedWords.isEmpty() && session.blockedUsers.isEmpty()) "暂无帖子"
+                        if (session.keywordFilter.settings.presets.isEmpty() &&
+                            session.keywordFilter.settings.custom.isEmpty() &&
+                            session.keywordFilter.settings.users.isEmpty() &&
+                            session.keywordFilter.settings.forumExcludedIds.isEmpty() &&
+                            session.keywordFilter.settings.forumExtraIds.isEmpty()
+                        ) "暂无帖子"
                         else "暂无帖子（已按源站屏蔽规则过滤）"
                     )
                     else -> Box(

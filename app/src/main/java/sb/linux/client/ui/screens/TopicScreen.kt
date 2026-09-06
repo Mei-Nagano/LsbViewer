@@ -138,6 +138,10 @@ import sb.linux.client.data.LotteryPanel
 import sb.linux.client.data.PostEntry
 import sb.linux.client.data.Session
 import sb.linux.client.data.TopicExport
+import sb.linux.client.data.TopicExportFiles
+import sb.linux.client.data.reply.ReplyNode
+import sb.linux.client.data.reply.buildReplyTree
+import sb.linux.client.data.reply.flattenTree
 import sb.linux.client.data.TopicPageData
 import sb.linux.client.data.TopicPoll
 import sb.linux.client.data.TopicPollOption
@@ -903,14 +907,14 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 val url = sb.linux.client.data.Endpoints.abs("/topic/$tid")
                 val files: List<File> = withContext(Dispatchers.IO) {
                     when (kind) {
-                        "html" -> listOf(TopicExport.exportHtml(context, d.title, selectedPosts, url))
-                        "md" -> listOf(TopicExport.exportMarkdown(context, d.title, selectedPosts, url))
+                        "html" -> listOf(TopicExportFiles.exportHtml(context, d.title, selectedPosts, url))
+                        "md" -> listOf(TopicExportFiles.exportMarkdown(context, d.title, selectedPosts, url))
                         else -> {
                             TopicExport.renderLongImages(context, d.title, selectedPosts, url, exportTheme, multiPage)
                         }
                     }
                 }
-                TopicExport.shareFiles(
+                TopicExportFiles.shareFiles(
                     context, files,
                     when (kind) {
                         "html" -> "text/html"; "md" -> "text/markdown"; else -> "image/png"
@@ -2496,42 +2500,6 @@ private fun LoginPromptCard(count: Int, onLogin: () -> Unit) {
         }
     }
 }
-
-// ==================== 楼层卡片 ====================
-
-/** 树形评论节点（源站 data-quote-threads-parent-floor 还原的多级回复结构） */
-internal data class ReplyNode(val post: PostEntry, val depth: Int, val children: List<ReplyNode>)
-
-/**
- * 由已加载回复构建评论树：parentFloor 指向的楼层已加载且楼层号更小时挂为其子节点，
- * 否则视为顶层（父楼层必然小于子楼层——回复只能针对已有楼层，天然无环）。
- * 顶层节点按排序模式（0 热度 / 1 正序 / 2 倒序）排列，子节点恒按楼层正序。
- */
-internal fun buildReplyTree(replies: List<PostEntry>, sortOrder: Int): List<ReplyNode> {
-    val byFloor = replies.filter { it.floor > 0 }.associateBy { it.floor }
-    val childrenOf = HashMap<Int, MutableList<PostEntry>>()
-    val tops = mutableListOf<PostEntry>()
-    replies.sortedBy { it.floor }.forEach { p ->
-        val pf = p.parentFloor
-        if (pf > 0 && pf < p.floor && byFloor.containsKey(pf)) {
-            childrenOf.getOrPut(pf) { mutableListOf() }.add(p)
-        } else tops.add(p)
-    }
-    val ordered = when (sortOrder) {
-        2 -> tops.sortedByDescending { it.floor }
-        0 -> tops.sortedWith(compareByDescending<PostEntry> { it.likeCount }.thenBy { it.floor })
-        else -> tops
-    }
-    fun node(p: PostEntry, depth: Int): ReplyNode =
-        ReplyNode(p, depth, (childrenOf[p.floor] ?: emptyList()).sortedBy { it.floor }.map { node(it, depth + 1) })
-    return ordered.map { node(it, 0) }
-}
-
-/** 树 → 展平列表（楼层 + 层级深度），子树整棵跟随顶层节点（翻页按顶层分页不拆散对话） */
-internal fun flattenTree(nodes: List<ReplyNode>, collapsedIds: Set<Long> = emptySet()): List<Pair<PostEntry, Int>> =
-    nodes.flatMap { n ->
-        listOf(n.post to n.depth) + if (n.post.id in collapsedIds) emptyList() else flattenTree(n.children, collapsedIds)
-    }
 
 private data class SmartDecodedContent(val type: String, val source: String, val decoded: String)
 

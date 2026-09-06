@@ -88,16 +88,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
-import sb.linux.client.LocalMasterNav
+import sb.linux.client.ui.navigation.LocalMasterNav
 import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import sb.linux.client.data.syncSourceUsage
 import sb.linux.client.data.Session
 import sb.linux.client.data.AiClient
 import sb.linux.client.data.ThemeModePref
 import sb.linux.client.data.UpdateChecker
+import sb.linux.client.data.remote.WebDavClient
 import sb.linux.client.ui.EmptyBox
 import sb.linux.client.ui.LoadingBox
 import sb.linux.client.ui.LoginRequiredBox
@@ -1611,7 +1611,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
         davBusy = true
         scope.launch {
             try {
-                WebDav.put(url, davUser, davPass, session.settings.exportJson(backupItems))
+                WebDavClient.put(url, davUser, davPass, session.settings.exportJson(backupItems))
                 msg = "✓ 已备份到 WebDAV"
             } catch (e: Exception) {
                 msg = "✗ WebDAV 备份失败：${e.message}"
@@ -1624,7 +1624,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
         davBusy = true
         scope.launch {
             try {
-                val body = WebDav.get(url, davUser, davPass)
+                val body = WebDavClient.get(url, davUser, davPass)
                 val err = session.settings.importJson(body)
                 if (err == null) {
                     session.reloadPrefs()   // 恢复后立即生效，无需重启
@@ -1818,218 +1818,6 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
                 }
             }
             Spacer(Modifier.height(12.dp))
-        }
-    }
-}
-
-/** WebDAV 最小客户端：PUT 上传 / GET 下载（Basic Auth） */
-private object WebDav {
-    private val client = sb.linux.client.data.AppNetwork.clientBuilder().build()
-
-    private fun auth(user: String, pass: String): String =
-        okhttp3.Credentials.basic(user, pass)
-
-    suspend fun put(url: String, user: String, pass: String, body: String): Unit =
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val req = okhttp3.Request.Builder()
-                .url(url)
-                .header("Authorization", auth(user, pass))
-                .put(
-                    okhttp3.RequestBody.create(
-                        "application/json; charset=utf-8".toMediaTypeOrNull(), body
-                    )
-                )
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
-            }
-        }
-
-    suspend fun get(url: String, user: String, pass: String): String =
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val req = okhttp3.Request.Builder()
-                .url(url)
-                .header("Authorization", auth(user, pass))
-                .get()
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
-                resp.body?.string() ?: throw IllegalStateException("响应为空")
-            }
-        }
-}
-
-/** 屏蔽词管理（源站首页关键词过滤，与网页端设置一致） */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-fun BlockWordsScreen(session: Session, nav: NavHostController) {
-    var input by remember { mutableStateOf("") }
-    var user by remember { mutableStateOf("") }
-    var presets by remember { mutableStateOf<List<String>>(emptyList()) }
-    var custom by remember { mutableStateOf<List<String>>(emptyList()) }
-    var users by remember { mutableStateOf<List<String>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var busy by remember { mutableStateOf(false) }
-    var msg by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(msg) { msg?.let { session.showToast(it.removePrefix("✓ ").trim()); msg = null } }
-    val scope = rememberCoroutineScope()
-
-    fun load() {
-        scope.launch {
-            loading = true; msg = null
-            try {
-                val f = session.client.getKeywordFilter()
-                presets = f.presets; custom = f.custom; users = f.users
-                session.refreshKeywordFilter()
-            } catch (e: Exception) {
-                msg = e.message ?: "加载失败"
-            } finally { loading = false }
-        }
-    }
-
-    fun save(p: List<String>, c: List<String>, u: List<String>) {
-        busy = true; msg = null
-        scope.launch {
-            try {
-                val f = session.client.saveKeywordFilter(
-                    sb.linux.client.data.LsbClient.KeywordFilter(p, c, u)
-                )
-                presets = f.presets; custom = f.custom; users = f.users
-                session.refreshKeywordFilter()
-                session.showToast("已同步到源站")
-            } catch (e: Exception) {
-                msg = e.message ?: "保存失败"
-            } finally { busy = false }
-        }
-    }
-
-    LaunchedEffect(Unit) { if (session.loginState.loggedIn) load() else loading = false }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("屏蔽词 · 源站同步") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                }
-            )
-        }
-    ) { pad ->
-        if (!session.loginState.loggedIn) {
-            Box(Modifier.padding(pad)) {
-                LoginRequiredBox(
-                    "屏蔽词与源站账号绑定",
-                    "登录后可管理自定义屏蔽词、屏蔽用户，设置与网页端保持一致",
-                ) { nav.navigate("login") }
-            }
-            return@Scaffold
-        }
-        if (loading) {
-            Box(Modifier.padding(pad)) { LoadingBox() }
-            return@Scaffold
-        }
-        Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                "与源站「首页关键词过滤」一致：标题含屏蔽词的帖子及被屏蔽用户的帖子将不再显示，网页端与本应用互通。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            // 预设屏蔽词（源站下发）
-            if (presets.isNotEmpty()) {
-                Text("预设屏蔽规则", style = MaterialTheme.typography.titleSmall)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    presets.forEach { p ->
-                        InputChip(
-                            selected = false,
-                            onClick = { save(presets - p, custom, users) },
-                            enabled = !busy,
-                            label = { Text(p) },
-                            trailingIcon = { Icon(Icons.Filled.Close, "移除", Modifier.size(14.dp)) }
-                        )
-                    }
-                }
-            }
-
-            // 自定义屏蔽词
-            Text("自定义屏蔽词", style = MaterialTheme.typography.titleSmall)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("新屏蔽词") },
-                    singleLine = true
-                )
-                IconButton(
-                    onClick = {
-                        val w = input.trim()
-                        if (w.isNotBlank() && w !in custom) save(presets, custom + w, users)
-                        input = ""
-                    },
-                    enabled = !busy
-                ) { Icon(Icons.Filled.Add, "添加") }
-            }
-            if (custom.isEmpty()) {
-                Text("暂无自定义屏蔽词", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    custom.forEach { w ->
-                        InputChip(
-                            selected = false,
-                            onClick = { save(presets, custom - w, users) },
-                            enabled = !busy,
-                            label = { Text(w) },
-                            trailingIcon = { Icon(Icons.Filled.Close, "删除", Modifier.size(14.dp)) }
-                        )
-                    }
-                }
-                TextButton(onClick = { save(presets, emptyList(), users) }, enabled = !busy) { Text("清空屏蔽词") }
-            }
-
-            // 屏蔽用户
-            Text("屏蔽用户", style = MaterialTheme.typography.titleSmall)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = user,
-                    onValueChange = { user = it },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("用户名") },
-                    singleLine = true
-                )
-                IconButton(
-                    onClick = {
-                        val u = user.trim()
-                        if (u.isNotBlank() && u !in users) save(presets, custom, users + u)
-                        user = ""
-                    },
-                    enabled = !busy
-                ) { Icon(Icons.Filled.Add, "添加") }
-            }
-            if (users.isEmpty()) {
-                Text("暂无屏蔽用户", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    users.forEach { u ->
-                        InputChip(
-                            selected = false,
-                            onClick = { save(presets, custom, users - u) },
-                            enabled = !busy,
-                            label = { Text(u) },
-                            trailingIcon = { Icon(Icons.Filled.Close, "删除", Modifier.size(14.dp)) }
-                        )
-                    }
-                }
-            }
         }
     }
 }

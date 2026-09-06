@@ -37,7 +37,6 @@ import kotlinx.coroutines.withContext
 import sb.linux.client.data.Endpoints
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.HtmlParser.ProfileFormData
-import sb.linux.client.data.HtmlParser.ProfileField
 import sb.linux.client.data.Session
 import sb.linux.client.ui.*
 import java.io.File
@@ -179,44 +178,6 @@ fun SettingsScreen(session: Session, nav: NavHostController) {
                         }
                         item { Spacer(Modifier.height(60.dp)) }
                     }
-                }
-            }
-        }
-    }
-}
-
-// ---------------- 个人资料卡 ----------------
-
-@Composable
-private fun ProfileHeaderCard(avatarUrl: String, username: String, info: List<Pair<String, String>>) {
-    Surface(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(avatarUrl, 64)
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(username.ifBlank { "未命名" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                }
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-            // 关键信息优先展示：UID/邮箱/注册时间/积分
-            val priority = listOf("UID", "邮箱", "注册", "积分", "用户名")
-            val sorted = info.sortedByDescending { (k, _) ->
-                val idx = priority.indexOfFirst { k.contains(it) }
-                if (idx < 0) -1 else priority.size - idx
-            }
-            sorted.forEach { (k, v) ->
-                Row(Modifier.fillMaxWidth()) {
-                    Text(k, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(88.dp))
-                    Text(
-                        v.removePrefix(k).removePrefix(":").removePrefix("：").trim(),
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f)
-                    )
                 }
             }
         }
@@ -384,7 +345,7 @@ private fun ProfileFormCard(
             form.visibles
                 .filterNot { f -> picker != null && (f.name == picker.seedField || f.name == picker.styleField) }
                 .forEach { f ->
-                    FieldInput(f, values[f.name] ?: f.value) { values[f.name] = it }
+                    ProfileFieldInput(f, values[f.name] ?: f.value) { values[f.name] = it }
                 }
 
             // 密码字段：点击"修改密码"展开
@@ -422,56 +383,5 @@ private fun ProfileFormCard(
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (localBusy) "提交中…" else form.submitText) }
         }
-    }
-}
-
-@Composable
-private fun FieldInput(f: ProfileField, value: String, onChange: (String) -> Unit) {
-    when (f.type) {
-        "textarea" -> OutlinedTextField(
-            value = value, onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(f.label) },
-            shape = RoundedCornerShape(14.dp),
-            minLines = 2
-        )
-        "select" -> {
-            var expanded by remember { mutableStateOf(false) }
-            val current = f.options.firstOrNull { it.first == value }?.second ?: value
-            OutlinedTextField(
-                value = current,
-                onValueChange = {},
-                readOnly = true,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(f.label) },
-                shape = RoundedCornerShape(14.dp),
-                trailingIcon = {
-                    TextButton(onClick = { expanded = true }) { Text("选择") }
-                }
-            )
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                f.options.forEach { (v, label) ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        onClick = { onChange(v); expanded = false }
-                    )
-                }
-            }
-        }
-        "checkbox" -> Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Switch(checked = value == "1", onCheckedChange = { onChange(if (it) "1" else "0") })
-            Spacer(Modifier.width(10.dp))
-            Text(f.label)
-        }
-        else -> OutlinedTextField(
-            value = value, onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(f.label) },
-            shape = RoundedCornerShape(14.dp),
-            singleLine = true
-        )
     }
 }

@@ -22,7 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
-import sb.linux.client.LocalMasterNav
+import sb.linux.client.ui.navigation.LocalMasterNav
 import sb.linux.client.data.Session
 import sb.linux.client.ui.Avatar
 import sb.linux.client.ui.TitleBadgeView

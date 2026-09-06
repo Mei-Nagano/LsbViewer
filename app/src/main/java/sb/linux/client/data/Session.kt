@@ -1,4 +1,5 @@
 package sb.linux.client.data
+
 import androidx.compose.runtime.mutableFloatStateOf
 
 import android.app.Application
@@ -14,8 +15,16 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import sb.linux.client.common.filter.KeywordFilterSnapshot
+import sb.linux.client.common.error.LsbException
+import sb.linux.client.common.filter.KeywordFilterSettings
+import sb.linux.client.data.parser.KeywordFilterParser
+import sb.linux.client.repository.SourceKeywordFilterRepository
+import sb.linux.client.service.KeywordFilterService
 
 /** 首页各分类的浏览状态（保存在 Session，进帖返回后仍在原位置） */
 class HomeTabState {
@@ -38,11 +47,8 @@ data class PendingVerification(
 
 /** 搜索结果缓存条目（带时间戳，超时后失效重搜） */
 data class SearchResultCache(
-    val query: String,
-    val field: String,
-    val page: Int,
-    val totalPages: Int,
-    val results: List<TopicCard>,
+    val request: SearchQuery,
+    val page: SearchPage,
     val time: Long,
 )
 
@@ -68,6 +74,11 @@ class Session(app: Application) : AndroidViewModel(app) {
 
     val client: LsbClient = (app as sb.linux.client.LsbApp).client
     val settings: AppSettings = AppSettings(app)
+    private val keywordFilterService = KeywordFilterService(
+        remote = SourceKeywordFilterRepository(client),
+        prefs = app.getSharedPreferences("lsb_keyword_filter", android.content.Context.MODE_PRIVATE),
+    )
+    private val keywordFilterMutex = Mutex()
 
     /** 再次点击已选中的首页标签时递增，由 HomeScreen 消费并执行真实刷新。 */
     var homeRefreshRequest by mutableIntStateOf(0)
@@ -190,7 +201,9 @@ class Session(app: Application) : AndroidViewModel(app) {
     var checkinCheckedToday by mutableStateOf(false)
         private set
 
-    // 源站屏蔽词（服务端同步的缓存，登录后刷新）
+    // 源站屏蔽词（按账号缓存，登录后刷新）
+    var keywordFilter by mutableStateOf(KeywordFilterSnapshot())
+        private set
     var blockedWords by mutableStateOf<Set<String>>(emptySet())
     var blockedUsers by mutableStateOf<Set<String>>(emptySet())
 
@@ -211,6 +224,7 @@ class Session(app: Application) : AndroidViewModel(app) {
     fun recoverSession() = sessionRecovery.recover()
 
     fun observeHomeSession(html: String, code: Int, version: Long) {
+        keywordFilter = keywordFilter.copy(policy = KeywordFilterParser.parsePolicy(html))
         sessionSnapshot(html, code)?.let { sessionRecovery.accept(it, version) }
             ?: sessionRecovery.recover()
     }
@@ -227,6 +241,9 @@ class Session(app: Application) : AndroidViewModel(app) {
             clearAllTopicPageCache()
             client.invalidateCsrf()
             settings.clearCheckinCache()
+            keywordFilter = KeywordFilterSnapshot()
+            blockedWords = emptySet()
+            blockedUsers = emptySet()
             if (loginState.loggedIn) refreshKeywordFilter()
         }
     }
@@ -277,8 +294,9 @@ class Session(app: Application) : AndroidViewModel(app) {
         bottomBarItems = settings.bottomBarItems
         replyBarStyle = settings.replyBarStyle
         linkPreviewEnabled = settings.linkPreviewEnabled
-        blockedWords = settings.blockedWords
-        blockedUsers = settings.blockedUsers
+        // 屏蔽规则已改为按源站账号隔离；旧版全局键不再直接应用，避免访客继承旧账号规则。
+        blockedWords = emptySet()
+        blockedUsers = emptySet()
     }
 
     init {
@@ -290,7 +308,11 @@ class Session(app: Application) : AndroidViewModel(app) {
         loadViewsCache()
         refreshSession()
         viewModelScope.launch {
-            AppNetwork.recoveryEvents.collect { sessionRecovery.recover(networkChanged = true) }
+            AppNetwork.recoveryEvents.collect {
+                sessionRecovery.recover(networkChanged = true)
+                // 网络恢复时立即重试账号级 pending 屏蔽规则，避免只在重新进入设置页时同步。
+                if (loginState.loggedIn && keywordFilter.pending) refreshKeywordFilter(force = true)
+            }
         }
     }
 
@@ -666,19 +688,67 @@ class Session(app: Application) : AndroidViewModel(app) {
         settings.smartDecodeEnabled = v
     }
 
-    /** 从源站拉取屏蔽词（含自定义词与屏蔽用户），仅更新缓存 */
-    fun refreshKeywordFilter() {
+    /** 从源站拉取当前账号屏蔽设置；网络失败时保留账号级本地缓存。 */
+    fun refreshKeywordFilter(force: Boolean = false) {
         viewModelScope.launch {
-            try {
-                val s = client.getKeywordFilter()
-                blockedWords = s.custom.toSet()
-                blockedUsers = s.users.toSet()
-                settings.blockedWords = blockedWords
-                settings.blockedUsers = blockedUsers
-            } catch (_: Exception) {
-            }
+            runCatching { fetchKeywordFilter(force) }
         }
     }
+
+    /** 设置页使用的可等待刷新入口。 */
+    suspend fun fetchKeywordFilter(force: Boolean = false): KeywordFilterSnapshot = keywordFilterMutex.withLock {
+        val userId = loginState.userId.takeIf { loginState.loggedIn && it > 0L }
+            ?: throw LsbException("请先登录后使用源站屏蔽词")
+        var policy = keywordFilter.policy
+        keywordFilterService.cached(userId, policy)?.let(::applyKeywordFilter)
+        if (policy.availablePresets.isEmpty() && policy.forums.isEmpty()) {
+            policy = KeywordFilterParser.parsePolicy(client.get("/").html)
+        }
+        val legacy = legacyKeywordFilterSettings()
+        keywordFilterService.refresh(userId, policy, force, legacy).also { snapshot ->
+            applyKeywordFilter(snapshot)
+            // 旧全局设置完成一次成功同步后清理，避免下次登录重复合并。
+            if (legacyHasRules(legacy) && !snapshot.pending) clearLegacyKeywordFilterSettings()
+        }
+    }
+
+    /** 保存屏蔽设置：本地立即生效，网络失败时保留 pending 状态等待重试。 */
+    suspend fun saveKeywordFilter(value: KeywordFilterSettings): KeywordFilterSnapshot = keywordFilterMutex.withLock {
+        val userId = loginState.userId.takeIf { loginState.loggedIn && it > 0L }
+            ?: throw LsbException("请先登录后使用源站屏蔽词")
+        val snapshot = keywordFilterService.save(userId, value, keywordFilter.policy)
+        applyKeywordFilter(snapshot)
+        // 新页面保存的账号级快照已经接管旧全局规则；即使当前处于 pending，也不应再次合并旧值。
+        if (legacyHasRules(legacyKeywordFilterSettings())) clearLegacyKeywordFilterSettings()
+        snapshot
+    }
+
+    /** 清除当前账号的本地屏蔽缓存并重置内存规则。 */
+    fun clearKeywordFilterCache() {
+        loginState.userId.takeIf { it > 0L }?.let(keywordFilterService::clear)
+        applyKeywordFilter(KeywordFilterSnapshot(policy = keywordFilter.policy))
+    }
+
+    private fun applyKeywordFilter(snapshot: KeywordFilterSnapshot) {
+        keywordFilter = snapshot
+        blockedWords = (snapshot.settings.presets + snapshot.settings.custom).toSet()
+        blockedUsers = snapshot.settings.users.toSet()
+    }
+
+    /** 读取旧版本全局屏蔽设置，供首次账号同步迁移。 */
+    private fun legacyKeywordFilterSettings(): KeywordFilterSettings = KeywordFilterSettings(
+        custom = settings.blockedWords.toList(),
+        users = settings.blockedUsers.toList(),
+    )
+
+    private fun clearLegacyKeywordFilterSettings() {
+        settings.blockedWords = emptySet()
+        settings.blockedUsers = emptySet()
+    }
+
+    private fun legacyHasRules(value: KeywordFilterSettings): Boolean =
+        value.presets.isNotEmpty() || value.custom.isNotEmpty() || value.users.isNotEmpty() ||
+            value.forumExcludedIds.isNotEmpty() || value.forumExtraIds.isNotEmpty()
 
     fun showToast(msg: String) {
         toast = msg
@@ -694,12 +764,11 @@ class Session(app: Application) : AndroidViewModel(app) {
         ok
     }
 
-    fun completeVerification(result: Boolean) {
-        val p = pendingVerification
-        if (p != null && !p.deferred.isCompleted) {
-            p.deferred.complete(result)
-            if (!result) pendingVerification = null
-        }
+    fun completeVerification(request: PendingVerification, result: Boolean) {
+        if (pendingVerification?.deferred !== request.deferred) return
+        // 先移除 Dialog，确保成功回调后的网络重试不会继续遮挡底栏和页面点击。
+        pendingVerification = null
+        if (!request.deferred.isCompleted) request.deferred.complete(result)
     }
 
     // ---------------- 阅读量缓存 ----------------
@@ -1088,6 +1157,7 @@ class Session(app: Application) : AndroidViewModel(app) {
         loginState = LoginState()
         blockedWords = emptySet()
         blockedUsers = emptySet()
+        keywordFilter = KeywordFilterSnapshot()
         notifUnreadCount = 0
         checkinText = ""
         checkinCheckedToday = false

@@ -14,6 +14,8 @@ import org.json.JSONObject
 import java.net.URI
 import java.time.Duration
 
+import sb.linux.client.common.error.LsbException
+
 object ImageHostClient {
     const val BUILT_IN_ENDPOINT = "https://catbox.moe/user/api.php"
     private const val BUILT_IN_FIELD = "fileToUpload"

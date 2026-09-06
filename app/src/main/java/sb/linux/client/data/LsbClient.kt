@@ -13,11 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
-import okhttp3.Cookie
-import okhttp3.CookieJar
 import okhttp3.FormBody
-import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
@@ -27,7 +23,7 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 
-class LsbException(message: String) : Exception(message)
+import sb.linux.client.common.error.LsbException
 
 /**
  * linux.sb (bbs1.org) 客户端：OkHttp + 持久化 Cookie + 表单/JSON 提交。
@@ -38,85 +34,7 @@ class LsbClient(private val context: Context) {
 
     private val prefs = context.getSharedPreferences("lsb_session", Context.MODE_PRIVATE)
 
-    private val cookieJar = object : CookieJar {
-        /**
-         * 内存为权威存储，SharedPreferences 只承担「持久化 Cookie」的跨进程恢复。
-         *
-         * 旧实现没有内存层：loadForRequest 每次都重读 prefs 并逐条 split 解析
-         * （头像列表滚动时每张图一次，开销可观），而 persist() 只写 it.persistent
-         * 的那些 —— 于是会话 Cookie（无 Expires/Max-Age）在下一个请求前就被丢掉，
-         * 永远发不出去。改为内存持久：会话 Cookie 活到进程结束，符合浏览器语义。
-         */
-        private val memory: MutableMap<String, Cookie> by lazy { loadPersisted() }
-
-        private fun loadPersisted(): MutableMap<String, Cookie> {
-            val map = mutableMapOf<String, Cookie>()
-            val set = prefs.getStringSet("cookies", emptySet()) ?: emptySet()
-            for (s in set) {
-                val p = s.split("\u0001")
-                if (p.size != 5) continue
-                // toLongOrNull：脏数据不至于让整个 loadForRequest 抛异常导致所有请求失败
-                val exp = p[4].toLongOrNull() ?: continue
-                if (exp <= System.currentTimeMillis()) continue
-                map[p[0]] = Cookie.Builder()
-                    .name(p[0]).value(p[1])
-                    .domain(p[2]).path(p[3])
-                    .expiresAt(exp)
-                    .build()
-            }
-            return map
-        }
-
-        fun store(): MutableMap<String, Cookie> = synchronized(this) { LinkedHashMap(memory) }
-
-        fun value(name: String): String? = synchronized(this) { memory[name]?.value }
-
-        fun saveRawCookies(url: String, cookieHeader: String) = synchronized(this) {
-            val httpUrl = url.toHttpUrl()
-            for (pair in cookieHeader.split(";")) {
-                val eq = pair.indexOf('=')
-                if (eq <= 0) continue
-                val name = pair.substring(0, eq).trim()
-                val value = pair.substring(eq + 1).trim()
-                if (name.isBlank()) continue
-                memory[name] = Cookie.Builder()
-                    .name(name).value(value)
-                    .domain(httpUrl.host).path("/")
-                    .expiresAt(System.currentTimeMillis() + 6 * 60 * 60 * 1000)
-                    .build()
-            }
-            persist()
-        }
-
-        /** 调用方需持有 this 锁 */
-        private fun persist() {
-            prefs.edit().putStringSet(
-                "cookies",
-                memory.values.filter { it.persistent }.map {
-                    "${it.name}\u0001${it.value}\u0001${it.domain}\u0001${it.path}\u0001${it.expiresAt}"
-                }.toSet()
-            ).apply()
-        }
-
-        /** 清空内存与磁盘（退出登录）：只清 prefs 会留下内存里的会话 Cookie，仍是登录态 */
-        fun clear() = synchronized(this) {
-            memory.clear()
-            prefs.edit().putStringSet("cookies", emptySet()).apply()
-        }
-
-        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) = synchronized(this) {
-            for (c in cookies) memory[c.name] = c
-            persist()
-        }
-
-        override fun loadForRequest(url: HttpUrl): List<Cookie> = synchronized(this) {
-            // 仅清理已过期的持久化 Cookie；会话 Cookie 的 persistent=false、
-            // expiresAt 为 Long.MAX_VALUE，不参与过期判定
-            val now = System.currentTimeMillis()
-            memory.values.removeAll { it.persistent && it.expiresAt <= now }
-            memory.values.filter { it.matches(url) }
-        }
-    }
+    private val cookieJar = SessionCookieJar(prefs)
 
     val http: OkHttpClient = AppNetwork.clientBuilder()
         .cookieJar(cookieJar)
@@ -578,10 +496,20 @@ class LsbClient(private val context: Context) {
         repeat(3) {
             http.newCall(req).execute().use { r ->
                 val text = r.body?.string() ?: ""
-                if (isChallenge(text) || r.code == 403 || r.code == 503) {
+                val trimmed = text.trim()
+                val json = if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                    runCatching { JSONObject(trimmed) }.getOrNull()
+                } else {
+                    null
+                }
+                if (r.request.url.encodedPath == "/login" || r.code == 401) {
+                    throw LsbException("AUTH_REQUIRED")
+                }
+                // 403/503 的 JSON 是业务/CSRF 错误，不应弹出全屏人机验证并拦截应用导航。
+                if (isChallenge(text) || (json == null && (r.code == 403 || r.code == 503))) {
                     if (!solveUam(r.request.url.toString(), text)) throw LsbException("已取消人机验证")
                 } else {
-                    return@withContext JSONObject(if (text.isBlank()) "{}" else text)
+                    return@withContext json ?: JSONObject(if (text.isBlank()) "{}" else text)
                 }
             }
         }
@@ -629,6 +557,9 @@ class LsbClient(private val context: Context) {
             http.newCall(req).execute().use { r ->
                 val text = r.body?.string() ?: ""
                 val t = text.trim()
+                if (r.request.url.encodedPath == "/login" || r.code == 401) {
+                    throw LsbException("AUTH_REQUIRED")
+                }
                 if (isChallenge(text)) {
                     if (!solveUam(r.request.url.toString(), text)) throw LsbException("已取消人机验证")
                 } else {
@@ -640,67 +571,10 @@ class LsbClient(private val context: Context) {
         throw LsbException("接口访问失败")
     }
 
-    // ---------------- 源站屏蔽词（首页关键词过滤） ----------------
+    // ---------------- 源站屏蔽词传输 ----------------
 
-    data class KeywordFilter(
-        val presets: List<String> = emptyList(),
-        val custom: List<String> = emptyList(),
-        val users: List<String> = emptyList(),
-        val availablePresets: List<String> = emptyList(), // 源站下发的可选预设词
-    )
-
-    /**
-     * 按源站 plugins.js 的做法解析：
-     * GET 返回 {ok:1, exists:1, settings:{presets:[], custom:[], users:[]}}；
-     * 规则：normalize(trim+lowercase)，custom 最多 20 词、users 最多 5 个。
-     */
-    private fun parseKeywordFilter(json: JSONObject): KeywordFilter {
-        val s = json.optJSONObject("settings")
-        fun arr(o: JSONObject, k: String, limit: Int): List<String> = runCatching {
-            val a = o.optJSONArray(k) ?: return emptyList()
-            (0 until a.length()).mapNotNull { i ->
-                when (val v = a.get(i)) {
-                    is String -> v.trim().lowercase().ifBlank { null }
-                    else -> v.toString().trim().lowercase().ifBlank { null }
-                }
-            }.distinct().take(limit)
-        }.getOrDefault(emptyList())
-        return if (s != null) KeywordFilter(
-            presets = arr(s, "presets", 20),
-            custom = arr(s, "custom", 20),
-            users = arr(s, "users", 5),
-        ) else KeywordFilter()
-    }
-
-    /** 拉取源站屏蔽词设置（需登录，接口 302 到 /login 视为未登录） */
-    suspend fun getKeywordFilter(): KeywordFilter {
-        return try {
-            val json = getAjaxJson("/home_keyword_filter_settings")
-            if (json.optInt("ok", 0) != 1 && !json.has("settings"))
-                throw LsbException(json.optString("message").ifBlank { "读取失败" })
-            parseKeywordFilter(json)
-        } catch (e: LsbException) {
-            throw LsbException("请先登录后使用源站屏蔽词")
-        }
-    }
-
-    /** 保存源站屏蔽词设置（需登录）：POST 字段为 _csrf + settings(JSON 字符串)，与源站一致 */
-    suspend fun saveKeywordFilter(f: KeywordFilter): KeywordFilter {
-        val csrf = csrf()
-        val settings = JSONObject().put("presets", org.json.JSONArray(f.presets))
-            .put("custom", org.json.JSONArray(f.custom))
-            .put("users", org.json.JSONArray(f.users))
-        val json = postAjax(
-            "/home_keyword_filter_settings", mapOf(
-                "_csrf" to csrf,
-                "settings" to settings.toString(),
-            )
-        )
-        if (json.optInt("ok", 0) != 1) {
-            throw LsbException(json.optString("message").ifBlank { "保存失败" })
-        }
-        return parseKeywordFilter(json)
-    }
+    /** 屏蔽词仓库使用的 AJAX JSON GET；解析和业务规则位于 data/parser 与 service。 */
+    internal suspend fun getAjaxJsonForRepository(path: String): JSONObject = getAjaxJson(path)
 
     // ---------------- 打赏弹幕 ----------------
 

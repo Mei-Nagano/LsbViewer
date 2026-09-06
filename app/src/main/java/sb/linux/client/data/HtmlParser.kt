@@ -4,6 +4,8 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
+import sb.linux.client.util.TimeFormat
+import sb.linux.client.util.escapeHtml
 
 object HtmlParser {
 
@@ -40,11 +42,6 @@ object HtmlParser {
 
     // ---------------- Markdown → HTML（发帖预览用） ----------------
 
-    /** HTML 特殊字符转义 */
-    private fun esc(s: String): String = s
-        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        .replace("\"", "&quot;")
-
     /**
      * 轻量 Markdown → HTML：覆盖编辑器工具栏与源站支持的语法——
      * 标题/粗斜体/删除线/行内代码/代码块/引用/有序无序列表/链接/图片/分隔线/表格。
@@ -58,7 +55,7 @@ object HtmlParser {
         // 行内语法：先转义再替换标记（代码 span 优先保护，避免内部被二次处理）
         fun inline(s: String): String {
             val codeSpans = mutableListOf<String>()
-            var t = esc(s).replace(Regex("`([^`\n]+)`")) {
+            var t = escapeHtml(s).replace(Regex("`([^`\n]+)`")) {
                 codeSpans += "<code>${it.groupValues[1]}</code>"; "\u0000${codeSpans.size - 1}\u0000"
             }
             t = t
@@ -84,7 +81,7 @@ object HtmlParser {
                 i++
                 while (i < lines.size && !lines[i].trimStart().startsWith("```")) { sb.appendLine(lines[i]); i++ }
                 i++ // 跳过结尾 ```
-                out.append("<pre><code>").append(esc(sb.toString().trimEnd('\n'))).append("</code></pre>\n")
+                out.append("<pre><code>").append(escapeHtml(sb.toString().trimEnd('\n'))).append("</code></pre>\n")
                 continue
             }
             // 空行
@@ -283,7 +280,7 @@ object HtmlParser {
             val lastReplier = plainSpans.lastOrNull { !it.all { c -> c.isDigit() } } ?: ""
             val timeSpan = meta?.selectFirst("span[data-performance-time]")
             val timeText = timeSpan?.attr("data-performance-time")?.toLongOrNull()
-                ?.let { TimeFmt.rel(it) } ?: (timeSpan?.text() ?: "")
+                ?.let { TimeFormat.relative(it) } ?: (timeSpan?.text() ?: "")
             val authorId = idFrom(userLink?.attr("href"))
             TopicCard(
                 topicId = topicId,
@@ -602,7 +599,7 @@ object HtmlParser {
             val meta = li.selectFirst(".post-meta")
             val timeText = meta?.selectFirst("span[data-performance-time]")?.attr("data-performance-time")?.toLongOrNull()
                 // 兜底取首个 span 时须跳过树形回复的「回复 #N」标识，否则时间缺失时会显示成楼层引用
-                ?.let { TimeFmt.rel(it) } ?: meta?.selectFirst("span:not(.quote-threads-reference)")?.text() ?: ""
+                ?.let { TimeFormat.relative(it) } ?: meta?.selectFirst("span:not(.quote-threads-reference)")?.text() ?: ""
             // 源站 v8.6+ 点赞改版：like-coin-* → donate-reaction-*（按钮 data-liked/data-coined/计数 span + 表单 donate-reaction-form）
             val likeBtn = li.selectFirst("[data-donate-reaction]")
             val likeForm = li.selectFirst("form.donate-reaction-form")
@@ -1057,7 +1054,7 @@ object HtmlParser {
                 title = a.text(),
                 excerpt = li.selectFirst(".profile-reply-excerpt, .post-content, .reply-excerpt")?.text() ?: "",
                 timeText = li.selectFirst("span[data-performance-time]")?.attr("data-performance-time")?.toLongOrNull()
-                    ?.let { TimeFmt.rel(it) } ?: "",
+                    ?.let { TimeFormat.relative(it) } ?: "",
                 replyId = replyId,
                 forumName = li.selectFirst("a.post-forum-badge")?.text() ?: "",
             )
@@ -1953,7 +1950,7 @@ object HtmlParser {
                 replies = 0,
                 lastReplier = "",
                 timeText = time?.attr("data-performance-time")?.toLongOrNull()
-                    ?.let { TimeFmt.rel(it) } ?: (time?.text() ?: ""),
+                    ?.let { TimeFormat.relative(it) } ?: (time?.text() ?: ""),
             )
         }
     }

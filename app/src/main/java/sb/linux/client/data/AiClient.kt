@@ -10,6 +10,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Duration
 
+import sb.linux.client.common.error.LsbException
+
 /**
  * OpenAI 兼容 API 客户端：自定义 API 地址 + 密钥 + 模型 + 温度，
  * 用于帖子 AI 总结。

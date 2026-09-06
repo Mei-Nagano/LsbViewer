@@ -1,7 +1,6 @@
 package sb.linux.client.data
 
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -9,23 +8,15 @@ import android.text.Html
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.content.FileProvider
+import androidx.compose.ui.graphics.toArgb
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.io.File
-import androidx.compose.ui.graphics.toArgb
 
 /**
  * 帖子导出：HTML / Markdown / 长图（文本渲染），导出后调起系统分享。
  */
 object TopicExport {
-
-    private fun safeName(t: String): String =
-        t.replace(Regex("""[\\/:*?"<>|\s]+"""), "_").take(40).ifBlank { "topic" }
-
-    /** 导出目录：filesDir 持久存储（供「已导出的帖子」列表读取，不会被系统清理缓存清除，3.17） */
-    private fun exportDir(context: Context): File =
-        File(context.filesDir, "exports").apply { mkdirs() }
 
     /** 长图导出主题色：由调用方传入应用当前 ColorScheme，保证长图所见即所得（含深色模式） */
     data class ExportTheme(
@@ -87,121 +78,6 @@ object TopicExport {
                 outlineVariant = Color.parseColor("#C4C6CF"),
             )
         }
-    }
-
-    // ---------------- HTML ----------------
-
-    fun buildHtml(title: String, posts: List<PostEntry>, url: String): String {
-        val sb = StringBuilder()
-        sb.append("<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">")
-        sb.append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
-        sb.append("<title>").append(esc(title)).append("</title>")
-        sb.append("<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:760px;margin:0 auto;padding:16px;line-height:1.7;color:#222}")
-        sb.append("article{border:1px solid #e3e3e3;border-radius:10px;padding:14px;margin:12px 0}")
-        sb.append(".meta{color:#888;font-size:13px;margin-bottom:6px}img{max-width:100%}pre{background:#f5f5f5;padding:10px;border-radius:8px;overflow:auto}blockquote{border-left:3px solid #99a;margin:0;padding-left:10px;color:#555}</style>")
-        sb.append("</head><body><h1>").append(esc(title)).append("</h1>")
-        sb.append("<p class=\"meta\">来源：<a href=\"").append(esc(url)).append("\">").append(esc(url)).append("</a></p>")
-        posts.forEach { p ->
-            sb.append("<article>")
-            sb.append("<div class=\"meta\"><b>").append(esc(p.authorName)).append("</b>")
-            if (p.floor > 0) sb.append(" · #").append(p.floor)
-            sb.append(" · ").append(esc(p.timeText)).append("</div>")
-            sb.append(p.contentHtml)
-            sb.append("</article>")
-        }
-        sb.append("</body></html>")
-        return sb.toString()
-    }
-
-    private fun esc(s: String) = s
-        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        .replace("\"", "&quot;")
-
-    // ---------------- Markdown ----------------
-
-    fun buildMarkdown(title: String, posts: List<PostEntry>, url: String): String {
-        val sb = StringBuilder()
-        sb.append("# ").append(title).append("\n\n")
-        sb.append("> 来源：").append(url).append("\n\n")
-        sb.append("---\n\n")
-        posts.forEach { p ->
-            sb.append("**").append(p.authorName).append("**")
-            if (p.floor > 0) sb.append(" `#").append(p.floor).append("`")
-            sb.append(" · ").append(p.timeText).append("\n\n")
-            sb.append(htmlToMarkdown(p.contentHtml)).append("\n\n---\n\n")
-        }
-        return sb.toString()
-    }
-
-    /** 服务端渲染的帖子 HTML → Markdown（覆盖常用元素） */
-    fun htmlToMarkdown(html: String): String {
-        val root = runCatching { Jsoup.parseBodyFragment(html).body() }.getOrNull() ?: return ""
-        val sb = StringBuilder()
-
-        fun inline(el: Element): String {
-            val out = StringBuilder()
-            el.childNodes().forEach { n ->
-                when (n) {
-                    is org.jsoup.nodes.TextNode -> out.append(n.text())
-                    is Element -> when (n.tagName().lowercase()) {
-                        "br" -> out.append("\n")
-                        "strong", "b" -> out.append("**").append(inline(n)).append("**")
-                        "em", "i" -> out.append("*").append(inline(n)).append("*")
-                        "del", "s" -> out.append("~~").append(inline(n)).append("~~")
-                        "code" -> out.append("`").append(n.text()).append("`")
-                        "a" -> {
-                            val href = n.attr("abs:href").ifBlank { n.attr("href") }
-                            out.append("[").append(n.text()).append("](").append(href).append(")")
-                        }
-                        "img" -> {
-                            val src = n.attr("abs:src").ifBlank { n.attr("src") }
-                            out.append("![图片](").append(src).append(")")
-                        }
-                        else -> out.append(inline(n))
-                    }
-                    else -> {}
-                }
-            }
-            return out.toString()
-        }
-
-        fun block(el: Element) {
-            when (el.tagName().lowercase()) {
-                "p", "div", "section" -> sb.append(inline(el)).append("\n\n")
-                "pre" -> sb.append("```\n").append(el.wholeText().trim()).append("\n```\n\n")
-                "blockquote" -> sb.append(inline(el).trim().lines().joinToString("\n") { "> $it" }).append("\n\n")
-                "h1" -> sb.append("# ").append(inline(el)).append("\n\n")
-                "h2" -> sb.append("## ").append(inline(el)).append("\n\n")
-                "h3" -> sb.append("### ").append(inline(el)).append("\n\n")
-                "h4", "h5", "h6" -> sb.append("#### ").append(inline(el)).append("\n\n")
-                "ul", "ol" -> el.select("> li").forEachIndexed { i, li ->
-                    sb.append(if (el.tagName().lowercase() == "ol") "${i + 1}. " else "- ")
-                        .append(inline(li).trim()).append("\n")
-                }.also { sb.append("\n") }
-                "hr" -> sb.append("---\n\n")
-                "table" -> {
-                    val rows = el.select("tr")
-                    rows.forEachIndexed { ri, tr ->
-                        val cells = tr.select("th, td").map { it.text().trim() }
-                        sb.append("| ").append(cells.joinToString(" | ")).append(" |\n")
-                        if (ri == 0) sb.append("|").append(cells.joinToString("") { "--- |" }).append("\n")
-                    }
-                    sb.append("\n")
-                }
-                "img" -> sb.append("![图片](").append(el.attr("abs:src").ifBlank { el.attr("src") }).append(")\n\n")
-                else -> {
-                    val t = inline(el).trim()
-                    if (t.isNotEmpty()) sb.append(t).append("\n\n")
-                }
-            }
-        }
-
-        root.children().forEach { block(it) }
-        if (sb.isEmpty()) {
-            val t = inline(root).trim()
-            if (t.isNotEmpty()) sb.append(t).append("\n")
-        }
-        return sb.toString().replace(Regex("\n{3,}"), "\n\n").trim()
     }
 
     // ---------------- 长图 ----------------
@@ -463,51 +339,11 @@ object TopicExport {
                 canvas.translate(0f, -slice.first.toFloat())
                 root.draw(canvas)
                 val suffix = if (slices.size > 1) "_第${index + 1}页" else ""
-                File(exportDir(context), "${safeName(title)}_${stamp}${suffix}.png").also { file ->
+                File(TopicExportFiles.exportDir(context), "${TopicExportFiles.safeExportName(title)}_${stamp}${suffix}.png").also { file ->
                     file.outputStream().use { check(bmp.compress(Bitmap.CompressFormat.PNG, 95, it)) { "图片写入失败" } }
                 }
             } finally { bmp.recycle() }
         }
     }
 
-    // ---------------- 分享 ----------------
-
-    fun shareFile(context: Context, file: File, mime: String) {
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = mime
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(Intent.createChooser(intent, "分享帖子").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
-
-    fun shareFiles(context: Context, files: List<File>, mime: String) {
-        if (files.isEmpty()) return
-        if (files.size == 1) {
-            shareFile(context, files.single(), mime)
-            return
-        }
-        val uris = ArrayList(files.map {
-            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", it)
-        })
-        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-            type = mime
-            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(Intent.createChooser(intent, "分享帖子（${files.size} 页）").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
-
-    fun exportHtml(context: Context, title: String, posts: List<PostEntry>, url: String): File {
-        val f = File(exportDir(context), "${safeName(title)}.html")
-        f.writeText(buildHtml(title, posts, url))
-        return f
-    }
-
-    fun exportMarkdown(context: Context, title: String, posts: List<PostEntry>, url: String): File {
-        val f = File(exportDir(context), "${safeName(title)}.md")
-        f.writeText(buildMarkdown(title, posts, url))
-        return f
-    }
 }

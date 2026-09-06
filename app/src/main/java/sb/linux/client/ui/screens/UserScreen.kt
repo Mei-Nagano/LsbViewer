@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
-import sb.linux.client.LocalMasterNav
+import sb.linux.client.ui.navigation.LocalMasterNav
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.Session
 import sb.linux.client.data.UserProfile
@@ -161,162 +161,9 @@ fun UserScreen(session: Session, nav: NavHostController) {
         }
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            // 用户信息头：品牌色横幅 + 大头像 + 信息胶囊
-            profile?.let { p ->
-                Column(Modifier.fillMaxWidth()) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow
-                    ) {
-                        Column(Modifier.padding(18.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Avatar(
-                                    p.avatarUrl, 60, online = p.online,
-                                )
-                                Spacer(Modifier.width(14.dp))
-                                Column(Modifier.weight(1f)) {
-                                    // 名字 + 称号（35：称号紧跟名字后面展示，不单独占一行）
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            p.username,
-                                            style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        )
-                                        p.titleBadge?.let {
-                                            Spacer(Modifier.width(8.dp))
-                                            TitleBadgeView(it)
-                                        }
-                                    }
-                                    // 用户组
-                                    if (p.userGroup.isNotBlank()) {
-                                        Spacer(Modifier.height(4.dp))
-                                        Surface(
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                                            color = MaterialTheme.colorScheme.secondaryContainer
-                                        ) {
-                                            Text(
-                                                p.userGroup,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(14.dp))
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.horizontalScroll(rememberScrollState())
-                            ) {
-                                UserInfoPill(Icons.Filled.Star, "积分 ${p.points.ifBlank { "-" }}")
-                                UserInfoPill(Icons.Filled.Badge, "UID ${p.userId}")
-                            }
-                            if (p.bio.isNotBlank()) {
-                                Spacer(Modifier.height(12.dp))
-                                // 过长简介默认折叠，可展开/收起；不长的正常展示且不显示按钮。
-                                // 简介为源站 HTML（markdown 渲染结果），用 HtmlContent 渲染以保留原文格式
-                                val plainLen = org.jsoup.Jsoup.parse(p.bio).text().length
-                                val bioIsLong = plainLen > 80
-                                var bioExpanded by remember(plainLen) { mutableStateOf(!bioIsLong) }
-                                Box(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .then(if (bioIsLong && !bioExpanded) Modifier.height(96.dp) else Modifier)
-                                        .then(if (bioIsLong && !bioExpanded) Modifier.clipToBounds() else Modifier)
-                                ) {
-                                    HtmlContent(
-                                        p.bio,
-                                        Modifier.fillMaxWidth(),
-                                        onFloor = {}
-                                    )
-                                }
-                                if (bioIsLong) {
-                                    TextButton(onClick = { bioExpanded = !bioExpanded }) {
-                                        Text(if (bioExpanded) "收起" else "展开/收起")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            profile?.let { UserProfileHeader(it) }
             // 本人主页：个人设置与退出登录入口（原"我的"页账号分类移入，3.1）
-            var confirmLogout by remember { mutableStateOf(false) }
-            if (isSelf && session.loginState.loggedIn) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow
-                ) {
-                    Column {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { nav.navigate("settings") }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Filled.Settings, null, Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text("个人设置", style = MaterialTheme.typography.bodyLarge)
-                        }
-                        HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { confirmLogout = true }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Logout, null, Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text("退出登录", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            }
-            // 退出登录确认
-            if (confirmLogout) {
-                AlertDialog(
-                    onDismissRequest = { confirmLogout = false },
-                    title = { Text("退出登录") },
-                    text = { Text("确定要退出当前账号吗？") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            confirmLogout = false
-                            session.onLoggedOut()
-                            // 平板双栏：主栏切回首页并清空右栏；手机：回首页重建栈
-                            if (masterNav != null) {
-                                masterNav.navigate("home") {
-                                    popUpTo(masterNav.graph.findStartDestination().id) { inclusive = true }
-                                }
-                                nav.popBackStack("detailEmpty", false)
-                            } else {
-                                nav.navigate("home") { popUpTo("home") { inclusive = true } }
-                            }
-                        }) { Text("退出", color = MaterialTheme.colorScheme.error) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { confirmLogout = false }) { Text("取消") }
-                    }
-                )
-            }
+            if (isSelf && session.loginState.loggedIn) UserAccountActions(session, nav, masterNav)
             ScrollableTabRow(selectedTabIndex = tabs.indexOfFirst { it.first == tab }.coerceAtLeast(0), edgePadding = 8.dp) {
                 tabs.forEach { (t, label) ->
                     Tab(selected = tab == t, onClick = { tab = t; load(t) }, text = { Text(label) })

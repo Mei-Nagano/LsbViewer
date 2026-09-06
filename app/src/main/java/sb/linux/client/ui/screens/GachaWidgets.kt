@@ -1,8 +1,6 @@
 package sb.linux.client.ui.screens
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,7 +12,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.automirrored.filled.Login
-import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.Recycling
@@ -36,7 +33,6 @@ import androidx.navigation.NavHostController
 import sb.linux.client.data.GachaAction
 import sb.linux.client.data.GachaPoolRow
 import sb.linux.client.data.GachaTitleItem
-import sb.linux.client.data.TitleBadge
 import sb.linux.client.ui.TitleBadgeView
 import sb.linux.client.ui.titleRarityColor
 
@@ -49,7 +45,6 @@ internal fun rarityAccent(rarity: String): Color {
     val (base, _) = titleRarityColor(rarity)
     return if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) lerp(base, Color.White, 0.3f) else base
 }
-
 /** 稀有度从高到低的排序权重；源站没列出的稀有度排在末尾。 */
 internal fun rarityOrder(rarity: String): Int =
     listOf("UR+", "UR", "SSR", "SR", "R", "N").indexOf(rarity.uppercase()).let { if (it < 0) 99 else it }
@@ -186,52 +181,6 @@ internal fun EquippedPill() {
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
             )
-        }
-    }
-}
-
-/** 卡片内的空态/提示：不占满全屏，可放进滚动内容中间。 */
-@Composable
-internal fun GachaEmptyCard(text: String) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            Modifier.padding(vertical = 28.dp, horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                Modifier.size(48.dp).clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.Inbox, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-/** 未登录引导：与「我的」页面的未登录卡同一套结构。 */
-@Composable
-internal fun GachaLoginPrompt(onLogin: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                Modifier.size(58.dp).clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Login, null, Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-            Text("登录后可进入称号中心", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = onLogin, shape = RoundedCornerShape(50)) { Text("去登录") }
         }
     }
 }
@@ -410,73 +359,6 @@ internal fun GachaSystemCard(
                 }
                 if (index != entries.lastIndex) {
                     HorizontalDivider(Modifier.padding(start = 65.dp), color = divider)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-internal fun GachaNews(news: List<String>) {
-    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            news.chunked((news.size + 2) / 3).forEachIndexed { row, values ->
-                Text(
-                    values.joinToString("     ✦     "),
-                    Modifier.fillMaxWidth().basicMarquee(
-                        iterations = Int.MAX_VALUE, initialDelayMillis = row * 600, velocity = (26 + row * 8).dp,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
-}
-
-/** 全部称号：按稀有度分组，组头显示稀有度标签、种类数与展开状态。 */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun GachaTitleGroups(titles: List<TitleBadge>) {
-    var expanded by remember { mutableStateOf(setOf("SSR")) }
-    titles.distinct().groupBy { it.rarity.uppercase() }.toSortedMap(compareBy { rarityOrder(it) }).forEach { (rarity, badges) ->
-        val open = rarity in expanded
-        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-            Column(Modifier.fillMaxWidth()) {
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clickable { expanded = if (open) expanded - rarity else expanded + rarity }
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    RarityPill(rarity)
-                    Text(
-                        "${badges.size} 种",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        if (open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        if (open) "收起" else "展开",
-                        Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (open) {
-                    FlowRow(
-                        Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        badges.forEach { TitleBadgeView(it) }
-                    }
                 }
             }
         }
