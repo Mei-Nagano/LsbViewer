@@ -1,6 +1,7 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -8,17 +9,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +54,8 @@ fun TopicCollectionPickerScreen(session: Session, nav: NavHostController, topicP
     var pending by remember { mutableStateOf<TopicCollectionActionForm?>(null) }
     var submitting by remember { mutableStateOf(false) }
     var createValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var createOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun load() = scope.launch {
@@ -57,19 +63,63 @@ fun TopicCollectionPickerScreen(session: Session, nav: NavHostController, topicP
         try {
             picker = session.topicCollectionService.picker(topicPath)
             selectedId = picker?.options?.firstOrNull()?.collectionId
+            createValues = picker?.createForm?.controls.orEmpty().associate { it.name to it.value }
         } catch (e: Exception) { error = e.message ?: "加载失败" }
         finally { loading = false }
     }
     LaunchedEffect(topicPath) { load() }
 
     val selected = picker?.options.orEmpty().firstOrNull { it.collectionId == selectedId }
-    val template = picker?.actions.orEmpty().firstOrNull {
-        it.operation == if (selected?.included == true) TopicCollectionOperation.REMOVE_ITEM else TopicCollectionOperation.ADD_ITEM
-    }
+    // 源站只有一张动态表单，JS 根据所选 option 改写 topic_collections_action。
+    val template = picker?.actions.orEmpty().firstOrNull { it.operation == TopicCollectionOperation.ADD_ITEM }
     val action = template?.let { form ->
         val operation = if (selected?.included == true) "item_remove" else "item_add"
-        form.copy(fields = form.fields.filterNot { it.first == "collection_id" || it.first == "action" } +
-            ("collection_id" to (selectedId ?: 0L).toString()) + ("action" to operation))
+        form.copy(
+            operation = if (selected?.included == true) TopicCollectionOperation.REMOVE_ITEM else TopicCollectionOperation.ADD_ITEM,
+            label = if (selected?.included == true) "移出专辑" else "收录",
+            fields = form.fields.filterNot { it.first == "collection_id" || it.first == "topic_collections_action" } +
+                ("collection_id" to (selectedId ?: 0L).toString()) + ("topic_collections_action" to operation),
+        )
+    }
+
+    val createForm = picker?.createForm
+    if (createOpen && createForm != null) {
+        AlertDialog(
+            onDismissRequest = { if (!submitting) createOpen = false },
+            title = { Text("新建专辑") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    createForm.controls.forEach { control ->
+                        if (control.type.equals("checkbox", true)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(control.label, Modifier.weight(1f))
+                                Checkbox(
+                                    checked = createValues[control.name] == "1",
+                                    onCheckedChange = { checked -> createValues = createValues + (control.name to if (checked) "1" else "") },
+                                )
+                            }
+                        } else {
+                            OutlinedTextField(
+                                value = createValues[control.name].orEmpty(),
+                                onValueChange = { value -> createValues = createValues + (control.name to value) },
+                                label = { Text(control.label) },
+                                singleLine = control.type != "textarea",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+            },
+            dismissButton = { TextButton(enabled = !submitting, onClick = { createOpen = false }) { Text("取消") } },
+            confirmButton = {
+                Button(enabled = !submitting && createValues["name"].orEmpty().isNotBlank(), onClick = {
+                    val controlNames = createForm.controls.map { it.name }.toSet()
+                    val values = createValues.filterValues { it.isNotEmpty() }.toList()
+                    pending = createForm.copy(fields = createForm.fields.filterNot { it.first in controlNames } + values)
+                    createOpen = false
+                }) { Text("创建并收录") }
+            },
+        )
     }
 
     pending?.let { form ->
@@ -105,34 +155,33 @@ fun TopicCollectionPickerScreen(session: Session, nav: NavHostController, topicP
             error != null && picker == null -> Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { Text(error!!); TextButton(onClick = { load() }) { Text("重试") } }
             picker == null -> Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { Text("源站未提供淘帖收录面板") }
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Text("选择我管理的专辑") }
-                items(picker!!.options, key = { it.collectionId }) { option ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(if (option.included) "✓ ${option.title}" else option.title, Modifier.weight(1f))
-                        TextButton(onClick = { selectedId = option.collectionId }) { Text(if (option.collectionId == selectedId) "已选" else "选择") }
+                item {
+                    Text("选择我管理的专辑")
+                }
+                item {
+                    Box(Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { menuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(selected?.title ?: "选择专辑或新建专辑")
+                        }
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            picker!!.options.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(if (option.included) "${option.title}（已收录）" else option.title) },
+                                    onClick = { selectedId = option.collectionId; menuExpanded = false },
+                                )
+                            }
+                            picker!!.removeAllForm?.let { form ->
+                                DropdownMenuItem(text = { Text("全部取消收录") }, onClick = { menuExpanded = false; pending = form })
+                            }
+                            picker!!.createForm?.let {
+                                DropdownMenuItem(text = { Text("新建专辑") }, onClick = { menuExpanded = false; createOpen = true })
+                            }
+                        }
                     }
                 }
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(enabled = action != null && selectedId != null && !submitting, onClick = { pending = action }) { Text(if (selected?.included == true) "移出专辑" else "收录") }
-                        picker!!.removeAllForm?.let { form -> Button(enabled = !submitting, onClick = { pending = form }) { Text("全部取消收录") } }
-                    }
-                }
-                picker!!.createForm?.let { form ->
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("创建专辑")
-                            form.controls.forEach { control ->
-                                OutlinedTextField(
-                                    value = createValues[control.name].orEmpty(),
-                                    onValueChange = { value -> createValues = createValues + (control.name to value) },
-                                    label = { Text(control.label) },
-                                    singleLine = control.type != "textarea",
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                            Button(enabled = !submitting && form.enabled, onClick = { pending = form.copy(fields = form.fields.filterNot { field -> form.controls.any { it.name == field.first } } + createValues.toList()) }) { Text(form.label) }
-                        }
+                    Button(enabled = action != null && selectedId != null && !submitting, onClick = { pending = action }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (selected?.included == true) "移出专辑" else "收录")
                     }
                 }
             }

@@ -68,12 +68,15 @@ object TopicCollectionParser {
                 TopicCollectionPickerOption(id, option.text().trim(), option.attr("data-included") == "1")
             }
         val actions = parseActions(document)
+        val addForm = actions.firstOrNull { it.operation == TopicCollectionOperation.ADD_ITEM }
+        val removeAllAvailable = form.select("option[value=__topic_collections_remove_all__]").isNotEmpty()
         return TopicCollectionPicker(
             topicId = topicId,
             options = options,
             actions = actions,
             createForm = actions.firstOrNull { it.operation == TopicCollectionOperation.CREATE },
-            removeAllForm = actions.firstOrNull { it.operation == TopicCollectionOperation.REMOVE_ALL_ITEMS },
+            removeAllForm = actions.firstOrNull { it.operation == TopicCollectionOperation.REMOVE_ALL_ITEMS }
+                ?: addForm?.takeIf { removeAllAvailable }?.withAction("item_remove_all", TopicCollectionOperation.REMOVE_ALL_ITEMS, "全部取消收录"),
         )
     }
 
@@ -98,9 +101,12 @@ object TopicCollectionParser {
         val buttons = form.select("button[type=submit], button:not([type]), input[type=submit]")
         val controls = form.select("input[name]:not([type=hidden]):not([type=submit]):not([disabled]), select[name]:not([disabled]), textarea[name]:not([disabled])").map { control ->
             val type = if (control.tagName() == "select") "select" else control.attr("type").ifBlank { control.tagName() }
-            val value = when (control.tagName()) {
-                "textarea" -> control.text()
-                "select" -> control.selectFirst("option[selected]")?.attr("value").orEmpty()
+            val value = when {
+                type.equals("checkbox", true) || type.equals("radio", true) -> {
+                    if (control.hasAttr("checked")) control.attr("value").ifBlank { "1" } else ""
+                }
+                control.tagName() == "textarea" -> control.text()
+                control.tagName() == "select" -> control.selectFirst("option[selected]")?.attr("value").orEmpty()
                 else -> control.attr("value")
             }
             TopicCollectionFormField(
@@ -170,6 +176,19 @@ object TopicCollectionParser {
     }
 
     private fun operationFrom(text: String, fields: List<Pair<String, String>>): TopicCollectionOperation {
+        val sourceAction = fields.lastOrNull { it.first == "topic_collections_action" }?.second.orEmpty()
+        when (sourceAction) {
+            "collection_create", "collection_create_add" -> return TopicCollectionOperation.CREATE
+            "collection_update" -> return TopicCollectionOperation.UPDATE
+            "collection_delete" -> return TopicCollectionOperation.DELETE
+            "subscription_add" -> return TopicCollectionOperation.SUBSCRIBE
+            "subscription_remove" -> return TopicCollectionOperation.UNSUBSCRIBE
+            "item_add" -> return TopicCollectionOperation.ADD_ITEM
+            "item_remove" -> return TopicCollectionOperation.REMOVE_ITEM
+            "item_remove_all" -> return TopicCollectionOperation.REMOVE_ALL_ITEMS
+            "collaborator_add" -> return TopicCollectionOperation.ADD_COLLABORATOR
+            "collaborator_remove" -> return TopicCollectionOperation.REMOVE_COLLABORATOR
+        }
         val value = (text + " " + fields.joinToString(" ") { "${it.first}=${it.second}" }).lowercase()
         return when {
             "item_remove_all" in value || "全部取消收录" in text -> TopicCollectionOperation.REMOVE_ALL_ITEMS
@@ -204,4 +223,14 @@ object TopicCollectionParser {
         value.startsWith("//") -> "https:$value"
         else -> Endpoints.abs(value)
     }
+
+    private fun TopicCollectionActionForm.withAction(
+        value: String,
+        operation: TopicCollectionOperation,
+        label: String,
+    ): TopicCollectionActionForm = copy(
+        operation = operation,
+        fields = fields.filterNot { it.first == "topic_collections_action" } + ("topic_collections_action" to value),
+        label = label,
+    )
 }

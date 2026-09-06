@@ -68,14 +68,24 @@ class TopicCollectionParserTest {
             <main>
               <form action="/topic_collections_action" method="post" data-topic-collections-add-form>
                 <input type="hidden" name="_csrf" value="csrf"><input type="hidden" name="topic_id" value="19138">
+                <input type="hidden" name="topic_collections_action" data-topic-collections-action value="item_add">
                 <select name="collection_id" data-topic-collections-select>
                   <option value="63" data-included="1">水贴</option>
                   <option value="5">机器学习</option>
+                  <option value="__topic_collections_remove_all__">全部取消收录</option>
+                  <option value="__topic_collections_create__">新建专辑</option>
                 </select>
-                <input type="hidden" name="action" data-topic-collections-action value="item_add">
                 <button name="submit" value="1" data-topic-collections-add-btn>收录</button>
               </form>
-              <form action="/topic_collections_action" method="post"><input type="hidden" name="action" value="item_remove_all"><button>全部取消收录</button></form>
+              <form action="/topic_collections_action" method="post" data-topic-collections-create-form>
+                <input type="hidden" name="_csrf" value="csrf">
+                <input type="hidden" name="topic_id" value="19138">
+                <input type="hidden" name="topic_collections_action" value="collection_create_add">
+                <input name="name" required placeholder="专辑名称">
+                <textarea name="description" placeholder="专辑描述"></textarea>
+                <label><input type="checkbox" name="private" value="1">设为私密</label>
+                <button type="submit">创建并收录</button>
+              </form>
             </main>
             """.trimIndent(),
         )
@@ -83,6 +93,10 @@ class TopicCollectionParserTest {
         assertNotNull(picker)
         assertEquals(19138, picker!!.topicId)
         assertTrue(picker.options.first { it.collectionId == 63L }.included)
+        assertEquals(2, picker.options.size)
+        assertEquals(TopicCollectionOperation.CREATE, picker.createForm?.operation)
+        assertEquals("", picker.createForm?.controls?.first { it.name == "private" }?.value)
         assertEquals(TopicCollectionOperation.REMOVE_ALL_ITEMS, picker.removeAllForm?.operation)
+        assertTrue(picker.removeAllForm?.fields?.contains("topic_collections_action" to "item_remove_all") == true)
     }
 }
