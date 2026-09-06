@@ -19,6 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +50,7 @@ fun TopicCollectionManageScreen(session: Session, nav: NavHostController) {
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<TopicCollectionActionForm?>(null) }
+    var editedValues by remember { mutableStateOf<Map<String, Map<String, String>>>(emptyMap()) }
     val scope = rememberCoroutineScope()
 
     fun load() = scope.launch {
@@ -57,6 +59,9 @@ fun TopicCollectionManageScreen(session: Session, nav: NavHostController) {
             val page = session.topicCollectionService.manage(path)
             title = page.title
             actions = page.actions
+            editedValues = page.actions.associate { form ->
+                formKey(form) to form.controls.associate { it.name to it.value }
+            }
         } catch (e: Exception) { error = e.message ?: "加载失败" }
         finally { loading = false }
     }
@@ -73,7 +78,7 @@ fun TopicCollectionManageScreen(session: Session, nav: NavHostController) {
                     submitting = true
                     scope.launch {
                         try {
-                            session.topicCollectionService.execute(form)
+                            session.topicCollectionService.execute(form.withEditedValues(editedValues[formKey(form)].orEmpty()))
                             session.showToast("已同步源站")
                             load()
                         } catch (e: Exception) { session.showToast(e.message ?: "提交失败") }
@@ -100,11 +105,33 @@ fun TopicCollectionManageScreen(session: Session, nav: NavHostController) {
                 if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                 if (actions.isEmpty()) item { Text("源站没有提供可执行的管理操作") }
                 items(actions, key = { "${it.action}:${it.label}:${it.fields.hashCode()}" }) { form ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                        Button(enabled = !submitting && !loading && form.enabled, onClick = { pending = form }) { Text(form.label) }
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        form.controls.forEach { control ->
+                            val value = editedValues[formKey(form)]?.get(control.name).orEmpty()
+                            OutlinedTextField(
+                                value = value,
+                                onValueChange = { next ->
+                                    editedValues = editedValues + (formKey(form) to (editedValues[formKey(form)].orEmpty() + (control.name to next)))
+                                },
+                                label = { Text(control.label) },
+                                singleLine = control.type != "textarea",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Button(enabled = !submitting && !loading && form.enabled, onClick = { pending = form }) { Text(form.label) }
+                        }
                     }
                 }
             }
         }
     }
+}
+
+private fun formKey(form: TopicCollectionActionForm): String = "${form.action}:${form.label}:${form.fields.hashCode()}"
+
+private fun TopicCollectionActionForm.withEditedValues(values: Map<String, String>): TopicCollectionActionForm {
+    if (values.isEmpty()) return this
+    val controlNames = controls.map { it.name }.toSet()
+    return copy(fields = fields.filterNot { it.first in controlNames } + values.toList())
 }

@@ -18,6 +18,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +49,7 @@ fun TopicCollectionPickerScreen(session: Session, nav: NavHostController, topicP
     var error by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<TopicCollectionActionForm?>(null) }
     var submitting by remember { mutableStateOf(false) }
+    var createValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val scope = rememberCoroutineScope()
 
     fun load() = scope.launch {
@@ -114,6 +116,23 @@ fun TopicCollectionPickerScreen(session: Session, nav: NavHostController, topicP
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(enabled = action != null && selectedId != null && !submitting, onClick = { pending = action }) { Text(if (selected?.included == true) "移出专辑" else "收录") }
                         picker!!.removeAllForm?.let { form -> Button(enabled = !submitting, onClick = { pending = form }) { Text("全部取消收录") } }
+                    }
+                }
+                picker!!.createForm?.let { form ->
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("创建专辑")
+                            form.controls.forEach { control ->
+                                OutlinedTextField(
+                                    value = createValues[control.name].orEmpty(),
+                                    onValueChange = { value -> createValues = createValues + (control.name to value) },
+                                    label = { Text(control.label) },
+                                    singleLine = control.type != "textarea",
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                            Button(enabled = !submitting && form.enabled, onClick = { pending = form.copy(fields = form.fields.filterNot { field -> form.controls.any { it.name == field.first } } + createValues.toList()) }) { Text(form.label) }
+                        }
                     }
                 }
             }

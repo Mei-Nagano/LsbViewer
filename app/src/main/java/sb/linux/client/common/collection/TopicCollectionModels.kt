@@ -72,6 +72,16 @@ data class TopicCollectionActionForm(
     val fields: List<Pair<String, String>>,
     val label: String,
     val enabled: Boolean = true,
+    val controls: List<TopicCollectionFormField> = emptyList(),
+)
+
+data class TopicCollectionFormField(
+    val name: String,
+    val label: String,
+    val type: String = "text",
+    val value: String = "",
+    val options: List<String> = emptyList(),
+    val required: Boolean = false,
 )
 
 enum class TopicCollectionOperation {

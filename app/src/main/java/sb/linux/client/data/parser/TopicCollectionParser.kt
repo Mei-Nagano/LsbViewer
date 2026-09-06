@@ -9,6 +9,7 @@ import sb.linux.client.common.collection.TopicCollectionOperation
 import sb.linux.client.common.collection.TopicCollectionPageInfo
 import sb.linux.client.common.collection.TopicCollectionPicker
 import sb.linux.client.common.collection.TopicCollectionPickerOption
+import sb.linux.client.common.collection.TopicCollectionFormField
 import sb.linux.client.common.collection.TopicCollectionRelation
 import sb.linux.client.common.collection.TopicCollectionSummary
 import sb.linux.client.common.collection.TopicCollectionTab
@@ -95,6 +96,25 @@ object TopicCollectionParser {
             form.select("textarea[name]:not([disabled])").forEach { textarea -> add(textarea.attr("name") to textarea.text()) }
         }.toMutableList()
         val buttons = form.select("button[type=submit], button:not([type]), input[type=submit]")
+        val controls = form.select("input[name]:not([type=hidden]):not([type=submit]):not([disabled]), select[name]:not([disabled]), textarea[name]:not([disabled])").map { control ->
+            val type = if (control.tagName() == "select") "select" else control.attr("type").ifBlank { control.tagName() }
+            val value = when (control.tagName()) {
+                "textarea" -> control.text()
+                "select" -> control.selectFirst("option[selected]")?.attr("value").orEmpty()
+                else -> control.attr("value")
+            }
+            TopicCollectionFormField(
+                name = control.attr("name"),
+                label = control.closest("label")?.text()?.trim().orEmpty()
+                    .ifBlank { control.attr("aria-label") }
+                    .ifBlank { control.attr("placeholder") }
+                    .ifBlank { control.attr("name") },
+                type = type,
+                value = value,
+                options = if (control.tagName() == "select") control.select("option").map { it.text().trim() } else emptyList(),
+                required = control.hasAttr("required"),
+            )
+        }
         val candidates = if (buttons.isEmpty()) listOf<Element?>(null) else buttons
         return candidates.map { button ->
             val fields = base.toMutableList()
@@ -108,6 +128,7 @@ object TopicCollectionParser {
                 fields = fields,
                 label = button?.text()?.trim().orEmpty().ifBlank { form.selectFirst("legend, h2, h3")?.text()?.trim().orEmpty() }.ifBlank { "提交" },
                 enabled = button?.hasAttr("disabled") != true,
+                controls = controls,
             )
         }.filter { it.operation != TopicCollectionOperation.UNKNOWN }
     }
