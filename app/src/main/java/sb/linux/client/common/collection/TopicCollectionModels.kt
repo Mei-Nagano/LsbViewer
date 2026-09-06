@@ -73,6 +73,7 @@ data class TopicCollectionActionForm(
     val label: String,
     val enabled: Boolean = true,
     val controls: List<TopicCollectionFormField> = emptyList(),
+    val targetLabel: String = "",
 )
 
 data class TopicCollectionFormField(
@@ -112,3 +113,28 @@ data class TopicCollectionPicker(
     val createForm: TopicCollectionActionForm? = null,
     val removeAllForm: TopicCollectionActionForm? = null,
 )
+
+/**
+ * 源站只渲染一张收录表单，网页端 JS 按所选专辑改写 `topic_collections_action` 与 `collection_id`
+ * 后再提交。这里复刻同一改写，不做「当前状态取反」的本地推断：
+ * 已收录的专辑发 `item_remove`，未收录的发 `item_add`，两者都是源站的显式操作值。
+ *
+ * @return 可直接提交的表单；源站未提供收录表单时为 null。
+ */
+fun TopicCollectionPicker.actionFor(option: TopicCollectionPickerOption): TopicCollectionActionForm? {
+    val template = actions.firstOrNull { it.operation == TopicCollectionOperation.ADD_ITEM } ?: return null
+    val removing = option.included
+    return template.copy(
+        operation = if (removing) TopicCollectionOperation.REMOVE_ITEM else TopicCollectionOperation.ADD_ITEM,
+        label = if (removing) "移出专辑" else "收录",
+        fields = template.fields.filterNot {
+            it.first == FIELD_COLLECTION_ID || it.first == FIELD_SOURCE_ACTION
+        } + (FIELD_COLLECTION_ID to option.collectionId.toString()) +
+            (FIELD_SOURCE_ACTION to if (removing) ACTION_ITEM_REMOVE else ACTION_ITEM_ADD),
+    )
+}
+
+private const val FIELD_COLLECTION_ID = "collection_id"
+private const val FIELD_SOURCE_ACTION = "topic_collections_action"
+private const val ACTION_ITEM_ADD = "item_add"
+private const val ACTION_ITEM_REMOVE = "item_remove"

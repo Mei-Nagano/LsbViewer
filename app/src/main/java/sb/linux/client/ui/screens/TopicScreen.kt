@@ -222,6 +222,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var exportBusy by remember { mutableStateOf<String?>(null) }
     // 打赏：底部弹层，不再跳转独立页面（28）
     var showDonate by remember { mutableStateOf(false) }
+    // 收录到淘帖：底部弹层，与打赏/导出同形态，不再跳转独立页面
+    var showCollectionSheet by remember { mutableStateOf(false) }
     var pollBusy by remember { mutableStateOf(false) }
     var essenceBusy by remember { mutableStateOf(false) }
     var essenceTopUpBusy by remember { mutableStateOf(false) }
@@ -1787,9 +1789,9 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                                 onClick = { menuOpen = false; showExportDialog = true }
                             )
                             DropdownMenuItem(
-                                text = { Text("收录到淘帖专辑") },
+                                text = { Text("收录到淘帖") },
                                 leadingIcon = { Icon(Icons.Filled.CollectionsBookmark, null) },
-                                onClick = { menuOpen = false; nav.navigate("collectionActions?path=${android.net.Uri.encode("/topic/$tid")}") }
+                                onClick = { menuOpen = false; showCollectionSheet = true }
                             )
                             DropdownMenuItem(
                                 text = { Text("刷新") },
@@ -2039,6 +2041,15 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                 showExportDialog = false
                 export(kind, scopeMode, fromFloor, toFloor, multiPage, selectedIds)
             }
+        )
+    }
+
+    // 收录到淘帖底部弹窗：专辑列表直接可见，点一行即提交，可连续收录多个专辑
+    if (showCollectionSheet) {
+        TopicCollectionSheet(
+            session = session,
+            topicPath = "/topic/$tid",
+            onDismiss = { showCollectionSheet = false },
         )
     }
 

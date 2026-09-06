@@ -290,21 +290,6 @@ data class DirectMessageThread(
     val messages: List<PmMessage> = emptyList(),
 )
 
-data class TopicCollectionCard(
-    val collectionId: Long,
-    val title: String,
-    val authorId: Long,
-    val authorName: String,
-    val avatarUrl: String = "",
-    val visibility: String = "",
-    val articleCount: String = "",
-    val updatedText: String = "",
-    val description: String = "",
-    val subscribed: Boolean = false,
-    val subscriberCount: String = "",
-    val createdText: String = "",
-    val managePath: String = "",
-)
 
 data class LeaderRow(
     val rank: Int,

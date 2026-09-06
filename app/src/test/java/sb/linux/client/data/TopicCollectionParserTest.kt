@@ -1,11 +1,13 @@
 package sb.linux.client.data
 
+import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sb.linux.client.common.collection.TopicCollectionOperation
 import sb.linux.client.common.collection.TopicCollectionTab
+import sb.linux.client.common.collection.actionFor
 import sb.linux.client.data.parser.TopicCollectionParser
 
 class TopicCollectionParserTest {
@@ -99,4 +101,72 @@ class TopicCollectionParserTest {
         assertEquals(TopicCollectionOperation.REMOVE_ALL_ITEMS, picker.removeAllForm?.operation)
         assertTrue(picker.removeAllForm?.fields?.contains("topic_collections_action" to "item_remove_all") == true)
     }
+
+    @Test
+    fun buildsExplicitAddAndRemoveActionsPerOption() {
+        val picker = TopicCollectionParser.parsePicker(PICKER_HTML)
+        assertNotNull(picker)
+
+        val included = picker!!.options.first { it.collectionId == 63L }
+        val removeForm = picker.actionFor(included)
+        assertEquals(TopicCollectionOperation.REMOVE_ITEM, removeForm?.operation)
+        assertTrue(removeForm?.fields?.contains("topic_collections_action" to "item_remove") == true)
+        assertTrue(removeForm?.fields?.contains("collection_id" to "63") == true)
+
+        val absent = picker.options.first { it.collectionId == 5L }
+        val addForm = picker.actionFor(absent)
+        assertEquals(TopicCollectionOperation.ADD_ITEM, addForm?.operation)
+        assertTrue(addForm?.fields?.contains("topic_collections_action" to "item_add") == true)
+        assertTrue(addForm?.fields?.contains("collection_id" to "5") == true)
+        // 源站表单只有一份 collection_id / action，改写后不能留下旧值
+        assertEquals(1, addForm?.fields?.count { it.first == "collection_id" })
+        assertEquals(1, addForm?.fields?.count { it.first == "topic_collections_action" })
+        // topic_id 等其他 hidden 字段必须原样保留
+        assertTrue(addForm?.fields?.contains("topic_id" to "19138") == true)
+    }
+
+    @Test
+    fun parsesRemovalTargetsFromManageLists() {
+        val actions = TopicCollectionParser.parseActions(
+            Jsoup.parse(
+                """
+                <ul class="topic-collections-manage-list">
+                  <li>
+                    <span><a href="/topic/19138">第一篇帖子</a></span>
+                    <form action="/topic_collections_action" method="post">
+                      <input type="hidden" name="topic_id" value="19138">
+                      <input type="hidden" name="topic_collections_action" value="item_remove">
+                      <button type="submit">移除</button>
+                    </form>
+                  </li>
+                  <li>
+                    <span><a href="/user?username=db">db</a></span>
+                    <form action="/topic_collections_action" method="post">
+                      <input type="hidden" name="user_id" value="41">
+                      <input type="hidden" name="topic_collections_action" value="collaborator_remove">
+                      <button type="submit">移除</button>
+                    </form>
+                  </li>
+                </ul>
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals("第一篇帖子", actions.first { it.operation == TopicCollectionOperation.REMOVE_ITEM }.targetLabel)
+        assertEquals("db", actions.first { it.operation == TopicCollectionOperation.REMOVE_COLLABORATOR }.targetLabel)
+    }
 }
+
+private val PICKER_HTML = """
+    <main>
+      <form action="/topic_collections_action" method="post" data-topic-collections-add-form>
+        <input type="hidden" name="_csrf" value="csrf"><input type="hidden" name="topic_id" value="19138">
+        <input type="hidden" name="topic_collections_action" data-topic-collections-action value="item_add">
+        <select name="collection_id" data-topic-collections-select>
+          <option value="63" data-included="1">水贴</option>
+          <option value="5">机器学习</option>
+        </select>
+        <button name="submit" value="1" data-topic-collections-add-btn>收录</button>
+      </form>
+    </main>
+""".trimIndent()

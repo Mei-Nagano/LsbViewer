@@ -135,8 +135,53 @@ object TopicCollectionParser {
                 label = button?.text()?.trim().orEmpty().ifBlank { form.selectFirst("legend, h2, h3")?.text()?.trim().orEmpty() }.ifBlank { "提交" },
                 enabled = button?.hasAttr("disabled") != true,
                 controls = controls,
+                targetLabel = targetLabel(form, operation, fields),
             )
         }.filter { it.operation != TopicCollectionOperation.UNKNOWN }
+    }
+
+    /** 管理页把目标名称放在同一列表项的 span/link 中，表单本身只有隐藏 ID 和“移除”按钮。 */
+    private fun targetLabel(
+        form: Element,
+        operation: TopicCollectionOperation,
+        fields: List<Pair<String, String>>,
+    ): String {
+        if (operation != TopicCollectionOperation.REMOVE_ITEM &&
+            operation != TopicCollectionOperation.REMOVE_COLLABORATOR
+        ) return ""
+        val row = form.closest("li, tr")
+        val linkSelector = if (operation == TopicCollectionOperation.REMOVE_ITEM) {
+            "a[href^=/topic/]"
+        } else {
+            "a[href^=/user/], a[href^='/user?']"
+        }
+        return row?.selectFirst(linkSelector)?.text()?.trim().orEmpty()
+            .ifBlank { row?.children()?.firstOrNull { it.tagName() == "span" }?.text()?.trim().orEmpty() }
+            .ifBlank { form.attr("data-target-label").trim() }
+            .ifBlank { hiddenTargetLabel(operation, fields) }
+    }
+
+    private fun hiddenTargetLabel(
+        operation: TopicCollectionOperation,
+        fields: List<Pair<String, String>>,
+    ): String {
+        val readableNames = if (operation == TopicCollectionOperation.REMOVE_ITEM) {
+            listOf("topic_title")
+        } else {
+            listOf("username", "user_name", "collaborator_name")
+        }
+        val idNames = if (operation == TopicCollectionOperation.REMOVE_ITEM) {
+            listOf("topic_id", "topicId", "topic")
+        } else {
+            listOf("user_id", "collaborator_id")
+        }
+        readableNames.firstNotNullOfOrNull { name ->
+            fields.firstOrNull { it.first == name }?.second?.trim()?.takeIf { it.isNotBlank() }
+        }?.let { return it }
+        val id = idNames.firstNotNullOfOrNull { name ->
+            fields.firstOrNull { it.first == name }?.second?.trim()?.takeIf { it.isNotBlank() }
+        } ?: return ""
+        return if (operation == TopicCollectionOperation.REMOVE_ITEM) "帖子 #$id" else "用户 #$id"
     }
 
     private fun parseSummary(row: Element): TopicCollectionSummary? {

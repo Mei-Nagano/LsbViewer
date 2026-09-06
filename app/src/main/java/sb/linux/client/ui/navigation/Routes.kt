@@ -118,6 +118,14 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
             navArgument("tab") { type = NavType.StringType; defaultValue = "topics" },
         ),
     ) { UserScreen(session, nav) }
+    // 源站 /user?username=xxx 形式的 @提及：先解析出 uid，再替换跳转到 user/{uid}
+    composable(
+        "userByName?name={name}&tab={tab}",
+        arguments = listOf(
+            navArgument("name") { type = NavType.StringType; defaultValue = "" },
+            navArgument("tab") { type = NavType.StringType; defaultValue = "topics" },
+        ),
+    ) { UserByNameScreen(session, nav) }
     settingsComposable("settings") { SettingsScreen(session, nav) }
     settingsComposable("generalSettings") { GeneralSettingsScreen(session, nav) }
     settingsComposable("networkSettings") { NetworkSettingsScreen(session, nav) }

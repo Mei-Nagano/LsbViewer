@@ -136,7 +136,7 @@ fun load(p: Int) {
 淘帖不再复用称号系统的 `GachaOperationPage`。源站 v9 插件的列表、详情、主题页收录和独立管理页由以下链路承载：
 
 ```text
-ui/screens/TopicCollectionsScreen / CollectionDetailScreen / TopicCollectionPickerScreen
+ui/screens/TopicCollectionsScreen / CollectionDetailScreen / TopicCollectionSheet
         ↓
 service/TopicCollectionService
         ↓
@@ -145,7 +145,7 @@ repository/SourceTopicCollectionRepository
 data/parser/TopicCollectionParser + LsbClient
 ```
 
-解析器保留源站表单的 `method`、`action`、hidden 字段和提交按钮值；服务层提交前刷新 CSRF，并在需要时重新读取源站页面。列表按源站行为只读取一页，详情按 `/topic_collection/{id}?p=N` 的真实分页读取。独立 `topic_collection_manage` 路由不再落入称号操作页。
+解析器保留源站表单的 `method`、`action`、hidden 字段和提交按钮值；服务层提交前刷新 CSRF，并在需要时重新读取源站页面。列表按源站行为只读取一页，详情按 `/topic_collection/{id}?p=N` 的真实分页读取。主题页收录使用 `TopicCollectionSheet` 底部弹窗，专辑详情和独立 `topic_collection_manage` 路由仍分别由 `CollectionDetailScreen`、`TopicCollectionManageScreen` 承载，不落入称号操作页。
 
 `agents.md` §4 的分层是 Spring 术语（`controller/` `service/` `repository/` `config/`）。本项目是 Android 客户端，按等价语义映射，映射表见 §6。
 

@@ -27,15 +27,10 @@ import sb.linux.client.ui.ErrorBox
 import sb.linux.client.ui.LoadingBox
 import sb.linux.client.ui.TopicCardView
 
-/** 源站表单驱动的淘帖管理：建专辑、收录、订阅、编辑和移除使用原字段及权限。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CollectionDetailScreen(session: Session, nav: NavHostController) {
     val initialPath = nav.currentBackStackEntry?.arguments?.getString("path").orEmpty()
-    if (initialPath.startsWith("/topic/")) {
-        TopicCollectionPickerScreen(session, nav, initialPath)
-        return
-    }
     var path by remember(initialPath) { mutableStateOf(initialPath) }
     var opPage by remember { mutableStateOf<GachaOperationPage?>(null) }
     var sourceActions by remember { mutableStateOf<List<TopicCollectionActionForm>>(emptyList()) }
@@ -45,33 +40,20 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
     var error by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<Pair<GachaOperationForm, List<Pair<String, String>>>?>(null) }
     var submitting by remember { mutableStateOf(false) }
-    // 收录模式（从帖子进入）以表单为主，浏览模式以内容为主。
-    val addMode = path.startsWith("/topic/")
     val scope = rememberCoroutineScope()
     fun load() = scope.launch {
         loading = true; error = null
         try {
-            if (path.startsWith("/topic/")) {
-                val picker = session.topicCollectionService.picker(path)
-                sourceActions = picker?.actions.orEmpty()
-                managePath = ""
-                opPage = GachaOperationPage(
-                    title = "收录到淘帖专辑",
-                    forms = sourceActions.map { it.toGachaForm() },
-                )
-                topics = emptyList()
-            } else {
-                val detail = session.topicCollectionService.detail(path)
-                sourceActions = detail.actions
-                managePath = detail.managePath
-                opPage = GachaOperationPage(
-                    title = detail.summary.title,
-                    notes = listOf(detail.description).filter { it.isNotBlank() },
-                    forms = sourceActions.map { it.toGachaForm() },
-                    links = listOfNotNull(detail.pageInfo.previousPath.takeIf { it.isNotBlank() }?.let { "上一页" to it }, detail.pageInfo.nextPath.takeIf { it.isNotBlank() }?.let { "下一页" to it }),
-                )
-                topics = detail.topics
-            }
+            val detail = session.topicCollectionService.detail(path)
+            sourceActions = detail.actions
+            managePath = detail.managePath
+            opPage = GachaOperationPage(
+                title = detail.summary.title,
+                notes = listOf(detail.description).filter { it.isNotBlank() },
+                forms = sourceActions.map { it.toGachaForm() },
+                links = listOfNotNull(detail.pageInfo.previousPath.takeIf { it.isNotBlank() }?.let { "上一页" to it }, detail.pageInfo.nextPath.takeIf { it.isNotBlank() }?.let { "下一页" to it }),
+            )
+            topics = detail.topics
         } catch (e: Exception) { error = e.message ?: "加载失败" }
         finally { loading = false }
     }
@@ -86,7 +68,9 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
                 submitting = true
                 scope.launch {
                     try {
-                        val sourceForm = sourceActions.firstOrNull { it.action == form.action && it.label == form.label }
+                        val sourceForm = sourceActions.firstOrNull {
+                            it.action == form.action && it.label == form.label && it.fields == fields
+                        } ?: sourceActions.firstOrNull { it.action == form.action && it.label == form.label }
                             ?: error("源站操作已过期，请刷新后重试")
                         session.topicCollectionService.execute(sourceForm, path.takeIf { it.startsWith("/topic_collection/") })
                         session.showToast("已提交并同步专辑")
@@ -104,7 +88,7 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
         it.operation == TopicCollectionOperation.SUBSCRIBE || it.operation == TopicCollectionOperation.UNSUBSCRIBE
     }?.toGachaForm()
     Scaffold(topBar = { TopAppBar(
-        title = { Text(if (addMode) "收录到淘帖专辑" else opPage?.title.orEmpty().ifBlank { "淘帖专辑" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = { Text(opPage?.title.orEmpty().ifBlank { "淘帖专辑" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
         actions = {
             if (managePath.isNotBlank()) {
@@ -133,7 +117,7 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
                 else -> CollectionDetailList(
                     nav = nav, opPage = opPage, topics = topics,
                     forms = subscribeForm?.let { topForm -> forms.filterNot { it.action == topForm.action && it.label == topForm.label } } ?: forms,
-                    pageLinks = pageLinks, path = path, loading = loading, error = error, addMode = addMode,
+                    pageLinks = pageLinks, path = path, loading = loading, error = error,
                     submitting = submitting,
                     onPath = { path = it }, onReload = { load() }, onPending = { pending = it },
                 )
@@ -161,7 +145,6 @@ private fun CollectionDetailList(
     path: String,
     loading: Boolean,
     error: String?,
-    addMode: Boolean,
     submitting: Boolean,
     onPath: (String) -> Unit,
     onReload: () -> Unit,
@@ -214,7 +197,9 @@ private fun CollectionDetailList(
         }
         itemsIndexed(inputForms) { _, form ->
             Box(Modifier.padding(horizontal = 14.dp)) {
-                GachaDynamicForm(form, !submitting && !loading) { onPending(form to it) }
+                GachaDynamicForm(form, !submitting && !loading) {
+                    onPending(form to it)
+                }
             }
         }
         // 专辑说明：源站说明文字集中成一张卡，不再逐条铺开占满屏
@@ -246,7 +231,7 @@ private fun CollectionDetailList(
             itemsIndexed(topics, key = { _, t -> t.topicId }) { _, topic ->
                 TopicCardView(topic, onClick = { nav.navigate("topic/${topic.topicId}") })
             }
-        } else if (!addMode && !loading && error == null) {
+        } else if (!loading && error == null) {
             item {
                 Text("这个专辑还没有收录内容", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

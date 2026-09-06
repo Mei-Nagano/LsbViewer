@@ -4,8 +4,6 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
-import sb.linux.client.common.collection.TopicCollectionTab
-import sb.linux.client.data.parser.TopicCollectionParser
 import sb.linux.client.util.TimeFormat
 import sb.linux.client.util.escapeHtml
 
@@ -1885,27 +1883,6 @@ object HtmlParser {
     /** 源站 meta 文本可能自带前导分隔符（· / | 等），显示层自己排版，这里统一剥掉。 */
     private fun trimMetaSeparator(text: String): String =
         text.trim().trimStart('·', '•', '|', '/', '-', '–', '—', ' ', ' ').trim()
-
-    /** 淘帖中心专辑卡片（/topic_collections?tab=mine|everyone）。 */
-    fun parseTopicCollections(html: String): List<TopicCollectionCard> {
-        return TopicCollectionParser.parseList(html, TopicCollectionTab.EVERYONE).items.map { summary ->
-            TopicCollectionCard(
-                collectionId = summary.collectionId,
-                title = summary.title,
-                authorId = summary.authorId,
-                authorName = summary.authorName,
-                avatarUrl = summary.avatarUrl,
-                visibility = summary.visibility,
-                articleCount = summary.articleCount,
-                updatedText = summary.updatedText,
-                description = summary.description,
-                subscribed = summary.subscribed,
-                subscriberCount = summary.subscriberCount,
-                createdText = summary.createdText,
-                managePath = summary.managePath,
-            )
-        }
-    }
 
 
     /** 足迹/未读提醒页：解析成帖子卡片列表（结构与首页 post-list 一致时） */

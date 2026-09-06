@@ -108,7 +108,7 @@ fun AppRoot(session: Session) {
     fun openLinkDirect(raw: String) {
         val url = Endpoints.abs(raw)
         val internalUri = android.net.Uri.parse(url)
-        if (internalUri.host in setOf("linux.sb", "www.linux.sb")) {
+        if (Endpoints.isInternal(internalUri.host)) {
             val internalPath = internalUri.path.orEmpty().let { if (it.length > 1) it.trimEnd('/') else it }
             when (internalPath) {
                 "/", "" -> { linkNav.navigate("home"); return }
@@ -116,6 +116,21 @@ fun AppRoot(session: Session) {
                 "/topic_collections" -> {
                     val tab = if (internalUri.getQueryParameter("tab") == "everyone") "everyone" else "mine"
                     linkNav.navigate("topicCollections?tab=$tab"); return
+                }
+                // 源站的 @提及 有两种写法：/user/{uid} 与 /user?username={名字}。
+                // 后者要先查 uid 才能落到 user/{uid} 路由，交给中转屏处理。
+                "/user" -> {
+                    val username = internalUri.getQueryParameter("username").orEmpty()
+                    val tab = internalUri.getQueryParameter("tab") ?: "topics"
+                    if (username.isNotBlank()) {
+                        linkNav.navigate(
+                            "userByName?name=${android.net.Uri.encode(username)}&tab=${android.net.Uri.encode(tab)}",
+                        )
+                        return
+                    }
+                    internalUri.getQueryParameter("uid")?.toLongOrNull()?.takeIf { it > 0 }?.let {
+                        linkNav.navigate("user/$it?tab=${android.net.Uri.encode(tab)}"); return
+                    }
                 }
                 "/direct_messages" -> { linkNav.navigate("directMessages"); return }
                 "/notifications" -> { linkNav.navigate("notifications"); return }
@@ -171,15 +186,22 @@ fun AppRoot(session: Session) {
                 return
             }
         }
-        if (session.settings.linkOpenMode == 0) {
-            val uri = android.net.Uri.parse(url)
+        // 站内兜底：上面的精确匹配没命中，但路径里仍带得出帖子/用户/板块 id 时留在应用内。
+        // 设置页承诺「站内跳转始终在应用内进行」，所以这段不受 linkOpenMode 影响。
+        val uri = android.net.Uri.parse(url)
+        if (Endpoints.isInternal(uri.host)) {
             val path = uri.path ?: ""
-            if (uri.host in setOf("linux.sb", "www.linux.sb")) {
-                Regex("""/topic/(\\d+)""").find(path)?.let { m -> linkNav.navigate("topic/${m.groupValues[1]}"); return }
-                Regex("""/user/(\\d+)""").find(path)?.let { m -> linkNav.navigate("user/${m.groupValues[1]}"); return }
-                Regex("""/forum/(\\d+)""").find(path)?.let { m -> linkNav.navigate("forum/${m.groupValues[1]}"); return }
-                uri.getQueryParameter("uid")?.toIntOrNull()?.let { linkNav.navigate("user/$it"); return }
+            Regex("""/topic/(\d+)""").find(path)?.let { m -> linkNav.navigate("topic/${m.groupValues[1]}"); return }
+            Regex("""/user/(\d+)""").find(path)?.let { m -> linkNav.navigate("user/${m.groupValues[1]}"); return }
+            Regex("""/forum/(\d+)""").find(path)?.let { m -> linkNav.navigate("forum/${m.groupValues[1]}"); return }
+            uri.getQueryParameter("username")?.takeIf { it.isNotBlank() }?.let {
+                linkNav.navigate("userByName?name=${android.net.Uri.encode(it)}&tab=topics"); return
             }
+            uri.getQueryParameter("uid")?.toLongOrNull()?.takeIf { it > 0 }?.let {
+                linkNav.navigate("user/$it"); return
+            }
+        }
+        if (session.settings.linkOpenMode == 0) {
             linkNav.navigate("web?url=${android.net.Uri.encode(url)}")
         } else {
             runCatching {
@@ -194,7 +216,7 @@ fun AppRoot(session: Session) {
     fun openLink(raw: String) {
         val url = Endpoints.abs(raw)
         val host = runCatching { android.net.Uri.parse(url).host.orEmpty() }.getOrDefault("")
-        if (!session.linkPreviewEnabled || host in setOf("linux.sb", "www.linux.sb")) openLinkDirect(url)
+        if (!session.linkPreviewEnabled || Endpoints.isInternal(host)) openLinkDirect(url)
         else {
             linkPreviewInfo = null
             linkPreviewTarget = url
