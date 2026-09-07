@@ -843,7 +843,9 @@ fun HomeScreen(
                         // 翻页模式：翻页条作为列表最后一个 item，滚动到底部即可看到
                         PullToRefreshBox(
                             isRefreshing = loading && current.topics.isNotEmpty(),
-                            onRefresh = { load(1) },
+                            // 下拉刷新必须走完整刷新流程，同时失效已浏览帖子的详情缓存。
+                            // 否则首页卡片虽已更新，首次进入详情仍会命中旧内容。
+                            onRefresh = { refresh() },
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             LazyColumn(
