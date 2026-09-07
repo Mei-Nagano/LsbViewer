@@ -24,6 +24,7 @@ import java.io.File
 import java.security.MessageDigest
 
 import sb.linux.client.common.error.LsbException
+import sb.linux.client.data.parser.LoginVerificationParser
 
 /**
  * linux.sb (bbs1.org) 客户端：OkHttp + 持久化 Cookie + 表单/JSON 提交。
@@ -659,86 +660,65 @@ class LsbClient(private val context: Context) {
 
     // ---------------- 登录 ----------------
 
-    /** 登录页验证码信息：题目由用户作答，PoW 由客户端自动计算 */
-    data class LoginCaptcha(
-        val csrf: String,
-        val question: String,
-        val questionHtml: String = "",
-        val token: String,
-        val powPrefix: String,
-        val powZeros: Int,
-    )
-
-    /** 拉取登录页，提取人机验证题目（供用户作答）。登录前先确保通过访问验证。 */
-    suspend fun fetchLoginCaptcha(): LoginCaptcha = withContext(Dispatchers.IO) {
+    /** 拉取登录页并识别当前验证码协议。登录前先确保通过访问验证。 */
+    suspend fun fetchLoginCaptcha(): LoginVerification = withContext(Dispatchers.IO) {
         // 登录页同样被访问盾/CF 保护：先触发一次验证，避免登录页 302 到挑战页
         get("/")
         val page = get("/login")
-        val d = Jsoup.parse(page.html, Endpoints.BASE)
         // 已登录时源站把 /login 302 到首页（最终 URL 不再含 /login），无验证码组件可解析：
         // 给出明确提示而非笼统的"解析失败"（访客页也有 .user-name"访客"，不能用作登录态判定）
         if (!page.url.contains("/login")) {
             throw LsbException("已是登录状态，无需重复登录（请先退出登录）")
         }
-        val widget = d.selectFirst("[data-native-captcha]")
-        val csrf = d.selectFirst("input[name=_csrf]")?.attr("value")
-            ?: Regex("""name="_csrf" value="([^"]+)"""").find(page.html)?.groupValues?.get(1)
-            ?: throw LsbException("登录页解析失败")
-        val token = d.selectFirst("input[name=native_captcha_token]")?.attr("value")
-            ?: Regex("""name="native_captcha_token" value="([^"]+)"""").find(page.html)?.groupValues?.get(1)
-            ?: throw LsbException("未找到人机验证组件")
-        val questionEl = widget?.selectFirst(".native-captcha-question")
-            ?: d.selectFirst(".native-captcha-question")
-        val question = questionEl?.text()?.trim()
-            ?: Regex("""class="native-captcha-question">([^<]+)<""").find(page.html)?.groupValues?.get(1)?.trim()
-            ?: throw LsbException("验证码题目缺失")
-        LoginCaptcha(
-            csrf = csrf,
-            question = question,
-            questionHtml = questionEl?.outerHtml() ?: "",
-            token = token,
-            powPrefix = widget?.attr("data-pow-prefix") ?: "",
-            powZeros = widget?.attr("data-pow-zeroes")?.toIntOrNull() ?: 3,
-        )
+        LoginVerificationParser.parse(page.html, page.url)
+            ?: throw LsbException("未找到受支持的人机验证组件")
     }
 
     /**
-     * 登录：用户填写的验证码答案 + 自动 PoW → 等待反刷间隔 → 提交。
-     * @param captcha 先前 fetchLoginCaptcha() 获取的验证码信息
-     * @param answer 用户填写的计算结果
+     * 登录：旧版验证码由用户填写答案并自动计算 PoW；CAP 使用组件产生的一次性令牌。
+     * @param captcha 先前 fetchLoginCaptcha() 获取的验证码信息。
+     * @param answer 旧版验证码答案或 CAP 令牌。
      */
     suspend fun login(
         username: String,
         password: String,
-        captcha: LoginCaptcha,
+        captcha: LoginVerification,
         answer: String,
         onStatus: (String) -> Unit,
     ): String = withContext(Dispatchers.IO) {
-        onStatus("正在计算工作量证明…")
-        val t0 = System.currentTimeMillis()
-        val pow = solvePow(captcha.powPrefix, captcha.powZeros)
-
-        // 服务器要求验证码加载后再提交（防脚本）
-        val elapsed = System.currentTimeMillis() - t0
-        if (elapsed < 5200) {
-            onStatus("安全校验中…")
-            // delay 而非 Thread.sleep：不占住 IO 线程池的线程，也能响应协程取消
-            delay(5200 - elapsed)
+        val fields = when (captcha) {
+            is LoginVerification.Native -> {
+                onStatus("正在计算工作量证明…")
+                val startedAt = System.currentTimeMillis()
+                val pow = solvePow(captcha.powPrefix, captcha.powZeros)
+                val elapsed = System.currentTimeMillis() - startedAt
+                if (elapsed < 5200) {
+                    onStatus("安全校验中…")
+                    delay(5200 - elapsed)
+                }
+                mapOf(
+                    "_csrf" to captcha.csrf,
+                    "username" to username,
+                    "password" to password,
+                    "native_captcha_answer" to answer.trim(),
+                    "native_captcha_token" to captcha.token,
+                    "native_captcha_pow" to pow,
+                    "native_captcha_company" to "",
+                )
+            }
+            is LoginVerification.Cap -> {
+                onStatus("正在提交登录…")
+                mapOf(
+                    "_csrf" to captcha.csrf,
+                    "username" to username,
+                    "password" to password,
+                    captcha.fieldName to answer.trim(),
+                )
+            }
         }
-
-        val resp = postForm(
-            "/login", mapOf(
-                "_csrf" to captcha.csrf,
-                "username" to username,
-                "password" to password,
-                "native_captcha_answer" to answer.trim(),
-                "native_captcha_token" to captcha.token,
-                "native_captcha_pow" to pow,
-                "native_captcha_company" to "",
-            )
-        )
-        if (resp.url.contains("form_error")) {
-            throw LsbException(HtmlParser.extractError(resp.html).ifBlank { "登录被拒绝，验证码答案可能有误" })
+        val resp = postForm("/login", fields)
+        if (resp.url.contains("form_error") || resp.url.substringBefore('?').endsWith("/login")) {
+            throw LsbException(HtmlParser.extractError(resp.html).ifBlank { "登录被拒绝，验证码可能已失效" })
         }
         // 成功判定：实测源站登录成功 302 → 首页，失败（密码错/验证码错）→ /form_error，非 form_error 即成功。
         // 此前用 contains(username) 兜底判定：邮箱登录时页面只显示用户名而非邮箱，导致实际登录

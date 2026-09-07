@@ -28,8 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
-import sb.linux.client.data.Endpoints
-import sb.linux.client.data.LsbClient
+import sb.linux.client.data.LoginVerification
 import sb.linux.client.data.Session
 import sb.linux.client.R
 
@@ -43,21 +42,28 @@ fun LoginScreen(session: Session, nav: NavHostController) {
     var showPassword by remember { mutableStateOf(false) }
     var captchaAnswer by remember { mutableStateOf("") }
 
-    var captcha by remember { mutableStateOf<LsbClient.LoginCaptcha?>(null) }
+    var captcha by remember { mutableStateOf<LoginVerification?>(null) }
+    var captchaRevision by remember { mutableIntStateOf(0) }
     var captchaError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    // 进入页面拉取登录页人机验证题目
-    LaunchedEffect(Unit) {
+    suspend fun reloadCaptcha() {
+        captchaError = null
+        captchaAnswer = ""
         try {
             captcha = session.client.fetchLoginCaptcha()
+            captchaRevision++
         } catch (e: Exception) {
+            captcha = null
             captchaError = e.message ?: "验证码加载失败"
         }
     }
+
+    // 进入页面读取源站当前使用的验证协议（CAP 或旧版数学题）。
+    LaunchedEffect(Unit) { reloadCaptcha() }
 
     Scaffold(topBar = { TopAppBar(title = { Text("登录烧饼社区") }) }) { pad ->
         Column(
@@ -133,43 +139,47 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                 Text("记住密码", style = MaterialTheme.typography.bodyMedium)
             }
 
-            // 人机验证：题目内置于输入框 label（节省纵向空间），答案由用户填写（PoW 由客户端自动计算）
+            // 人机验证：新源站使用 CAP Web Component，旧数学题保留兼容。
             val cap = captcha
-            if (cap != null) {
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = captchaAnswer,
-                    onValueChange = { if (it.length <= 8) captchaAnswer = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text(
-                            if (cap.question.isBlank()) "人机验证答案"
-                            else "人机验证：${cap.question}"
-                        )
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            captchaAnswer = ""
-                            scope.launch {
-                                try { captcha = session.client.fetchLoginCaptcha() }
-                                catch (e: Exception) { captchaError = e.message ?: "验证码加载失败" }
+            when (cap) {
+                is LoginVerification.Native -> {
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = captchaAnswer,
+                        onValueChange = { if (it.length <= 8) captchaAnswer = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("人机验证：${cap.question}") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        trailingIcon = {
+                            IconButton(onClick = { scope.launch { reloadCaptcha() } }) {
+                                Icon(Icons.Filled.Refresh, "刷新验证码")
                             }
-                        }) { Icon(Icons.Filled.Refresh, "刷新验证码") }
+                        },
+                    )
+                }
+                is LoginVerification.Cap -> {
+                    Spacer(Modifier.height(6.dp))
+                    CapLoginWidget(
+                        verification = cap,
+                        revision = captchaRevision,
+                        onToken = { captchaAnswer = it; captchaError = null },
+                        onStatus = { status = it },
+                        onError = { captchaAnswer = ""; captchaError = it },
+                    )
+                    captchaError?.let { message ->
+                        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { scope.launch { reloadCaptcha() } }) { Text("重新加载验证码") }
                     }
-                )
-            } else if (captchaError != null) {
-                Spacer(Modifier.height(6.dp))
-                Text(captchaError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = {
-                    captchaError = null
-                    scope.launch {
-                        try { captcha = session.client.fetchLoginCaptcha() }
-                        catch (e: Exception) { captchaError = e.message ?: "验证码加载失败" }
-                    }
-                }) { Text("重新加载验证码") }
+                }
+                null -> {
+                    Spacer(Modifier.height(6.dp))
+                    captchaError?.let { message ->
+                        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { scope.launch { reloadCaptcha() } }) { Text("重新加载验证码") }
+                    } ?: CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -200,7 +210,8 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                         error = "验证码未加载，请稍候"; return@Button
                     }
                     if (captchaAnswer.isBlank()) {
-                        error = "请填写人机验证答案"; return@Button
+                        error = if (c is LoginVerification.Cap) "请先完成人机验证" else "请填写人机验证答案"
+                        return@Button
                     }
                     busy = true; error = null
                     scope.launch {
@@ -220,9 +231,8 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                             nav.popBackStack()
                         } catch (e: Exception) {
                             error = e.message ?: "登录失败"
-                            // 验证码一次性：刷新题目让用户重新作答
-                            captchaAnswer = ""
-                            runCatching { captcha = session.client.fetchLoginCaptcha() }
+                            // 验证令牌一次性，失败后重新加载组件或题目。
+                            reloadCaptcha()
                         } finally {
                             busy = false
                         }
