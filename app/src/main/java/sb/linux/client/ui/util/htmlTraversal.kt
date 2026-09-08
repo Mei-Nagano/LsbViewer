@@ -5,7 +5,7 @@ import org.jsoup.nodes.Element
 
 private val NESTED_BLOCK_TAGS = setOf(
     "p", "div", "section", "article", "blockquote", "pre", "ul", "ol",
-    "h1", "h2", "h3", "h4", "h5", "h6", "table", "hr", "details",
+    "h1", "h2", "h3", "h4", "h5", "h6", "table", "hr", "details", "iframe",
 )
 
 /**

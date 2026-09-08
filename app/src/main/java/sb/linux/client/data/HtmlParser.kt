@@ -4,6 +4,7 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
+import sb.linux.client.data.parser.LoginVerificationParser
 import sb.linux.client.util.TimeFormat
 import sb.linux.client.util.escapeHtml
 
@@ -326,6 +327,7 @@ object HtmlParser {
         val d = doc(html)
         val onlineIds = onlineIdsOf(d)
         val csrf = d.selectFirst("input[name=_csrf]")?.attr("value") ?: ""
+        val replyCaptcha = LoginVerificationParser.parse(html, Endpoints.abs("/topic/$fallbackId"))
         // 标题清洗：抽奖/发卡等特殊帖的源站标题开头常带不可见字符
         // （零宽空格、BOM、不间断/全角空格等），Jsoup .text() 不会折叠它们，
         // 渲染出来就是标题前的空位
@@ -740,18 +742,6 @@ object HtmlParser {
         val viewsText = statsNums.getOrNull(0) ?: ""
         val repliesText = statsNums.getOrNull(1) ?: ""
 
-        // 回复表单人机验证（抽奖帖等需要验证后才可回复）
-        val replyCaptcha = d.selectFirst("[data-native-captcha]")?.let { w ->
-            val q = w.selectFirst(".native-captcha-question")?.text()?.trim() ?: ""
-            val token = w.selectFirst("input[name=native_captcha_token]")?.attr("value") ?: ""
-            if (q.isNotBlank() && token.isNotBlank()) NativeCaptcha(
-                question = q,
-                token = token,
-                powPrefix = w.attr("data-pow-prefix"),
-                powZeros = w.attr("data-pow-zeroes").toIntOrNull() ?: 3,
-            ) else null
-        }
-
         // 正文标签：标题旁的状态徽章（如抽奖帖的 已开奖 / 抽奖中）
         val titleTag = d.selectFirst(".post-topic-title > span")?.text()?.trim()
             ?: d.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: ""
@@ -943,18 +933,9 @@ object HtmlParser {
         doc(html).selectFirst(".nav-mine .notify-badge:not(.home-keyword-filter-count)")
             ?.text()?.trim()?.toIntOrNull() ?: 0
 
-    /** 单独解析页面里的人机验证组件（回复弹窗「换一题」用，无需解析整个帖子） */
-    fun parseNativeCaptcha(html: String): NativeCaptcha? {
-        val w = doc(html).selectFirst("[data-native-captcha]") ?: return null
-        val q = w.selectFirst(".native-captcha-question")?.text()?.trim() ?: ""
-        val token = w.selectFirst("input[name=native_captcha_token]")?.attr("value") ?: ""
-        return if (q.isNotBlank() && token.isNotBlank()) NativeCaptcha(
-            question = q,
-            token = token,
-            powPrefix = w.attr("data-pow-prefix"),
-            powZeros = w.attr("data-pow-zeroes").toIntOrNull() ?: 3,
-        ) else null
-    }
+    /** 单独解析页面里的回复验证组件（回复弹窗刷新用，无需解析整个帖子）。 */
+    fun parseReplyCaptcha(html: String, pageUrl: String): LoginVerification? =
+        LoginVerificationParser.parse(html, pageUrl)
 
     /** 源站相对时间 → 时间戳：支持「刚刚/N秒/N分钟/N小时/N天/周/月/年前、昨天/前天」与常见日期格式；解析失败返回 0 */
     fun parseRelativeTime(text: String): Long {

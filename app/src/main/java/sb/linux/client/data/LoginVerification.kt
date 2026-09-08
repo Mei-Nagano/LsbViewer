@@ -22,5 +22,7 @@ sealed interface LoginVerification {
         val scriptUrl: String,
         val wasmUrl: String = "",
         val fieldName: String = "cap-token",
+        val widgetScript: String = "",
+        val wasmDataUrl: String = "",
     ) : LoginVerification
 }

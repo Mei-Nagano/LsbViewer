@@ -51,6 +51,7 @@ private const val VERIFY_CHALLENGE_JS =
 fun VerificationDialog(
     url: String,
     initialHtml: String = "",
+    prepareCookies: () -> Unit = {},
     onSucceeded: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -108,10 +109,14 @@ fun VerificationDialog(
                                 // CF 的 cf_clearance 与 UA 强绑定，必须与 OkHttp 一致，验证后回传 Cookie 才有效
                                 settings.userAgentString = sb.linux.client.data.LsbClient.UA
                                 CookieManager.getInstance().setAcceptCookie(true)
+                                // 初始挑战 HTML 来自 OkHttp，先同步该响应保存的 Cookie，
+                                // 再让 WebView 执行挑战脚本，保证两边处于同一个验证会话。
+                                prepareCookies()
                                 setDownloadListener { _, _, _, _, _ -> }
                                 // 轮询验证状态：绝不做主动 reload —— reload 会重置 CF Turnstile / UAM 的
                                 // 会话与挑战状态，反而导致"一直转圈 / 秒数不动"。只等它自己在页面内完成。
                                 var blankReloaded = false
+                                var usingProvidedHtml = initialHtml.isNotBlank()
                                 fun poll(view: WebView) {
                                     if (finished) return
                                     view.evaluateJavascript(VERIFY_CHALLENGE_JS) { result ->
@@ -141,7 +146,12 @@ fun VerificationDialog(
                                         error: WebResourceError,
                                     ) {
                                         if (request.isForMainFrame && !finished) {
-                                            view.postDelayed({ if (!finished) view.reload() }, 800)
+                                            if (initialHtml.isNotBlank() && !usingProvidedHtml) {
+                                                usingProvidedHtml = true
+                                                sb.linux.client.data.WebViewDoh.loadHtml(view, url, initialHtml)
+                                            } else {
+                                                view.postDelayed({ if (!finished) view.reload() }, 800)
+                                            }
                                         }
                                     }
 
@@ -159,9 +169,8 @@ fun VerificationDialog(
                                                         blankReloaded = true
                                                         if (!finished) view.reload()
                                                     } else if (initialHtml.isNotBlank()) {
-                                                        view.loadDataWithBaseURL(
-                                                            pageUrl, initialHtml, "text/html", "utf-8", pageUrl
-                                                        )
+                                                        usingProvidedHtml = true
+                                                        sb.linux.client.data.WebViewDoh.loadHtml(view, pageUrl, initialHtml)
                                                     } else {
                                                         finished = true
                                                         onCancel()
@@ -173,7 +182,13 @@ fun VerificationDialog(
                                         }, 1500)
                                     }
                                 }
-                                sb.linux.client.data.WebViewDoh.load(this, url)
+                                // 挑战 HTML 已由应用的 DoH 网络栈成功取回，直接作为首屏展示；
+                                // 其脚本、iframe 等 HTTPS 子资源仍由 WebViewDoh 接管。
+                                if (initialHtml.isNotBlank()) {
+                                    sb.linux.client.data.WebViewDoh.loadHtml(this, url, initialHtml)
+                                } else {
+                                    sb.linux.client.data.WebViewDoh.load(this, url)
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxSize(),

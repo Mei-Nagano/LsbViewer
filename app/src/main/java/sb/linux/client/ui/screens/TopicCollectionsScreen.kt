@@ -215,7 +215,7 @@ private fun CollectionList(
                     }
                 }
             }
-            items(rows, key = { it.collectionId }) { summary ->
+            items(rows, key = { it.collectionId }, contentType = { "collection-card" }) { summary ->
                 CollectionCard(summary) { onOpen(summary.collectionId) }
             }
         }

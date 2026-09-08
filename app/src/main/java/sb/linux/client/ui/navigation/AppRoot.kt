@@ -63,6 +63,7 @@ fun AppRoot(session: Session) {
         VerificationDialog(
             url = verification.url,
             initialHtml = verification.html,
+            prepareCookies = { session.client.exportWebCookies() },
             onSucceeded = {
                 session.client.importWebCookies(verification.url)
                 session.completeVerification(verification, true)

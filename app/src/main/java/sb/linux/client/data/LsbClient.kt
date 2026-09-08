@@ -231,7 +231,7 @@ class LsbClient(private val context: Context) {
             }
         }
         // 2) Cloudflare Turnstile / 手动求解失败：交给 WebView + 交互对话框。
-        //    不预置 OkHttp cookie 到 WebView，验证通过后 importWebCookies 统一回传。
+        //    UI 会先把挑战响应保存的 Cookie 注入 WebView，完成后再统一回传新 Cookie。
         val ui = verificationUi
         if (ui != null) {
             // 取消与超时都会拿到 false，如实上报由调用方终止重试
@@ -319,6 +319,7 @@ class LsbClient(private val context: Context) {
             // CF 的 cf_clearance 与 UA 强绑定：必须与 OkHttp 使用同一 UA，否则验证完 OkHttp 仍被拒
             wv.settings.userAgentString = UA
             CookieManager.getInstance().setAcceptCookie(true)
+            exportWebCookies()
             wv.webViewClient = WebViewClient()
             WebViewDoh.load(wv, url)
 
@@ -670,9 +671,24 @@ class LsbClient(private val context: Context) {
         if (!page.url.contains("/login")) {
             throw LsbException("已是登录状态，无需重复登录（请先退出登录）")
         }
-        LoginVerificationParser.parse(page.html, page.url)
+        val verification = LoginVerificationParser.parse(page.html, page.url)
             ?: throw LsbException("未找到受支持的人机验证组件")
+        if (verification is LoginVerification.Cap) {
+            CapVerificationAssets.load(http, verification)
+        } else {
+            verification
+        }
     }
+
+    /** 为任意页面中的 CAP 组件准备本地脚本与 WASM；旧版验证无需处理。 */
+    suspend fun prepareVerification(verification: LoginVerification): LoginVerification =
+        withContext(Dispatchers.IO) {
+            if (verification is LoginVerification.Cap && verification.widgetScript.isBlank()) {
+                CapVerificationAssets.load(http, verification)
+            } else {
+                verification
+            }
+        }
 
     /**
      * 登录：旧版验证码由用户填写答案并自动计算 PoW；CAP 使用组件产生的一次性令牌。

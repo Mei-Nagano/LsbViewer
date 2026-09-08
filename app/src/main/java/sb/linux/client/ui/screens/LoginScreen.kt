@@ -51,6 +51,10 @@ fun LoginScreen(session: Session, nav: NavHostController) {
     val scope = rememberCoroutineScope()
 
     suspend fun reloadCaptcha() {
+        // 先销毁旧组件及其网络桥，避免旧 WebView 继续持有失败的 CAP 请求；
+        // 新页面拿到后再递增 revision，让组件从全新状态开始。
+        captcha = null
+        captchaRevision++
         captchaError = null
         captchaAnswer = ""
         try {
@@ -161,9 +165,10 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                 }
                 is LoginVerification.Cap -> {
                     Spacer(Modifier.height(6.dp))
-                    CapLoginWidget(
+                    CapVerificationWidget(
                         verification = cap,
                         revision = captchaRevision,
+                        client = session.client,
                         onToken = { captchaAnswer = it; captchaError = null },
                         onStatus = { status = it },
                         onError = { captchaAnswer = ""; captchaError = it },

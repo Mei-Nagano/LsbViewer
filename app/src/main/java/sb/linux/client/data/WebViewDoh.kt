@@ -40,6 +40,21 @@ object WebViewDoh {
         }
     }
 
+    /** 视频域名已在 DoH 代理配置中按域名直连；其他 WebView 仍保持原有网络策略。 */
+    fun loadDirect(view: WebView, url: String, headers: Map<String, String> = emptyMap()) {
+        context = view.context.applicationContext
+        scope.launch {
+            if (prepareSafely()) {
+                if (headers.isEmpty()) view.loadUrl(url) else view.loadUrl(url, headers)
+            }
+            else view.loadData(
+                "<html><meta charset='utf-8'><body>播放器网络设置暂不可用，请更新系统 WebView 后重试。</body></html>",
+                "text/html",
+                "utf-8",
+            )
+        }
+    }
+
     fun refreshIfInitialized() {
         if (context != null) scope.launch { prepareSafely() }
     }
@@ -52,18 +67,22 @@ object WebViewDoh {
     catch (e: kotlinx.coroutines.CancellationException) { throw e }
     catch (_: Throwable) { false }
 
-    private suspend fun prepare(): Boolean = mutex.withLock {
-        val ctx = context ?: return@withLock true
+    private suspend fun prepare(): Boolean = mutex.withLock { prepareLocked() }
+
+    private suspend fun prepareLocked(): Boolean {
+        val ctx = context ?: return true
         val proxy = AppNetwork.proxyConfig()
         val active = !proxy.enabled && AppNetwork.isDohActive()
         val key = when {
             proxy.enabled -> "proxy:${proxy.proxyUrl}"
-            active -> AppSettings(ctx).dohUrl
+            active -> "doh:${AppSettings(ctx).dohUrl}:video-bypass-v2"
             else -> "off"
         }
-        if (key == applied) return@withLock true
-        try {
-            if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return@withLock !active && !proxy.enabled
+        if (key == applied) return true
+        return try {
+            // 部分旧版系统 WebView 没有进程级代理能力。DoH 本身允许系统 DNS 兜底，
+            // 此处也继续直连，让验证码至少可以显示；显式代理配置则不能静默绕过。
+            if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return !proxy.enabled
             if (proxy.enabled) {
                 suspendCancellableCoroutine<Unit> { continuation ->
                     ProxyController.getInstance().setProxyOverride(
@@ -78,7 +97,10 @@ object WebViewDoh {
                 val bridge = tunnel ?: withContext(Dispatchers.IO) { LocalDnsTunnel(AppNetwork.dns) }.also { tunnel = it }
                 suspendCancellableCoroutine<Unit> { continuation ->
                     ProxyController.getInstance().setProxyOverride(
-                        ProxyConfig.Builder().addProxyRule("http://127.0.0.1:${bridge.port}", ProxyConfig.MATCH_HTTPS).build(),
+                        ProxyConfig.Builder()
+                            .addProxyRule("http://127.0.0.1:${bridge.port}", ProxyConfig.MATCH_HTTPS)
+                            .apply { VIDEO_DOH_BYPASS_RULES.forEach(::addBypassRule) }
+                            .build(),
                         androidx.core.content.ContextCompat.getMainExecutor(ctx),
                     ) { if (continuation.isActive) continuation.resume(Unit) }
                 }
@@ -98,4 +120,18 @@ object WebViewDoh {
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (_: Exception) { false }
     }
+
+    /** 视频页面和媒体分片绕过论坛 DoH 隧道，交给系统网络、VPN或系统级代理。 */
+    private val VIDEO_DOH_BYPASS_RULES = listOf(
+        "bilibili.com", "*.bilibili.com",
+        "bilivideo.com", "*.bilivideo.com", "bilivideo.cn", "*.bilivideo.cn",
+        "hdslb.com", "*.hdslb.com",
+        "biliapi.com", "*.biliapi.com", "biliapi.net", "*.biliapi.net",
+        "douyin.com", "*.douyin.com", "douyinvod.com", "*.douyinvod.com",
+        "byteimg.com", "*.byteimg.com", "bytecdn.cn", "*.bytecdn.cn",
+        "bytegoofy.com", "*.bytegoofy.com", "bytedance.com", "*.bytedance.com",
+        "youtube.com", "*.youtube.com", "youtube-nocookie.com", "*.youtube-nocookie.com",
+        "googlevideo.com", "*.googlevideo.com", "ytimg.com", "*.ytimg.com",
+        "ggpht.com", "*.ggpht.com", "gstatic.com", "*.gstatic.com",
+    )
 }

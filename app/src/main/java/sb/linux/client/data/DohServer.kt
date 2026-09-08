@@ -5,8 +5,8 @@ data class DohServer(val id: String, val name: String, val url: String, val note
 object DohServers {
     /** 内置候选不因单个网络的检测结果被删除，是否可用由用户所在网络决定。 */
     val defaults = listOf(
-        "us-kan-w-p-1.nashkan.net", "us-nyc-w-p-1.nashkan.net", "dns.neeb.it",
-        "dns.nick-slowinski.de", "dns.telekom.de", "dns.t53.de", "dns.vaioswolke.xyz",
+        "dns.t53.de", "dns.telekom.de", "dns.neeb.it", "dns.nick-slowinski.de",
+        "dns.vaioswolke.xyz", "us-kan-w-p-1.nashkan.net", "us-nyc-w-p-1.nashkan.net",
     ).map { host -> DohServer("builtin:$host", host, "https://$host/dns-query", builtIn = true) }
 
     /** 曾经内置、现已下线的端点。保存过的旧 builtin ID 被 merge 过滤，不让死地址以自定义身份回锅。 */
@@ -38,6 +38,18 @@ object DohServers {
         } else result
     }
 }
+
+/** 首选运行期已恢复的端点，其次用户配置，再按内置顺序提供有限的故障切换候选。 */
+internal fun dohCandidateUrls(
+    activeUrl: String,
+    runtimeUrl: String?,
+    servers: List<DohServer>,
+    limit: Int = 3,
+): List<String> = (listOfNotNull(runtimeUrl, activeUrl) + servers.map(DohServer::url))
+    .map(String::trim)
+    .filter(AppNetwork::isValidEndpoint)
+    .distinct()
+    .take(limit)
 
 /** 只保留可比较的耗时；失败原因不对外呈现，底层异常文字对用户没有参考价值。 */
 data class DohBenchmark(val timesMs: List<Long>, val addresses: List<String>, val attempts: Int) {

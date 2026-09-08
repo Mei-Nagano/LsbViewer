@@ -851,6 +851,7 @@ internal data class ContentBlock(
     val annotated: AnnotatedString? = null,
     val imageUrl: String? = null,
     val imageUrls: List<String> = emptyList(), // 连续多图：合并为一个翻页块
+    val embeddedVideo: EmbeddedVideo? = null,
     val isQuote: Boolean = false,
     val quoteDepth: Int = 0,
     val textAlign: TextAlign? = null,
@@ -870,7 +871,7 @@ internal data class ContentBlock(
 
 /**
  * 将帖子 HTML（服务端渲染的 Markdown 产物）转为 Compose 展示。
- * 支持：p/br、strong/em/del、a、code/pre、blockquote、ul/ol、img、h1-h4、hr、table。
+ * 支持：p/br、strong/em/del、a、code/pre、blockquote、ul/ol、img、视频、h1-h4、hr、table。
  * 行间距统一：所有正文文本块使用相同 lineHeight，块间不再额外加间距（由行框半行距提供），
  * 避免段落间距与行间距不一致的问题（含 @用户 拆分出的多个段落）。
  */
@@ -994,6 +995,9 @@ fun HtmlContent(
                             )
                         }
                     }
+                }
+                b.embeddedVideo != null -> Box(anchorModifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    EmbeddedVideoPlayer(b.embeddedVideo, Modifier.padding(vertical = 4.dp))
                 }
                 b.imageUrls.size > 1 -> ImagePager(b.imageUrls, anchorModifier.padding(vertical = 4.dp)) { viewer = b.imageUrls to it }
                 b.imageUrl != null -> {
@@ -1857,6 +1861,7 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
                     )
                 }
                 "img" -> blocks.add(ContentBlock(imageUrl = abs(c)))
+                "iframe" -> parseEmbeddedVideo(c)?.let { blocks.add(ContentBlock(embeddedVideo = it)) }
                 "table" -> {
                     // 表格按行列结构解析，渲染为真正的网格（含表头加粗）
                     val rows = parseTable(c)
@@ -1875,7 +1880,7 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
     val hasBlock = root.children().any {
         it.tagName().lowercase() in setOf(
             "p", "div", "section", "article", "br", "blockquote", "pre", "ul", "ol",
-            "h1", "h2", "h3", "h4", "h5", "h6", "img", "table", "section", "hr", "details"
+            "h1", "h2", "h3", "h4", "h5", "h6", "img", "iframe", "table", "section", "hr", "details"
         )
     }
     if (!hasBlock) {

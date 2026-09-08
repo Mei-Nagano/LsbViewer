@@ -80,7 +80,7 @@ data class TopicPageData(
     val repliesText: String = "",           // 回复总数（post-content-stats 第二个 span）
     val lottery: LotteryPanel? = null,      // 抽奖帖面板
     val poll: TopicPoll? = null,            // 源站投票表单/结果
-    val replyCaptcha: NativeCaptcha? = null, // 回复表单人机验证（抽奖帖等）
+    val replyCaptcha: LoginVerification? = null, // 回复表单人机验证（CAP / 旧版数学题）
     val essenceApplication: EssenceApplication? = null,
     val essenceReview: EssenceReview? = null,
 )
@@ -124,14 +124,6 @@ data class EssencePointsTopUp(
     val hint: String = "",
     val submitLabel: String = "追加",
     val enabled: Boolean = true,
-)
-
-/** 源站 native-captcha 人机验证组件（数学题 + PoW） */
-data class NativeCaptcha(
-    val question: String,        // 例如 "10 - 3 = ?"
-    val token: String,
-    val powPrefix: String,
-    val powZeros: Int = 3,
 )
 
 /** 抽奖中奖人：用户 + 奖品名 +（仅本人可见的）兑换码 */

@@ -51,6 +51,7 @@ object AppNetwork {
     private val generation = java.util.concurrent.atomic.AtomicLong()
     internal fun policyKey(): String = "${generation.get()}|${if (isDohActive()) appContext?.let { AppSettings(it).dohUrl } else "system"}|${proxyConfig()}"
     private val dohCache = ConcurrentHashMap<String, DohTransport>()
+    private val runtimeDohUrl = java.util.concurrent.atomic.AtomicReference<String?>()
     private val activeTests = ConcurrentHashMap.newKeySet<DohTransport>()
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val autoTuneRunning = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -191,6 +192,7 @@ object AppNetwork {
 
     private fun invalidate() {
         generation.incrementAndGet()
+        runtimeDohUrl.set(null)
         CronetTransport.invalidate()
         // 设置监听器在主线程回调；evictAll/close 会写 socket（TLS close_notify），
         // 必须挪到维护线程，否则 NetworkOnMainThreadException 直接闪退。
@@ -222,13 +224,29 @@ object AppNetwork {
             if (endpoint == null || endpoint.scheme != "https") return Dns.SYSTEM.lookup(hostname)
             val key = "${generation.get()}|${endpoint}|$hostname"
             DnsCache.get(key)?.let { return it }
-            return try {
-                resolver(endpoint.toString()).lookup(hostname).sortedBy { it !is Inet4Address }
-                    .also { DnsCache.put(key, it, ANSWER_FRESH_MS, ANSWER_STALE_MS) }
-            } catch (_: Exception) {
-                // 抖动一次就掉回系统 DNS，等于让污染结果覆盖已经解析成功的域名：先用过期结果顶住。
-                DnsCache.get(key, allowStale = true)
-                    ?: Dns.SYSTEM.lookup(hostname).sortedBy { it !is Inet4Address }
+            var lastFailure: Exception? = null
+            val candidates = dohCandidateUrls(
+                activeUrl = endpoint.toString(),
+                runtimeUrl = runtimeDohUrl.get(),
+                servers = settings.dohServers(),
+            )
+            for (url in candidates) {
+                try {
+                    return resolver(url).lookup(hostname).sortedBy { it !is Inet4Address }
+                        .also {
+                            runtimeDohUrl.set(url)
+                            DnsCache.put(key, it, ANSWER_FRESH_MS, ANSWER_STALE_MS)
+                        }
+                } catch (error: Exception) {
+                    if (error is InterruptedException) Thread.currentThread().interrupt()
+                    lastFailure = error
+                }
+            }
+            // DoH 开启时不能退回系统 DNS：当前网络实测会把 cap.linux.sb 指向 Facebook IP。
+            // 优先继续使用过期的可信答案；没有缓存则明确失败，让上层重试而不是连接污染地址。
+            DnsCache.get(key, allowStale = true)?.let { return it }
+            throw UnknownHostException("DoH resolvers unavailable for $hostname").apply {
+                initCause(lastFailure)
             }
         }
     }

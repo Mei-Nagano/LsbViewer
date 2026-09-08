@@ -812,10 +812,11 @@ fun HomeScreen(
                     else -> Box(
                         Modifier
                             .fillMaxSize()
-                            .graphicsLayer {
+                            // 分类切换动画结束后移除整页 graphicsLayer，避免列表滚动时始终走额外合成层。
+                            .then(if (categoryMotion.value != 0f) Modifier.graphicsLayer {
                                 translationX = categoryMotion.value
                                 alpha = 1f - (kotlin.math.abs(categoryMotion.value) / 260f).coerceIn(0f, 0.22f)
-                            }
+                            } else Modifier)
                             // 主页左右滑动在（全部/仅抽奖/仅发卡）之间切换；垂直滚动不受影响
                             .pointerInput(Unit) {
                                 var totalX = 0f
@@ -894,6 +895,7 @@ fun HomeScreen(
                                 items(
                                     pagedTopics,
                                     key = { t -> t.topicId },
+                                    contentType = { "topic-card" },
                                 ) { t ->
                                     TopicCardView(
                                         t,

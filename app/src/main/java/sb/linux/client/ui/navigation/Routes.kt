@@ -221,44 +221,50 @@ fun LiquidGlassBottomBar(
     val light = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val surfaceTint = if (light) Color.White.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.4f)
     val width = ((LocalConfiguration.current.screenWidthDp - 32).coerceAtMost(items.size * 108)).dp
-    Row(
+    Box(
         Modifier
+            .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(bottom = 14.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedCornerShape(50) },
-                effects = {
-                    vibrancy()
-                    blur(6.dp.toPx())
-                    lens(18.dp.toPx(), 18.dp.toPx(), depthEffect = true, chromaticAberration = true)
-                },
-                onDrawSurface = { drawRect(surfaceTint) },
-            )
-            .height(58.dp)
-            .width(width),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(bottom = 14.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        items.forEach { item ->
-            GlassBottomTab(
-                icon = when (item) {
-                    "home" -> Icons.Filled.Home
-                    "topicCollections" -> Icons.Filled.ViewList
-                    "directMessages" -> Icons.Filled.Email
-                    "newTopic" -> Icons.Filled.Add
-                    else -> Icons.Filled.Person
-                },
-                label = when (item) {
-                    "home" -> "首页"
-                    "topicCollections" -> "淘帖"
-                    "directMessages" -> "私信"
-                    "newTopic" -> "发帖"
-                    else -> "我的"
-                },
-                selected = BottomDestination.canonical(route) == BottomDestination.canonical(item),
-                enabled = enabled,
-                onClick = { onNavigate(item) },
-            )
+        Row(
+            Modifier
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedCornerShape(50) },
+                    effects = {
+                        vibrancy()
+                        blur(4.dp.toPx())
+                        lens(10.dp.toPx(), 10.dp.toPx(), depthEffect = true, chromaticAberration = false)
+                    },
+                    onDrawSurface = { drawRect(surfaceTint) },
+                )
+                .height(58.dp)
+                .width(width),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items.forEach { item ->
+                GlassBottomTab(
+                    icon = when (item) {
+                        "home" -> Icons.Filled.Home
+                        "topicCollections" -> Icons.Filled.ViewList
+                        "directMessages" -> Icons.Filled.Email
+                        "newTopic" -> Icons.Filled.Add
+                        else -> Icons.Filled.Person
+                    },
+                    label = when (item) {
+                        "home" -> "首页"
+                        "topicCollections" -> "淘帖"
+                        "directMessages" -> "私信"
+                        "newTopic" -> "发帖"
+                        else -> "我的"
+                    },
+                    selected = BottomDestination.canonical(route) == BottomDestination.canonical(item),
+                    enabled = enabled,
+                    onClick = { onNavigate(item) },
+                )
+            }
         }
     }
 }

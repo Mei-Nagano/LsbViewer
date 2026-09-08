@@ -39,6 +39,9 @@ import okio.buffer
  */
 internal class CronetAttempt { @Volatile var mayHaveSent = false }
 
+/** 明确标记即使已进入发送阶段也可安全重放的请求，例如只签发临时题目的 CAP challenge。 */
+internal object CronetReplayable
+
 internal const val CRONET_RESPONSE_LIMIT = 32L * 1024 * 1024
 
 internal fun cronetAddressCandidates(addresses: List<java.net.InetAddress>): List<java.net.InetAddress> =
@@ -55,7 +58,8 @@ internal fun canRetryWithCronet(request: Request, error: IOException, mayHaveSen
     if (generateSequence<Throwable>(error) { it.cause }.take(16).any {
         it is javax.net.ssl.SSLPeerUnverifiedException || it is java.security.cert.CertificateException
     }) return false
-    return !mayHaveSent || request.method in setOf("GET", "HEAD")
+    return !mayHaveSent || request.method in setOf("GET", "HEAD") ||
+        request.tag(CronetReplayable::class.java) != null
 }
 
 internal fun cronetResolverOptions(host: String, ip: String): String {
@@ -188,7 +192,9 @@ class CronetFallbackInterceptor(
                 val bytes = buffer.readByteArray()
                 builder.setUploadDataProvider(UploadDataProviders.create(bytes), CronetTransport.callbackExecutor)
                 if (request.header("Content-Type") == null) {
-                    body.contentType()?.let { builder.addHeader("Content-Type", it.toString()) }
+                    // OkHttp 允许无类型的空 POST，Cronet 对任何 upload data 都强制要求
+                    // Content-Type。CAP challenge 正是空 POST，回退时补默认类型但不改变正文。
+                    builder.addHeader("Content-Type", body.contentType()?.toString() ?: "application/octet-stream")
                 }
             }
             nativeRequest = builder.build()

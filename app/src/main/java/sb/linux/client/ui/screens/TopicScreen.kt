@@ -135,6 +135,7 @@ import sb.linux.client.data.EssenceReview
 import sb.linux.client.data.HtmlParser
 import sb.linux.client.data.ImageHostClient
 import sb.linux.client.data.LotteryPanel
+import sb.linux.client.data.LoginVerification
 import sb.linux.client.data.PostEntry
 import sb.linux.client.data.Session
 import sb.linux.client.data.TopicExport
@@ -201,8 +202,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
     var error by remember { mutableStateOf<String?>(null) }
     var showReply by remember { mutableStateOf(false) }
     var quoteText by remember { mutableStateOf("") }
-    // 回复弹窗「换一题」后的人机验证（覆盖页面初始解析的那个；重新打开弹窗时重置）
-    var captchaOverride by remember { mutableStateOf<sb.linux.client.data.NativeCaptcha?>(null) }
+    // 回复弹窗刷新后的人机验证（覆盖页面初始解析的那个；重新打开弹窗时重置）
+    var captchaOverride by remember { mutableStateOf<LoginVerification?>(null) }
     var coinTarget by remember { mutableStateOf<PostEntry?>(null) }
     var copyPost by remember { mutableStateOf<PostEntry?>(null) }
     // 长按菜单 → 查看该用户在本帖的所有回复
@@ -1454,7 +1455,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                     // 可见回复：树形模式 = 展平的树（含层级深度），平铺模式 = 本页切片（深度 0）
                     val visibleReplies: List<Pair<PostEntry, Int>> =
                         if (hasTree) flatTree else pagedReplies.map { it to 0 }
-                    itemsIndexed(visibleReplies, key = { _, v -> "r-${v.first.id}" }) { _, (post, depth) ->
+                        itemsIndexed(
+                            visibleReplies,
+                            key = { _, v -> "r-${v.first.id}" },
+                            contentType = { _, _ -> "reply" },
+                        ) { _, (post, depth) ->
                         // 树形层级：每级缩进 14dp（最多 6 级封顶，避免深层挤压），
                         // 子回复左侧画竖向引导线连接父层级
                         val lineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
@@ -1890,10 +1895,10 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             onRefreshCaptcha = {
                 scope.launch {
                     try {
-                        // 重新拉取帖子页：源站每次渲染都会签发新的题目与 token
+                        // 重新拉取帖子页：旧数学题会签发新题目，CAP 会刷新组件配置
                         //（注意源站分页参数是 p，page 会被忽略）
                         val resp = session.client.get("/topic/$tid?p=${data?.page ?: 1}")
-                        val c = HtmlParser.parseNativeCaptcha(resp.html)
+                        val c = HtmlParser.parseReplyCaptcha(resp.html, resp.url)
                         if (c != null) {
                             captchaOverride = c
                         } else session.showToast("未找到人机验证")
@@ -1905,6 +1910,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             onDismiss = { showReply = false },
             onSubmit = { body, captchaAnswer, onDone ->
                 scope.launch {
+                    var succeeded = false
                     try {
                         // 令牌优先用帖子页自己带的那份（回复框里就有）：不必再多打一次首页，
                         // 也避开首页偶发被访问盾拦成挑战页导致取不到令牌、回复直接失败
@@ -1916,10 +1922,14 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             // 源站当前表单只提交 topic_id/body；评论树由正文开头严格的
                             // “@用户名 #楼层 ”前缀识别。不要附加不存在的父节点字段。
                             // 人机验证：用户答案 + 客户端计算 PoW（用弹窗当前展示的那份，而非页面初始解析的）
-                            activeCaptcha?.let { c ->
-                                put("native_captcha_token", c.token)
-                                put("native_captcha_answer", captchaAnswer)
-                                put("native_captcha_pow", sb.linux.client.data.LsbClient.solvePow(c.powPrefix, c.powZeros))
+                            when (val c = activeCaptcha) {
+                                is LoginVerification.Native -> {
+                                    put("native_captcha_token", c.token)
+                                    put("native_captcha_answer", captchaAnswer)
+                                    put("native_captcha_pow", sb.linux.client.data.LsbClient.solvePow(c.powPrefix, c.powZeros))
+                                }
+                                is LoginVerification.Cap -> put(c.fieldName, captchaAnswer)
+                                null -> Unit
                             }
                         }
                         val resp = session.client.postForm("/reply_edit", form)
@@ -1929,10 +1939,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                             if (activeCaptcha != null) {
                                 runCatching {
                                     val r2 = session.client.get("/topic/$tid?p=${data?.page ?: 1}")
-                                    HtmlParser.parseNativeCaptcha(r2.html)?.let { captchaOverride = it }
+                                    HtmlParser.parseReplyCaptcha(r2.html, r2.url)?.let { captchaOverride = it }
                                 }
                             }
                         } else {
+                            succeeded = true
                             session.showToast("回复成功")
                             session.settings.recordUsageEvent("reply", tid, data?.title.orEmpty())
                             showReply = false
@@ -1947,7 +1958,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
                         }
                     } catch (e: Exception) {
                         session.showToast(e.message ?: "回复失败")
-                    } finally { onDone() }
+                    } finally { onDone(succeeded) }
                 }
             }
         )
@@ -3733,9 +3744,9 @@ fun FloorJumpDialog(maxFloor: Int, onDismiss: () -> Unit, onJump: (Int) -> Unit,
 fun ReplyDialog(
     session: Session,
     initial: String,
-    captcha: sb.linux.client.data.NativeCaptcha?,
+    captcha: LoginVerification?,
     onDismiss: () -> Unit,
-    onSubmit: (String, String, () -> Unit) -> Unit,
+    onSubmit: (String, String, (Boolean) -> Unit) -> Unit,
     title: String = "发表回复",
     submitLabel: String = "发布",
     showToolbar: Boolean = true,
@@ -3747,6 +3758,7 @@ fun ReplyDialog(
         mutableStateOf(TextFieldValue(initial, selection = TextRange(initial.length)))
     }
     var answer by remember { mutableStateOf("") }
+    var captchaRevision by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var previewReply by remember { mutableStateOf(false) }
@@ -3755,7 +3767,10 @@ fun ReplyDialog(
     val scope = rememberCoroutineScope()
     val canSubmit = body.text.isNotBlank() && !busy && (captcha == null || answer.isNotBlank())
     // 换题后清空旧答案，避免带着上一题的答案提交
-    LaunchedEffect(captcha) { if (answer.isNotBlank()) answer = "" }
+    LaunchedEffect(captcha) {
+        if (answer.isNotBlank()) answer = ""
+        captchaRevision++
+    }
 
     // Markdown 工具栏：在光标处插入/包裹，与源站编辑器一致
     fun insert(before: String, after: String = before, placeholder: String = "") {
@@ -3809,7 +3824,13 @@ fun ReplyDialog(
 
     fun submit() {
         busy = true
-        onSubmit(body.text, answer) { busy = false }
+        onSubmit(body.text, answer) { succeeded ->
+            busy = false
+            if (!succeeded && captcha is LoginVerification.Cap) {
+                answer = ""
+                captchaRevision++
+            }
+        }
     }
 
     if (expanded) {
@@ -3867,11 +3888,16 @@ fun ReplyDialog(
                         shape = RoundedCornerShape(14.dp)
                     )
                     ReplyCaptchaField(
+                        session = session,
                         captcha = captcha,
                         answer = answer,
-                        onAnswerChange = { if (it.length <= 8) answer = it },
+                        onAnswerChange = {
+                            if (captcha is LoginVerification.Cap || it.length <= 8) answer = it
+                        },
                         onRefresh = onRefreshCaptcha,
-                        topPadding = 10.dp
+                        topPadding = 10.dp,
+                        revision = captchaRevision,
+                        onReloadCap = { answer = ""; captchaRevision++ },
                     )
                     Spacer(Modifier.height(12.dp))
                 }
@@ -3936,11 +3962,16 @@ fun ReplyDialog(
                 }
             )
             ReplyCaptchaField(
+                session = session,
                 captcha = captcha,
                 answer = answer,
-                onAnswerChange = { if (it.length <= 8) answer = it },
+                onAnswerChange = {
+                    if (captcha is LoginVerification.Cap || it.length <= 8) answer = it
+                },
                 onRefresh = onRefreshCaptcha,
-                topPadding = 10.dp
+                topPadding = 10.dp,
+                revision = captchaRevision,
+                onReloadCap = { answer = ""; captchaRevision++ },
             )
             Spacer(Modifier.height(24.dp))
         }
@@ -3960,32 +3991,52 @@ private fun ReplyToolbar(
     )
 }
 
-/** 人机验证输入框（抽奖帖等）：题目展示，答案由用户填写；提供「换一题」刷新按钮。captcha 为 null 时不显示 */
+/** 抽奖回复验证：新版显示 CAP 组件，旧版保留数学题输入与换题按钮。 */
 @Composable
 private fun ReplyCaptchaField(
-    captcha: sb.linux.client.data.NativeCaptcha?,
+    session: Session,
+    captcha: LoginVerification?,
     answer: String,
     onAnswerChange: (String) -> Unit,
     onRefresh: (() -> Unit)?,
     topPadding: androidx.compose.ui.unit.Dp,
+    revision: Int,
+    onReloadCap: () -> Unit,
 ) {
     if (captcha == null) return
     Spacer(Modifier.height(topPadding))
-    OutlinedTextField(
-        value = answer,
-        onValueChange = onAnswerChange,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        label = { Text("人机验证：${captcha.question}") },
-        singleLine = true,
-        trailingIcon = if (onRefresh != null) {
-            {
-                IconButton(onClick = onRefresh) {
-                    Icon(Icons.Filled.Refresh, "换一题")
+    when (captcha) {
+        is LoginVerification.Native -> OutlinedTextField(
+            value = answer,
+            onValueChange = onAnswerChange,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            label = { Text("人机验证：${captcha.question}") },
+            singleLine = true,
+            trailingIcon = if (onRefresh != null) {
+                {
+                    IconButton(onClick = onRefresh) {
+                        Icon(Icons.Filled.Refresh, "换一题")
+                    }
                 }
+            } else null,
+        )
+        is LoginVerification.Cap -> {
+            var capError by remember(captcha, revision) { mutableStateOf<String?>(null) }
+            CapVerificationWidget(
+                verification = captcha,
+                revision = revision,
+                client = session.client,
+                onToken = onAnswerChange,
+                onStatus = {},
+                onError = { capError = it; onAnswerChange("") },
+            )
+            capError?.let { message ->
+                Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onReloadCap) { Text("重新加载验证码") }
             }
-        } else null,
-    )
+        }
+    }
 }
 
 /**
