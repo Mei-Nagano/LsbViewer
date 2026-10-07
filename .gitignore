@@ -1,0 +1,78 @@
+# Gradle / Kotlin caches and generated output
+.gradle/
+**/.gradle/
+.kotlin/
+/.gradle-user-home/
+/.android-user-home/
+/.build-user-home/
+gradle/gradle-daemon-jvm.properties
+build/
+**/build/
+app/release/
+captures/
+.cxx/
+.externalNativeBuild/
+
+# Android build artifacts
+*.apk
+*.apk.*
+*.aab
+*.ap_
+*.idsig
+
+# Signing material
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+signing.properties
+
+#jks
+lsb-release.jks
+lsb-release.b64
+
+# Local SDK and machine-specific configuration
+/local.properties
+*.local
+.env
+*.env
+
+# IDE / editor files
+.idea/
+*.iml
+.vscode/
+.fleet/
+
+# Local tool metadata
+.claude/
+.codeartsdoer/
+.codegraph/
+
+# OS and temporary files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.hprof
+*.tmp
+
+# Local task checklist (not tracked)
+checklist.md
+
+# Device-only local tests
+app/src/androidTest/
+
+# Local work logs and acceptance notes
+MEMORY.md
+REQUEST-*.md
+TESTING-*.md
+FEATURE-AUDIT.md
+
+# Local agent instructions
+agents.md
+AGENTS.md
+
+# Local documentation and duplicate project copy
+/docs/
+/LsbViewer-main/

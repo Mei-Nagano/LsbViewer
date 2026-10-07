@@ -1,0 +1,250 @@
+package sb.linux.client.data
+
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import okhttp3.Dns
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
+import java.net.InetAddress
+import java.net.UnknownHostException
+import java.util.concurrent.ConcurrentHashMap
+import android.content.SharedPreferences
+import android.net.Network
+import java.net.Inet4Address
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.ProxySelector
+import java.net.SocketAddress
+import java.net.URI
+import java.net.Socket
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import sb.linux.client.domain.network.DohBenchmark
+import sb.linux.client.domain.network.DohServer
+
+/** 全应用共享 DNS 策略。设置在每次解析时读取，因此切换 DoH 无需重启或重建会话。 */
+object AppNetwork {
+    private const val ANSWER_FRESH_MS = 5 * 60 * 1000L
+    private const val ANSWER_STALE_MS = 30 * 60 * 1000L
+
+    @Volatile private var appContext: Context? = null
+    private val recoverySignal = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
+    internal val recoveryEvents: kotlinx.coroutines.flow.SharedFlow<Unit> = recoverySignal
+
+
+    private val generation = java.util.concurrent.atomic.AtomicLong()
+    internal fun policyKey(): String = "${generation.get()}|${if (isDohActive()) appContext?.let { AppSettings(it).dohUrl } else "system"}|${proxyConfig()}"
+    private val dohCache = ConcurrentHashMap<String, DohTransport>()
+    private val runtimeDohUrl = java.util.concurrent.atomic.AtomicReference<String?>()
+    private val activeTests = ConcurrentHashMap.newKeySet<DohTransport>()
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val autoTuneRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val lastAutoTuneAt = java.util.concurrent.atomic.AtomicLong(0L)
+    val connectionPool = okhttp3.ConnectionPool(5, 10, java.util.concurrent.TimeUnit.MINUTES)
+    private val settingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == null || key in setOf(
+                "doh_enabled", "doh_url", "doh_disable_on_vpn", "doh_auto_without_vpn",
+                "proxy_type", "proxy_host", "proxy_port",
+            )) {
+            invalidate()
+            if (key == "doh_auto_without_vpn") scheduleAutomaticDoh()
+        }
+    }
+
+    @Synchronized fun init(context: Context) {
+        if (appContext != null) return
+        appContext = context.applicationContext
+        context.getSharedPreferences("lsb_app_settings", Context.MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(settingsListener)
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        runCatching { cm?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+            private var validated: Network? = null
+            override fun onAvailable(network: Network) = invalidate()
+            override fun onLost(network: Network) {
+                if (validated == network) validated = null
+                invalidate()
+                scheduleAutomaticDoh()
+            }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                cancelTestsOnVpn()
+                WebViewDohRefreshSignal.notifyPolicyChanged()
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                    if (validated != network) { validated = network; recoverySignal.tryEmit(Unit) }
+                } else if (validated == network) validated = null
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) scheduleAutomaticDoh()
+            }
+        }) }
+        scheduleAutomaticDoh()
+    }
+
+    /** 无 VPN 时在后台启用 DoH，并发选择当前配置中最快的可用服务器。 */
+    private fun scheduleAutomaticDoh() {
+        val context = appContext ?: return
+        if (!AppSettings(context).dohAutoWithoutVpn || isVpnActive(context)) return
+        if (!autoTuneRunning.compareAndSet(false, true)) return
+        backgroundScope.launch {
+            try {
+                // 等网络能力与 VPN 路由稳定，避免切网瞬间误判。
+                delay(800)
+                val settings = AppSettings(context)
+                if (!settings.dohAutoWithoutVpn || isVpnActive(context)) return@launch
+                settings.dohEnabled = true
+                val now = System.currentTimeMillis()
+                if (now - lastAutoTuneAt.get() < 30L * 60L * 1000L) return@launch
+                lastAutoTuneAt.set(now)
+                val fastest = coroutineScope {
+                    settings.dohServers().map { server ->
+                        async {
+                            val result = runCatching { benchmark(server.url) }.getOrNull()
+                            server to result?.timesMs?.minOrNull()
+                        }
+                    }.map { it.await() }
+                        .filter { it.second != null }
+                        .minByOrNull { it.second!! }
+                }?.first
+                if (fastest != null && settings.dohAutoWithoutVpn && !isVpnActive(context)) {
+                    settings.dohUrl = fastest.url
+                }
+            } finally {
+                autoTuneRunning.set(false)
+            }
+        }
+    }
+
+    fun isDohActive(): Boolean {
+        val context = appContext ?: return false
+        val settings = AppSettings(context)
+        return settings.dohEnabled && !(settings.dohDisableOnVpn && isVpnActive(context))
+    }
+
+    fun proxyConfig(): AppProxyConfig {
+        val context = appContext ?: return AppProxyConfig(0, "", 0)
+        if (isDohActive()) return AppProxyConfig(0, "", 0)
+        val settings = AppSettings(context)
+        return AppProxyConfig(settings.proxyType, settings.proxyHost.trim(), settings.proxyPort)
+    }
+
+    /** 扫描常见本地端口并做协议握手，不依赖代理软件包名或系统 VPN 状态。 */
+    suspend fun detectLocalProxy(preferredPort: Int? = null): AppProxyConfig? = coroutineScope {
+        val ports = listOfNotNull(preferredPort?.takeIf { it in 1..65535 }) +
+            listOf(7890, 7891, 1080, 10808, 10809, 20170, 2080, 8080, 8888, 9090)
+        ports.distinct().map { port ->
+            async(Dispatchers.IO) {
+                when {
+                    LocalProxyProbe.socks5(port) -> AppProxyConfig(2, "127.0.0.1", port)
+                    LocalProxyProbe.http(port) -> AppProxyConfig(1, "127.0.0.1", port)
+                    else -> null
+                }
+            }
+        }.map { it.await() }.firstOrNull { it != null }
+    }
+
+    private val dynamicProxySelector = object : ProxySelector() {
+        override fun select(uri: URI?): List<Proxy> {
+            val config = proxyConfig()
+            return listOf(if (config.enabled) config.asJavaProxy() else Proxy.NO_PROXY)
+        }
+
+        override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: java.io.IOException?) = Unit
+    }
+
+    private fun invalidate() {
+        generation.incrementAndGet()
+        runtimeDohUrl.set(null)
+        CronetTransport.invalidate()
+        // 设置监听器在主线程回调；evictAll/close 会写 socket（TLS close_notify），
+        // 必须挪到维护线程，否则 NetworkOnMainThreadException 直接闪退。
+        cancelTestsOnVpn()
+        networkMaintenanceExecutor.execute {
+            connectionPool.evictAll()
+            DnsCache.clear()
+            val old = dohCache.values.toTypedArray()
+            dohCache.clear()
+            old.forEach { it.close() }
+        }
+        WebViewDohRefreshSignal.notifyPolicyChanged()
+        recoverySignal.tryEmit(Unit)
+    }
+
+    private fun cancelTestsOnVpn() {
+        val ctx = appContext ?: return
+        if (AppSettings(ctx).dohDisableOnVpn && isVpnActive(ctx)) activeTests.toTypedArray().forEach { it.close() }
+    }
+
+    val dns: Dns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            val context = appContext ?: throw UnknownHostException("网络组件尚未初始化")
+            val settings = AppSettings(context)
+            if (!settings.dohEnabled || (settings.dohDisableOnVpn && isVpnActive(context))) {
+                return Dns.SYSTEM.lookup(hostname).sortedBy { it !is Inet4Address }
+            }
+            val endpoint = settings.dohUrl.trim().toHttpUrlOrNull()
+            if (endpoint == null || endpoint.scheme != "https") return Dns.SYSTEM.lookup(hostname)
+            val key = "${generation.get()}|${endpoint}|$hostname"
+            DnsCache.get(key)?.let { return it }
+            var lastFailure: Exception? = null
+            val candidates = dohCandidateUrls(
+                activeUrl = endpoint.toString(),
+                runtimeUrl = runtimeDohUrl.get(),
+                servers = settings.dohServers(),
+            )
+            for (url in candidates) {
+                try {
+                    return resolver(url).lookup(hostname).sortedBy { it !is Inet4Address }
+                        .also {
+                            runtimeDohUrl.set(url)
+                            DnsCache.put(key, it, ANSWER_FRESH_MS, ANSWER_STALE_MS)
+                        }
+                } catch (error: Exception) {
+                    if (error is InterruptedException) Thread.currentThread().interrupt()
+                    lastFailure = error
+                }
+            }
+            // DoH 开启时不能退回系统 DNS：当前网络实测会把 cap.linux.sb 指向 Facebook IP。
+            // 优先继续使用过期的可信答案；没有缓存则明确失败，让上层重试而不是连接污染地址。
+            DnsCache.get(key, allowStale = true)?.let { return it }
+            throw UnknownHostException("DoH resolvers unavailable for $hostname").apply {
+                initCause(lastFailure)
+            }
+        }
+    }
+
+    /**
+     * 所有共享客户端的统一入口：DoH 解析 + 共享连接池 + Cronet 回退拦截器。
+     * 网络拦截器记录已进入发送阶段，避免在提交结果不明时自动重复 POST。
+     * 业务客户端可将回退应用拦截器移至自定义请求头之后，仍能捕获连接阶段异常。
+     */
+    fun clientBuilder(): OkHttpClient.Builder = OkHttpClient.Builder().dns(dns).connectionPool(connectionPool)
+        .proxySelector(dynamicProxySelector)
+        .addInterceptor(CronetFallbackInterceptor())
+        .addNetworkInterceptor { chain ->
+            chain.request().tag(CronetAttempt::class.java)?.mayHaveSent = true
+            chain.proceed(chain.request())
+        }
+
+    internal fun appContext(): Context? = appContext
+
+    internal fun resolver(url: String): Dns = dohCache.computeIfAbsent(url) { DohTransport(it) }.dns
+
+    fun isVpnActive(context: Context): Boolean {
+        return NetworkEnvironment.isVpnActive(context)
+    }
+
+    /** 只测试指定端点：单次、短超时，不切换设置、不回退系统 DNS。 */
+    suspend fun benchmark(url: String, host: String = "linux.sb"): DohBenchmark {
+        require(DohEndpointPolicy.isValid(url)) { "请输入有效的 HTTPS DoH 地址" }
+        val context = appContext ?: throw UnknownHostException("网络组件尚未初始化")
+        check(!AppSettings(context).dohDisableOnVpn || !isVpnActive(context)) { "VPN 已开启" }
+        val direct = DohTransport(url, profile = DohProfile.BENCHMARK)
+        activeTests.add(direct)
+        return try { measureDoh(direct.dns, direct::close, host) }
+        finally { activeTests.remove(direct) }
+    }
+}

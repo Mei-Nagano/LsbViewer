@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 全面屏适配：透明系统栏，内容延伸到状态栏/导航栏/挖孔区域 -->
+    <style name="Theme.Lsb" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>
