@@ -31,6 +31,14 @@ internal fun TopicScreenEffects(
     repliesPerPage: Int,
     searchHits: List<TopicSearchHit>,
 ) {
+    var consumedBlockRefresh by remember(topicId) { mutableStateOf(session.homeBrowse.refreshRequest) }
+    LaunchedEffect(session.homeBrowse.refreshRequest) {
+        val request = session.homeBrowse.refreshRequest
+        if (request != consumedBlockRefresh) {
+            consumedBlockRefresh = request
+            actions.load(paging.page.value?.page ?: initialPage, force = true)
+        }
+    }
     LaunchedEffect(topicId) { session.preferences.clearFloatingTopic(topicId) }
     LaunchedEffect(paging.page.value?.topicId, paging.page.value?.favorited) {
         paging.page.value?.let { ui.isFav = it.favorited }
@@ -91,10 +99,31 @@ internal fun TopicScreenEffects(
     LaunchedEffect(paging.loading.value, paging.page.value, initialFloor) {
         if (ui.readingPositionRestored || paging.loading.value || paging.page.value == null) return@LaunchedEffect
         ui.readingPositionRestored = true
+        // 楼层深链由上面的效果处理，不能被阅读位置覆盖
+        if (initialFloor > 0) return@LaunchedEffect
         pinnedSnapshot?.let {
             withFrameNanos { }
             listState.scrollToItem(it.listIndex, it.offset)
             ui.returnPos = null
+            return@LaunchedEffect
+        }
+        val anchor = actions.readingAnchor()
+        val page = paging.page.value ?: return@LaunchedEffect
+        withFrameNanos { }
+        if (anchor != null && anchor.floor > 0 && page.posts.any { it.floor == anchor.floor }) {
+            // 新版按楼层恢复：行高与列宽改变后不再依赖旧像素 offset
+            actions.jumpToFloor(anchor.floor, sortedPosts)
+            // 恢复不是“跳到楼层后返回”，不留下返回位置提示
+            ui.returnPos = null
+        } else {
+            // 没有锚点（旧记录）或楼层不在当前页时，按旧四段记录回退到该列表位置
+            val fallback = anchor?.let { it.listIndex to it.scrollOffset }
+                ?: actions.readingPosition()?.let { it.listIndex to it.scrollOffset }
+            if (fallback != null && fallback.first > 0) {
+                runCatching {
+                    listState.scrollToItem(fallback.first, fallback.second.coerceAtLeast(0))
+                }
+            }
         }
     }
     TopicInitialLoadEffect(

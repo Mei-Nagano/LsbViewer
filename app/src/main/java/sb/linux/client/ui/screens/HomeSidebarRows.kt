@@ -15,13 +15,7 @@ import sb.linux.client.domain.community.HotTopic
 
 @Composable
 internal fun DrawerTitle(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, top = 14.dp, bottom = 5.dp)
-    )
+    sb.linux.client.ui.components.layout.AppGroupLabel(text)
 }
 
 /** 站点统计卡片：数字项按每行 3 列「数值上、标签下」展示；尾部文本项（如最新用户）整体一行居中 */
@@ -124,20 +118,9 @@ internal fun parseSidebarStats(text: String): List<Pair<String, String>> {
 /** 侧板选项条目：无图标，统一圆角矩形背景框住（快捷功能 / 最近版块等） */
 @Composable
 internal fun DrawerPillRow(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = modifier.padding(vertical = 2.dp),
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier.padding(vertical = 2.dp)) {
+        sb.linux.client.ui.components.layout.AppMenuRow(text, trailing = {}, compact = true, onClick = onClick)
     }
 }
 

@@ -40,16 +40,9 @@ internal fun TopicPrimaryDialogs(
     onCoin: (PostEntry, Int, String) -> Unit,
 ) {
     if (favoriteDialogOpen) {
-        AlertDialog(
-            onDismissRequest = onFavoriteDialogDismiss,
-            title = { Text("取消收藏") },
-            text = { Text("确定取消收藏吗？") },
-            confirmButton = {
-                TextButton(onClick = onUnfavorite) { Text("确定") }
-            },
-            dismissButton = {
-                TextButton(onClick = onFavoriteDialogDismiss) { Text("取消") }
-            },
+        sb.linux.client.ui.components.feedback.AppConfirmDialog(
+            title = "取消收藏", message = "确定取消收藏吗？",
+            onDismiss = onFavoriteDialogDismiss, onConfirm = onUnfavorite, confirmText = "确定",
         )
     }
 

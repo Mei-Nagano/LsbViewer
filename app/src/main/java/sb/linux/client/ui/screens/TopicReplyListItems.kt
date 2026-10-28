@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import sb.linux.client.ui.PaginationBar
+import sb.linux.client.ui.components.navigation.PaginationBar
 internal fun LazyListScope.topicReplyListItems(
     state: TopicReplyListState,
     actions: TopicReplyListActions,
@@ -27,7 +27,7 @@ internal fun LazyListScope.topicReplyListItems(
                     Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("全部回复", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("全部回复", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(6.dp))
                     Text(state.replyCountText, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.weight(1f))
@@ -67,7 +67,7 @@ internal fun LazyListScope.topicReplyListItems(
         val lineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
         Box(
             Modifier.fillMaxWidth()
-                .padding(start = (depth.coerceAtMost(6) * 14).dp)
+                .padding(start = (depth.coerceAtMost(2) * 16).dp)
                 .drawBehind {
                     if (depth > 0) drawLine(
                         color = lineColor,
@@ -120,8 +120,8 @@ internal fun LazyListScope.topicReplyListItems(
                 }
             }
         } else {
-            PaginationBar(state.localPage, state.localPageTotal, actions.onLocalPage)
+            PaginationBar(state.localPage, state.localPageTotal, onPage = actions.onLocalPage)
         }
     }
-    item(key = "footer") { Spacer(Modifier.height(if (state.replyGlass) 62.dp else 64.dp)) }
+    item(key = "footer") { Spacer(Modifier.height(8.dp)) }
 }

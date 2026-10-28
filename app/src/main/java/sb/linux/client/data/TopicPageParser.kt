@@ -1,6 +1,5 @@
 package sb.linux.client.data
 import sb.linux.client.common.network.Endpoints
-
 import sb.linux.client.domain.gacha.SourceFormProtocol
 import org.jsoup.Jsoup
 import org.jsoup.nodes.TextNode
@@ -8,7 +7,6 @@ import sb.linux.client.data.parser.LoginVerificationParser
 import sb.linux.client.util.TimeFormat
 import sb.linux.client.domain.topic.PostEntry
 import sb.linux.client.domain.topic.TopicPageData
-
 internal object TopicPageParser {
     fun parse(html: String, fallbackId: Long): TopicPageData {
         val d = Jsoup.parse(html, Endpoints.BASE)
@@ -24,7 +22,6 @@ internal object TopicPageParser {
         val essenceReview = TopicEssenceReviewParser.parseReview(essencePanel)
         val poll = TopicPollParser.parse(d, essencePanel, essenceApplication)
 
-
         val postElements = d.select("ul.topic-post-list li.post-entry, ul.post-list.topic-post-list li.post-entry")
         val replyIdToFloor = postElements.mapNotNull { li ->
             val replyId = li.id().removePrefix("post-").toLongOrNull() ?: return@mapNotNull null
@@ -32,6 +29,7 @@ internal object TopicPageParser {
             if (floor > 0) replyId to floor else null
         }.toMap()
         val posts = postElements.map { li ->
+            val block = BlockedPostParser.parse(li)
             val floorNum = li.attr("data-floor").toIntOrNull() ?: 0
             // 网页脚本会补 data-quote-threads-parent-floor，但 OkHttp 拿到的是执行脚本前 HTML。
             // 因此还需从正文第一段开头的 ?replyid=父回复ID 反查父楼层，这是原生客户端的权威兜底。
@@ -80,7 +78,9 @@ internal object TopicPageParser {
                 }
             }
             // 正文：把"最后编辑"信息从正文拆出，单独用分割线展示
+            val signatureHtml = PostSignatureParser.parse(li)
             val contentEl = ownContent?.clone()
+            contentEl?.select(PostSignatureParser.SELECTOR)?.remove()
             var editInfo = ""
             var editUserId = 0L
             var editUserName = ""
@@ -98,7 +98,7 @@ internal object TopicPageParser {
                 contentEl.select(
                     ".community-lottery-card, .community-lottery-topic-panel, " +
                         ".community-lottery-readonly-prize, .community-lottery-prize-row, " +
-                        ".donate-area, [data-donate-area], .quick-reply-main-action, .virtual-card-box"
+                        ".red-packet-card, .donate-area, [data-donate-area], .quick-reply-main-action, .virtual-card-box"
                         + ", .topic-poll, .poll-card, form[class*=poll]"
                         // 淘帖插件会把所属专辑、收录/移除表单插进 post-content；
                         // 应用已有独立淘帖入口和帖子菜单，这些不属于 Markdown 正文。
@@ -170,7 +170,9 @@ internal object TopicPageParser {
                 authorUid = uidNum,
                 timeText = timeText,
                 ipLocation = meta?.selectFirst(".ip-history-location-subtitle")?.text() ?: "",
-                contentHtml = contentEl?.html() ?: "",
+                contentHtml = if (block.blocked) "" else contentEl?.html().orEmpty(),
+                userBlocked = block.blocked,
+                blockedPlaceholder = block.placeholder,
                 editInfo = editInfo,
                 editUserId = editUserId,
                 editUserName = editUserName,
@@ -185,11 +187,13 @@ internal object TopicPageParser {
                 // 有表单或按钮即可互动：源站改版后表单类名可能变化/移出楼层，
                 // 但 [data-donate-reaction] 按钮仍在楼内；仅以按钮判断会漏，
                 // 两者任一存在即显示点赞投币（未登录时源站不渲染按钮与表单）
-                canLike = likeForm != null || likeBtn != null,
+                canLike = !block.blocked && (likeForm != null || likeBtn != null),
                 coinTiers = SourceFormProtocol.reactionTiers(likeBtn?.attr("data-tiers").orEmpty()),
                 isOp = li.selectFirst(".quick-reply-main-action") != null || li.selectFirst("form.topic-favorites-action") != null,
                 online = SourceHtmlSupport.idFrom(authorA?.attr("href")) in onlineIds || SourceHtmlSupport.onlineOf(li),
                 titleBadge = SourceHtmlSupport.gachaTitleOf(li),
+                signatureHtml = if (block.blocked) "" else signatureHtml,
+                redPacketReward = li.selectFirst(".red-packet-reply-reward")?.attr("aria-label").orEmpty(),
                 essenceVoteLabel = essenceVoteLabel,
                 essenceVoteSupport = essenceVoteSupport,
             )
@@ -208,8 +212,8 @@ internal object TopicPageParser {
         val repliesText = statsNums.getOrNull(1) ?: ""
 
         // 正文标签：标题旁的状态徽章（如抽奖帖的 已开奖 / 抽奖中）
-        val titleTag = d.selectFirst(".post-topic-title > span")?.text()?.trim()
-            ?: d.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: ""
+        val titleTag = d.selectFirst(".post-topic-title, h1.post-content-title, h1.topic-title")
+            ?.let(TopicSourceTagsParser::parse)?.joinToString(" · ").orEmpty()
 
         return TopicPageData(
             topicId = fallbackId,
@@ -231,6 +235,7 @@ internal object TopicPageParser {
             quickReplyAuthor = quickAuthor,
             viewsText = viewsText,
             repliesText = repliesText,
+            redPacket = RedPacketParser.parse(d),
             lottery = lottery,
             poll = poll,
             replyCaptcha = replyCaptcha,

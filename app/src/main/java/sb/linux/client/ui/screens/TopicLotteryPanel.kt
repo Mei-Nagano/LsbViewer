@@ -23,6 +23,13 @@ import androidx.compose.ui.unit.*
 import kotlinx.coroutines.*
 import sb.linux.client.domain.topic.LotteryPanel
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 /** 抽奖帖面板：状态 / 奖品 / 条件 / 中奖名单（已结束默认折叠，自己中奖高亮）/ 参与方式 */
 @Composable
 fun LotteryPanelView(
@@ -37,7 +44,7 @@ fun LotteryPanelView(
     val selfWon = selfName.isNotBlank() && lp.winners.any { it.user.startsWith(selfName) }
     var expanded by remember(lp) { mutableStateOf(!drawn || selfWon) }
     Surface(
-        shape = RoundedCornerShape(18.dp),
+        shape = MaterialTheme.shapes.large,
         color = if (drawn) MaterialTheme.colorScheme.surfaceContainerHighest
         else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
         modifier = Modifier

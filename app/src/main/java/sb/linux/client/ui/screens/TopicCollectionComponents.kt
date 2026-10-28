@@ -47,8 +47,8 @@ import sb.linux.client.common.collection.TopicCollectionPickerOption
 import sb.linux.client.common.collection.actionFor
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.Badge
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.EmptyBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.EmptyBox
 
 @Composable
 internal fun CollectionOptionRow(

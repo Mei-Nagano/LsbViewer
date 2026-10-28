@@ -11,6 +11,8 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.*
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.*
 import sb.linux.client.ui.feature.topic.TopicInteractionViewModel
 import sb.linux.client.domain.topic.TopicPageData
@@ -40,41 +42,36 @@ internal fun LazyListScope.topicHeaderItem(
 ) {
 item(key = "header") {
                         Column {
-                            // 完整标题（不截断）+ 阅读量/评论数：单一富文本段落，
-                            // 统计小字内联跟随标题文字末尾，随文字自然折行 ——
-                            // 不用 Row/FlowRow 布局，不存在子项测量导致的预留空位
-                            // 标题以全角【开头时做负 padding 视觉补偿：
-                            // 【字形左下自带空腔，大字号下看起来像标题前有空位
+                            // 完整标题独立成段（headlineSmall 24/32），元信息另起一行 bodySmall；
                             // onGloballyPositioned：标题行滑出顶栏后，顶栏切换为显示标题（11）
                             Text(
-                                buildAnnotatedString {
-                                    withStyle(
-                                        SpanStyle(fontWeight = FontWeight.Bold)
-                                    ) { append(d.title) }
-                                    withStyle(
-                                        SpanStyle(
-                                            fontSize = MaterialTheme.typography.labelMedium.fontSize,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    ) {
-                                        append("  ${d.viewsText.ifBlank { "-" }}阅读 · ${d.repliesText.ifBlank { "${d.posts.size}" }}评论")
-                                        readingStats?.let { (words, minutes) ->
-                                            append(" · ${words}字 · 约${minutes}分钟")
-                                        }
-                                    }
-                                },
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    lineHeight = MaterialTheme.typography.titleLarge.lineHeight * 1.15f
-                                ),
+                                d.title,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Medium,
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .semantics { heading() }
                                     .onGloballyPositioned { onTitleBottomInRoot(it.boundsInRoot().bottom) }
                                     .padding(
-                                        start = if (d.title.startsWith("【")) 11.dp else 20.dp,
-                                        end = 20.dp,
-                                        top = 10.dp,
-                                        bottom = 10.dp
+                                        start = 16.dp,
+                                        end = 16.dp,
+                                        top = 12.dp,
+                                        bottom = 4.dp
                                     ),
+                            )
+                            Text(
+                                buildString {
+                                    append(d.viewsText.ifBlank { "-" })
+                                    append("阅读 · ")
+                                    append(d.repliesText.ifBlank { "${d.posts.size}" })
+                                    append("评论")
+                                    readingStats?.let { (words, minutes) ->
+                                        append(" · ${words}字 · 约${minutes}分钟")
+                                    }
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             )
                             // AI 总结：开启总开关后显示入口，默认等用户点按钮才请求
                             if (aiSettings.enabled) {

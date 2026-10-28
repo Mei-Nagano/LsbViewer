@@ -34,10 +34,10 @@ internal class AppSettingsHistoryStore(private val prefs: SharedPreferences) {
         prefs.edit().putString("local_history", out.toString()).apply()
     }
 
-    /** 本地浏览历史（最新在前），timeText 为本地浏览时间 */
+    /** 本地浏览历史（最新在前），timeText 为当天时刻，visitedAt 供按日期分组 */
     fun historyList(): List<sb.linux.client.domain.topic.TopicCard> {
         val arr = historyArray()
-        val fmt = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+        val fmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
         return buildList {
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue
@@ -55,6 +55,7 @@ internal class AppSettingsHistoryStore(private val prefs: SharedPreferences) {
                         timeText = if (at > 0) fmt.format(java.util.Date(at)) else "",
                         avatarUrl = o.optString("avatarUrl"),
                         titleColor = o.optString("titleColor"),
+                        visitedAt = at,
                     )
                 )
             }

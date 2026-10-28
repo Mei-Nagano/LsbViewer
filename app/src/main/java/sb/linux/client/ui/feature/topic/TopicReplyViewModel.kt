@@ -6,14 +6,12 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import sb.linux.client.domain.account.LoginVerification
-import sb.linux.client.domain.community.UsageStatisticsRepository
 import sb.linux.client.domain.topic.TopicPageData
 import sb.linux.client.domain.topic.TopicReplyRepository
 import sb.linux.client.domain.topic.TopicReplySubmission
 
 class TopicReplyViewModel(
     private val repository: TopicReplyRepository,
-    private val usageStatistics: UsageStatisticsRepository,
 ) : ViewModel() {
     fun refreshCaptcha(
         topicId: Long,
@@ -29,11 +27,7 @@ class TopicReplyViewModel(
         captcha: LoginVerification?,
         onComplete: (Result<TopicReplySubmission>) -> Unit,
     ) = runRequest({
-        repository.submit(topicId, page, body, captchaAnswer, captcha).also { submission ->
-            if (submission.succeeded) {
-                usageStatistics.recordEvent("reply", topicId, page?.title.orEmpty())
-            }
-        }
+        repository.submit(topicId, page, body, captchaAnswer, captcha)
     }, onComplete)
 
     private fun <T> runRequest(request: suspend () -> T, onComplete: (Result<T>) -> Unit) {
@@ -51,9 +45,8 @@ class TopicReplyViewModel(
 
 class TopicReplyViewModelFactory(
     private val repository: TopicReplyRepository,
-    private val usageStatistics: UsageStatisticsRepository,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        TopicReplyViewModel(repository, usageStatistics) as T
+        TopicReplyViewModel(repository) as T
 }

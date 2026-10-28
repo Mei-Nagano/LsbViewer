@@ -3,40 +3,24 @@ package sb.linux.client.ui.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.ViewList
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.DrawerState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.feature.forum.ForumListScreen
 import sb.linux.client.ui.feature.forum.ForumScreen
@@ -49,10 +33,18 @@ internal const val NAV_FADE_MS = 150
 /** 平板双栏下提供主栏 NavHostController；手机模式为 null。 */
 val LocalMasterNav = staticCompositionLocalOf<NavHostController?> { null }
 
-/** 主栏路由：底部导航顶层页面和应用设置菜单。 */
+/** 主栏路由：根目的地与设置菜单；双栏时详情进入右侧 NavHost。 */
 fun NavGraphBuilder.masterRoutes(session: Session, nav: NavHostController, homeDrawerState: DrawerState) {
     composable("home") { HomeScreen(session, nav, homeDrawerState) }
     composable("forums") { ForumListScreen(session, nav) }
+    composable("topicCollectionsRoot") { TopicCollectionsScreen(session, nav, initialMine = false, showBack = false) }
+    composable(
+        "messages?section={section}",
+        arguments = listOf(navArgument("section") { type = NavType.StringType; defaultValue = "dm" }),
+    ) { entry ->
+        MessagesScreen(session, nav, entry.arguments?.getString("section") ?: "dm", showBack = false)
+    }
+    composable("directMessagesRoot") { MessagesScreen(session, nav, initialSection = "dm", showBack = false) }
     composable(
         "me",
         exitTransition = { fadeOut(tween(NAV_FADE_MS)) },
@@ -84,7 +76,7 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
             navArgument("scope") { type = NavType.StringType; defaultValue = "all" },
             navArgument("sort") { type = NavType.StringType; defaultValue = "relevance" },
         ),
-    ) { SearchScreen(session, nav) }
+    ) { entry -> SearchScreen(session, nav, entry) }
     // Legacy deep links from pre-Meilisearch builds remain readable; SearchScreen maps field -> scope.
     composable(
         "search?q={q}&field={field}",
@@ -92,7 +84,7 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
             navArgument("q") { type = NavType.StringType; defaultValue = "" },
             navArgument("field") { type = NavType.StringType; defaultValue = "title" },
         ),
-    ) { SearchScreen(session, nav) }
+    ) { entry -> SearchScreen(session, nav, entry) }
     composable("login") { LoginScreen(session, nav) }
     composable(
         "forum/{id}?p={p}",
@@ -109,11 +101,11 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
             navArgument("floor") { type = NavType.IntType; defaultValue = 0 },
         ),
     ) { TopicScreen(session, nav) }
-    composable("newTopic") { NewTopicScreen(session, nav) }
+    composable("newTopic") { SourceEditorScreen(session, nav) }
     composable(
         "editTopic/{tid}",
         arguments = listOf(navArgument("tid") { type = NavType.LongType }),
-    ) { NewTopicScreen(session, nav, editId = it.arguments?.getLong("tid") ?: 0L) }
+    ) { SourceEditorScreen(session, nav, editId = it.arguments?.getLong("tid") ?: 0L) }
     composable(
         "user/{uid}?tab={tab}",
         arguments = listOf(
@@ -129,13 +121,13 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
             navArgument("tab") { type = NavType.StringType; defaultValue = "topics" },
         ),
     ) { UserByNameScreen(session, nav) }
+    extraSettingsRoutes(session, nav)
     settingsComposable("settings") { SettingsScreen(session, nav) }
     settingsComposable("generalSettings") { GeneralSettingsScreen(session, nav) }
     settingsComposable("networkSettings") { NetworkSettingsScreen(session, nav) }
     settingsComposable("dohSettings") { DohSettingsScreen(session, nav) }
     settingsComposable("browseSettings") { BrowseSettingsScreen(session, nav) }
     settingsComposable("dataManagement") { DataManagementScreen(session, nav) }
-    settingsComposable("usageStats") { UsageStatsScreen(session, nav) }
     settingsComposable("aiSettings") { AiSettingsScreen(session, nav) }
     settingsComposable("transferSettings") { TransferSettingsScreen(session, nav) }
     settingsComposable("themeSettings") { ThemeSettingsScreen(session, nav) }
@@ -153,16 +145,19 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
     ) { WebScreen(session, nav) }
     settingsComposable("blockWords") { BlockWordsScreen(session, nav) }
     composable("inviteCenter") { InviteCenterScreen(session, nav) }
-    composable("gachaProfile") { GachaProfileScreen(session, nav) }
-    composable("gachaCenter") { GachaCenterScreen(session, nav) }
-    composable("gachaMarket") { GachaMarketScreen(session, nav) }
+    composable("userBlock?url={url}", arguments = listOf(
+        navArgument("url") { type = NavType.StringType; defaultValue = "/user_block" },
+    )) { entry -> SourceUserBlockScreen(session, nav, entry.arguments?.getString("url") ?: "/user_block") }
+    composable("gachaProfile") { SourceGachaScreen(session, nav) }
+    composable("gachaCenter") { SourceGachaScreen(session, nav, "center") }
+    composable("gachaMarket") { SourceGachaScreen(session, nav, "market") }
     composable(
         "gachaOperation/{kind}?title={title}",
         arguments = listOf(
             navArgument("kind") { type = NavType.StringType },
             navArgument("title") { type = NavType.StringType; defaultValue = "" },
         ),
-    ) { entry -> GachaOperationScreen(session, nav, entry.arguments?.getString("kind").orEmpty()) }
+    ) { entry -> SourceGachaScreen(session, nav, entry.arguments?.getString("kind").orEmpty()) }
     composable(
         "leaderboard?type={type}",
         arguments = listOf(navArgument("type") { type = NavType.StringType; defaultValue = "points" }),
@@ -173,7 +168,13 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
         "topicCollections?tab={tab}",
         arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "everyone" }),
     ) { TopicCollectionsScreen(session, nav, initialMine = it.arguments?.getString("tab") == "mine") }
-    composable("directMessagesRoot") { DirectMessagesScreen(session, nav, showBack = false) }
+    composable("directMessagesRoot") { MessagesScreen(session, nav, initialSection = "dm", showBack = false) }
+    composable(
+        "messages?section={section}",
+        arguments = listOf(navArgument("section") { type = NavType.StringType; defaultValue = "dm" }),
+    ) { entry ->
+        MessagesScreen(session, nav, entry.arguments?.getString("section") ?: "dm", showBack = false)
+    }
     composable("topicCollectionsRoot") { TopicCollectionsScreen(session, nav, initialMine = false, showBack = false) }
     composable("collectionActions?path={path}") { CollectionDetailScreen(session, nav) }
     composable("topicCollectionManage?path={path}") { TopicCollectionManageScreen(session, nav) }

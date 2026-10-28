@@ -49,38 +49,30 @@ internal fun LotteryTopicFields(
                 value = drawAt, onValueChange = onDrawAtChange,
                 label = { Text("开奖时间") },
                 supportingText = { Text("格式 2026-08-25 20:00，最晚 3 天后") },
-                singleLine = true, shape = RoundedCornerShape(14.dp),
+                singleLine = true, shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = participantTarget, onValueChange = onParticipantTargetChange,
                 label = { Text("自动开奖人数") },
                 supportingText = { Text("达到该参与人数后自动开奖，填 0 不启用") },
-                singleLine = true, shape = RoundedCornerShape(14.dp),
+                singleLine = true, shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = minReplyChars, onValueChange = onMinReplyCharsChange,
                 label = { Text("参与回复最少字数") },
                 supportingText = { Text("去除空白后计算，低于门槛不能回复参与") },
-                singleLine = true, shape = RoundedCornerShape(14.dp),
+                singleLine = true, shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Switch(checked = replyCaptcha, onCheckedChange = onReplyCaptchaChange)
-                Spacer(Modifier.width(8.dp))
-                Column {
-                    Text("回帖需要验证码", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "默认开启，防止脚本批量回帖参与抽奖",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            sb.linux.client.ui.components.input.AppSwitchRow(
+                title = "回帖需要验证码",
+                subtitle = "默认开启，防止脚本批量回帖参与抽奖",
+                checked = replyCaptcha,
+                onCheckedChange = onReplyCaptchaChange,
+                compact = true,
+            )
             HorizontalDivider()
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -94,7 +86,7 @@ internal fun LotteryTopicFields(
             }
             prizes.forEachIndexed { i, p ->
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     Column(

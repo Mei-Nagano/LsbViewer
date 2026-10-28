@@ -41,7 +41,7 @@ class UserPageViewModel(
                 val content = repository.load(userId, tab)
                 if (version == requestVersion) {
                     mutableState.update { current ->
-                        val profile = current.content?.profile ?: content.profile
+                        val profile = content.profile ?: current.content?.profile
                         current.copy(content = content.copy(profile = profile), loading = false)
                     }
                 }

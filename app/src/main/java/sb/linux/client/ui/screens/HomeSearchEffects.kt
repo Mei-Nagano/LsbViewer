@@ -4,9 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.focus.FocusRequester
 
 @Composable
@@ -18,10 +18,23 @@ internal fun HomeSearchEffects(
     onTopBarVisibleChange: (Boolean) -> Unit,
     onSearchClose: () -> Unit,
 ) {
-    val listAtTop by remember(listState) {
-        derivedStateOf { listState.firstVisibleItemIndex == 0 }
+    val changeVisibility by rememberUpdatedState(onTopBarVisibleChange)
+    LaunchedEffect(listState) {
+        var previousIndex = listState.firstVisibleItemIndex
+        var previousOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                when {
+                    // Do not expose the initial header padding while it is still on screen.
+                    !listState.canScrollBackward ||
+                        (index == 0 && offset < -listState.layoutInfo.viewportStartOffset) -> changeVisibility(true)
+                    index < previousIndex || (index == previousIndex && offset < previousOffset) -> changeVisibility(true)
+                    index > previousIndex || (index == previousIndex && offset > previousOffset) -> changeVisibility(false)
+                }
+                previousIndex = index
+                previousOffset = offset
+            }
     }
-    LaunchedEffect(listAtTop) { onTopBarVisibleChange(listAtTop) }
     LaunchedEffect(searchActive) {
         if (searchActive) searchFocus.requestFocus()
     }

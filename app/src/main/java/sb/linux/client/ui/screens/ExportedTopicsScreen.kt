@@ -1,36 +1,63 @@
 package sb.linux.client.ui.screens
+
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.components.feedback.AppConfirmDialog
+import sb.linux.client.ui.components.feedback.EmptyBox
+import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.EmptyBox
-import sb.linux.client.ui.LoadingBox
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 
+/**
+ * 已导出的本地 HTML：平面列表显示真实格式、大小与状态；点击应用内查看，删除只删本地文件。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportedTopicsScreen(session: Session, nav: NavHostController) {
     val context = LocalContext.current
-    var files by remember { mutableStateOf<List<java.io.File>?>(null) }
-    var deleteTarget by remember { mutableStateOf<java.io.File?>(null) }
+    val locale = LocalConfiguration.current.locales[0]
+    val dateFormat = remember(locale) { SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
+    var files by remember { mutableStateOf<List<File>?>(null) }
+    var deleteTarget by remember { mutableStateOf<File?>(null) }
 
     fun refresh() {
-        files = java.io.File(context.filesDir, "exports").takeIf { it.isDirectory }
+        files = File(context.filesDir, "exports").takeIf { it.isDirectory }
             ?.listFiles { f -> f.isFile && f.extension.equals("html", true) }
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
@@ -38,99 +65,83 @@ fun ExportedTopicsScreen(session: Session, nav: NavHostController) {
 
     LaunchedEffect(Unit) { refresh() }
 
-    fun openFile(f: java.io.File) {
-        // 应用内查看（3.21）：直接路由到本地 HTML 查看页，不再调起系统浏览器
+    fun openFile(f: File) {
         nav.navigate("exportedHtml?path=${android.net.Uri.encode(f.absolutePath)}")
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("已导出的帖子") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { refresh() }) { Icon(Icons.Filled.Refresh, "刷新") }
-                }
-            )
-        }
+    AppPageScaffold(
+        title = "已导出的帖子",
+        onBack = { nav.popBackStack() },
+        actions = {
+            IconButton(onClick = { refresh() }) { Icon(Icons.Filled.Refresh, "刷新") }
+        },
     ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize()) {
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            val list = files
             when {
-                files == null -> LoadingBox()
-                files!!.isEmpty() -> EmptyBox("暂无已导出的帖子\n在帖子右上角菜单选择「导出帖子」导出 HTML")
-                else -> LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(files!!, key = { it.absolutePath }) { f ->
-                        Surface(
-                            shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
-                                .clickable { openFile(f) }
+                list == null -> LoadingBox()
+                list.isEmpty() -> EmptyBox("暂无已导出的帖子\n在帖子右上角菜单选择「导出帖子」导出 HTML")
+                else -> LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                    items(list, key = { it.absolutePath }) { f ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { openFile(f) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Row(
-                                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        f.nameWithoutExtension,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        "${fmtBytes(f.length())} · " +
-                                            java.text.SimpleDateFormat(
-                                                "yyyy-MM-dd HH:mm",
-                                                androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-                                            ).format(java.util.Date(f.lastModified())),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                IconButton(onClick = { deleteTarget = f }) {
-                                    Icon(
-                                        Icons.Filled.Delete,
-                                        "删除",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    f.nameWithoutExtension,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    exportMeta(f, dateFormat),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            IconButton(onClick = { deleteTarget = f }, modifier = Modifier.size(48.dp)) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "删除文件",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
+                        HorizontalDivider(
+                            Modifier.padding(start = 16.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        )
                     }
                 }
             }
         }
     }
 
-    // 删除确认
     deleteTarget?.let { f ->
-        AlertDialog(
-            onDismissRequest = { deleteTarget = null },
-            title = { Text("删除导出文件") },
-            text = { Text("确定删除「${f.nameWithoutExtension}」吗？该操作不可恢复。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    runCatching { f.delete() }
-                    deleteTarget = null
-                    refresh()
-                }) { Text("删除") }
+        AppConfirmDialog(
+            title = "删除导出文件",
+            message = "确定删除「${f.nameWithoutExtension}」吗？只删除本机 HTML 文件，不影响源站帖子。",
+            onDismiss = { deleteTarget = null },
+            onConfirm = {
+                runCatching { f.delete() }
+                deleteTarget = null
+                refresh()
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } }
+            confirmText = "删除", destructive = true, dismissText = "取消",
         )
     }
 }
 
-// ==================== 关于应用（3.18） ====================
-
-/** 关于应用：图标 / 名称 / 版本号 / 简介 / List group（开发人员、项目地址、开源协议、检查更新） */
+/** 真实格式/状态：空文件与不可读分别说明，不伪装成正常记录。 */
+private fun exportMeta(file: File, dateFormat: SimpleDateFormat): String {
+    val state = when {
+        !file.canRead() -> "无法读取"
+        file.length() == 0L -> "空文件"
+        else -> fmtBytes(file.length())
+    }
+    return "HTML · $state · ${dateFormat.format(Date(file.lastModified()))}"
+}

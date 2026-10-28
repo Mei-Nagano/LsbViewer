@@ -22,6 +22,14 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import kotlinx.coroutines.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
+
 /** AI 总结卡片（置顶显示）：未总结时是一颗手动触发按钮，出结果后按 Markdown 渲染 */
 @Composable
 fun AiSummaryCard(

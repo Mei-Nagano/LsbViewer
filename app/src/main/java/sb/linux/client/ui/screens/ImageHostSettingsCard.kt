@@ -72,6 +72,7 @@ internal fun ImageHostSettingsCard(session: Session, resetTick: Int) {
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
+            if (!useBuiltIn) {
             OutlinedTextField(
                 value = state.urlDraft,
                 onValueChange = viewModel::setUrl,
@@ -104,6 +105,7 @@ internal fun ImageHostSettingsCard(session: Session, resetTick: Int) {
                 enabled = !useBuiltIn,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("保存自定义图床") }
+            }
         }
     }
 }

@@ -48,7 +48,7 @@ internal fun GachaFormFieldView(
                 else values[index] = option.value
             }
             Surface(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
                 border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
@@ -76,7 +76,7 @@ internal fun GachaFormFieldView(
         onValueChange = { values[index] = it.take(field.maxLength) },
         modifier = Modifier.fillMaxWidth(),
         enabled = enabled,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         label = { Text(field.label + if (field.required) " *" else "") },
         placeholder = field.placeholder.takeIf { it.isNotBlank() }?.let { p -> ({ Text(p) }) },
         minLines = if (field.type == "textarea") 3 else 1,

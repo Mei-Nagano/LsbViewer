@@ -16,7 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.TopicCardView
+import sb.linux.client.ui.patterns.topic.TopicCardView
 import sb.linux.client.domain.topic.TopicCard
 
 @Composable
@@ -26,8 +26,8 @@ internal fun PostCardPreview(
 ) {
     Surface(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = scheme.surfaceContainerHigh
+        shape = MaterialTheme.shapes.medium,
+        color = scheme.surfaceContainerLow
     ) {
         Column(Modifier.padding(vertical = 12.dp)) {
             // 顶部标题行（唯一的改色提示，避免重复 3.7）
@@ -38,7 +38,7 @@ internal fun PostCardPreview(
                 Text(
                     "实时预览 · 点按元素可改色",
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     color = scheme.onSurface
                 )
             }
@@ -76,7 +76,7 @@ internal fun ElementSelectorList(
     var expanded by rememberSaveable { mutableStateOf(false) }
     Surface(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = scheme.surfaceContainerHigh
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {

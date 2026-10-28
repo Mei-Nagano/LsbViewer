@@ -25,6 +25,14 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
+
 import sb.linux.client.domain.topic.PostEntry
 /** 导出格式选择弹窗：MD3 底部弹层，圆角色调图标容器 + 标题/副标题 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,16 +109,13 @@ fun ExportDialog(
                     }
                 }
             }
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("长图自动分页", style = MaterialTheme.typography.bodyMedium)
-                    Text("按实际高度分页，单篇超长正文也完整导出", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(checked = multiPage, onCheckedChange = { multiPage = it })
-            }
+            sb.linux.client.ui.components.input.AppSwitchRow(
+                title = "长图自动分页",
+                subtitle = "按实际高度分页，单篇超长正文也完整导出",
+                checked = multiPage,
+                onCheckedChange = { multiPage = it },
+                compact = true,
+            )
             listOf(
                 Triple("html", "导出 HTML", "保留原帖结构与样式，适合存档"),
                 Triple("md", "导出 Markdown", "纯文本轻量格式，便于编辑"),
@@ -165,7 +170,7 @@ private fun ExportSheetItem(
         Box(
             Modifier
                 .size(42.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {

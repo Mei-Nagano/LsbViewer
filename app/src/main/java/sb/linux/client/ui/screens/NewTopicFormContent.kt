@@ -38,7 +38,7 @@ internal fun NewTopicFormContent(
     onUploadImage: () -> Unit,
 ) {
         if (form.loading) {
-            sb.linux.client.ui.LoadingBox()
+            sb.linux.client.ui.components.feedback.LoadingBox()
             return
         }
         if (fullScreenEditor) {
@@ -47,7 +47,7 @@ internal fun NewTopicFormContent(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                sb.linux.client.ui.MarkdownEditorTools(
+                sb.linux.client.ui.content.MarkdownEditorTools(
                     onInsert = { b, a, p -> onInsert(b, a, p) },
                     onUpload = { onUploadImage() },
                     uploading = form.imageUploadBusy,
@@ -56,7 +56,7 @@ internal fun NewTopicFormContent(
                     value = TextFieldValue(body, bodySelection),
                     onValueChange = { onBodyChange(it) },
                     label = { Text("内容 (Markdown)") },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     textStyle = TextStyle(fontFamily = FontFamily.Monospace),
                 )
@@ -89,23 +89,12 @@ internal fun NewTopicFormContent(
                 }
             }
             form.error?.let {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                    )
-                }
+                sb.linux.client.ui.components.feedback.AppNotice(it)
             }
 
             // 版块选择
             Box {
-                OutlinedButton(onClick = { form.forumExpanded = true }, shape = RoundedCornerShape(14.dp)) {
+                OutlinedButton(onClick = { form.forumExpanded = true }, shape = RoundedCornerShape(16.dp)) {
                     Text("版块：${form.forums.firstOrNull { it.id == form.forumId }?.name ?: "选择"}")
                 }
                 DropdownMenu(expanded = form.forumExpanded, onDismissRequest = { form.forumExpanded = false }) {
@@ -172,13 +161,13 @@ internal fun NewTopicFormContent(
             OutlinedTextField(
                 value = form.title, onValueChange = { form.title = it },
                 label = { Text("标题") }, singleLine = true,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             )
 
             if (editId > 0 && form.replyOrderOptions.isNotEmpty()) {
                 Box {
-                    OutlinedButton(onClick = { form.replyOrderMenu = true }, shape = RoundedCornerShape(14.dp)) {
+                    OutlinedButton(onClick = { form.replyOrderMenu = true }, shape = RoundedCornerShape(16.dp)) {
                         Text("回帖排序：${form.replyOrderOptions.firstOrNull { it.first == form.replyOrder }?.second.orEmpty()}")
                     }
                     DropdownMenu(expanded = form.replyOrderMenu, onDismissRequest = { form.replyOrderMenu = false }) {
@@ -192,7 +181,7 @@ internal fun NewTopicFormContent(
                 }
             }
 
-            if (!previewMode) sb.linux.client.ui.MarkdownEditorTools(
+            if (!previewMode) sb.linux.client.ui.content.MarkdownEditorTools(
                 onInsert = { b, a, p -> onInsert(b, a, p) },
                 onUpload = { onUploadImage() },
                 uploading = form.imageUploadBusy,
@@ -202,7 +191,7 @@ internal fun NewTopicFormContent(
                 // 预览：Markdown → HTML 后用帖子同款渲染器展示（表格/代码块/链接等所见即所得）
                 val previewHtml = remember(body) { HtmlTextConversion.markdownToHtml(body) }
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -216,7 +205,7 @@ internal fun NewTopicFormContent(
                             modifier = Modifier.padding(16.dp)
                         )
                     } else {
-                        sb.linux.client.ui.HtmlContent(
+                        sb.linux.client.ui.content.HtmlContent(
                             html = previewHtml,
                             modifier = Modifier.padding(16.dp),
                             mergeImages = false,
@@ -230,7 +219,7 @@ internal fun NewTopicFormContent(
                     value = TextFieldValue(body, bodySelection),
                     onValueChange = { onBodyChange(it) },
                     label = { Text("内容 (Markdown)") },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 260.dp)

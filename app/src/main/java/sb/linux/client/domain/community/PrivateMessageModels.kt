@@ -27,17 +27,13 @@ data class DirectMessageThread(
     val partnerName: String,
     val avatarUrl: String = "",
     val messages: List<PmMessage> = emptyList(),
+    val canSend: Boolean = true,
+    val blockLabel: String = "",
 )
 
 interface PrivateMessageRepository {
-    suspend fun loadContacts(): List<DirectMessageContact>
+    suspend fun loadContacts(query: String = ""): List<DirectMessageContact>
     suspend fun loadThread(partnerId: Long): DirectMessageThread
+    suspend fun toggleBlock(partnerId: Long): String?
     suspend fun sendMessage(partnerId: Long, body: String): String?
-}
-
-interface PrivateMessageHistory {
-    fun messages(partnerId: Long): List<PmMessage>
-    fun markRead(partnerId: Long)
-    fun saveThread(thread: DirectMessageThread)
-    fun addOutgoing(partnerId: Long, partnerName: String, avatarUrl: String, body: String)
 }

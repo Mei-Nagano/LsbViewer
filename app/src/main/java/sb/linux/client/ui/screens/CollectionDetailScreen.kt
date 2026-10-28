@@ -28,10 +28,10 @@ import sb.linux.client.ui.feature.collection.CollectionDetailViewModelFactory
 import sb.linux.client.domain.gacha.GachaOperationForm
 import sb.linux.client.domain.gacha.GachaOperationPage
 import sb.linux.client.domain.topic.TopicCard
-import sb.linux.client.ui.EmptyBox
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.LoadingBox
-import sb.linux.client.ui.TopicCardView
+import sb.linux.client.ui.components.feedback.EmptyBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.patterns.topic.TopicCardView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,18 +68,18 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
         state.actionMessage?.let { session.showToast(it); pending = null; viewModel.clearActionMessage() }
     }
     pending?.let { (form, fields) ->
-        AlertDialog(
-            onDismissRequest = { if (!submitting) pending = null },
-            title = { Text("确认${form.label}") },
-            text = { Text("此操作会同步至源站。删除或移除操作可能无法撤回，请核对后提交。") },
-            dismissButton = { TextButton(enabled = !submitting, onClick = { pending = null }) { Text("取消") } },
-            confirmButton = { Button(enabled = !submitting, onClick = {
+        sb.linux.client.ui.components.feedback.AppConfirmDialog(
+            title = "确认${form.label}",
+            message = "此操作会同步至源站。删除或移除操作可能无法撤回，请核对后提交。",
+            enabled = !submitting, confirmText = if (submitting) "提交中…" else "确认",
+            onDismiss = { pending = null },
+            onConfirm = {
                 val sourceForm = sourceActions.firstOrNull {
                     it.action == form.action && it.label == form.label && it.fields == fields
                 } ?: sourceActions.firstOrNull { it.action == form.action && it.label == form.label }
                 if (sourceForm == null) session.showToast("源站操作已过期，请刷新后重试")
                 else viewModel.execute(sourceForm, path.takeIf { it.startsWith("/topic_collection/") })
-            }) { Text(if (submitting) "提交中…" else "确认") } },
+            },
         )
     }
     val pageLinks = opPage?.links.orEmpty().filter { Regex("^/topic_collection/\\d+(?:\\?p=\\d+)?$").matches(it.second) }
@@ -88,9 +88,9 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
     val subscribeForm = sourceActions.firstOrNull {
         it.operation == TopicCollectionOperation.SUBSCRIBE || it.operation == TopicCollectionOperation.UNSUBSCRIBE
     }?.toGachaForm()
-    Scaffold(topBar = { TopAppBar(
-        title = { Text(opPage?.title.orEmpty().ifBlank { "淘帖专辑" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+    sb.linux.client.ui.components.navigation.AppPageScaffold(
+        title = opPage?.title.orEmpty().ifBlank { "淘帖专辑" },
+        onBack = { nav.popBackStack() },
         actions = {
             if (managePath.isNotBlank()) {
                 TextButton(enabled = !loading && !submitting, onClick = {
@@ -108,7 +108,7 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
             }
             IconButton(enabled = !loading, onClick = { load() }) { Icon(Icons.Filled.Refresh, "刷新") }
         },
-    ) }) { padding ->
+    ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             when {
                 loading && topics.isEmpty() && forms.isEmpty() -> LoadingBox()

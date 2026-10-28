@@ -27,7 +27,7 @@ import sb.linux.client.ui.feature.backup.BackupSettingsViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransferSettingsScreen(session: Session, nav: NavHostController) {
+fun TransferSettingsScreen(session: Session, nav: NavHostController, cloud: Boolean = false) {
     val context = LocalContext.current
     val settingsFactory = remember(session.backupSettingsRepository) {
         BackupSettingsViewModelFactory(session.backupSettingsRepository)
@@ -111,26 +111,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("备份设置") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                }
-            )
-        }
-    ) { pad ->
-        Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+    SettingsPage(if (cloud) "WebDAV 云备份" else "本地备份", nav) {
 
 
             GroupCard {
@@ -145,8 +126,6 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
                     "history" to "浏览历史与阅读位置",
                     "favorites" to "帖子与评论收藏",
                     "ai" to "AI 配置、总结历史与总结收藏",
-                    "drafts" to "发帖草稿",
-                    "usage" to "使用统计与 AI 分析",
                     "cards" to "发卡兑换记录",
                 )
                 backupOptions.forEach { (key, label) ->
@@ -163,7 +142,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
                         Text(label, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                Row(
+                if (!cloud) Row(
                     Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -188,7 +167,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
                 }
             }
 
-            WebDavBackupCard(
+            if (cloud) WebDavBackupCard(
                 url = davUrl,
                 onUrlChange = settingsViewModel::setWebDavUrl,
                 username = davUser,
@@ -204,7 +183,6 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController) {
                 onRestore = ::davRestore,
             )
             Spacer(Modifier.height(12.dp))
-        }
     }
 }
 

@@ -14,9 +14,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.PaletteStyles
-import sb.linux.client.ui.colorSeed
-import sb.linux.client.ui.paletteStyleLabel
+import sb.linux.client.ui.theme.PaletteStyles
+import sb.linux.client.ui.theme.colorSeed
+import sb.linux.client.ui.theme.paletteStyleLabel
 
 internal fun LazyListScope.themeStyleSettings(session: Session, dark: Boolean) {
 // ---------- 调色风格（单行横向滑动） ----------

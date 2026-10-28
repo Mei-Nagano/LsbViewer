@@ -1,6 +1,8 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
@@ -16,13 +18,22 @@ internal fun TopicScreenDialogs(
     actions: TopicScreenActions,
     exportColors: androidx.compose.material3.ColorScheme,
 ) {
+    if (ui.showReply) Dialog(
+        onDismissRequest = { },
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false),
+    ) {
+        SourceEditorScreen(session, nav, replyTopicId = topicId, quote = ui.quoteText, onClose = {
+            ui.showReply = false
+            actions.load(paging.page.value?.page ?: 1, append = true, force = true)
+        })
+    }
     TopicPrimaryDialogs(
         session = session,
         topicId = topicId,
         page = paging.page.value,
         replyViewModel = actions.replyViewModel,
         captchaOverride = ui.captchaOverride,
-        replyOpen = ui.showReply,
+        replyOpen = false,
         replyText = ui.quoteText,
         onReplyDismiss = { ui.showReply = false },
         onLoadPage = { actions.load(it, append = true, force = true) },

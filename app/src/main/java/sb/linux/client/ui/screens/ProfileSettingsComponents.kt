@@ -27,14 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.profile.ProfileSettingsField
-import sb.linux.client.ui.Avatar
+import sb.linux.client.ui.patterns.user.Avatar
 
 /** 个人资料摘要卡：只负责展示用户头像和源站返回的优先信息。 */
 @Composable
 internal fun ProfileHeaderCard(avatarUrl: String, username: String, info: List<Pair<String, String>>) {
     Surface(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -80,7 +80,7 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(f.label) },
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
             minLines = 2,
         )
 
@@ -93,7 +93,7 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
                 readOnly = true,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(f.label) },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 trailingIcon = { TextButton(onClick = { expanded = true }) { Text("选择") } },
             )
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -106,21 +106,19 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
             }
         }
 
-        "checkbox" -> Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Switch(checked = value == "1", onCheckedChange = { onChange(if (it) "1" else "0") })
-            Spacer(Modifier.width(10.dp))
-            Text(f.label)
-        }
+        "checkbox" -> sb.linux.client.ui.components.input.AppSwitchRow(
+            title = f.label,
+            checked = value == "1",
+            onCheckedChange = { onChange(if (it) "1" else "0") },
+            compact = true,
+        )
 
         else -> OutlinedTextField(
             value = value,
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(f.label) },
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
             singleLine = true,
         )
     }

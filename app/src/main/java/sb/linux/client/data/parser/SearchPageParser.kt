@@ -27,6 +27,7 @@ object SearchPageParser {
             items = items,
             hasPrevious = pagination.first,
             hasNext = pagination.second,
+            charge = SearchChargeParser.parse(document),
         )
     }
 

@@ -34,8 +34,8 @@ import sb.linux.client.common.collection.key
 import sb.linux.client.ui.feature.collection.TopicCollectionManageViewModel
 import sb.linux.client.ui.feature.collection.TopicCollectionManageViewModelFactory
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.LoadingBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.LoadingBox
 
 /** 源站 v9 淘帖管理页：负责加载、提交和页面状态，展示组件位于同域专用文件。 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,55 +62,29 @@ fun TopicCollectionManageScreen(session: Session, nav: NavHostController) {
 
     pending?.let { form ->
         val destructive = form.isDestructive()
-        AlertDialog(
-            onDismissRequest = { if (!submitting) pending = null },
-            title = { Text(if (destructive) "确认${form.label}" else "提交${form.label}") },
-            text = {
-                val target = form.targetLabel.takeIf { it.isNotBlank() }
-                Text(
-                    if (destructive && target != null) {
-                        "将移除：$target\n\n此操作可能无法撤回，请确认后再提交。"
-                    } else if (destructive) "此操作可能无法撤回，请确认目标和内容后再提交。"
-                    else "修改将同步到源站，提交后会重新读取专辑状态。",
-                )
-            },
-            dismissButton = {
-                TextButton(enabled = !submitting, onClick = { pending = null }) { Text("取消") }
-            },
-            confirmButton = {
-                Button(
-                    enabled = !submitting,
-                    onClick = {
-                        val values = editedValues[form.key()].orEmpty()
-                        val success = form.targetLabel.takeIf { it.isNotBlank() }
-                            ?.let { "已移除：$it" }
-                            ?: "已同步并刷新专辑"
-                        viewModel.submit(form, path, values, success)
-                    },
-                    colors = if (destructive) ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ) else ButtonDefaults.buttonColors(),
-                ) { Text(if (submitting) "提交中…" else "确认") }
+        sb.linux.client.ui.components.feedback.AppConfirmDialog(
+            title = if (destructive) "确认${form.label}" else "提交${form.label}",
+            message = if (destructive && form.targetLabel.isNotBlank())
+                "将移除：${form.targetLabel}\n\n此操作可能无法撤回，请确认后再提交。"
+                else if (destructive) "此操作可能无法撤回，请确认目标和内容后再提交。"
+                else "修改将同步到源站，提交后会重新读取专辑状态。",
+            enabled = !submitting, destructive = destructive,
+            confirmText = if (submitting) "提交中…" else "确认", onDismiss = { pending = null },
+            onConfirm = {
+                val values = editedValues[form.key()].orEmpty()
+                val success = form.targetLabel.takeIf { it.isNotBlank() }?.let { "已移除：$it" } ?: "已同步并刷新专辑"
+                viewModel.submit(form, path, values, success)
             },
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    IconButton(enabled = !loading && !submitting, onClick = { load() }) {
-                        Icon(Icons.Filled.Refresh, "刷新")
-                    }
-                },
-            )
+    sb.linux.client.ui.components.navigation.AppPageScaffold(
+        title = title,
+        onBack = { nav.popBackStack() },
+        actions = {
+            IconButton(enabled = !loading && !submitting, onClick = { load() }) {
+                Icon(Icons.Filled.Refresh, "刷新")
+            }
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {

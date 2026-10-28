@@ -27,6 +27,7 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
                         .put("fea", t.featured).put("tc", t.titleColor)
                         .put("av", t.avatarUrl)
                         .put("ls", t.lotteryStatus).put("cs", t.cardStatus)
+                        .put("source_tags", org.json.JSONArray(t.sourceTags))
                 )
             }
             homePrefs.edit().putString("sort_$sort", arr.toString()).apply()
@@ -46,6 +47,9 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
                 hot = o.optBoolean("hot"), featured = o.optBoolean("fea"),
                 titleColor = o.optString("tc"), avatarUrl = o.optString("av"),
                 lotteryStatus = o.optString("ls"), cardStatus = o.optString("cs"),
+                sourceTags = o.optJSONArray("source_tags")?.let { tags ->
+                    (0 until tags.length()).map { tags.optString(it) }.filter(String::isNotBlank)
+                }.orEmpty(),
             )
         }
     }.getOrDefault(emptyList())

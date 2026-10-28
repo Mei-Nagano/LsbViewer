@@ -9,13 +9,12 @@ internal fun AppSettings.importBackupJson(
     prefs: SharedPreferences,
     themePrefs: SharedPreferences,
     aiRecords: SharedPreferences,
-    drafts: SharedPreferences,
     readingRecords: SharedPreferences,
 ): String? {
         return try {
             val o = JSONObject(text)
             // 先验证独立数据区再写入，缺少的区不触碰本地数据。
-            val sections = listOf("ai_summaries" to aiRecords, "drafts" to drafts, "reading_positions" to readingRecords)
+            val sections = listOf("ai_summaries" to aiRecords, "reading_positions" to readingRecords)
             sections.forEach { (name, _) -> if (o.has(name)) require(o.get(name) is JSONObject) }
             val p = prefs.edit()
             if (o.has("infinite_scroll")) p.putBoolean("infinite_scroll", o.getBoolean("infinite_scroll"))
@@ -66,8 +65,19 @@ internal fun AppSettings.importBackupJson(
             if (o.has("bottom_bar_style")) p.putInt("bottom_bar_style", o.optInt("bottom_bar_style", 1).coerceIn(0, 1))
             if (o.has("bottom_bar_items")) {
                 val arr = o.getJSONArray("bottom_bar_items")
-                val allowed = setOf("home", "forums", "topicCollections", "directMessages", "newTopic", "me")
-                val items = (0 until arr.length()).map { arr.getString(it) }.filter { it in allowed }.distinct()
+                // 旧备份里的别名归一到新版稳定 ID；messages 是新版目的地，必须保留，
+                // 否则「设置 → 备份 → 恢复」会把消息根悄悄丢掉。newTopic 不是目的地，丢弃。
+                val aliases = mapOf(
+                    "directMessages" to "messages",
+                    "directMessagesRoot" to "messages",
+                    "notifications" to "messages",
+                    "topicCollectionsRoot" to "topicCollections",
+                )
+                val allowed = setOf("home", "forums", "topicCollections", "messages", "me")
+                val items = (0 until arr.length())
+                    .map { aliases[arr.getString(it)] ?: arr.getString(it) }
+                    .filter { it in allowed }
+                    .distinct()
                 if (items.size >= 2) p.putString("bottom_bar_items", items.joinToString(","))
             }
             if (o.has("reply_bar_style")) p.putInt("reply_bar_style", o.optInt("reply_bar_style", 1).coerceIn(0, 1))
@@ -102,11 +112,6 @@ internal fun AppSettings.importBackupJson(
             if (o.has("favorites")) p.putString("local_favorites", o.getJSONArray("favorites").toString())
             if (o.has("history")) p.putString("local_history", o.getJSONArray("history").toString())
             if (o.has("card_redemptions")) p.putString("card_redemptions", o.getJSONArray("card_redemptions").toString())
-            if (o.has("usage_events")) p.putString("usage_events", o.getJSONArray("usage_events").toString())
-            if (o.has("usage_ai_summary")) p.putString("usage_ai_summary", o.getString("usage_ai_summary"))
-            if (o.has("source_points")) p.putString("source_points", o.getJSONArray("source_points").toString())
-            if (o.has("source_points_synced_at")) p.putLong("source_points_synced_at", o.getLong("source_points_synced_at"))
-            if (o.has("source_usage")) p.putString("source_usage", o.getString("source_usage"))
             if (o.has("builtin_image_provider")) p.putString("builtin_image_provider", o.getString("builtin_image_provider"))
             if (o.has("confirm_gacha_pull")) p.putBoolean("confirm_gacha_pull", o.getBoolean("confirm_gacha_pull"))
             val pendingEditors = mutableListOf(p)

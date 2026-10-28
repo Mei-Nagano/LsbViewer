@@ -14,8 +14,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.materialkolor.PaletteStyle
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.CardColorOverrides
-import sb.linux.client.ui.TopicCardView
+import sb.linux.client.ui.patterns.topic.CardColorOverrides
+import sb.linux.client.ui.patterns.topic.TopicCardView
 
 @Composable
 internal fun PaletteStyleSwatch(
@@ -33,8 +33,8 @@ internal fun PaletteStyleSwatch(
     val borderWidth = if (selected) 2.dp else 1.dp
     Column(
         modifier
-            .clip(RoundedCornerShape(14.dp))
-            .border(borderWidth, borderColor, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .border(borderWidth, borderColor, RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable(onClick = onClick)
     ) {

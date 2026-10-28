@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import sb.linux.client.common.collection.TopicCollectionActionForm
 import sb.linux.client.common.collection.TopicCollectionFormField
 import sb.linux.client.common.collection.TopicCollectionOperation
-import sb.linux.client.ui.EmptyBox
+import sb.linux.client.ui.components.feedback.EmptyBox
 
 @Composable
 internal fun ManageActionCard(
@@ -58,7 +58,7 @@ internal fun ManageActionCard(
     val borderColor = if (destructive) MaterialTheme.colorScheme.error.copy(alpha = .45f)
     else MaterialTheme.colorScheme.outlineVariant.copy(alpha = .65f)
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = if (destructive) MaterialTheme.colorScheme.errorContainer.copy(alpha = .22f)
         else MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, borderColor),

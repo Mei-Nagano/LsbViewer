@@ -46,7 +46,7 @@ internal fun VirtualCardTopicFields(
                 value = cardName, onValueChange = onCardNameChange,
                 label = { Text("卡片名称") },
                 supportingText = { Text("例如：月卡兑换码、软件激活码") },
-                singleLine = true, shape = RoundedCornerShape(14.dp),
+                singleLine = true, shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             )
             Box {
@@ -66,39 +66,31 @@ internal fun VirtualCardTopicFields(
                 OutlinedTextField(
                     value = cardPrice, onValueChange = onCardPriceChange,
                     label = { Text("兑换价格") },
-                    singleLine = true, shape = RoundedCornerShape(14.dp),
+                    singleLine = true, shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedTextField(
                     value = cardLimit, onValueChange = onCardLimitChange,
                     label = { Text("每人限购") },
                     supportingText = { Text("0 为不限制") },
-                    singleLine = true, shape = RoundedCornerShape(14.dp),
+                    singleLine = true, shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.weight(1f)
                 )
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Switch(checked = cardAutoReply, onCheckedChange = onCardAutoReplyChange)
-                Spacer(Modifier.width(8.dp))
-                Column {
-                    Text("购买成功后自动回帖", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "开启后，买家兑换成功会自动回复本帖",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            sb.linux.client.ui.components.input.AppSwitchRow(
+                title = "购买成功后自动回帖",
+                subtitle = "开启后，买家兑换成功会自动回复本帖",
+                checked = cardAutoReply,
+                onCheckedChange = onCardAutoReplyChange,
+                compact = true,
+            )
             if (cardAutoReply) {
                 OutlinedTextField(
                     value = cardAutoReplyContent,
                     onValueChange = onCardAutoReplyContentChange,
                     label = { Text("自动回帖内容") },
                     supportingText = { Text("支持变量 {card_name} {price} {username}") },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -106,7 +98,7 @@ internal fun VirtualCardTopicFields(
                 value = cardValues, onValueChange = onCardValuesChange,
                 label = { Text("添加虚拟卡") },
                 supportingText = { Text("每行一张卡，最多 5000 张") },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 120.dp)

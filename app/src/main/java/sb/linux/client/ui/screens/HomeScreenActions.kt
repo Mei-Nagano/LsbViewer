@@ -23,7 +23,7 @@ internal class HomeScreenActions(
     private val pageState: HomePageUiState,
 ) {
     fun selectCombo(target: Int, direction: Int = if (target > session.homeBrowse.homeCombo) 1 else -1) {
-        val next = target.coerceIn(0, 3)
+        val next = target.coerceIn(0, 4)
         if (next == session.homeBrowse.homeCombo) return
         scope.launch {
             categoryMotion.snapTo(direction * 72f)
@@ -78,7 +78,7 @@ internal fun submitHomeSearch(
         onClose()
         return
     }
-    val encoded = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+    val encoded = android.net.Uri.encode(query.trim())
     nav.navigate("search?q=$encoded&scope=$field&sort=relevance")
     onClose()
 }

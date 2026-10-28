@@ -2,36 +2,22 @@ package sb.linux.client.ui.navigation
 import sb.linux.client.common.network.Endpoints
 
 import android.widget.Toast
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.navigation.NavHostController
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
@@ -41,16 +27,14 @@ import sb.linux.client.domain.update.isNewerVersion
 import sb.linux.client.ui.feature.update.UpdateViewModel
 import sb.linux.client.ui.feature.update.UpdateViewModelFactory
 import sb.linux.client.common.ui.SessionUiInvalidation
-import sb.linux.client.ui.clearBodyImageLayoutCache
-import sb.linux.client.ui.LocalCardColorOverrides
+import sb.linux.client.ui.content.clearBodyImageLayoutCache
+import sb.linux.client.ui.patterns.topic.LocalCardColorOverrides
 import sb.linux.client.ui.LocalLinkHandler
 import sb.linux.client.ui.LocalShowUid
 import sb.linux.client.ui.LocalSmartDecode
 import sb.linux.client.ui.LocalTableDisplayMode
-import sb.linux.client.ui.VerificationDialog
+import sb.linux.client.ui.patterns.web.VerificationDialog
 
-/** 应用级 Compose 根节点，负责全局状态桥接与链接/更新副作用。 */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppRoot(session: Session) {
     SideEffect {
@@ -67,8 +51,16 @@ fun AppRoot(session: Session) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val homeDrawerState = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Closed)
-    val twoPane = session.tabletMode && LocalConfiguration.current.screenWidthDp >= 600
-    val linkNav = if (twoPane) detailNav else nav
+
+    // 窗口策略与根导航都从实际窗口尺寸推导；「始终单内容栏」只限制内容布局。
+    val destinations = remember(session.bottomBarItems) {
+        AppDestinations.visibleFrom(session.bottomBarItems)
+    }
+    val layout = rememberAppWindowLayout(
+        singleContentColumn = session.singleContentColumn,
+        twoItemLayout = destinations.size == 2,
+    )
+    val linkNav = if (layout.useTwoPane) detailNav else nav
 
     val verification = session.pendingVerification
     if (verification != null) {
@@ -92,16 +84,24 @@ fun AppRoot(session: Session) {
     }
 
     val backStack by nav.currentBackStackEntryAsState()
-    val rawRoute = (backStack?.destination?.route ?: "home").substringBefore("?")
-    val route = BottomDestination.canonical(rawRoute)
-    val bottomRoutes = setOf(
-        BottomDestination.HOME,
-        BottomDestination.FORUMS,
-        BottomDestination.TOPIC_COLLECTIONS,
-        BottomDestination.DIRECT_MESSAGES,
-        BottomDestination.ME,
+    val masterBackStack by masterNav.currentBackStackEntryAsState()
+    val detailBackStack by detailNav.currentBackStackEntryAsState()
+    // 双栏时主栏就是当前根目的地；单栏使用手机 NavHost。
+    val rawRoute = if (layout.useTwoPane) {
+        (masterBackStack?.destination?.route ?: "home").substringBefore("?")
+    } else {
+        (backStack?.destination?.route ?: "home").substringBefore("?")
+    }
+    val selectedId = AppDestinationId.canonical(rawRoute)
+    PaneLayoutMigration(
+        useTwoPane = layout.useTwoPane,
+        nav = nav,
+        masterNav = masterNav,
+        detailNav = detailNav,
+        phoneRoute = backStack?.destination?.route,
+        masterRoute = masterBackStack?.destination?.route,
+        detailRoute = detailBackStack?.destination?.route,
     )
-    val bottomItems = session.bottomBarItems
     val bottomNavigation = remember(nav, scope, homeDrawerState) {
         BottomNavigationCoordinator(
             nav = nav,
@@ -112,7 +112,16 @@ fun AppRoot(session: Session) {
             onHomeReselect = session::requestHomeRefresh,
         )
     }
-
+    val masterNavigation = remember(masterNav, scope, homeDrawerState) {
+        BottomNavigationCoordinator(
+            nav = masterNav,
+            scope = scope,
+            closeDrawer = {
+                if (!homeDrawerState.isClosed) homeDrawerState.close()
+            },
+            onHomeReselect = session::requestHomeRefresh,
+        )
+    }
 
     var updateTip by remember { mutableStateOf<UpdateInfo?>(null) }
     LaunchedEffect(Unit) {
@@ -162,7 +171,7 @@ fun AppRoot(session: Session) {
         LocalTableDisplayMode provides session.tableDisplayMode,
         LocalShowUid provides session.showUid,
         LocalSmartDecode provides session.smartDecodeEnabled,
-        LocalMasterNav provides (if (twoPane) masterNav else null),
+        LocalMasterNav provides (if (layout.useTwoPane) masterNav else null),
     ) {
         AppLinkProvider(session, linkNav) {
             AppContent(
@@ -173,13 +182,13 @@ fun AppRoot(session: Session) {
                 snackbar = snackbar,
                 scope = scope,
                 homeDrawerState = homeDrawerState,
-                twoPane = twoPane,
-                route = route,
-                bottomRoutes = bottomRoutes,
-                bottomItems = bottomItems,
+                layout = layout,
+                destinations = destinations,
+                selectedId = selectedId,
+                route = rawRoute,
                 onNavigateBottom = bottomNavigation::submit,
+                onNavigateMaster = masterNavigation::submit,
             )
         }
     }
 }
-

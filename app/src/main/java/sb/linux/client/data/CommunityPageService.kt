@@ -13,7 +13,6 @@ import sb.linux.client.domain.community.NotificationItem
 
 internal class CommunityPageService(
     private val client: LsbClient,
-    private val privateMessages: PrivateMessageService,
     private val updateUnread: (Int) -> Unit,
 ) : NotificationRepository, IdentityRepository, InviteRepository, LeaderboardRepository, ReportRepository {
     private val reportSubmissionData = mutableMapOf<Pair<Long, String>, ReportFormParseResult>()
@@ -29,7 +28,6 @@ internal class CommunityPageService(
     override suspend fun loadNotifications(userId: Long): List<NotificationItem> {
         val html = client.get("/user/$userId?tab=notifications").html
         val items = NotificationHtmlParser.parseNotifications(html)
-        privateMessages.syncNotifications(items)
         updateUnread(0)
         return items
     }

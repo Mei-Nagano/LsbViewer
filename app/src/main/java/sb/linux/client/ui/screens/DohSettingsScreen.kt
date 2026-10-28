@@ -25,7 +25,7 @@ import androidx.navigation.NavHostController
 import sb.linux.client.domain.network.DohServer
 import sb.linux.client.ui.feature.network.DohSettingsViewModel
 import sb.linux.client.ui.feature.network.DohSettingsViewModelFactory
-import sb.linux.client.ui.EmptyBox
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,22 +59,28 @@ fun DohSettingsScreen(session: Session, nav: NavHostController) {
         })
     }
     deleting?.let { server ->
-        AlertDialog(onDismissRequest = { deleting = null }, title = { Text("删除服务器？") },
-            text = { Text("删除「${server.name}」${if (server.url == selectedUrl) "后，将切换到第一个默认服务器" else "，不会影响其他服务器"}。") },
-            confirmButton = { TextButton(onClick = {
-                if (server.url == selectedUrl) {
-                    dohViewModel.selectServer(dohViewModel.defaultServers.first().url)
-                }
+        sb.linux.client.ui.components.feedback.AppConfirmDialog(
+            title = "删除服务器？",
+            message = "删除「${server.name}」${if (server.url == selectedUrl) "后，将切换到第一个默认服务器" else "，不会影响其他服务器"}。",
+            onDismiss = { deleting = null },
+            onConfirm = {
+                if (server.url == selectedUrl) dohViewModel.selectServer(dohViewModel.defaultServers.first().url)
                 save(servers.filterNot { it.id == server.id }); dohViewModel.clearResult(server.id); deleting = null
-            }) { Text("删除") } }, dismissButton = { TextButton(onClick = { deleting = null }) { Text("取消") } })
+            }, confirmText = "删除", destructive = true,
+        )
     }
     val visible = servers.filter { it.builtIn != customTab }
-    Scaffold(topBar = { TopAppBar(title = { Text("DNS over HTTPS") },
-        navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
-        actions = { IconButton(onClick = {
-            customTab = true; editing = DohServer(java.util.UUID.randomUUID().toString(), "", "")
-        }) { Icon(Icons.Filled.Add, "添加自定义服务器") } }) }) { pad ->
-        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val spacing = LocalAppSpacing.current
+    sb.linux.client.ui.components.navigation.AppPageScaffold(
+        title = "DNS over HTTPS",
+        onBack = { nav.popBackStack() },
+        actions = {
+            IconButton(onClick = {
+                customTab = true; editing = DohServer(java.util.UUID.randomUUID().toString(), "", "")
+            }) { Icon(Icons.Filled.Add, "添加自定义服务器") }
+        },
+    ) { pad ->
+        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
             item {
                 // 与应用设置共用 GroupCard/SwitchRow，避免这一页的开关和别处长得不一样
                 GroupCard {
@@ -83,15 +89,15 @@ fun DohSettingsScreen(session: Session, nav: NavHostController) {
                         "当前选择：${servers.find { it.url == selectedUrl }?.name ?: selectedUrl}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                        modifier = Modifier.padding(start = spacing.pageHorizontal, end = spacing.pageHorizontal, bottom = spacing.item),
                     )
                     HorizontalDivider(
-                        Modifier.padding(horizontal = 16.dp),
+                        Modifier.padding(horizontal = spacing.pageHorizontal),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                     )
                     SwitchRow("VPN 开启时自动停用", "保留 DoH 配置，VPN 结束后恢复；测速也遵守此规则", configuration.bypassVpn, onCheckedChange = dohViewModel::setBypassVpn)
                     HorizontalDivider(
-                        Modifier.padding(horizontal = 16.dp),
+                        Modifier.padding(horizontal = spacing.pageHorizontal),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                     )
                     SwitchRow("无 VPN 时自动优化", "自动启用 DoH，并在后台静默选择最快可用服务器", configuration.autoWithoutVpn, onCheckedChange = dohViewModel::setAutoWithoutVpn)
@@ -111,14 +117,26 @@ fun DohSettingsScreen(session: Session, nav: NavHostController) {
                     OutlinedButton(enabled = visible.any { it.id !in benchmarkState.testingIds }, onClick = { test(visible) }) { Text("测速本组全部") }
                 }
             }
-            if (visible.isEmpty()) item { EmptyBox("还没有自定义服务器，点击右上角 + 添加") }
+            if (visible.isEmpty()) {
+                item {
+                    Text(
+                        "还没有自定义服务器，点击右上角 + 添加",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = spacing.item),
+                    )
+                }
+            }
             items(visible, key = { it.id }) { server ->
                 val selected = selectedUrl == server.url
-                OutlinedCard(border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedCard(
+                    shape = MaterialTheme.shapes.large,
+                    border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                    Column(Modifier.padding(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.item)) {
                         Row(Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton, onClick = { dohViewModel.selectServer(server.url) }).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = selected, onClick = null)
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(spacing.contentGap))
                             Text(server.name, style = MaterialTheme.typography.titleMedium, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Text(server.url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

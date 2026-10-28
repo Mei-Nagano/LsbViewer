@@ -13,6 +13,7 @@ internal class AppSettingsGeneralSettingsRepository(
         settings.updateCheckIntervalHours,
         settings.lastUpdateCheck,
         settings.tabletMode,
+        settings.singleContentColumn,
         settings.bottomBarStyle,
         settings.bottomBarItems,
         settings.replyBarStyle,

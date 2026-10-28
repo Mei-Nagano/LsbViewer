@@ -108,38 +108,30 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
         get() = prefs.getLong("last_update_check", 0L)
         set(v) = prefs.edit().putLong("last_update_check", v).apply()
 
-    /** 平板模式：宽屏设备启用左右双栏布局（导航栏居左，主页/设置 1/3 + 详情 2/3） */
+    /** 布局偏好：键缺失或 true = 跟随窗口；显式 false = 始终单内容栏。
+     *  旧「平板模式」只限制内容布局，不再阻止根导航按窗口切换 bar/rail。 */
     var tabletMode: Boolean
-        get() = prefs.getBoolean("tablet_mode", false)
+        get() = prefs.getBoolean("tablet_mode", true)
         set(v) = prefs.edit().putBoolean("tablet_mode", v).apply()
 
-    /** 底栏样式：0 = 经典（通栏 NavigationBar），1 = 液态玻璃悬浮胶囊。
-     *  读取时夹取到 0..1：原「贴底通栏」铺满样式（2）已移除，旧值自动回落到悬浮胶囊 */
+    /** 是否限制为单内容栏；只有用户显式保存过 false 才生效（键缺失跟随窗口）。 */
+    val singleContentColumn: Boolean
+        get() = prefs.contains("tablet_mode") && !prefs.getBoolean("tablet_mode", true)
+
+    /** 底栏样式：0 = 经典，1 = 液态玻璃。新 UI 不再渲染旧效果，值仅作为兼容数据保留。 */
     var bottomBarStyle: Int
         get() = prefs.getInt("bottom_bar_style", 0).coerceIn(0, 1)
         set(v) = prefs.edit().putInt("bottom_bar_style", v.coerceIn(0, 1)).apply()
 
-    /** 主底栏项目及顺序；至少保留两项，旧版默认为首页+我的。 */
+    /** 主底栏项目及顺序（归一别名、保留未知 ID；迁移与存储见 [BottomBarPreferenceStore]）。 */
     var bottomBarItems: List<String>
-        get() {
-            val allowed = setOf("home", "topicCollections", "directMessages", "newTopic", "me")
-            val value = (prefs.getString("bottom_bar_items", "home,topicCollections,directMessages,me") ?: "")
-                .split(',').map { if (it.trim() == "forums") "topicCollections" else it.trim() }.filter { it in allowed }.distinct()
-            val valid = value.takeIf { it.size >= 2 } ?: listOf("home", "topicCollections", "directMessages", "me")
-            if (prefs.getInt("bottom_navigation_version", 0) < 2) {
-                val migrated = valid.toMutableList()
-                if ("topicCollections" !in migrated) migrated.add((migrated.indexOf("me").takeIf { it >= 0 } ?: migrated.size), "topicCollections")
-                if ("directMessages" !in migrated) migrated.add((migrated.indexOf("me").takeIf { it >= 0 } ?: migrated.size), "directMessages")
-                prefs.edit().putString("bottom_bar_items", migrated.joinToString(",")).putInt("bottom_navigation_version", 2).apply()
-                return migrated
-            }
-            return valid
-        }
-        set(v) {
-            val allowed = setOf("home", "topicCollections", "directMessages", "newTopic", "me")
-            val clean = v.filter { it in allowed }.distinct().takeIf { it.size >= 2 } ?: listOf("home", "me")
-            prefs.edit().putString("bottom_bar_items", clean.joinToString(",")).putInt("bottom_navigation_version", 2).apply()
-        }
+        get() = bottomBar.items
+        set(v) { bottomBar.items = v }
+
+    /** 旧底栏列表迁移（幂等），应用启动时调用一次。 */
+    fun migrateBottomBarItems() = bottomBar.migrate()
+
+    private val bottomBar = BottomBarPreferenceStore(prefs)
 
     /** 评论底栏样式（帖子内底部快捷回复栏）：0 = 经典（通栏 Surface），
      *  1 = 液态玻璃悬浮胶囊（实时折射身后滚动内容） */
@@ -168,11 +160,11 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
     /** 本地导出与 WebDAV 共用的备份范围。 */
     var backupItems: Set<String>
         get() {
-            val allowed = setOf("settings", "history", "favorites", "ai", "usage", "cards", "drafts")
+            val allowed = setOf("settings", "history", "favorites", "ai", "cards")
             return (prefs.getStringSet("backup_items", allowed) ?: allowed).filter { it in allowed }.toSet().ifEmpty { allowed }
         }
         set(v) {
-            val allowed = setOf("settings", "history", "favorites", "ai", "usage", "cards", "drafts")
+            val allowed = setOf("settings", "history", "favorites", "ai", "cards")
             prefs.edit().putStringSet("backup_items", v.filter { it in allowed }.toSet().ifEmpty { setOf("settings") }).apply()
         }
 

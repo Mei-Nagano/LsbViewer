@@ -53,12 +53,12 @@ import kotlinx.coroutines.launch
 import sb.linux.client.common.collection.TopicCollectionSummary
 import sb.linux.client.common.collection.TopicCollectionTab
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.Avatar
+import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.Badge
-import sb.linux.client.ui.EmptyBox
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.LoadingBox
-import sb.linux.client.ui.LoginRequiredBox
+import sb.linux.client.ui.components.feedback.EmptyBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.components.feedback.LoginRequiredBox
 
 @Composable
 internal fun CollectionList(
@@ -76,15 +76,12 @@ internal fun CollectionList(
     ) {
         LazyColumn(
             Modifier.fillMaxSize(),
-            // 悬浮玻璃底栏（高 58 + 边距 14）会盖住末条内容，底栏样式非 0 时补留白；
-            // 经典底栏由 Scaffold 的 bottomBar inset 处理，不需要额外留白
+            // 根导航由外壳 Scaffold 的 bottomBar inset 处理，列表不再叠加固定底栏留白
             contentPadding = PaddingValues(
                 start = 14.dp,
                 end = 14.dp,
                 top = 12.dp,
-                bottom = 12.dp + if (session.bottomBarStyle != 0) {
-                    72.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                } else 0.dp,
+                bottom = 12.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -92,24 +89,7 @@ internal fun CollectionList(
             // 已有内容时错误降级为条幅，不清空正在看的列表
             error?.let { message ->
                 item("error") {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                message,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f),
-                            )
-                            TextButton(onClick = onRefresh) { Text("重试") }
-                        }
-                    }
+                    sb.linux.client.ui.components.feedback.AppNotice(message, Modifier, onAction = onRefresh)
                 }
             }
             items(rows, key = { it.collectionId }, contentType = { "collection-card" }) { summary ->
@@ -119,23 +99,28 @@ internal fun CollectionList(
     }
 }
 
-/** 专辑卡片：标题行 → 作者行 → 元信息 FlowRow（篇数/更新/创建/订阅数各自成项，不再被单行截断）。 */
+/** 专辑摘要：标题 → 作者 → 元信息 FlowRow；使用色调表面而不是抬升卡片。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
         Column(
             Modifier.padding(start = 14.dp, top = 13.dp, end = 10.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Avatar(summary.avatarUrl, 36)
+                Avatar(summary.avatarUrl, 40)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
                             summary.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
@@ -160,7 +145,7 @@ private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit)
                     if (summary.authorName.isNotBlank()) {
                         Text(
                             summary.authorName,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -188,7 +173,7 @@ private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit)
                     meta.forEach {
                         Text(
                             it,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                         )

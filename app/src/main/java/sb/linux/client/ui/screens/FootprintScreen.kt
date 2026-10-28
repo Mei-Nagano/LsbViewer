@@ -2,31 +2,60 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
-import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import sb.linux.client.domain.topic.TopicCard
+import sb.linux.client.ui.components.feedback.AppConfirmDialog
+import sb.linux.client.ui.components.feedback.EmptyBox
+import sb.linux.client.ui.components.input.LocalFilterField
+import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.feature.community.BrowsingHistoryViewModel
 import sb.linux.client.ui.feature.community.BrowsingHistoryViewModelFactory
+import sb.linux.client.ui.patterns.topic.TopicCardView
+import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
+/**
+ * 本地浏览历史：按真实日期分组，行内只显示当天时刻；左滑删除单条，清空需确认且说明只清理本地记录。
+ * 游客同样可读；点击回到帖子（阅读位置仍由阅读锚点单独恢复）。
+ */
 @Composable
 fun FootprintScreen(session: Session, nav: NavHostController) {
-    // 本地浏览历史：不再解析源站足迹，左划卡片可删除（3.2）
     val factory = remember(session.browsingHistoryRepository) {
         BrowsingHistoryViewModelFactory(session.browsingHistoryRepository)
     }
@@ -34,141 +63,158 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
     val topics = viewModel.topics
     var showClearDialog by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    val spacing = LocalAppSpacing.current
 
     // 从帖子返回时刷新（浏览时间可能变化）
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
-            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.refresh()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
         }
-        lifecycleOwner.lifecycle.addObserver(obs)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("浏览历史") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    TextButton(
-                        onClick = { showClearDialog = true },
-                        enabled = topics.isNotEmpty(),
-                    ) { Text("清空") }
-                }
-            )
-        }
+    AppPageScaffold(
+        title = "浏览历史",
+        onBack = { nav.popBackStack() },
+        actions = {
+            TextButton(onClick = { showClearDialog = true }, enabled = topics.isNotEmpty()) {
+                Text("清空")
+            }
+        },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            // 本地搜索（只过滤标题，纯本地无需访问源站）
             if (topics.isNotEmpty()) {
-                OutlinedTextField(
+                LocalFilterField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("搜索浏览历史") },
-                    leadingIcon = { Icon(Icons.Filled.Search, null) },
-                    trailingIcon = {
-                        if (query.isNotBlank()) Icon(
-                            Icons.Filled.Close, "清空",
-                            Modifier.clickable { query = "" }
-                        )
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                    placeholder = "搜索浏览历史",
+                    modifier = Modifier.padding(
+                        start = spacing.pageHorizontal,
+                        end = spacing.pageHorizontal,
+                        top = spacing.item,
+                        bottom = spacing.item,
+                    ),
                 )
             }
-            if (topics.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "暂无浏览历史",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(24.dp)
-                    )
-                }
-            } else {
-                val filtered = topics.filter {
-                    query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)
-                }
-                if (filtered.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "无匹配“${query}”的记录",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(24.dp)
-                        )
-                    }
-                } else {
-                    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-                        items(filtered, key = { it.topicId }) { t ->
-                    val state = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { v ->
-                            if (v == SwipeToDismissBoxValue.EndToStart) {
-                                viewModel.remove(t.topicId)
-                                session.showToast("已删除该记录")
-                                true
-                            } else false
-                        }
-                    )
-                    SwipeToDismissBox(
-                        state = state,
-                        enableDismissFromStartToEnd = false,
-                        backgroundContent = {
-                            Box(
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 14.dp, vertical = 5.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.errorContainer,
-                                        RoundedCornerShape(18.dp)
-                                    ),
-                                contentAlignment = Alignment.CenterEnd
-                            ) {
-                                Icon(
-                                    Icons.Filled.Delete, "删除",
-                                    Modifier.padding(end = 22.dp),
-                                    tint = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                        }
-                    ) {
-                        TopicCardView(
-                            t,
-                            onClick = { nav.navigate("topic/${t.topicId}") },
-                            onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
-                            showComments = false,   // 浏览历史只展示浏览时间，不显示评论数
-                            showForum = false,      // 浏览历史不显示所属板块
-                        )
-                    }
-                    }
-                }
+            val filtered = remember(topics, query) {
+                topics.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) }
             }
-        }
+            when {
+                topics.isEmpty() -> EmptyBox("暂无浏览历史\n打开帖子后会自动记录，最多保留 200 条")
+                filtered.isEmpty() -> EmptyBox("无匹配“$query”的记录")
+                else -> HistoryList(filtered, nav, spacing, onRemove = {
+                    viewModel.remove(it)
+                    session.showToast("已删除该记录")
+                })
+            }
         }
     }
 
     if (showClearDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDialog = false },
-            title = { Text("清空浏览历史") },
-            text = { Text("确定清空全部 ${topics.size} 条本地浏览记录吗？") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.clear()
-                    showClearDialog = false
-                    session.showToast("浏览历史已清空")
-                }) { Text("清空") }
+        AppConfirmDialog(
+            title = "清空浏览历史",
+            message = "确定清空全部 ${topics.size} 条本地浏览记录吗？只影响本机历史，不会取消源站收藏或清除阅读位置。",
+            onDismiss = { showClearDialog = false },
+            onConfirm = {
+                viewModel.clear()
+                showClearDialog = false
+                session.showToast("浏览历史已清空")
             },
-            dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("取消") } }
+            confirmText = "清空", destructive = true, dismissText = "取消",
         )
     }
 }
 
-// ---------------- 举报 ----------------
+private val DayTimeFormat = DateTimeFormatter.ofPattern("M月d日")
+private val DayTimeFormatWithYear = DateTimeFormatter.ofPattern("yyyy年M月d日")
+
+@Composable
+private fun HistoryList(
+    topics: List<TopicCard>,
+    nav: NavHostController,
+    spacing: sb.linux.client.ui.theme.AppSpacing,
+    onRemove: (Long) -> Unit,
+) {
+    val today = LocalDate.now()
+    val grouped = topics.groupBy { visitedDate(it.visitedAt) }
+    LazyColumn(contentPadding = PaddingValues(vertical = spacing.item)) {
+        grouped.forEach { (date, entries) ->
+            item(key = "day-$date") {
+                Text(
+                    dayLabel(date, today),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(
+                        start = spacing.pageHorizontal, end = spacing.pageHorizontal,
+                        top = spacing.contentGap, bottom = spacing.inline,
+                    ),
+                )
+            }
+            items(entries, key = { it.topicId }) { topic ->
+                DismissibleHistory(onDismiss = { onRemove(topic.topicId) }, spacing = spacing) {
+                    TopicCardView(
+                        topic,
+                        onClick = { nav.navigate("topic/${topic.topicId}") },
+                        onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
+                        showComments = false,
+                        showForum = false,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun visitedDate(at: Long): LocalDate = if (at > 0) {
+    Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDate()
+} else LocalDate.MIN
+
+private fun dayLabel(date: LocalDate, today: LocalDate): String = when (date) {
+    today -> "今天"
+    today.minusDays(1) -> "昨天"
+    LocalDate.MIN -> "更早"
+    else -> if (date.year == today.year) date.format(DayTimeFormat)
+    else date.format(DayTimeFormatWithYear)
+}
+
+@Composable
+private fun DismissibleHistory(
+    onDismiss: () -> Unit,
+    spacing: sb.linux.client.ui.theme.AppSpacing,
+    content: @Composable () -> Unit,
+) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) { onDismiss(); true } else false
+        },
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp, vertical = 5.dp)
+                    .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.large),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Row(
+                    Modifier.padding(end = 22.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.inline),
+                ) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    Text("删除", color = MaterialTheme.colorScheme.onErrorContainer)
+                }
+            }
+        },
+        content = { content() },
+    )
+}

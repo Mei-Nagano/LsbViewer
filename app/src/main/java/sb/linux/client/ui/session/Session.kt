@@ -3,7 +3,6 @@ package sb.linux.client.ui.session
 import sb.linux.client.domain.community.HomeSessionObservation
 import sb.linux.client.domain.community.KeywordFilterRepository
 import sb.linux.client.domain.community.BrowsingHistoryRepository
-import sb.linux.client.domain.community.UsageStatisticsRepository
 
 import android.app.Application
 import sb.linux.client.LsbApp
@@ -56,11 +55,17 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     internal val forumRepository: ForumRepository = appContainer.forumRepository
     private val repositories by lazy { SessionRepositories(this, appContainer.client) }
     private val accountLifecycle by lazy { SessionAccountLifecycleCoordinator(this) }
+    internal fun onUserSummaryBlockChanged() {
+        topicPageCacheRepository.clearAll()
+        homeBrowseCache.clearHomeCache()
+        homeBrowse.homeTabs.forEach { it.topics = emptyList(); it.loaded = false }
+        homeBrowse.requestRefresh()
+    }
+    internal val userSummaryRepository get() = repositories.userSummaryRepository
     internal val accountSessionRepository get() = repositories.accountSessionRepository
     internal val topicCollectionRepository: TopicCollectionPageRepository get() = repositories.topicCollectionRepository
     internal val keywordFilterRepository: KeywordFilterRepository get() = repositories.keywordFilterRepository
     internal val browsingHistoryRepository: BrowsingHistoryRepository get() = repositories.browsingHistoryRepository
-    internal val usageStatisticsRepository: UsageStatisticsRepository get() = repositories.sourceUsageRepository
     internal val account by lazy {
         AccountSession(accountSessionRepository, accountLifecycle::applySnapshot)
     }
@@ -88,12 +93,10 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     internal val backupSettingsRepository: BackupSettingsRepository get() = repositories.backupSettingsRepository
 
     internal val privateMessageRepository get() = repositories.privateMessageRepository
-    internal val privateMessageHistory get() = repositories.privateMessageHistory
     internal val checkinRepository get() = repositories.checkinRepository
     internal val checkinSummaryRepository: CheckinSummaryRepository
         get() = repositories.checkinSummaryRepository
     internal val capVerificationGateway: CapVerificationGateway get() = repositories.capVerificationGateway
-    internal val gachaCenterRepository get() = repositories.gachaCenterRepository
     internal val cardRedemptionsRepository get() = repositories.cardRedemptionsRepository
     internal val homeBrowseCache: HomeBrowseCache get() = cache.homeBrowseCache
     internal val topicPageCacheRepository: TopicPageCacheRepository get() = cache.topicPageCacheRepository
@@ -101,9 +104,6 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     internal val readingPositionRepository: TopicReadingPositionRepository get() = cache.readingPositionRepository
     internal val danmakuCacheRepository: TopicDanmakuCacheRepository get() = cache.danmakuCacheRepository
     internal val newTopicDraftRepository: NewTopicDraftRepository get() = cache.newTopicDraftRepository
-    internal val gachaMarketRepository get() = repositories.gachaMarketRepository
-    internal val gachaProfileRepository get() = repositories.gachaProfileRepository
-    internal val gachaOperationRepository get() = repositories.gachaOperationRepository
     internal val homeRepository get() = repositories.homeRepository
     internal val favoritesRepository get() = repositories.favoritesRepository
     internal val userPageRepository get() = repositories.userPageRepository

@@ -17,6 +17,13 @@ import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.unit.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 import sb.linux.client.domain.topic.PostEntry
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -50,7 +57,14 @@ internal fun PostCardContent(
     onBodyLayout: (Float, Float) -> Unit = { _, _ -> },
     searchHighlight: String = "",
     onSearchPosition: (Float) -> Unit = {},
+    /** 评论正文使用 16/26 的评论字阶；主帖使用 18/30。 */
+    comment: Boolean = false,
 ) {
+    if (post.userBlocked) {
+        BlockedPostPlaceholder(post, avatarSize,
+            modifier.onGloballyPositioned { onBodyLayout(it.positionInRoot().y, it.size.height.toFloat()) }, onFloor)
+        return
+    }
     Column(modifier) {
         PostAuthorHeader(
             post = post,
@@ -64,7 +78,7 @@ internal fun PostCardContent(
         Spacer(Modifier.height(10.dp))
         // 正文：交给系统原生长按选择菜单（复制/翻译/搜索由系统提供）；#楼层号可点击跳转
         SelectionContainer {
-            HtmlContent(post.contentHtml, modifier = Modifier.onGloballyPositioned { onBodyLayout(it.positionInRoot().y, it.size.height.toFloat()) }, onFloor = onFloor, onHeadingPosition = onHeadingPosition, highlightQuery = searchHighlight, onSearchPosition = onSearchPosition)
+            HtmlContent(post.contentHtml, modifier = Modifier.onGloballyPositioned { onBodyLayout(it.positionInRoot().y, it.size.height.toFloat()) }, onFloor = onFloor, onHeadingPosition = onHeadingPosition, highlightQuery = searchHighlight, onSearchPosition = onSearchPosition, comment = comment)
         }
         SmartDecodedContentPanel(post.contentHtml)
         // 回复目标与本评论的子树折叠均位于卡片右下角；二者互不抢占点击区域。
@@ -148,6 +162,10 @@ internal fun PostCardContent(
             }
         }
         Spacer(Modifier.height(4.dp))
+        if (post.signatureHtml.isNotBlank()) {
+            PostSignature(post.signatureHtml)
+            Spacer(Modifier.height(6.dp))
+        }
         // 功能按钮与正文之间的分割线
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
         Spacer(Modifier.height(4.dp))

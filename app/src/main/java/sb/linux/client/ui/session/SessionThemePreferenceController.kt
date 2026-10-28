@@ -208,7 +208,7 @@ internal class SessionThemePreferenceController(
         session.themeBackground = null
         session.backgroundImage = ""; session.backgroundImageEnabled = false; session.backgroundImageOpacity = 0.25f
         session.surfaceOpacity = 1f
-        session.keepBackgroundColor = true
+        session.keepBackgroundColor = false
         session.themeCustomColors = emptyList()
         session.updateCardColors(emptyMap())
         session.fontKey = "default"

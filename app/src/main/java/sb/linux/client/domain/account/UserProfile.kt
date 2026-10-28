@@ -13,4 +13,6 @@ data class UserProfile(
     val stats: List<Pair<String, String>>,
     val online: Boolean = false,
     val titleBadge: TitleBadge? = null,
+    val blockUrl: String = "",
+    val blockLabel: String = "",
 )

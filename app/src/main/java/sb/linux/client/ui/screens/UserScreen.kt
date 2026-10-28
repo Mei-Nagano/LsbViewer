@@ -38,6 +38,13 @@ import kotlinx.coroutines.launch
 import sb.linux.client.ui.navigation.LocalMasterNav
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 import sb.linux.client.ui.feature.account.UserPageViewModel
 import sb.linux.client.ui.feature.account.UserPageViewModelFactory
 
@@ -65,8 +72,9 @@ fun UserScreen(session: Session, nav: NavHostController) {
     val isSelf = session.account.loginState.userId == uid
     // 平板双栏的主栏控制器（手机为 null）：退出登录时切主栏并清空右栏
     val masterNav = LocalMasterNav.current
+    val spacing = LocalAppSpacing.current
 
-    LaunchedEffect(viewModel) { viewModel.load() }
+    LaunchedEffect(viewModel, session.homeBrowse.refreshRequest) { viewModel.load() }
 
     // 点进该用户主页即刷新其头像缓存：清掉 Coil 内存/磁盘里该 URL 的旧图，
     // 大头像随后以新拉取的字节解码，侧栏等处的旧头像也能随之更新。
@@ -89,36 +97,37 @@ fun UserScreen(session: Session, nav: NavHostController) {
         if (isSelf) add("notifications" to "通知")
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(profile?.username ?: "用户") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    if (session.account.loginState.loggedIn && !isSelf) {
-                        IconButton(onClick = {
-                            // 进入「通知-私信」同一套聊天界面（本地聚合会话 + 输入框直接回复源站）
-                            nav.navigate(
-                                "chat/$uid?name=${android.net.Uri.encode(profile?.username ?: "")}" +
-                                    "&avatar=${android.net.Uri.encode(profile?.avatarUrl ?: "")}"
-                            )
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.Send, "私信")
-                        }
-                    }
+    sb.linux.client.ui.components.navigation.AppPageScaffold(
+        title = profile?.username ?: "用户",
+        onBack = { nav.popBackStack() },
+        actions = {
+            if (session.account.loginState.loggedIn && !isSelf && !profile?.blockUrl.isNullOrBlank()) {
+                TextButton(onClick = {
+                    nav.navigate("userBlock?url=" + android.net.Uri.encode(profile!!.blockUrl))
+                }) { Text(profile?.blockLabel.orEmpty().ifBlank { "用户屏蔽" }) }
+            }
+            if (session.account.loginState.loggedIn && !isSelf) {
+                IconButton(onClick = {
+                    // 进入原站私信会话。
+                    nav.navigate(
+                        "chat/$uid?name=${android.net.Uri.encode(profile?.username ?: "")}" +
+                            "&avatar=${android.net.Uri.encode(profile?.avatarUrl ?: "")}"
+                    )
+                }) {
+                    Icon(Icons.AutoMirrored.Filled.Send, "私信")
                 }
-            )
-        }
+            }
+        },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
             profile?.let { UserProfileHeader(it) }
             // 本人主页：个人设置与退出登录入口（原"我的"页账号分类移入，3.1）
             if (isSelf && session.account.loginState.loggedIn) UserAccountActions(session, nav, masterNav)
-            ScrollableTabRow(selectedTabIndex = tabs.indexOfFirst { it.first == tab }.coerceAtLeast(0), edgePadding = 8.dp) {
+            ScrollableTabRow(
+                selectedTabIndex = tabs.indexOfFirst { it.first == tab }.coerceAtLeast(0),
+                edgePadding = spacing.pageHorizontal,
+                containerColor = MaterialTheme.colorScheme.surface,
+            ) {
                 tabs.forEach { (t, label) ->
                     Tab(selected = tab == t, onClick = { viewModel.selectTab(t) }, text = { Text(label) })
                 }
@@ -134,8 +143,8 @@ fun UserScreen(session: Session, nav: NavHostController) {
                         when (tab) {
                             "replies" -> userReplyRows(replies) { topicId -> nav.navigate("topic/$topicId") }
                             "points_rewards" -> if (pointRows.isEmpty()) {
-                                item { EmptyBox("暂无积分记录") }
-                            } else itemsIndexed(pointRows, key = { i, row -> "${row.timeText}-${row.reason}-$i" }) { _, row ->
+                                item { EmptyBox("暂无积分记录", modifier = Modifier.fillParentMaxHeight(0.5f)) }
+                            } else itemsIndexed(pointRows, key = { i, row -> "${row.timeText}-${row.reason}-$i" }) { index, row ->
                                 ListItem(
                                     headlineContent = { Text(row.reason) },
                                     supportingContent = { Text(row.timeText) },
@@ -147,13 +156,16 @@ fun UserScreen(session: Session, nav: NavHostController) {
                                         )
                                     }
                                 )
+                                if (index != pointRows.lastIndex) {
+                                    HorizontalDivider(
+                                        Modifier.padding(start = spacing.pageHorizontal),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                    )
+                                }
                             }
                             "notifications" -> userNotificationRows(notifications, nav)
                             else -> if (topicCards.isEmpty()) {
-                                item {
-                                    Spacer(Modifier.height(28.dp))
-                                    EmptyBox("暂无主题")
-                                }
+                                item { EmptyBox("暂无主题", modifier = Modifier.fillParentMaxHeight(0.5f)) }
                             } else itemsIndexed(topicCards, key = { i, t -> "${t.topicId}-${t.pinned}-$i" }) { _, t ->
                                 TopicCardView(t, onClick = { nav.navigate("topic/${t.topicId}") },
                                     onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") })
@@ -170,9 +182,9 @@ fun UserScreen(session: Session, nav: NavHostController) {
                         onClick = { scope.launch { userListState.animateScrollToItem(0) } },
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 24.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                        contentColor = MaterialTheme.colorScheme.onSurface,
+                            .padding(end = spacing.pageHorizontal, bottom = spacing.section),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ) {
                         Icon(Icons.Filled.KeyboardArrowUp, "回到顶部")
                     }

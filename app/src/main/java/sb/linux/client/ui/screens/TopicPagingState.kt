@@ -15,7 +15,6 @@ internal class TopicPagingState(savedState: SavedStateHandle) {
     val localReplyPage: MutableState<Int> = SavedMutableState(savedState, "localReplyPage", 1)
     val reverseStalledAtPage = mutableIntStateOf(0)
     val allSearchPagesLoaded = mutableStateOf(false)
-    val usageViewRecorded: MutableState<Boolean> = SavedMutableState(savedState, "usageViewRecorded", false)
 }
 
 private class SavedMutableState<T : Any>(

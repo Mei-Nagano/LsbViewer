@@ -15,10 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.colorSeed
-import sb.linux.client.ui.isCustomColorKey
+import sb.linux.client.ui.theme.colorSeed
+import sb.linux.client.ui.theme.isCustomColorKey
 
 internal fun LazyListScope.themeBackgroundPalette(
+    section: String,
     session: Session,
     currentScheme: ColorScheme,
     backgroundImportBusy: Boolean,
@@ -28,15 +29,8 @@ internal fun LazyListScope.themeBackgroundPalette(
     onPickElement: (String) -> Unit,
     onOpenThemeColorPicker: () -> Unit,
 ) {
-// ---------- 快捷切换（日/夜，紧凑横向按钮） ----------
-item { GroupLabel("快捷切换") }
-item {
-    GroupCard {
-        DayNightToggle(session.themeMode) { mode -> session.preferences.saveTheme(mode, session.dynamicColor) }
-    }
-}
-
 // ---------- 自定义全局背景（20、38） ----------
+if (section == "background") {
 item { GroupLabel("页面背景") }
 item {
     GroupCard {
@@ -82,16 +76,18 @@ item {
         }
         HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         SwitchRow(
-            "禁止页面染色",
-            "页面底色、普通卡片和弹窗保持中性色；按钮、选中状态、标签和高亮完整保留强调色。手动自定义背景不受影响",
+            "禁止页面染色（兼容旧版）",
+            "新默认使用带轻微色调的 MD3 表面；开启后页面底色、普通卡片和弹窗保持中性色，按钮、选中状态、标签和高亮完整保留强调色。手动自定义背景不受影响",
             checked = session.keepBackgroundColor,
             onCheckedChange = session.preferences::saveKeepBackgroundColor,
         )
     }
 }
 
+}
+if (section == "colors") {
 // ---------- 实时预览（上部吸顶，始终可见；下半部分默认折叠 3.5） ----------
-stickyHeader {
+item {
     PostCardPreview(currentScheme) { key -> onPickElement(key) }
 }
 item {
@@ -118,7 +114,7 @@ item {
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(sb.linux.client.ui.ThemeColorPresets) { preset ->
+            items(sb.linux.client.ui.theme.ThemeColorPresets) { preset ->
                 val selected = session.themeColorKey == preset.key
                 ColorSwatch(
                     color = preset.lightPrimary,
@@ -162,4 +158,5 @@ item {
     }
 }
 
+}
 }

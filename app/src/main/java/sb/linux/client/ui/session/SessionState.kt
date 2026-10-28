@@ -52,6 +52,8 @@ internal interface SessionState {
     var showUid: Boolean
     var smartDecodeEnabled: Boolean
     var tabletMode: Boolean
+    /** 用户显式选择「始终单内容栏」；不影响根导航随窗口适配。 */
+    var singleContentColumn: Boolean
     var bottomBarStyle: Int
     var bottomBarItems: List<String>
     var replyBarStyle: Int

@@ -41,7 +41,6 @@ internal fun BoxScope.TopicScrollControls(
     scope: CoroutineScope,
     returnPosition: Pair<Int, Int>?,
     onReturnPositionChange: (Pair<Int, Int>?) -> Unit,
-    replyGlass: Boolean,
     currentFloor: Int,
     onFloorJump: () -> Unit,
 ) {
@@ -108,7 +107,7 @@ internal fun BoxScope.TopicScrollControls(
                 onReturnPositionChange(listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset)
                 scope.launch { listState.animateScrollToItem(0) }
             },
-            modifier = Modifier.padding(end = 16.dp, bottom = if (replyGlass) 74.dp else 16.dp),
+            modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) { Icon(Icons.Filled.KeyboardArrowUp, "回到顶部") }
@@ -141,7 +140,7 @@ internal fun BoxScope.TopicScrollControls(
         exit = scaleOut(),
     ) {
         Row(
-            Modifier.padding(bottom = if (replyGlass) 74.dp else 16.dp),
+            Modifier.padding(bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {

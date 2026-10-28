@@ -15,17 +15,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import sb.linux.client.domain.topic.PostEntry
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Boolean, searchHighlight: String, showFloorBadge: Boolean, onUser: () -> Unit, onFloor: (Int) -> Unit) {
 // 作者行：头像 + 名称/徽章 + 元信息，楼层号固定右上角
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Avatar(post.avatarUrl, avatarSize, Modifier.clickable(onClick = onUser), online = post.online)
+                UserAvatar(post.authorId, post.avatarUrl, avatarSize, online = post.online, onProfile = onUser, minTouchTarget = true)
                 if (LocalShowUid.current && post.authorUid > 0) {
                     Text(
                         post.authorUid.toString(),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )
@@ -42,7 +49,7 @@ internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Bool
                     Text(
                         addSearchHighlights(AnnotatedString(post.authorName), searchHighlight, MaterialTheme.colorScheme.tertiaryContainer),
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -93,19 +100,28 @@ internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Bool
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (post.redPacketReward.isNotBlank()) {
+                    Text(post.redPacketReward, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error)
+                }
             }
             if (showFloorBadge && post.floor > 0) {
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "#${post.floor}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
+                // 楼层跳转是独立操作：视觉胶囊不变，触区补足 48dp
+                Box(
+                    Modifier
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { onFloor(post.floor) }
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
-                )
+                        .clickable { onFloor(post.floor) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "#${post.floor}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 }

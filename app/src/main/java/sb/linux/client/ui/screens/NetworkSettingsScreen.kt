@@ -26,6 +26,9 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
     }
     val viewModel: NetworkSettingsViewModel = viewModel(factory = factory)
     val state = viewModel.state
+    val saved = session.proxySettingsRepository.current()
+    val exit = rememberSettingsExit(state.proxyType != saved.type ||
+        (state.proxyType != 0 && (state.proxyHost.trim() != saved.host || state.proxyPort != saved.port.toString()))) { nav.popBackStack() }
     LaunchedEffect(state.feedback) {
         state.feedback?.let {
             session.showToast(it)
@@ -36,22 +39,7 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
         onDispose { viewModel.cancelDetection() }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("网络设置") },
-                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                } },
-                actions = { ResetAction("重置网络设置", viewModel::reset) },
-            )
-        },
-    ) { pad ->
-        Column(
-            Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+    SettingsPage("网络与链接", nav, onBack = exit) {
             GroupCard {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
@@ -103,7 +91,9 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
                     Icons.Filled.Dns,
                 ) { nav.navigate("dohSettings") }
             }
-        }
+            GroupLabel("链接")
+            LinkSettingsContent(session)
+            SettingsResetRow("重置网络设置", onConfirm = viewModel::reset)
     }
 }
 

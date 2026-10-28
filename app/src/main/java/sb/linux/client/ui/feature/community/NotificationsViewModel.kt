@@ -12,7 +12,8 @@ import sb.linux.client.domain.community.NotificationRepository
 
 data class NotificationsUiState(
     val items: List<NotificationItem> = emptyList(),
-    val loading: Boolean = true,
+    val loading: Boolean = false,
+    val loaded: Boolean = false,
     val error: String? = null,
 )
 
@@ -30,9 +31,9 @@ class NotificationsViewModel(
             mutableState.update { it.copy(loading = true, error = null) }
             try {
                 val items = repository.loadNotifications(userId)
-                mutableState.update { it.copy(items = items, loading = false) }
+                mutableState.update { it.copy(items = items, loading = false, loaded = true) }
             } catch (error: Exception) {
-                mutableState.update { it.copy(loading = false, error = error.message) }
+                mutableState.update { it.copy(loading = false, loaded = true, error = error.message) }
             }
         }
     }

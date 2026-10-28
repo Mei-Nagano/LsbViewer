@@ -17,6 +17,13 @@ import sb.linux.client.domain.gacha.GachaOperationForm
 import sb.linux.client.domain.gacha.SourceFormProtocol
 import sb.linux.client.domain.gacha.validateSourceForm
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 
 /**
  * checkbox/radio 的显示文字。解析器已尽力从源站的称号徽章里取名字；万一仍然退化成字段名
@@ -71,7 +78,7 @@ internal fun GachaDynamicForm(
     val selectedChoiceCount = SourceFormProtocol.selectedChoiceCount(
         form, values, checked, radioValues, multiValues,
     )
-    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val checkboxIndices = form.fields.indices.filter { form.fields[it].type == "checkbox" }
             if (checkboxIndices.isNotEmpty()) {

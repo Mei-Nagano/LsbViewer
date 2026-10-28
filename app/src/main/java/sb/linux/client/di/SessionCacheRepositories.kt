@@ -23,11 +23,7 @@ internal class SessionCacheRepositories(
     private val aiSummaryCache: MutableMap<Long, String>,
 ) {
     internal val newTopicDraftRepository: NewTopicDraftRepository by lazy {
-        NewTopicDraftStore(
-            app.getSharedPreferences(
-                "lsb_topic_drafts", android.content.Context.MODE_PRIVATE,
-            ),
-        )
+        NewTopicDraftStore()
     }
     internal val homeBrowseCache: HomeBrowseCache by lazy { HomeCacheStore(app) }
     internal val topicPageCacheRepository: TopicPageCacheRepository by lazy { TopicPageCacheStore() }

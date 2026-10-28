@@ -27,6 +27,14 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
+
 import sb.linux.client.domain.account.LoginVerification
 /** Markdown 工具栏（横向滚动；私信等场景隐藏），onInsert(before, after, placeholder) */
 @Composable
@@ -35,7 +43,7 @@ internal fun ReplyToolbar(
     onUploadImage: (() -> Unit)? = null,
     imageUploadBusy: Boolean = false,
 ) {
-    sb.linux.client.ui.MarkdownEditorTools(
+    sb.linux.client.ui.content.MarkdownEditorTools(
         onInsert = onInsert, onUpload = { onUploadImage?.invoke() ?: onInsert("![", "](https://)", "图片描述") },
         uploading = imageUploadBusy,
     )
@@ -60,7 +68,7 @@ internal fun ReplyCaptchaField(
             value = answer,
             onValueChange = onAnswerChange,
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
             label = { Text("人机验证：${captcha.question}") },
             singleLine = true,
             trailingIcon = if (onRefresh != null) {

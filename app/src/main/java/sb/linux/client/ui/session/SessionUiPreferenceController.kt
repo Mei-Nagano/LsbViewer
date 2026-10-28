@@ -5,7 +5,9 @@ internal class SessionUiPreferenceController(
 ) {
     fun saveTabletMode(value: Boolean) {
         session.generalSettingsRepository.setTabletMode(value)
-        session.tabletMode = session.generalSettingsRepository.current().tabletMode
+        val current = session.generalSettingsRepository.current()
+        session.tabletMode = current.tabletMode
+        session.singleContentColumn = current.singleContentColumn
     }
 
     fun saveBottomBarStyle(value: Int) {

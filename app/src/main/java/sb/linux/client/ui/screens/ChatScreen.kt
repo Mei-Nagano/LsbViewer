@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,11 +25,18 @@ import androidx.navigation.NavHostController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 import sb.linux.client.domain.community.PmMessage
 import sb.linux.client.ui.feature.community.ChatViewModel
 import sb.linux.client.ui.feature.community.ChatViewModelFactory
 
-/** 私信聊天界面：优先同步新版源站完整会话，本地聚合仅作离线兜底。 */
+/** 私信聊天界面：直接读取原站完整会话，不聚合或持久化本地消息。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(session: Session, nav: NavHostController) {
@@ -38,10 +44,9 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     val partnerId = entry.arguments?.getString("userId")?.toLongOrNull() ?: 0L
     val name = entry.arguments?.getString("name") ?: ""
     val avatarUrl = entry.arguments?.getString("avatar") ?: ""
-    val factory = remember(session.privateMessageRepository, session.privateMessageHistory, partnerId, name, avatarUrl) {
+    val factory = remember(session.privateMessageRepository, partnerId, name, avatarUrl) {
         ChatViewModelFactory(
             session.privateMessageRepository,
-            session.privateMessageHistory,
             partnerId,
             name,
             avatarUrl,
@@ -50,6 +55,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     }
     val viewModel: ChatViewModel = viewModel(factory = factory, key = "chat-$partnerId")
     val state by viewModel.uiState.collectAsState()
+    var confirmBlock by remember { mutableStateOf(false) }
     var emojiOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
@@ -59,6 +65,13 @@ fun ChatScreen(session: Session, nav: NavHostController) {
         if (state.messages.isNotEmpty()) listState.scrollToItem(state.messages.size - 1)
     }
 
+    if (confirmBlock) sb.linux.client.ui.components.feedback.AppConfirmDialog(
+        title = state.blockLabel,
+        message = "按原站规则更新与该用户的私信关系。",
+        onDismiss = { confirmBlock = false },
+        onConfirm = { confirmBlock = false; viewModel.toggleBlock() },
+        confirmText = "确认", dismissText = "取消",
+    )
     Scaffold(
         topBar = {
             TopAppBar(
@@ -66,22 +79,26 @@ fun ChatScreen(session: Session, nav: NavHostController) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         // 顶栏对方头像同样可点击进入其个人主页
                         Box(
-                            Modifier.clip(CircleShape).clickable(enabled = partnerId > 0) {
+                            Modifier.clip(RoundedCornerShape(4.dp)).clickable(enabled = partnerId > 0) {
                                 nav.navigate("user/$partnerId")
                             }
-                        ) { Avatar(state.avatarUrl, 30) }
+                        ) { sb.linux.client.ui.patterns.user.UserAvatar(partnerId, state.avatarUrl, 30) }
                         Text(state.name.ifBlank { "用户 $partnerId" }, style = MaterialTheme.typography.titleMedium,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
-                actions = { IconButton(enabled = !state.loading && !state.sending, onClick = viewModel::sync) { Icon(Icons.Filled.Refresh, "同步私信") } },
+                actions = {
+                    if (state.blockLabel.isNotBlank()) TextButton(enabled = !state.blocking && !state.loading,
+                        onClick = { confirmBlock = true }) { Text(state.blockLabel) }
+                    IconButton(enabled = !state.loading && !state.sending, onClick = viewModel::sync) { Icon(Icons.Filled.Refresh, "同步私信") } },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 }
             )
         },
         bottomBar = {
-            Surface(shadowElevation = 6.dp) {
+            // 输入工具区用色调表面，不再叠 6dp 阴影
+            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
                 Row(
                     Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -95,15 +112,18 @@ fun ChatScreen(session: Session, nav: NavHostController) {
                         }
                     }
                     OutlinedTextField(
+                        enabled = state.canSend && !state.sending,
                         value = state.draft, onValueChange = viewModel::setDraft,
-                        placeholder = { Text("输入私信内容") },
+                        placeholder = { Text("输入私信内容（最多 500 字）") },
+                        supportingText = { Text("${state.draft.codePointCount(0, state.draft.length)}/500") },
+                        isError = state.draft.codePointCount(0, state.draft.length) > 500,
                         modifier = Modifier.weight(1f),
                         maxLines = 4,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = { viewModel.send() }),
-                        shape = RoundedCornerShape(20.dp),
+                        shape = MaterialTheme.shapes.large,
                     )
-                    FilledIconButton(onClick = viewModel::send, enabled = state.draft.isNotBlank() && !state.sending && partnerId > 0) {
+                    FilledIconButton(onClick = viewModel::send, enabled = state.draft.isNotBlank() && state.draft.codePointCount(0, state.draft.length) <= 500 && !state.sending && state.canSend && partnerId > 0) {
                         Icon(Icons.Filled.Send, "发送")
                     }
                 }
@@ -112,23 +132,18 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     ) { pad ->
         when {
             partnerId <= 0 -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { Text("无效的会话") }
-            state.loading && state.messages.isEmpty() -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            state.syncError != null && state.messages.isEmpty() -> ErrorBox(state.syncError!!) { viewModel.sync() }
-            state.messages.isEmpty() -> Column(
-                Modifier.padding(pad).fillMaxSize().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
-            ) {
-                Text("还没有消息", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(6.dp))
-                Text("在这里发送第一条，或对方发来私信后，往来消息会显示在此", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            state.loading && state.messages.isEmpty() -> LoadingBox(Modifier.padding(pad))
+            state.syncError != null && state.messages.isEmpty() -> ErrorBox(state.syncError!!, Modifier.padding(pad)) { viewModel.sync() }
+            state.messages.isEmpty() -> EmptyBox(
+                "还没有消息", "在这里发送第一条，或对方发来私信后，往来消息会显示在此",
+                Modifier.padding(pad).padding(24.dp),
+            )
             else -> LazyColumn(
                 Modifier.padding(pad).fillMaxSize(),
                 state = listState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
             ) {
-                state.syncError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error); TextButton(onClick = viewModel::sync) { Text("重试同步") } } }
+                state.syncError?.let { message -> item { AppNotice(message, actionLabel = "重试同步", onAction = viewModel::sync) } }
                 items(state.messages) { m ->
                     ChatBubble(m, onPartnerClick = { if (m.partnerId > 0) nav.navigate("user/${m.partnerId}") })
                 }
@@ -141,23 +156,30 @@ fun ChatScreen(session: Session, nav: NavHostController) {
 @Composable
 private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
     val mine = !m.incoming
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
-        verticalAlignment = Alignment.Top
-    ) {
-        // 对方头像固定在消息左侧（QQ/微信式），点击进入对方个人主页
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        // 气泡最宽为会话可用宽度的 80%，并限制在 480dp 内
+        val bubbleMax = (maxWidth * 0.8f).coerceAtMost(480.dp)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
+            verticalAlignment = Alignment.Top
+        ) {
+        // 对方头像固定在消息左侧（QQ/微信式），48dp 触区包住 32dp 视觉头像
         if (!mine) {
-            Box(Modifier.clip(CircleShape).clickable(onClick = onPartnerClick)) {
+            Box(
+                Modifier.size(48.dp).clip(MaterialTheme.shapes.small).clickable(onClick = onPartnerClick),
+                contentAlignment = Alignment.Center,
+            ) {
                 Avatar(m.avatarUrl, 32)
             }
             Spacer(Modifier.width(8.dp))
         }
         Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = if (mine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.widthIn(max = 280.dp)
+                shape = MaterialTheme.shapes.large,
+                // 接收 surfaceContainer，发送 primaryContainer，前景使用成对 on 色
+                color = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.widthIn(max = bubbleMax),
             ) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     // 回复引用预览（QQ/微信式）：对方回复时引用的我方消息
@@ -165,7 +187,7 @@ private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
                         Text(
                             m.quoteText,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (mine) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.72f)
+                            color = if (mine) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(bottom = 3.dp),
@@ -173,8 +195,9 @@ private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
                     }
                     Text(
                         m.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (mine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                        // 私信正文 bodyLarge 16/24，不照搬帖子长文 18sp
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (mine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
@@ -182,6 +205,7 @@ private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
                 Spacer(Modifier.height(2.dp))
                 Text(m.timeText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
+        }
         }
     }
 }

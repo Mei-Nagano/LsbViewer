@@ -56,14 +56,12 @@ desktop.ini
 *.log
 *.hprof
 *.tmp
+*.bak
+*.orig
+*.rej
 
-# Local task checklist (not tracked)
+# Local task checklist and work logs (not tracked)
 checklist.md
-
-# Device-only local tests
-app/src/androidTest/
-
-# Local work logs and acceptance notes
 MEMORY.md
 REQUEST-*.md
 TESTING-*.md
@@ -71,8 +69,13 @@ FEATURE-AUDIT.md
 
 # Local agent instructions
 agents.md
-AGENTS.md
 
-# Local documentation and duplicate project copy
-/docs/
+# Local acceptance screenshots and run artifacts
+docs/md3-redesign/evidence/
+docs/md3-redesign/finalcheck-*/
+docs/md3-redesign/recheck-*/
+docs/md3-redesign/acceptance-*/
+docs/ui-acceptance/
+
+# Duplicate project copy
 /LsbViewer-main/

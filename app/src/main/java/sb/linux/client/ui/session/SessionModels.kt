@@ -27,7 +27,7 @@ class HomeBrowseState {
     var homeTabIndex by mutableIntStateOf(0)
     var homeCombo by mutableIntStateOf(0)
     var homeSortDrawerOpen by mutableStateOf(true)
-    val homeTabs = List(5) { HomeTabState() }
+    val homeTabs = List(7) { HomeTabState() }
 
     fun requestRefresh() { refreshRequest++ }
 }

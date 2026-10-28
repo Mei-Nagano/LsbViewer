@@ -58,5 +58,4 @@ internal class AppSettingsCardStore(private val prefs: SharedPreferences) {
 
     fun clearCardRedemptions() = prefs.edit().remove("card_redemptions").apply()
 
-    // ---------------- 使用统计 ----------------
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.AppUpdatePromptDialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.feature.settings.GeneralSettingsViewModel
 import sb.linux.client.ui.feature.settings.GeneralSettingsViewModelFactory
@@ -26,10 +27,8 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
     }
     val viewModel: GeneralSettingsViewModel = viewModel(factory = factory)
     val state = viewModel.state
-    var resetTick by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val (doCheck, updateState) = rememberUpdateChecker(session)
-    val linkMode = state.settings.linkOpenMode
     val updateMode = state.settings.updateCheckMode
     val intervalText = state.intervalText
 
@@ -44,72 +43,9 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("常规设置") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    ResetAction(
-                        title = "重置常规设置",
-                    ) {
-                        viewModel.reset()
-                        session.preferences.saveLinkPreviewEnabled(viewModel.state.settings.linkPreviewEnabled)
-                        resetTick++
-                        session.showToast("已重置常规设置")
-                    }
-                }
-            )
-        }
-    ) { pad ->
-        Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // ---------- 打开链接方式 ----------
-            GroupCard {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
-                    Text("打开外部链接方式", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "帖子内的外部链接与网页的打开方式；站内跳转（楼层、主页）始终在应用内进行",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        SegmentedButton(
-                            selected = linkMode == 0,
-                            onClick = { viewModel.setLinkOpenMode(0) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                            modifier = Modifier.weight(1f)
-                        ) { Text("应用内打开", maxLines = 1) }
-                        SegmentedButton(
-                            selected = linkMode == 1,
-                            onClick = { viewModel.setLinkOpenMode(1) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                            modifier = Modifier.weight(1f)
-                        ) { Text("外部浏览器打开", maxLines = 1) }
-                    }
-                }
-                SwitchRow(
-                    "链接预览卡片",
-                    "首次点击显示网站图标、标题和介绍，再点击卡片或打开按钮访问网站",
-                    checked = session.linkPreviewEnabled,
-                    onCheckedChange = { session.preferences.saveLinkPreviewEnabled(it) },
-                )
-            }
-
-            ImageHostSettingsCard(session, resetTick)
-
+    SettingsPage("应用与账号", nav) {
+            SettingMenuRow("个人资料与账号", "源站个人设置") { nav.navigate("settings") }
+            Text("当前版本 v${currentVersionName(context)}")
             // ---------- 检查更新 ----------
             GroupCard {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
@@ -144,7 +80,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                             label = { Text("检查间隔（1 - 720 小时）") },
                             suffix = { Text("小时") },
                             singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -165,34 +101,20 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
-        }
+            SettingsResetRow("重置所有应用设置") {
+                session.preferences.resetAllAppSettings()
+                session.showToast("已重置所有应用设置")
+            }
     }
 
     // 发现新版本对话框
     updateState.update?.let { rel ->
-        AlertDialog(
-            onDismissRequest = updateState.dismiss,
-            title = { Text("发现新版本") },
-            text = {
-                Column {
-                    Text("${rel.name}（当前 v${currentVersionName(context)}）")
-                    if (rel.notes.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            rel.notes.take(300),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { openExternal(rel.url); updateState.dismiss() }) { Text("前往下载") }
-            },
-            dismissButton = {
-                TextButton(onClick = updateState.dismiss) { Text("取消") }
-            }
+        AppUpdatePromptDialog(
+            releaseName = rel.name,
+            currentVersion = currentVersionName(context),
+            notes = rel.notes,
+            onDownload = { openExternal(rel.url); updateState.dismiss() },
+            onDismiss = updateState.dismiss,
         )
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,7 +25,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
-import sb.linux.client.ui.HtmlContent
+import sb.linux.client.ui.content.HtmlContent
 import sb.linux.client.domain.account.LoginVerification
 import sb.linux.client.ui.feature.media.ImageUploadViewModel
 import sb.linux.client.ui.feature.media.ImageUploadViewModelFactory
@@ -116,7 +117,7 @@ fun ReplyDialog(
                         .padding(horizontal = 20.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-                        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.weight(1f))
                 if (showToolbar) TextButton(onClick = { previewReply = !previewReply }) { Text(if (previewReply) "编辑" else "预览") }
                         TextButton(onClick = { if (!busy) expanded = false }) { Text("收起") }
@@ -141,7 +142,7 @@ fun ReplyDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = RoundedCornerShape(16.dp)
                     )
                     ReplyCaptchaField(
                         session = session,
@@ -176,7 +177,11 @@ fun ReplyDialog(
                 .verticalScroll(rememberScrollState())
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                // 关闭排在标题前：模态始终有明确、可访问的退出动作；提交中不可关闭。
+                IconButton(onClick = { if (!busy) onDismiss() }, enabled = !busy) {
+                    Icon(Icons.Filled.Close, "关闭")
+                }
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.weight(1f))
                 if (showToolbar) TextButton(onClick = { previewReply = !previewReply }) { Text(if (previewReply) "编辑" else "预览") }
                 TextButton(onClick = { submit() }, enabled = canSubmit) {
@@ -200,7 +205,7 @@ fun ReplyDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 96.dp),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 trailingIcon = {
                     IconButton(onClick = { expanded = true }) {
                         Icon(

@@ -7,9 +7,6 @@ import android.content.SharedPreferences
 import sb.linux.client.domain.ai.AiConfigPreset
 import sb.linux.client.domain.gacha.CardRedemptionRecord
 import sb.linux.client.domain.community.CommentFavorite
-import sb.linux.client.domain.community.UsageEvent
-import sb.linux.client.domain.community.DirectMessageThread
-import sb.linux.client.domain.community.PointRow
 import sb.linux.client.domain.topic.TopicCard
 import sb.linux.client.domain.topic.VirtualCard
 
@@ -18,8 +15,17 @@ class AppSettings(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("lsb_app_settings", Context.MODE_PRIVATE)
     private val themePrefs: SharedPreferences = context.getSharedPreferences("lsb_prefs", Context.MODE_PRIVATE)
     private val aiRecords = context.getSharedPreferences("lsb_ai_summaries", Context.MODE_PRIVATE)
-    private val drafts = context.getSharedPreferences("lsb_topic_drafts", Context.MODE_PRIVATE)
     private val readingRecords = context.getSharedPreferences("lsb_reading_positions", Context.MODE_PRIVATE)
+
+    init {
+        val obsoleteKeys = listOf(
+            "usage_events", "usage_ai_summary", "source_usage",
+            "source_points", "source_points_synced_at",
+        )
+        if (obsoleteKeys.any(prefs::contains)) {
+            prefs.edit().also { editor -> obsoleteKeys.forEach(editor::remove) }.apply()
+        }
+    }
 
     private val browse = AppSettingsBrowseStore(prefs)
     private val general = AppSettingsGeneralStore(prefs)
@@ -27,10 +33,14 @@ class AppSettings(context: Context) {
     private val account = AppSettingsAccountStore(prefs)
     private val history = AppSettingsHistoryStore(prefs)
     private val cards = AppSettingsCardStore(prefs)
-    private val usage = AppSettingsUsageStore(prefs)
+    private val uploadOptions = AppSettingsUploadOptionsStore(prefs)
     private val favorites = AppSettingsFavoriteStore(prefs)
     private val commentFavorites = AppSettingsCommentFavoriteStore(prefs)
-    private val messages = AppSettingsPrivateMessageStore(prefs)
+
+    init {
+        // 旧底栏项目/别名迁移（幂等）：先备份原始值，再写归一化结果，不覆盖自定义顺序。
+        general.migrateBottomBarItems()
+    }
 
     var infiniteScroll by browse::infiniteScroll
     var homeKeepCache by browse::homeKeepCache
@@ -69,6 +79,8 @@ class AppSettings(context: Context) {
     var updateCheckIntervalHours by general::updateCheckIntervalHours
     var lastUpdateCheck by general::lastUpdateCheck
     var tabletMode by general::tabletMode
+    /** 显式选择「始终单内容栏」；键缺失跟随窗口。 */
+    val singleContentColumn get() = general.singleContentColumn
     var bottomBarStyle by general::bottomBarStyle
     var bottomBarItems by general::bottomBarItems
     var replyBarStyle by general::replyBarStyle
@@ -112,16 +124,8 @@ class AppSettings(context: Context) {
     fun recordCardRedemptions(topicId: Long, topicTitle: String, card: VirtualCard?) = cards.recordCardRedemptions(topicId, topicTitle, card)
     fun cardRedemptions() : List<CardRedemptionRecord> = cards.cardRedemptions()
     fun clearCardRedemptions() = cards.clearCardRedemptions()
-    fun recordUsageEvent(type: String, topicId: Long = 0, title: String = "", value: Int = 0) = usage.recordUsageEvent(type, topicId, title, value)
-    fun usageEvents() : List<UsageEvent> = usage.usageEvents()
-    var usageAiSummary by usage::usageAiSummary
-    var sourceUsageJson by usage::sourceUsageJson
-    var builtInImageHostProvider by usage::builtInImageHostProvider
-    var confirmGachaPull by usage::confirmGachaPull
-    fun saveSourcePoints(rows: List<PointRow>) = usage.saveSourcePoints(rows)
-    fun sourcePoints() : List<PointRow> = usage.sourcePoints()
-    val sourcePointsSyncedAt by usage::sourcePointsSyncedAt
-    fun clearUsageStats() = usage.clearUsageStats()
+    var builtInImageHostProvider by uploadOptions::builtInImageHostProvider
+    var confirmGachaPull by uploadOptions::confirmGachaPull
     fun addFavorite( topicId: Long, title: String, authorId: Long, authorName: String, forumId: Long, forumName: String, avatarUrl: String, titleColor: String, ) = favorites.addFavorite(topicId, title, authorId, authorName, forumId, forumName, avatarUrl, titleColor)
     fun favoriteList() : List<sb.linux.client.domain.topic.TopicCard> = favorites.favoriteList()
     fun mergeFavorites(cards: List<TopicCard>) = favorites.mergeFavorites(cards)
@@ -131,12 +135,7 @@ class AppSettings(context: Context) {
     fun commentFavoriteList() : List<CommentFavorite> = commentFavorites.commentFavoriteList()
     fun removeCommentFavorite(replyId: Long) = commentFavorites.removeCommentFavorite(replyId)
     fun clearCommentFavorites() = commentFavorites.clearCommentFavorites()
-    fun addPmMessage( partnerId: Long, partnerName: String, avatarUrl: String, incoming: Boolean, content: String, ts: Long = 0L, quoteText: String = "", synthetic: Boolean = false, ) = messages.addPmMessage(partnerId, partnerName, avatarUrl, incoming, content, ts, quoteText, synthetic)
-    fun pmHasContent(partnerId: Long, content: String) : Boolean = messages.pmHasContent(partnerId, content)
-    fun pmThread(partnerId: Long) : List<sb.linux.client.domain.community.PmMessage> = messages.pmThread(partnerId)
-    fun savePmThread(thread: DirectMessageThread) = messages.savePmThread(thread)
-    fun markPmRead(partnerId: Long) = messages.markPmRead(partnerId)
-    fun exportJson(): String = exportBackupJson(prefs, themePrefs, aiRecords, drafts, readingRecords)
-    fun exportJson(items: Set<String>): String = exportBackupJson(items, prefs, themePrefs, aiRecords, drafts, readingRecords)
-    fun importJson(text: String): String? = importBackupJson(text, prefs, themePrefs, aiRecords, drafts, readingRecords)
+    fun exportJson(): String = exportBackupJson(prefs, themePrefs, aiRecords, readingRecords)
+    fun exportJson(items: Set<String>): String = exportBackupJson(items, prefs, themePrefs, aiRecords, readingRecords)
+    fun importJson(text: String): String? = importBackupJson(text, prefs, themePrefs, aiRecords, readingRecords)
 }

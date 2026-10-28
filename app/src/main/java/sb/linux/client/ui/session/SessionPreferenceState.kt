@@ -21,9 +21,11 @@ internal class SessionPreferenceState {
     var tableDisplayMode by mutableIntStateOf(1)
     var showUid by mutableStateOf(true)
     var smartDecodeEnabled by mutableStateOf(false)
-    var tabletMode by mutableStateOf(false)
-    var bottomBarStyle by mutableIntStateOf(1)
-    var bottomBarItems by mutableStateOf(listOf("home", "me"))
+    var tabletMode by mutableStateOf(true)
+    /** 显式选择「始终单内容栏」；键缺失跟随窗口。 */
+    var singleContentColumn by mutableStateOf(false)
+    var bottomBarStyle by mutableIntStateOf(0)
+    var bottomBarItems by mutableStateOf(listOf("home", "topicCollections", "messages", "me"))
     var replyBarStyle by mutableIntStateOf(1)
     var linkPreviewEnabled by mutableStateOf(true)
 }

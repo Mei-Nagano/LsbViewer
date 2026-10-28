@@ -34,7 +34,6 @@ internal data class TopicScreenViewState(
     val infinite: Boolean,
     val repliesPerPage: Int,
     val threadEnabled: Boolean,
-    val replyGlass: Boolean,
     val aiSettings: AiAssistantSettings,
 )
 
@@ -56,11 +55,15 @@ internal fun rememberTopicScreenViewState(
     DisposableEffect(topicId) {
         onDispose {
             val first = listState.layoutInfo.visibleItemsInfo.firstOrNull()
-            val replyId = (first?.key as? String)?.removePrefix("r-")?.toLongOrNull()
+            val key = first?.key as? String
+            val replyId = key?.removePrefix("r-")?.toLongOrNull()
+            val mainId = key?.removePrefix("main-")?.toLongOrNull()
             pageCoordinator.saveReadingPosition(
                 floor = replyId?.let { latestIdToFloor[it] } ?: 0,
                 listIndex = listState.firstVisibleItemIndex,
                 scrollOffset = listState.firstVisibleItemScrollOffset,
+                // 帖子标识用于版本化锚点；取不到时只写旧四段记录
+                postId = replyId ?: mainId ?: 0L,
             )
         }
     }
@@ -121,6 +124,6 @@ internal fun rememberTopicScreenViewState(
     return TopicScreenViewState(
         page, sortedPosts, mainPost, searchHits, readingStats, tocHeadings, reply,
         currentFloor, bodyVisible, readingProgress, topBarPx, showTitleInTopBar,
-        infinite, repliesPerPage, session.threadDialogEnabled, session.replyBarStyle != 0, aiSettings,
+        infinite, repliesPerPage, session.threadDialogEnabled, aiSettings,
     )
 }

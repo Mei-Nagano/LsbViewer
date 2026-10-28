@@ -25,6 +25,14 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
+
 /** MD3 列表项：圆角色调图标容器 + 标题/副标题 */
 @Composable
 internal fun CopySheetItem(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
@@ -40,7 +48,7 @@ internal fun CopySheetItem(icon: ImageVector, title: String, subtitle: String, o
         Box(
             Modifier
                 .size(42.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {

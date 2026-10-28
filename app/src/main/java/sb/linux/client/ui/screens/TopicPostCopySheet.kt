@@ -27,6 +27,14 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
+
 import sb.linux.client.domain.topic.PostEntry
 /** 长按正文功能菜单（MD3 风格，2.14）：
  * - 复制全文：把该楼层正文纯文本复制到剪贴板

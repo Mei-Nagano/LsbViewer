@@ -36,7 +36,7 @@ internal fun ColumnScope.HomeSortControls(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 10.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 2.dp,
                         shadowElevation = 1.dp,
@@ -51,7 +51,7 @@ internal fun ColumnScope.HomeSortControls(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                listOf("全部" to 0, "抽奖" to 1, "发卡" to 2, "申精" to 3).forEachIndexed { _, (label, c) ->
+                                listOf("全部" to 0, "抽奖" to 1, "发卡" to 2, "红包" to 4, "申精" to 3).forEachIndexed { _, (label, c) ->
                                     val selected = combo == c
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
@@ -61,7 +61,8 @@ internal fun ColumnScope.HomeSortControls(
                                             .weight(1f)
                                             .clip(RoundedCornerShape(12.dp))
                                             .clickable {
-                                                onSelectCombo(c, if (c > session.homeBrowse.homeCombo) 1 else -1)
+                                                onSelectCombo(c, if (listOf(0, 1, 2, 4, 3).indexOf(c) >
+                                                    listOf(0, 1, 2, 4, 3).indexOf(session.homeBrowse.homeCombo)) 1 else -1)
                                                 // 回到顶部由下方 LaunchedEffect(combo) 统一处理
                                             }
                                     ) {

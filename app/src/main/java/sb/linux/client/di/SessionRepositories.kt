@@ -21,11 +21,7 @@ import sb.linux.client.data.AppSettingsBrowseSettingsRepository
 import sb.linux.client.data.AppSettingsBackupSettingsRepository
 import sb.linux.client.data.LocalBrowsingHistoryRepository
 import sb.linux.client.data.FavoriteSourceService
-import sb.linux.client.data.GachaCenterService
 import sb.linux.client.data.AppSettingsCardRedemptionsRepository
-import sb.linux.client.data.GachaMarketService
-import sb.linux.client.data.GachaOperationService
-import sb.linux.client.data.GachaProfileService
 import sb.linux.client.data.HomePageService
 import sb.linux.client.data.ImageHostClient
 import sb.linux.client.data.LinkPreviewClient
@@ -35,7 +31,6 @@ import sb.linux.client.data.NewTopicPageService
 import sb.linux.client.data.NewTopicSubmitter
 import sb.linux.client.data.PrivateMessageService
 import sb.linux.client.data.ProfilePageService
-import sb.linux.client.data.SourceUsageRepository
 import sb.linux.client.data.TopicReplyService
 import sb.linux.client.data.UpdateChecker
 import sb.linux.client.data.UserByNameService
@@ -63,20 +58,15 @@ import sb.linux.client.domain.account.UserPageRepository
 import sb.linux.client.domain.collection.TopicCollectionPageRepository
 import sb.linux.client.domain.community.FavoritesRepository
 import sb.linux.client.domain.community.BrowsingHistoryRepository
-import sb.linux.client.domain.community.UsageStatisticsRepository
 import sb.linux.client.domain.community.HomeBrowseRepository
 import sb.linux.client.domain.community.KeywordFilterRepository
 import sb.linux.client.domain.community.IdentityRepository
 import sb.linux.client.domain.community.InviteRepository
 import sb.linux.client.domain.community.LeaderboardRepository
 import sb.linux.client.domain.community.NotificationRepository
-import sb.linux.client.domain.community.PrivateMessageHistory
 import sb.linux.client.domain.community.PrivateMessageRepository
 import sb.linux.client.domain.community.ReportRepository
-import sb.linux.client.domain.gacha.GachaCenterRepository
 import sb.linux.client.domain.gacha.CardRedemptionsRepository
-import sb.linux.client.domain.gacha.GachaMarketRepository
-import sb.linux.client.domain.gacha.GachaOperationRepository
 import sb.linux.client.domain.media.ImageUploadRepository
 import sb.linux.client.domain.media.ImageHostSettingsRepository
 import sb.linux.client.domain.linkpreview.LinkPreviewRepository
@@ -87,7 +77,6 @@ import sb.linux.client.domain.network.NetworkRecoveryRepository
 import sb.linux.client.domain.update.UpdateRepository
 import sb.linux.client.domain.backup.WebDavBackupRepository
 import sb.linux.client.domain.backup.BackupSettingsRepository
-import sb.linux.client.domain.gacha.GachaProfileRepository
 import sb.linux.client.domain.profile.ProfileSettingsRepository
 import sb.linux.client.domain.settings.GeneralSettingsRepository
 import sb.linux.client.domain.settings.BrowseSettingsRepository
@@ -178,22 +167,17 @@ internal class SessionRepositories(
             updateSnapshot = session::updateKeywordFilter,
         )
     }
-    internal val privateMessageService by lazy { PrivateMessageService(client, settings) }
+    internal val privateMessageService by lazy { PrivateMessageService(client) }
     internal val privateMessageRepository: PrivateMessageRepository get() = privateMessageService
-    internal val privateMessageHistory: PrivateMessageHistory get() = privateMessageService
     internal val checkinRepository: CheckinRepository by lazy {
         CheckinPageService(client, session::applyCheckinInfoPublic)
     }
     internal val checkinSummaryRepository: CheckinSummaryRepository by lazy {
         AppSettingsCheckinSummaryRepository(settings)
     }
-    internal val gachaCenterRepository: GachaCenterRepository by lazy { GachaCenterService(client, settings) }
     internal val cardRedemptionsRepository: CardRedemptionsRepository by lazy {
         AppSettingsCardRedemptionsRepository(settings)
     }
-    internal val gachaMarketRepository: GachaMarketRepository by lazy { GachaMarketService(client) }
-    internal val gachaProfileRepository: GachaProfileRepository by lazy { GachaProfileService(client) }
-    internal val gachaOperationRepository: GachaOperationRepository by lazy { GachaOperationService(client) }
     internal val homeRepository: HomeBrowseRepository by lazy {
         HomePageService(client, { session.sessionVersion }, session::observeHomeSession, session::updateNotifUnread)
     }
@@ -201,12 +185,12 @@ internal class SessionRepositories(
     internal val favoritesRepository: FavoritesRepository by lazy {
         LocalFavoritesRepository(settings, favoriteSourceService)
     }
-    internal val userPageService by lazy { UserPageService(client, privateMessageService) }
+    internal val userPageService by lazy { UserPageService(client) }
     internal val userPageRepository: UserPageRepository get() = userPageService
     internal val userByNameService by lazy { UserByNameService(client) }
     internal val userLookupRepository: UserLookupRepository get() = userByNameService
     internal val communityPageService by lazy {
-        CommunityPageService(client, privateMessageService, session::updateNotifUnread)
+        CommunityPageService(client, session::updateNotifUnread)
     }
     internal val notificationRepository: NotificationRepository get() = communityPageService
     internal val identityRepository: IdentityRepository get() = communityPageService
@@ -234,13 +218,11 @@ internal class SessionRepositories(
     }
     internal val accountAuthenticationRepository: AccountAuthenticationRepository
         get() = accountAuthenticationService
+    internal val userSummaryRepository by lazy { sb.linux.client.data.UserSummaryService(client) }
     internal val newTopicFormLoader by lazy { NewTopicFormLoader(client) }
     internal val newTopicSubmitter by lazy { NewTopicSubmitter(client) }
     internal val newTopicRepository: NewTopicRepository by lazy {
         NewTopicPageService(newTopicFormLoader, newTopicSubmitter)
-    }
-    internal val sourceUsageRepository: UsageStatisticsRepository by lazy {
-        SourceUsageRepository(client, settings, topicCollectionService) { session.account.loginState }
     }
 
 }

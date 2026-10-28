@@ -21,8 +21,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavHostController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.LoadingBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.LoadingBox
 import sb.linux.client.ui.feature.account.UserLookupViewModel
 import sb.linux.client.ui.feature.account.UserLookupViewModelFactory
 
@@ -52,17 +52,9 @@ fun UserByNameScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(username.ifBlank { "用户主页" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-            )
-        },
+    sb.linux.client.ui.components.navigation.AppPageScaffold(
+        title = username.ifBlank { "用户主页" },
+        onBack = { nav.popBackStack() },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             val message = state.error

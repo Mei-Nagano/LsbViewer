@@ -23,6 +23,14 @@ import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
+
 import sb.linux.client.ui.feature.topic.TopicInteractionViewModel
 /** 打赏底部弹窗（28）：从底部滑出，不再跳转独立页面。
  *  金额支持自定义（38）：预设档位 + 「自定义」切换数字输入；快捷留言取自源站打赏表单 */
@@ -85,7 +93,7 @@ internal fun DonateSheet(
                     )
                     msg?.let {
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = MaterialTheme.colorScheme.errorContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {

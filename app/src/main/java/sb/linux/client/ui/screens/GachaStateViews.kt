@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun GachaEmptyCard(text: String) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
     ) {

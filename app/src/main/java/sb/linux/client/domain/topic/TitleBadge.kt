@@ -5,4 +5,5 @@ data class TitleBadge(
     val name: String = "",
     val rarity: String = "",
     val serial: String = "",
+    val sourceStyle: String = "",
 )

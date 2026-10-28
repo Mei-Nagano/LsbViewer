@@ -45,6 +45,7 @@ object TopicListParser {
                 avatarUrl = SourceHtmlSupport.absUrl(SourceHtmlSupport.avatarOf(li)),
                 pages = li.select(".topic-pages a").mapNotNull { it.text().toIntOrNull() },
                 lotteryStatus = li.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: "",
+                sourceTags = TopicSourceTagsParser.parse(li),
                 cardStatus = li.selectFirst(".virtual-card-title-status")?.text()?.trim() ?: "",
                 online = authorId in onlineIds || SourceHtmlSupport.onlineOf(li),
                 titleBadge = SourceHtmlSupport.gachaTitleOf(meta ?: li),

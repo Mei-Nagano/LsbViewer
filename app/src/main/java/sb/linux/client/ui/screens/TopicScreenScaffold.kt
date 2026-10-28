@@ -1,25 +1,19 @@
 package sb.linux.client.ui.screens
 
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.navigation.NavHostController
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.drawBackdrop
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import kotlinx.coroutines.CoroutineScope
-import sb.linux.client.common.network.Endpoints
-import sb.linux.client.ui.feature.topic.TopicPinnedSnapshot
+import sb.linux.client.ui.navigation.AppDestinations
+import sb.linux.client.ui.navigation.LocalMasterNav
 import sb.linux.client.ui.session.Session
 
 @Composable
@@ -37,14 +31,10 @@ internal fun TopicScreenScaffold(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    // 宽屏详情图没有 home：钉住必须由主栏导航承担，否则会抛“目标不存在”。
+    val masterNav = LocalMasterNav.current
     val page = view.page
     val mainPost = view.mainPost
-    val data = page
-    val glassBackground = MaterialTheme.colorScheme.background
-    val replyBackdrop = rememberLayerBackdrop {
-        drawRect(glassBackground)
-        drawContent()
-    }
     BackHandler(ui.topicSearchOpen) {
         ui.topicSearchOpen = false
         ui.topicSearchListOpen = false
@@ -69,7 +59,8 @@ internal fun TopicScreenScaffold(
             )
         },
         bottomBar = {
-            if (!view.replyGlass && page != null && paging.error.value == null) {
+            // 阅读操作栏使用标准 MD3 表面；inset 由 Scaffold 消费，列表不再额外垫高。
+            if (page != null && paging.error.value == null) {
                 ReplyBar(
                     loggedIn = session.account.loginState.loggedIn,
                     liked = mainPost?.liked == true,
@@ -94,7 +85,19 @@ internal fun TopicScreenScaffold(
                     },
                     onPin = {
                         page.pinSnapshot(session, listState, paging, ui, topicId)
-                        nav.navigate("home") { popUpTo("home") { inclusive = false }; launchSingleTop = true }
+                        if (masterNav != null) {
+                            // 宽屏：主栏切回社区，详情宿主退栈回到空态；快照供“继续阅读”恢复
+                            masterNav.navigate(AppDestinations.home.route) {
+                                popUpTo(masterNav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                            }
+                            runCatching { nav.popBackStack() }
+                        } else {
+                            nav.navigate(AppDestinations.home.route) {
+                                popUpTo(AppDestinations.home.route) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
                     },
                 )
             }
@@ -113,10 +116,7 @@ internal fun TopicScreenScaffold(
                 paging = paging,
                 actions = actions,
                 view = view,
-                listModifier = androidx.compose.ui.Modifier.then(
-                    if (view.replyGlass) androidx.compose.ui.Modifier.layerBackdrop(replyBackdrop)
-                    else androidx.compose.ui.Modifier,
-                ),
+                listModifier = Modifier,
             )
             TopicScreenTopBarOverlay(
                 session = session,
@@ -131,37 +131,6 @@ internal fun TopicScreenScaffold(
                 context = context,
                 clipboard = clipboard,
             )
-            if (view.replyGlass && page != null && paging.error.value == null) {
-                GlassReplyBar(
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    backdrop = replyBackdrop,
-                    loggedIn = session.account.loginState.loggedIn,
-                    liked = mainPost?.liked == true,
-                    favorited = ui.isFav,
-                    likeCount = mainPost?.likeCount ?: 0,
-                    showLike = mainPost?.canLike == true,
-                    showFavorite = page.canFavorite,
-                    pinned = session.floatingTopicId == topicId,
-                    onReply = {
-                        if (session.account.loginState.loggedIn) {
-                            ui.quoteText = ""
-                            ui.showReply = true
-                        } else nav.navigate("login")
-                    },
-                    onLike = {
-                        if (session.account.loginState.loggedIn) mainPost?.let { actions.react(it, 0) }
-                        else nav.navigate("login")
-                    },
-                    onFavorite = {
-                        if (session.account.loginState.loggedIn) actions.requestFavorite()
-                        else nav.navigate("login")
-                    },
-                    onPin = {
-                        page.pinSnapshot(session, listState, paging, ui, topicId)
-                        nav.navigate("home") { popUpTo("home") { inclusive = false }; launchSingleTop = true }
-                    },
-                )
-            }
         }
     }
     TopicScreenDialogs(
@@ -175,4 +144,3 @@ internal fun TopicScreenScaffold(
         exportColors = MaterialTheme.colorScheme,
     )
 }
-

@@ -14,6 +14,14 @@ import androidx.navigation.NavHostController
 import kotlinx.coroutines.CoroutineScope
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
+
 
 @Composable
 internal fun TopicScreenBodyContent(
@@ -64,7 +72,6 @@ internal fun TopicScreenBodyContent(
             scope = scope,
             returnPosition = ui.returnPos,
             onReturnPositionChange = { ui.returnPos = it },
-            replyGlass = view.replyGlass,
             currentFloor = view.currentFloor,
             onFloorJump = { ui.showFloorDialog = true },
         )

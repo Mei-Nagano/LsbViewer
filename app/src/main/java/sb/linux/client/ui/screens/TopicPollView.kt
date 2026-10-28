@@ -47,7 +47,7 @@ internal fun TopicPollView(
         val currentPoll = vote ?: return
         val selected = option.value in selectedValues
         Surface(
-            shape = RoundedCornerShape(13.dp),
+            shape = RoundedCornerShape(12.dp),
             color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
             border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
@@ -70,7 +70,7 @@ internal fun TopicPollView(
         }
     }
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
@@ -139,7 +139,7 @@ internal fun TopicPollView(
                 }
             }
             essence?.takeIf { it.poolTitle.isNotBlank() || it.poolItems.isNotEmpty() }?.let { review ->
-                Surface(shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)) {
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Paid, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
@@ -174,7 +174,7 @@ internal fun TopicPollView(
                 label = { Text(if (vote.reasonRequired) "投票理由（必填）" else "投票理由") },
                 supportingText = { Text(vote.reasonHint.ifBlank { "${reason.length}/${vote.reasonMaxLength}" }) },
                 modifier = Modifier.fillMaxWidth(), enabled = !busy && !vote.closed,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
             )
             if (vote != null) when {
                 vote.unavailableReason.isNotBlank() -> Text(
@@ -215,7 +215,7 @@ internal fun TopicPollView(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         enabled = !topUpBusy,
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.weight(1f),
                     )
                     val amount = topUpText.toIntOrNull()
@@ -229,14 +229,10 @@ internal fun TopicPollView(
         }
     }
     confirmTopUp?.let { amount ->
-        AlertDialog(
-            onDismissRequest = { confirmTopUp = null },
-            title = { Text("确认追加积分") },
-            text = { Text("将向本帖的申精奖池追加 $amount 积分。提交后积分会按源站规则扣除。") },
-            confirmButton = {
-                TextButton(onClick = { confirmTopUp = null; onTopUp(amount) }) { Text("确认追加") }
-            },
-            dismissButton = { TextButton(onClick = { confirmTopUp = null }) { Text("取消") } },
+        sb.linux.client.ui.components.feedback.AppConfirmDialog(
+            title = "确认追加积分", message = "将向本帖的申精奖池追加 $amount 积分。提交后积分会按源站规则扣除。",
+            onDismiss = { confirmTopUp = null }, onConfirm = { confirmTopUp = null; onTopUp(amount) },
+            confirmText = "确认追加",
         )
     }
 }

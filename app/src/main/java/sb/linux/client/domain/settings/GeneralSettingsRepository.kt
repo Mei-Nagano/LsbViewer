@@ -7,6 +7,8 @@ data class GeneralSettings(
     val updateCheckIntervalHours: Int,
     val lastUpdateCheck: Long,
     val tabletMode: Boolean,
+    /** 用户显式选择「始终单内容栏」时为 true；键缺失或跟随窗口时为 false。 */
+    val singleContentColumn: Boolean,
     val bottomBarStyle: Int,
     val bottomBarItems: List<String>,
     val replyBarStyle: Int,

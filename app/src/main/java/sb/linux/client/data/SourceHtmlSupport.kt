@@ -76,6 +76,7 @@ internal object SourceHtmlSupport {
         val rarityText = badge.selectFirst(".gacha-title-rarity")?.text()?.trim().orEmpty()
         return TitleBadge(
             icon = badge.selectFirst(".gacha-title-icon")?.text()?.trim() ?: "",
+            sourceStyle = badge.attr("style"),
             name = badge.selectFirst(".gacha-title-name")?.text()?.trim() ?: "",
             rarity = rare ?: rarityText,
             // 个人主页把 UR 编号放在 rarity 节点，帖子中则使用 serial 节点。

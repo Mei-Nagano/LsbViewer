@@ -26,6 +26,13 @@ import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
 import sb.linux.client.domain.topic.DEFAULT_COMMENT_REWARD_TIERS
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 /** 评论投币底部弹窗：金额档位来自源站，理由选填（最多 120 字）。 */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable

@@ -52,8 +52,8 @@ import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.domain.community.CommentFavorite
 import sb.linux.client.domain.topic.TopicCard
-import sb.linux.client.ui.Avatar
-import sb.linux.client.ui.TopicCardView
+import sb.linux.client.ui.patterns.user.Avatar
+import sb.linux.client.ui.patterns.topic.TopicCardView
 
 @Composable
 internal fun TopicFavorites(
@@ -120,9 +120,7 @@ internal fun CommentFavorites(
 
 @Composable
 private fun EmptyFavorites(message: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp))
-    }
+    sb.linux.client.ui.components.feedback.EmptyBox(message)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -144,7 +142,7 @@ private fun DismissibleFavorite(onDismiss: () -> Unit, content: @Composable () -
                 Modifier
                     .fillMaxSize()
                     .padding(horizontal = 14.dp, vertical = 5.dp)
-                    .background(MaterialTheme.colorScheme.errorContainer, androidx.compose.foundation.shape.RoundedCornerShape(18.dp)),
+                    .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.large),
                 contentAlignment = Alignment.CenterEnd,
             ) {
                 Icon(
@@ -161,53 +159,15 @@ private fun DismissibleFavorite(onDismiss: () -> Unit, content: @Composable () -
 
 @Composable
 private fun CommentFavCard(c: CommentFavorite, onClick: () -> Unit) {
-    Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 5.dp)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick),
-    ) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Avatar(c.avatarUrl, 30)
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        c.authorName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (c.timeText.isNotBlank()) {
-                        Text(c.timeText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ) {
-                    Text(
-                        "#${c.floor}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-                    )
-                }
-            }
-            Text(c.content, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+    sb.linux.client.ui.patterns.topic.ReplySummaryCard(c.authorName, c.content, c.timeText, onClick = onClick,
+        leading = { sb.linux.client.ui.patterns.user.UserAvatar(c.authorId, c.avatarUrl, 30) },
+        badge = { sb.linux.client.ui.Badge("#${c.floor}", MaterialTheme.colorScheme.surfaceContainerHigh,
+            MaterialTheme.colorScheme.onSurfaceVariant) },
+        footer = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Icon(Icons.AutoMirrored.Filled.Chat, null, Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
-                Text(
-                    c.topicTitle,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Text(c.topicTitle, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-        }
-    }
+        })
 }

@@ -61,6 +61,7 @@ internal class SessionUiState : SessionState {
     override var showUid by preferenceState::showUid
     override var smartDecodeEnabled by preferenceState::smartDecodeEnabled
     override var tabletMode by preferenceState::tabletMode
+    override var singleContentColumn by preferenceState::singleContentColumn
     override var bottomBarStyle by preferenceState::bottomBarStyle
     override var bottomBarItems by preferenceState::bottomBarItems
     override var replyBarStyle by preferenceState::replyBarStyle

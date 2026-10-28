@@ -1,14 +1,19 @@
 package sb.linux.client.ui.screens
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSizes
 import sb.linux.client.domain.topic.TopicPageData
 
 @Composable
@@ -25,11 +30,13 @@ internal fun TopicScreenPostList(
 ) {
     val reply = view.reply
     val mainPost = view.mainPost
-    LazyColumn(
-        state = listState,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = if (ui.topicSearchOpen) 8.dp else 72.dp, bottom = 8.dp),
-    ) {
+    // 阅读列最大 720dp 并居中；宽窗剩余空间用于留白，不把段落无限拉宽。
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(
+            state = listState,
+            modifier = modifier.widthIn(max = LocalAppSizes.current.readingMaxWidth).fillMaxHeight(),
+            contentPadding = PaddingValues(top = if (ui.topicSearchOpen) 8.dp else 72.dp, bottom = 8.dp),
+        ) {
         topicHeaderItem(
             d = page,
             session = session,
@@ -53,6 +60,11 @@ internal fun TopicScreenPostList(
             onRefresh = { actions.load(page.page, force = true) },
             onTitleBottomInRoot = { ui.titleBottomInRoot = it },
         )
+        page.redPacket?.let { panel ->
+            item(key = "red-packet") { RedPacketCard(panel) {
+                nav.navigate("web?url=" + android.net.Uri.encode("https://linux.sb/topic/${page.topicId}"))
+            } }
+        }
         mainPost?.let { main ->
             item(key = "main-${main.id}") {
                 PostCard(
@@ -107,7 +119,6 @@ internal fun TopicScreenPostList(
                 infinite = view.infinite,
                 loadingMore = paging.loadingMore.value,
                 replyModeTick = ui.replyModeTick,
-                replyGlass = view.replyGlass,
                 replyCountText = page.repliesText.ifBlank { reply.replies.size.toString() },
             ),
             actions = TopicReplyListActions(
@@ -136,5 +147,6 @@ internal fun TopicScreenPostList(
                 onLocalPage = { actions.goLocalReplyPage(it, mainPost != null) },
             ),
         )
+        }
     }
 }

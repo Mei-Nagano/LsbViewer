@@ -1,12 +1,20 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
@@ -116,12 +124,45 @@ internal fun HomeNavigationLayout(
             }
         }
     ) {
-        // 状态栏空间常驻保留（不在 Scaffold topBar 槽内做显隐动画）：
-        // 顶栏收起时列表只会补到状态栏下沿，不会错误渲染进状态栏区域
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            // 沉浸式顶栏：往下滚动时隐藏，回到顶部时显示（TopAppBar 不再自带状态栏 insets）
-            AnimatedVisibility(visible = topBarVisible) {
-                Column {
+        // Keep the first topic below the header without resizing the viewport on scroll.
+        var topBarHeightPx by remember { mutableIntStateOf(0) }
+        val topInset = with(LocalDensity.current) { topBarHeightPx.toDp() }
+        Box(Modifier.fillMaxSize().statusBarsPadding().clipToBounds()) {
+            HomeBody(
+                topInset = topInset,
+                session = session,
+                nav = nav,
+                viewsForTopic = viewsForTopic,
+                current = current,
+                homeInfinite = homeInfinite,
+                loading = loading,
+                error = error,
+                visibleTopics = visibleTopics,
+                pagedTopics = pagedTopics,
+                localTotalPages = localTotalPages,
+                pendingNewTopics = pendingNewTopics,
+                onAcceptPendingTopics = onAcceptPendingTopics,
+                loadingMore = loadingMore,
+                categoryMotion = categoryMotion,
+                listState = listState,
+                backTopPosition = backTopPosition,
+                onBackTopPositionChange = onBackTopPositionChange,
+                onLoadPage = { page, append, foldNew -> loadPage(page, append, foldNew) },
+                onLocalPage = { localPage(it) },
+                onRefresh = { onRefresh() },
+                onOpenDrawer = { onOpenDrawer() },
+                onSelectCombo = { target, direction -> onSelectCombo(target, direction) },
+                scope = scope,
+            )
+            AnimatedVisibility(
+                visible = topBarVisible, modifier = Modifier.align(Alignment.TopCenter),
+                enter = fadeIn() + slideInVertically { -it },
+                exit = fadeOut() + slideOutVertically { -it },
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
+                        .onSizeChanged { if (topBarVisible) topBarHeightPx = it.height }
+                ) {
                     HomeTopBar(
                         session = session,
                         nav = nav,
@@ -155,31 +196,7 @@ internal fun HomeNavigationLayout(
                     )
                 }
             }
-            HomeBody(
-                session = session,
-                nav = nav,
-                viewsForTopic = viewsForTopic,
-                current = current,
-                homeInfinite = homeInfinite,
-                loading = loading,
-                error = error,
-                visibleTopics = visibleTopics,
-                pagedTopics = pagedTopics,
-                localTotalPages = localTotalPages,
-                pendingNewTopics = pendingNewTopics,
-                onAcceptPendingTopics = onAcceptPendingTopics,
-                loadingMore = loadingMore,
-                categoryMotion = categoryMotion,
-                listState = listState,
-                backTopPosition = backTopPosition,
-                onBackTopPositionChange = onBackTopPositionChange,
-                onLoadPage = { page, append, foldNew -> loadPage(page, append, foldNew) },
-                onLocalPage = { localPage(it) },
-                onRefresh = { onRefresh() },
-                onOpenDrawer = { onOpenDrawer() },
-                onSelectCombo = { target, direction -> onSelectCombo(target, direction) },
-                scope = scope,
-            )
+
     }
 }
 }

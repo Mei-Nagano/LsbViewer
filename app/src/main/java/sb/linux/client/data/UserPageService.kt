@@ -5,7 +5,6 @@ import sb.linux.client.domain.account.UserPageRepository
 
 internal class UserPageService(
     private val client: LsbClient,
-    private val privateMessages: PrivateMessageService,
 ) : UserPageRepository {
     override suspend fun load(userId: Long, tab: String): UserPageContent {
         val html = client.get("/user/$userId?tab=$tab").html
@@ -15,7 +14,6 @@ internal class UserPageService(
             "points_rewards" -> UserPageContent(profile, points = parsePoints(html))
             "notifications" -> {
                 val notifications = parseNotifications(html)
-                privateMessages.syncNotifications(notifications)
                 UserPageContent(profile, notifications = notifications)
             }
             else -> UserPageContent(profile, topics = parseTopics(html))

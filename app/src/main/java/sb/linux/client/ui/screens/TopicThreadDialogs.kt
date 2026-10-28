@@ -25,6 +25,13 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 import sb.linux.client.domain.topic.PostEntry
 /** #N 对话串联弹窗：把引用链上的楼层按时间正序完整展示。 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,13 +120,18 @@ private fun ThreadPostItem(
     onUser: () -> Unit,
     onJumpFloor: ((Int) -> Unit)? = null,
 ) {
+    if (post.userBlocked) {
+        BlockedPostPlaceholder(post, 28, Modifier.padding(vertical = 10.dp)) { onJumpFloor?.invoke(it) }
+        if (showDivider && !isCurrent) HorizontalDivider()
+        return
+    }
     Column(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp)
             .then(
                 if (isCurrent) Modifier
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f))
                     .padding(10.dp)
                 else Modifier.padding(horizontal = 2.dp)
@@ -129,7 +141,7 @@ private fun ThreadPostItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Avatar(post.avatarUrl, 28, Modifier.clickable(onClick = onUser), online = post.online)
+            UserAvatar(post.authorId, post.avatarUrl, 28, online = post.online, onProfile = onUser)
             Text(
                 post.authorName,
                 style = MaterialTheme.typography.titleSmall,

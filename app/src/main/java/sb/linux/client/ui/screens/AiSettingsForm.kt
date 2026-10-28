@@ -36,8 +36,10 @@ internal fun AiSettingsForm(
     aiPrompt: String,
     onAiPromptChange: (String) -> Unit,
     onSave: () -> Unit,
+    configuration: Boolean = true,
 ) {
     GroupCard {
+        if (!configuration) {
         SwitchRow(
             "开启 AI 总结",
             "帖子顶部显示「AI 总结本帖」按钮，点按后才请求；关闭则帖子内不显示 AI 入口",
@@ -58,7 +60,8 @@ internal fun AiSettingsForm(
             enabled = aiEnabled,
             onCheckedChange = onAiIncludeCommentsChange,
         )
-        Column(
+        }
+        if (configuration) Column(
             Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -68,7 +71,7 @@ internal fun AiSettingsForm(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API 地址") },
                 placeholder = { Text("https://api.openai.com/v1") },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 singleLine = true,
             )
             OutlinedTextField(
@@ -77,7 +80,7 @@ internal fun AiSettingsForm(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API 密钥") },
                 placeholder = { Text("sk-…") },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
             )
@@ -88,7 +91,7 @@ internal fun AiSettingsForm(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("模型") },
                     placeholder = { Text("gpt-4o-mini") },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     trailingIcon = {
                         if (modelOptions.isNotEmpty()) {
@@ -117,7 +120,7 @@ internal fun AiSettingsForm(
                 onValueChange = onAiTempChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("温度 (0 - 2)") },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 singleLine = true,
             )
             OutlinedTextField(
@@ -127,12 +130,12 @@ internal fun AiSettingsForm(
                 label = { Text("自定义总结提示词") },
                 placeholder = { Text(AiAssistantDefaults.SUMMARY_PROMPT) },
                 supportingText = { Text("留空使用内置提示词") },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
             )
         }
-        Button(
+        if (configuration) Button(
             onClick = onSave,
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
         ) { Text("保存 AI 设置") }
     }

@@ -27,8 +27,16 @@ import sb.linux.client.ui.session.HomeTabState
 import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.topic.TopicCard
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 @Composable
-internal fun ColumnScope.HomeBody(
+internal fun HomeBody(
+    topInset: Dp,
     session: Session,
     nav: NavHostController,
     viewsForTopic: (Long) -> Int,
@@ -53,7 +61,7 @@ internal fun ColumnScope.HomeBody(
     onSelectCombo: (Int, Int) -> Unit,
     scope: CoroutineScope,
 ) {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(Modifier.fillMaxSize()) {
                 when {
                     loading && current.topics.isEmpty() -> LoadingBox()
                     error != null && current.topics.isEmpty() -> ErrorBox(error!!) { onLoadPage(1, false, false) }
@@ -85,11 +93,15 @@ internal fun ColumnScope.HomeBody(
                                         val left = totalX <= -threshold
                                         val right = totalX >= threshold
                                         totalX = 0f
+                                        val categories = listOf(0, 1, 2, 4, 3)
+                                        val categoryIndex = categories.indexOf(c).coerceAtLeast(0)
                                         when {
-                                            left && c < 3 -> onSelectCombo(c + 1, 1)
-                                            // “仅发卡”已是右边界：继续左滑不循环。
+                                            left && categoryIndex < categories.lastIndex ->
+                                                onSelectCombo(categories[categoryIndex + 1], 1)
+                                            // 最后一个分类已是右边界：继续左滑不循环。
                                             left -> Unit
-                                            right && c > 0 -> onSelectCombo(c - 1, -1)
+                                            right && categoryIndex > 0 ->
+                                                onSelectCombo(categories[categoryIndex - 1], -1)
                                             // “全部”已是左边界：向右滑直接打开侧边栏。
                                             right -> onOpenDrawer()
                                         }
@@ -109,16 +121,10 @@ internal fun ColumnScope.HomeBody(
                             LazyColumn(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),
-                                // 底部留白让末条内容可滚出玻璃底栏（23）：
-                                // 玻璃条高 58 + 悬浮边距 14 + 系统导航栏 inset；
-                                // 经典底栏由 Scaffold bottomBar inset 处理，不加此留白
+                                // 根导航由外壳 Scaffold 的 bottomBar inset 处理，列表不再叠加固定底栏留白
                                 contentPadding = PaddingValues(
-                                    top = 8.dp,
-                                    bottom = if (session.bottomBarStyle != 0) {
-                                        8.dp + 72.dp +
-                                            WindowInsets.navigationBars
-                                                .asPaddingValues().calculateBottomPadding()
-                                    } else 8.dp
+                                    top = topInset + 8.dp,
+                                    bottom = 8.dp,
                                 )
                             ) {
                                 if (pendingNewTopics.isNotEmpty()) {
@@ -208,8 +214,9 @@ internal fun ColumnScope.HomeBody(
                                     }
                                 },
                                 modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(end = 16.dp, bottom = 24.dp)
+                                    // 发帖 FAB 固定在右下，回到顶部移到左下避免触区重叠
+                                    .align(Alignment.BottomStart)
+                                    .padding(start = 16.dp, bottom = 24.dp)
                                     .graphicsLayer {
                                         scaleX = backTopScale
                                         scaleY = backTopScale
@@ -226,7 +233,7 @@ internal fun ColumnScope.HomeBody(
                             }
                         }
                         if (session.floatingTopicId > 0L) {
-                            sb.linux.client.ui.PinnedTopicCapsule(session.floatingTopicId, session.floatingTopicTitle) {
+                            sb.linux.client.ui.patterns.topic.PinnedTopicCapsule(session.floatingTopicId, session.floatingTopicTitle) {
                                 nav.navigate("topic/${session.floatingTopicId}")
                             }
                         }

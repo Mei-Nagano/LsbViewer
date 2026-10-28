@@ -24,10 +24,10 @@ import sb.linux.client.common.collection.TopicCollectionOperation
 import sb.linux.client.domain.gacha.GachaOperationForm
 import sb.linux.client.domain.gacha.GachaOperationPage
 import sb.linux.client.domain.topic.TopicCard
-import sb.linux.client.ui.EmptyBox
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.LoadingBox
-import sb.linux.client.ui.TopicCardView
+import sb.linux.client.ui.components.feedback.EmptyBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.patterns.topic.TopicCardView
 
 internal fun TopicCollectionActionForm.toGachaForm() = GachaOperationForm(
     label = label,
@@ -66,17 +66,7 @@ internal fun CollectionDetailList(
         // 已有内容时错误降级为条幅，不清空正在看的列表
         error?.let { message ->
             item {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
-                ) {
-                    Row(Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(message, color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                        TextButton(onClick = onReload) { Text("重试") }
-                    }
-                }
+                sb.linux.client.ui.components.feedback.AppNotice(message, Modifier.padding(horizontal = 14.dp), onAction = onReload)
             }
         }
         // 管理操作置顶，进页面就能点，不用滚到最下面
@@ -109,7 +99,7 @@ internal fun CollectionDetailList(
         opPage?.notes.orEmpty().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { notes ->
             item {
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                 ) {

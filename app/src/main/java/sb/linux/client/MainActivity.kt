@@ -13,9 +13,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.session.ThemeModePref
-import sb.linux.client.ui.LsbTheme
-import sb.linux.client.ui.PaletteStyles
-import sb.linux.client.ui.ThemeMode
+import sb.linux.client.ui.theme.LsbTheme
+import sb.linux.client.ui.theme.PaletteStyles
+import sb.linux.client.ui.theme.ThemeMode
 import sb.linux.client.ui.navigation.AppRoot
 
 /** Activity 宿主：仅负责系统窗口、Session 创建和主题装配。 */

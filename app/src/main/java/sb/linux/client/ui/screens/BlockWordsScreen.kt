@@ -1,27 +1,22 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,14 +26,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import sb.linux.client.common.filter.KeywordFilterRules
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.LoadingBox
-import sb.linux.client.ui.LoginRequiredBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.components.feedback.LoginRequiredBox
+import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.feature.settings.KeywordFilterViewModel
 import sb.linux.client.ui.feature.settings.KeywordFilterViewModelFactory
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 
-/** Source forum home keyword, user, and forum blocking preferences. */
+/** 源站帖子列表关键词/用户/板块屏蔽；显式保存，错误与登录门禁不混进表单。 */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BlockWordsScreen(session: Session, nav: NavHostController) {
@@ -48,6 +45,7 @@ fun BlockWordsScreen(session: Session, nav: NavHostController) {
     val viewModel: KeywordFilterViewModel = viewModel(factory = factory, key = "keyword-filter")
     val state = viewModel.state
     val loggedIn = session.account.loginState.loggedIn
+    val spacing = LocalAppSpacing.current
 
     LaunchedEffect(loggedIn) {
         if (loggedIn) viewModel.load()
@@ -59,35 +57,29 @@ fun BlockWordsScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("屏蔽词 · 源站同步") },
-                navigationIcon = {
-                    IconButton(onClick = nav::popBackStack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-            )
-        },
-    ) { paddingValues ->
+    AppPageScaffold(
+        title = "帖子列表过滤 · 源站同步",
+        onBack = { nav.popBackStack() },
+    ) { pad ->
         when {
-            !loggedIn -> Box(Modifier.padding(paddingValues)) {
-                LoginRequiredBox(
-                    "屏蔽词与源站账号绑定",
-                    "登录后可管理自定义屏蔽词、屏蔽用户，设置与网页端保持一致",
-                ) { nav.navigate("login") }
-            }
-            state.loading -> Box(Modifier.padding(paddingValues)) { LoadingBox() }
+            !loggedIn -> LoginRequiredBox(
+                "屏蔽词与源站账号绑定",
+                "登录后可管理自定义屏蔽词、屏蔽用户，设置与网页端保持一致",
+                Modifier.padding(pad),
+            ) { nav.navigate("login") }
+            state.loading -> LoadingBox(Modifier.padding(pad))
+            state.error != null -> ErrorBox(state.error!!, Modifier.padding(pad), onRetry = viewModel::load)
             else -> Column(
                 Modifier
-                    .padding(paddingValues)
+                    .padding(pad)
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
+                verticalArrangement = Arrangement.spacedBy(spacing.contentGap),
             ) {
-                state.error?.let { ErrorBox(it, onRetry = viewModel::load) }
+                SettingMenuRow("用户屏蔽名单", "按用户 ID 屏蔽主题、回帖及私信，与列表过滤独立") {
+                    nav.navigate("userBlock")
+                }
                 Text(
                     "与源站「首页关键词过滤」一致：标题、用户名和首页版块规则只影响帖子列表，不影响搜索和其他页面。",
                     style = MaterialTheme.typography.bodySmall,
@@ -96,7 +88,7 @@ fun BlockWordsScreen(session: Session, nav: NavHostController) {
 
                 if (state.snapshot.policy.availablePresets.isNotEmpty()) {
                     Text("常用关键词", style = MaterialTheme.typography.titleSmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.inline)) {
                         state.snapshot.policy.availablePresets.forEach { preset ->
                             val selected = KeywordFilterRules.normalize(preset) in state.presets
                             InputChip(
@@ -132,7 +124,7 @@ fun BlockWordsScreen(session: Session, nav: NavHostController) {
                 )
 
                 EditableKeywordSection(
-                    title = "屏蔽用户",
+                    title = "列表过滤用户名",
                     emptyMessage = "暂无屏蔽用户",
                     inputLabel = "用户名",
                     input = state.userInput,
@@ -143,13 +135,20 @@ fun BlockWordsScreen(session: Session, nav: NavHostController) {
                     enabled = !state.busy,
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = viewModel::clearPersonalRules, enabled = !state.busy) {
-                        Text("清空个人屏蔽")
-                    }
-                    Button(onClick = viewModel::save, enabled = !state.busy) {
-                        Text(if (state.busy) "保存中…" else "保存")
-                    }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.item),
+                ) {
+                    OutlinedButton(
+                        onClick = viewModel::clearPersonalRules,
+                        enabled = !state.busy,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    ) { Text("清空个人屏蔽") }
+                    Button(
+                        onClick = viewModel::save,
+                        enabled = !state.busy,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    ) { Text(if (state.busy) "保存中…" else "保存") }
                 }
             }
         }

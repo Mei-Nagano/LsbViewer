@@ -41,11 +41,9 @@ internal fun HomeListEffects(
         }
     }
 
-    var lastRetCombo by rememberSaveable { mutableStateOf(combo) }
     var lastRetInfinite by rememberSaveable { mutableStateOf(homeInfinite) }
-    LaunchedEffect(combo, homeInfinite) {
-        val changed = combo != lastRetCombo || homeInfinite != lastRetInfinite
-        lastRetCombo = combo
+    LaunchedEffect(homeInfinite) {
+        val changed = homeInfinite != lastRetInfinite
         lastRetInfinite = homeInfinite
         if (changed && !homeInfinite) {
             withFrameNanos { }
@@ -53,7 +51,7 @@ internal fun HomeListEffects(
         }
     }
 
-    LaunchedEffect(tabIndex, combo == 3) {
+    LaunchedEffect(current) {
         if (!current.loaded) {
             val cached = loadCachedHome()
             if (cached.isNotEmpty()) {
@@ -73,14 +71,14 @@ internal fun HomeListEffects(
         }
     }
 
-    DisposableEffect(tabIndex, combo == 3) {
+    DisposableEffect(current) {
         onDispose {
             current.scrollIndex = listState.firstVisibleItemIndex
             current.scrollOffset = listState.firstVisibleItemScrollOffset
         }
     }
 
-    LaunchedEffect(listState, homeInfinite, visibleTopics.size, current.sourceTotalPages, loadingMore, loading) {
+    LaunchedEffect(current, listState, homeInfinite, visibleTopics.size, current.sourceTotalPages, loadingMore, loading) {
         if (!homeInfinite || loadingMore || loading || current.topics.isEmpty()) return@LaunchedEffect
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
             .distinctUntilChanged()

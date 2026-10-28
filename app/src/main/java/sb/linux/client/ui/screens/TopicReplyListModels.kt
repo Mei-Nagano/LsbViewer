@@ -25,7 +25,6 @@ internal data class TopicReplyListState(
     val infinite: Boolean,
     val loadingMore: Boolean,
     val replyModeTick: Int,
-    val replyGlass: Boolean,
     val replyCountText: String,
 )
 

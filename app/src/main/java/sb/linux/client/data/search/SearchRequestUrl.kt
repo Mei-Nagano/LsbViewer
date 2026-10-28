@@ -12,6 +12,9 @@ internal object SearchRequestUrl {
         return buildString {
             append("/search?q=")
             append(URLEncoder.encode(request.normalizedText, Charsets.UTF_8.name()))
+            if (request.access.isNotBlank()) {
+                append("&access=").append(URLEncoder.encode(request.access, Charsets.UTF_8.name()))
+            }
             if (request.scope != SearchScope.ALL) append("&scope=").append(request.scope.value)
             if (request.scope != SearchScope.USER && request.normalizedSort != SearchSort.RELEVANCE) {
                 append("&sort=").append(request.normalizedSort.value)

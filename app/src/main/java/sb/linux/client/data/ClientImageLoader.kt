@@ -73,6 +73,10 @@ internal class ClientImageLoader(
             val req = Request.Builder().url(candidate)
                 .header("User-Agent", userAgent)
                 .header("Accept", "image/avif,image/webp,image/svg+xml,image/*,*/*;q=0.8")
+                // 标记为图片流量：LsbClient 的请求头拦截器只在没有该标记时才补
+                // Cache-Control: max-age=0。头像走的是本类而不是 Coil，此前漏了标记，
+                // 于是每个头像请求都要求源站不复用缓存，与 LsbApp 中图片链路的既有意图相反。
+                .tag(ImageTraffic::class.java, ImageTraffic)
                 .build()
             run attempt@{
                 repeat(3) {

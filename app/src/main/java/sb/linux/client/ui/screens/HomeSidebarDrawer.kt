@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.community.ForumCount
 import sb.linux.client.domain.community.HomeSidebar
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.Avatar
+import sb.linux.client.ui.patterns.user.UserAvatar
 /** 源站首页侧板：用户卡片 / 签到天数 / 版块列表 / 快捷功能 / 每日热帖 / 站点统计 / 最新用户
  *  关闭方式：点击侧边栏以外区域（遮罩）自动关闭（13）；平板双栏下右栏/导航栏区域的
  *  关闭由 MainActivity 中的透明点击层兜底 */
@@ -51,6 +51,7 @@ internal fun HomeSidebarDrawer(
                 // 快捷功能（无图标，统一圆角矩形背景；按侧板单/双列设置排布）
                 item { DrawerTitle("快捷功能") }
                 val quickActions = listOf(
+                    "原站广告" to { onNavigate("sourcePromotions") },
                     "我的通知" to { onNavigate("notifications") },
                     "浏览足迹" to { onNavigate("footprint") },
                     "收藏内容" to { onNavigate("favorites") },
@@ -156,7 +157,7 @@ internal fun HomeSidebarDrawer(
                                                     .clickable { onOpenUser(u.userId) }
                                                     .padding(vertical = 3.dp),
                                             ) {
-                                                Avatar(u.avatarUrl, 36, online = true)
+                                                UserAvatar(u.userId, u.avatarUrl, 36, online = true)
                                                 Spacer(Modifier.height(3.dp))
                                                 Text(
                                                     u.username,

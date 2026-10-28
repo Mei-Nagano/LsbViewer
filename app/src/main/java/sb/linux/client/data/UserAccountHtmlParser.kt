@@ -29,6 +29,7 @@ object UserAccountHtmlParser {
             val v = c.selectFirst(".quick-value, .sidebar-value")?.text() ?: ""
             t to v
         }
+        val blockLink = d.selectFirst("a[href^=/user_block]")
         return UserProfile(
             userId = SourceHtmlSupport.idFrom(uidHref),
             username = name,
@@ -42,6 +43,8 @@ object UserAccountHtmlParser {
             online = SourceHtmlSupport.idFrom(uidHref) in onlineIds ||
                 d.selectFirst("a.user-avatar-big")?.let { SourceHtmlSupport.onlineOf(it) } == true,
             titleBadge = d.selectFirst(".user-header, .user-card")?.let(SourceHtmlSupport::gachaTitleOf),
+            blockUrl = blockLink?.attr("href").orEmpty(),
+            blockLabel = blockLink?.text().orEmpty(),
         )
     }
 

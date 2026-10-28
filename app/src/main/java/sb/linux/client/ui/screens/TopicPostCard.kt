@@ -27,6 +27,14 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
+
 import sb.linux.client.domain.topic.PostEntry
 @Composable
 fun PostCard(
@@ -59,15 +67,15 @@ fun PostCard(
     searchHighlight: String = "",
     onSearchPosition: (Float) -> Unit = {},
 ) {
+    // 背景图模式下正文必须有独立不透明保护面，否则文字直接压在图片上。
+    val protectSurface = LocalSurfaceOpacity.current < 0.999f
     if (isMainPost) {
-        // ---------- 楼主正文：正文长按为系统原生文本选择，不再弹功能菜单（2.6） ----------
+        // ---------- 楼主正文：与阅读列同宽，不再套卡片背景 ----------
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.13f))
-                .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 2.dp)
+                .background(if (protectSurface) MaterialTheme.colorScheme.surface else Color.Transparent)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             PostCardContent(
                 post, loggedIn, isOpAuthor,
@@ -91,59 +99,47 @@ fun PostCard(
             )
         }
     } else {
-        // ---------- 回复：单独卡片容器，长按弹功能菜单；高亮 = 楼层定位（2.13） ----------
-        // 背景色 + 描边同时作为定位提示，让被定位楼层一眼可见
+        // ---------- 回复：平面列表项，不再为每条回复包大圆角卡片 ----------
+        // 高亮仍用整行底色表示楼层定位，不加阴影或描边容器。
         val bg by animateColorAsState(
-            targetValue = if (highlight) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f)
-            else MaterialTheme.colorScheme.surfaceContainer,
+            targetValue = when {
+                highlight -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                protectSurface -> MaterialTheme.colorScheme.surface
+                else -> Color.Transparent
+            },
             animationSpec = tween(400),
             label = "postBg"
         )
-        val borderColor by animateColorAsState(
-            targetValue = if (highlight) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0f),
-            animationSpec = tween(400),
-            label = "postBorder"
-        )
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = bg,
-            modifier = Modifier
+        Column(
+            Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-                // 先裁剪再挂手势，长按遮罩与圆角容器完全贴合（2.17）
-                .clip(RoundedCornerShape(16.dp))
-                .border(
-                    width = if (highlight) 2.dp else 0.dp,
-                    color = borderColor,
-                    shape = RoundedCornerShape(16.dp),
-                )
+                .background(bg)
                 .combinedClickable(onClick = {}, onLongClick = onCopy)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-                PostCardContent(
-                    post, loggedIn, isOpAuthor,
-                    avatarSize = 34,
-                    onUser, onQuote, onLike, onCoin, onReport, onFloor, onThread,
-                    showFloorBadge = true,
-                    onCopy = onCopy,
-                    onDonate = onDonate,
-                    onEditUser = onEditUser,
-                    threadEnabled = threadEnabled,
-                    threadReplyCount = threadReplyCount,
-                    showReplyCapsule = showReplyCapsule,
+            PostCardContent(
+                post, loggedIn, isOpAuthor,
+                avatarSize = 32,
+                onUser, onQuote, onLike, onCoin, onReport, onFloor, onThread,
+                showFloorBadge = true,
+                onCopy = onCopy,
+                onDonate = onDonate,
+                onEditUser = onEditUser,
+                threadEnabled = threadEnabled,
+                threadReplyCount = threadReplyCount,
+                showReplyCapsule = showReplyCapsule,
                 replyParentAvatar = replyParentAvatar,
-                    childReplyCount = childReplyCount,
-                    childrenCollapsed = childrenCollapsed,
-                    onToggleChildren = onToggleChildren,
-                    commentFavorited = commentFavorited,
-                    onFavComment = onFavComment,
-                    onHeadingPosition = onHeadingPosition,
+                childReplyCount = childReplyCount,
+                childrenCollapsed = childrenCollapsed,
+                onToggleChildren = onToggleChildren,
+                commentFavorited = commentFavorited,
+                onFavComment = onFavComment,
+                onHeadingPosition = onHeadingPosition,
                 onBodyLayout = onBodyLayout,
-                    searchHighlight = searchHighlight,
-                    onSearchPosition = onSearchPosition,
-                )
-            }
+                searchHighlight = searchHighlight,
+                onSearchPosition = onSearchPosition,
+                comment = true,
+            )
         }
     }
 }

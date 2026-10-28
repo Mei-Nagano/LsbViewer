@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -26,6 +27,8 @@ import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.account.LoginVerification
 import sb.linux.client.ui.feature.account.LoginViewModel
 import sb.linux.client.ui.feature.account.LoginViewModelFactory
+import sb.linux.client.ui.theme.LocalAppSizes
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,15 +40,28 @@ fun LoginScreen(session: Session, nav: NavHostController) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(viewModel) { viewModel.loadChallenge() }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("登录烧饼社区") }) }) { pad ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("登录烧饼社区") },
+                // 登录是可取消的门禁：始终提供返回，避免把用户困在登录页
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "取消登录")
+                    }
+                },
+            )
+        },
+    ) { pad ->
+        Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier
-                .padding(pad)
-                .fillMaxSize()
+                .widthIn(max = LocalAppSizes.current.formMaxWidth)
+                .fillMaxHeight()
                 // 键盘弹出时收缩可视区域，保证底部的人机验证输入框不被遮挡
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 26.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(36.dp))
@@ -56,7 +72,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                 label = { Text("用户名或邮箱") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 leadingIcon = { Icon(Icons.Filled.Person, null, Modifier.size(18.dp)) }
             )
             Spacer(Modifier.height(14.dp))
@@ -65,7 +81,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                 label = { Text("密码") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 leadingIcon = { Icon(Icons.Filled.Lock, null, Modifier.size(18.dp)) },
                 visualTransformation = if (state.showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -99,7 +115,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("人机验证：${cap.question}") },
                         singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         trailingIcon = {
                             IconButton(onClick = viewModel::loadChallenge) {
@@ -134,7 +150,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
 
             Spacer(Modifier.height(16.dp))
             state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                sb.linux.client.ui.components.feedback.AppNotice(it)
                 Spacer(Modifier.height(8.dp))
             }
             if (state.busy) {
@@ -158,6 +174,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                     .height(52.dp),
                 shape = RoundedCornerShape(16.dp)
             ) { Text(if (state.busy) "登录中…" else "登录", style = MaterialTheme.typography.titleMedium) }
+        }
         }
     }
 }

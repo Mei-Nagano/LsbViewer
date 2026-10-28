@@ -43,7 +43,7 @@ internal fun UserAccountActions(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(18.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column {
@@ -76,12 +76,11 @@ internal fun UserAccountActions(
         }
     }
     if (confirmLogout) {
-        AlertDialog(
-            onDismissRequest = { confirmLogout = false },
-            title = { Text("退出登录") },
-            text = { Text("确定要退出当前账号吗？") },
-            confirmButton = {
-                TextButton(onClick = {
+        sb.linux.client.ui.components.feedback.AppConfirmDialog(
+        title = "退出登录",
+        message = "确定要退出当前账号吗？",
+        onDismiss = { confirmLogout = false },
+        onConfirm = {
                     confirmLogout = false
                     session.onLoggedOut()
                     // 平板双栏：主栏切回首页并清空右栏；手机：回首页重建栈。
@@ -93,11 +92,8 @@ internal fun UserAccountActions(
                     } else {
                         nav.navigate("home") { popUpTo("home") { inclusive = true } }
                     }
-                }) { Text("退出", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmLogout = false }) { Text("取消") }
-            },
-        )
+                },
+        confirmText = "退出", destructive = true, dismissText = "取消",
+    )
     }
 }

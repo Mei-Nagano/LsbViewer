@@ -37,7 +37,6 @@ internal class TopicInteractionDataSource(
             ),
         )
         val succeeded = response.optInt("ok") == 1
-        if (succeeded && points > 0) settings.recordUsageEvent("coin", topicId, page.title, points)
         return response.optString("message", if (succeeded) "已点赞" else "操作失败")
     }
 
@@ -161,7 +160,6 @@ internal class TopicInteractionDataSource(
                 avatarUrl = author?.avatarUrl ?: "",
                 titleColor = "",
             )
-            settings.recordUsageEvent("favorite", page.topicId, page.title)
         }
         return TopicFavoriteChange(wasFavorite, page.copy(favorited = isFavorite))
     }

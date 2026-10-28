@@ -47,7 +47,7 @@ object WebViewDoh {
         }
     }
 
-    /** 视频域名已在 DoH 代理配置中按域名直连；其他 WebView 仍保持原有网络策略。 */
+    /** 视频域名绕过 DoH 隧道，其他网页仍等待同一份网络策略。 */
     fun loadDirect(view: WebView, url: String, headers: Map<String, String> = emptyMap()) {
         context = view.context.applicationContext
         scope.launch {
@@ -84,14 +84,13 @@ object WebViewDoh {
         val active = policy.dohActive
         val key = when {
             proxyUrl != null -> "proxy:$proxyUrl"
-            active -> "doh:${policy.dohUrl}:video-bypass-v2"
+            active -> "doh:${policy.dohUrl}:video-bypass-v4"
             else -> "off"
         }
         if (key == applied) return true
         return try {
-            // 部分旧版系统 WebView 没有进程级代理能力。DoH 本身允许系统 DNS 兜底，
-            // 此处也继续直连，让验证码至少可以显示；显式代理配置则不能静默绕过。
-            if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return proxyUrl == null
+            // 无法执行启用的网络策略时停止加载，避免悄悄改用系统 DNS。
+            if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return proxyUrl == null && !active
             if (proxyUrl != null) {
                 suspendCancellableCoroutine<Unit> { continuation ->
                     ProxyController.getInstance().setProxyOverride(
@@ -103,6 +102,11 @@ object WebViewDoh {
                 withContext(Dispatchers.IO) { tunnel?.close() }
                 tunnel = null
             } else if (active) {
+                // 配置变化后断开旧连接，后续连接使用当前 DNS 策略。
+                if (tunnel != null && key != applied) {
+                    withContext(Dispatchers.IO) { tunnel?.close() }
+                    tunnel = null
+                }
                 val bridge = tunnel ?: withContext(Dispatchers.IO) { repository.openTunnel() }.also { tunnel = it }
                 suspendCancellableCoroutine<Unit> { continuation ->
                     ProxyController.getInstance().setProxyOverride(
@@ -130,7 +134,7 @@ object WebViewDoh {
         catch (_: Exception) { false }
     }
 
-    /** 视频页面和媒体分片绕过论坛 DoH 隧道，交给系统网络、VPN或系统级代理。 */
+    /** 视频页面与媒体资源使用系统网络，避开 DoH 隧道。显式应用代理仍优先。 */
     private val VIDEO_DOH_BYPASS_RULES = listOf(
         "bilibili.com", "*.bilibili.com",
         "bilivideo.com", "*.bilivideo.com", "bilivideo.cn", "*.bilivideo.cn",

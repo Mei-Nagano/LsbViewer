@@ -39,6 +39,13 @@ import sb.linux.client.domain.profile.AvatarPickerData
 import sb.linux.client.domain.profile.ProfileSettingsForm
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 import java.io.File
 
 @Composable
@@ -99,7 +106,7 @@ internal fun ProfileFormCard(
 
     Surface(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -214,7 +221,7 @@ internal fun ProfileFormCard(
                             onValueChange = { values[f.name] = it },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text(f.label) },
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation()
                         )
@@ -234,7 +241,7 @@ internal fun ProfileFormCard(
                     onSubmit(payload, pickedFile, pickedMime) { localBusy = false; pickedFile = null; pickedPreset = null }
                 },
                 enabled = !busy && !localBusy,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (localBusy) "提交中…" else form.submitText) }
         }

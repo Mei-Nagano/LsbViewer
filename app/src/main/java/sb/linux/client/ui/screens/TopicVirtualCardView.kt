@@ -23,10 +23,17 @@ import androidx.compose.ui.unit.*
 import kotlinx.coroutines.*
 import sb.linux.client.domain.topic.VirtualCard
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 @Composable
 fun VirtualCardView(vc: VirtualCard, loggedIn: Boolean, onBuy: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(18.dp),
+        shape = MaterialTheme.shapes.large,
         color = if (vc.inStock) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.8f)
         else MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = Modifier

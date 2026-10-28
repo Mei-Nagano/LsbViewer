@@ -23,7 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.update.UpdateProjectLinks
+import sb.linux.client.ui.AppUpdatePromptDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +52,7 @@ fun AboutScreen(session: Session, nav: NavHostController) {
             context.packageManager.getApplicationLabel(context.applicationInfo).toString()
         }.getOrNull() ?: "LinuxSB"
     }
+    val spacing = LocalAppSpacing.current
     val versionName = currentVersionName(context)
     val versionCode = remember {
         runCatching {
@@ -69,27 +72,19 @@ fun AboutScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("关于应用") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                }
-            )
-        }
+    sb.linux.client.ui.components.navigation.AppPageScaffold(
+        title = "关于应用",
+        onBack = { nav.popBackStack() },
     ) { pad ->
         Column(
             Modifier
                 .padding(pad)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(spacing.largeSection))
             // 应用图标
             appIcon?.let {
                 androidx.compose.foundation.Image(
@@ -100,10 +95,10 @@ fun AboutScreen(session: Session, nav: NavHostController) {
                         .clip(CircleShape)
                 )
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(spacing.section))
             // 应用名称
             Text(appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(spacing.contentGap))
             // 版本号（圆角矩形）
             Surface(
                 shape = RoundedCornerShape(50),
@@ -113,17 +108,17 @@ fun AboutScreen(session: Session, nav: NavHostController) {
                     "v$versionName ($versionCode)",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.inline)
                 )
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(spacing.item))
             // 应用简介（不超过十个字）
             Text(
                 "轻量社区客户端",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(spacing.section))
             // List group
             GroupCard {
                 val rowDivider = @Composable {
@@ -145,41 +140,25 @@ fun AboutScreen(session: Session, nav: NavHostController) {
                 SettingMenuRow("意见反馈", "GitHub Issues", Icons.Filled.Feedback) { openExternal("${UpdateProjectLinks.PROJECT_URL}/issues/new") }
             }
             updateState.msg?.let {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(spacing.contentGap))
                 Text(
                     it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(spacing.section))
         }
     }
 
     // 发现新版本对话框
     updateState.update?.let { rel ->
-        AlertDialog(
-            onDismissRequest = updateState.dismiss,
-            title = { Text("发现新版本") },
-            text = {
-                Column {
-                    Text("${rel.name}（当前 v$versionName）")
-                    if (rel.notes.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            rel.notes.take(300),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { openExternal(rel.url); updateState.dismiss() }) { Text("前往下载") }
-            },
-            dismissButton = {
-                TextButton(onClick = updateState.dismiss) { Text("取消") }
-            }
+        AppUpdatePromptDialog(
+            releaseName = rel.name,
+            currentVersion = versionName,
+            notes = rel.notes,
+            onDownload = { openExternal(rel.url); updateState.dismiss() },
+            onDismiss = updateState.dismiss,
         )
     }
 }

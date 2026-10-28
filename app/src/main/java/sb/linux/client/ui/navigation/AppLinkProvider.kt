@@ -56,6 +56,18 @@ internal fun AppLinkProvider(
         val internalUri = android.net.Uri.parse(url)
         if (Endpoints.isInternal(internalUri.host)) {
             val internalPath = internalUri.path.orEmpty().let { if (it.length > 1) it.trimEnd('/') else it }
+            if (internalPath == "/gacha" || internalPath.startsWith("/gacha_") || internalPath == "/identity_center") {
+                linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
+            }
+            if (internalPath in setOf("/profile", "/user_signature", "/user_privacy")) {
+                linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
+            }
+            if (internalPath == "/community_activity") {
+                linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
+            }
+            if (internalPath == "/user_block") {
+                linkNav.navigate("userBlock?url=${android.net.Uri.encode(url)}"); return
+            }
             when (internalPath) {
                 "/", "" -> { linkNav.navigate("home"); return }
                 "/forum_list" -> { linkNav.navigate("forums"); return }
@@ -68,6 +80,9 @@ internal fun AppLinkProvider(
                 "/user" -> {
                     val username = internalUri.getQueryParameter("username").orEmpty()
                     val tab = internalUri.getQueryParameter("tab") ?: "topics"
+                    if (tab == "attachments") {
+                        linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
+                    }
                     if (username.isNotBlank()) {
                         linkNav.navigate(
                             "userByName?name=${android.net.Uri.encode(username)}&tab=${android.net.Uri.encode(tab)}",
@@ -81,13 +96,6 @@ internal fun AppLinkProvider(
                 "/direct_messages" -> { linkNav.navigate("directMessages"); return }
                 "/notifications" -> { linkNav.navigate("notifications"); return }
                 "/invite_center" -> { linkNav.navigate("inviteCenter"); return }
-                "/gacha" -> { linkNav.navigate("gachaCenter"); return }
-                "/gacha_profile" -> { linkNav.navigate("gachaProfile"); return }
-                "/gacha_market" -> { linkNav.navigate("gachaMarket"); return }
-                "/gacha_forge_center" -> { linkNav.navigate("gachaOperation/forge"); return }
-                "/gacha_recycle_center" -> { linkNav.navigate("gachaOperation/recycle"); return }
-                "/gacha_recipes" -> { linkNav.navigate("gachaOperation/recipes"); return }
-                "/gacha_market_mine" -> { linkNav.navigate("gachaOperation/marketMine"); return }
                 "/leaderboard" -> {
                     val type = internalUri.getQueryParameter("type") ?: "points"
                     linkNav.navigate("leaderboard?type=${android.net.Uri.encode(type)}"); return
@@ -101,7 +109,7 @@ internal fun AppLinkProvider(
                         "search?q=${android.net.Uri.encode(query)}&scope=${android.net.Uri.encode(scope)}&sort=${android.net.Uri.encode(sort)}",
                     ); return
                 }
-                "/identity_center", "/daily_checkin" -> {
+                "/daily_checkin" -> {
                     session.showToast("此功能暂不提供"); return
                 }
             }
@@ -127,6 +135,9 @@ internal fun AppLinkProvider(
             }
             Regex("^/user/(\\d+)$").find(internalPath)?.let {
                 val tab = internalUri.getQueryParameter("tab") ?: "topics"
+                if (tab == "attachments") {
+                    linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
+                }
                 if (tab == "notifications") linkNav.navigate("notifications")
                 else linkNav.navigate("user/${it.groupValues[1]}?tab=${android.net.Uri.encode(tab)}")
                 return
@@ -162,7 +173,8 @@ internal fun AppLinkProvider(
     fun openLink(raw: String) {
         val url = Endpoints.abs(raw)
         val host = runCatching { android.net.Uri.parse(url).host.orEmpty() }.getOrDefault("")
-        if (!session.linkPreviewEnabled || Endpoints.isInternal(host)) openLinkDirect(url)
+        val externalJump = SourceExternalJump.target(url)
+        if (!session.linkPreviewEnabled || (Endpoints.isInternal(host) && externalJump == null)) openLinkDirect(url)
         else {
             linkPreviewInfo = null
             linkPreviewTarget = url
@@ -173,7 +185,7 @@ internal fun AppLinkProvider(
         val url = linkPreviewTarget ?: return@LaunchedEffect
         linkPreviewLoading = true
         try {
-            linkPreviewInfo = previewViewModel.load(url)
+            linkPreviewInfo = previewViewModel.load(SourceExternalJump.target(url) ?: url)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -216,7 +228,7 @@ internal fun AppLinkProvider(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val target = linkPreviewInfo?.url ?: linkPreviewTarget ?: return@TextButton
+                    val target = linkPreviewTarget ?: return@TextButton
                     linkPreviewTarget = null; linkPreviewInfo = null
                     openLinkDirect(target)
                 }) { Text("打开链接") }
@@ -225,6 +237,8 @@ internal fun AppLinkProvider(
         )
     }
     CompositionLocalProvider(
+        sb.linux.client.ui.patterns.user.LocalUserBlockChanged provides session::onUserSummaryBlockChanged,
+        sb.linux.client.ui.patterns.user.LocalUserSummaryRepository provides session.userSummaryRepository,
         LocalLinkHandler provides { openLink(it) },
         content = content,
     )

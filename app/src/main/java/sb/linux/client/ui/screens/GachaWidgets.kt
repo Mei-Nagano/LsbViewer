@@ -78,7 +78,7 @@ internal fun GachaStatCard(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -87,7 +87,7 @@ internal fun GachaStatCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                Modifier.size(42.dp).clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center,
             ) {

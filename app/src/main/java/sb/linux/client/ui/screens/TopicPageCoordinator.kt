@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import sb.linux.client.domain.community.BrowsingHistoryRepository
-import sb.linux.client.domain.community.UsageStatisticsRepository
 import sb.linux.client.domain.gacha.CardRedemptionsRepository
 import sb.linux.client.domain.settings.BrowseSettingsRepository
 import sb.linux.client.domain.topic.PostEntry
@@ -15,6 +14,7 @@ import sb.linux.client.domain.topic.TopicFloorPageRepository
 import sb.linux.client.domain.topic.TopicPageData
 import sb.linux.client.domain.topic.TopicPageCacheRepository
 import sb.linux.client.domain.topic.TopicPageRepository
+import sb.linux.client.domain.topic.TopicReadingAnchor
 import sb.linux.client.domain.topic.TopicReadingPositionRepository
 import sb.linux.client.domain.topic.TopicViewsRepository
 
@@ -29,7 +29,6 @@ internal class TopicPageCoordinator(
     private val redemptions: CardRedemptionsRepository,
     private val topicViews: TopicViewsRepository,
     private val browsingHistory: BrowsingHistoryRepository,
-    private val usageStatistics: UsageStatisticsRepository,
     private val showToast: (String) -> Unit,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -54,9 +53,16 @@ internal class TopicPageCoordinator(
         return settings.scrollModeOverrides["topic"] ?: settings.infiniteScroll
     }
 
-    fun saveReadingPosition(floor: Int, listIndex: Int, scrollOffset: Int) {
-        readingPositions.save(topicId, floor, listIndex, scrollOffset)
+    fun saveReadingPosition(floor: Int, listIndex: Int, scrollOffset: Int, postId: Long = 0) {
+        readingPositions.save(topicId, floor, listIndex, scrollOffset, postId)
     }
+
+    /** 版本化锚点：只在旧四段记录仍有效时返回，页面据此优先按楼层恢复。 */
+    fun readingAnchor(): TopicReadingAnchor? = readingPositions.getAnchor(topicId)
+
+    /** 旧四段记录（楼层/列表下标/像素偏移）；无锚点时作为可解释的回退。 */
+    fun readingPosition(): sb.linux.client.domain.topic.TopicReadingPosition? =
+        readingPositions.get(topicId)
 
     fun loadFloor(floor: Int, onComplete: (Result<TopicFloorPage>) -> Unit) =
         runRequest({ floorPages.load(topicId, floor) }, onComplete)
@@ -211,10 +217,6 @@ internal class TopicPageCoordinator(
             avatarUrl = originalPoster?.avatarUrl ?: "",
             titleColor = "",
         )
-        if (!state.usageViewRecorded.value) {
-            usageStatistics.recordEvent("view", topicId, page.title)
-            state.usageViewRecorded.value = true
-        }
     }
 
     private fun <T> runRequest(request: suspend () -> T, onComplete: (Result<T>) -> Unit) {

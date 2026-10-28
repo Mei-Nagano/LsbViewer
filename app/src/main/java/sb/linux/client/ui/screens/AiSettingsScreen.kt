@@ -24,7 +24,7 @@ import sb.linux.client.domain.ai.AiSummaryRecord
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AiSettingsScreen(session: Session, nav: NavHostController) {
+fun AiSettingsScreen(session: Session, nav: NavHostController, section: String = "behavior") {
     val settingsViewModelFactory = remember(
         session.aiConfigurationRepository, session.aiAssistantRepository, session.aiSummaryHistoryRepository,
     ) {
@@ -37,6 +37,9 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
     val settingsViewModel: AiSettingsViewModel = viewModel(factory = settingsViewModelFactory)
     val state = settingsViewModel.state
     val aiSettings = state.settings
+    val saved = session.aiConfigurationRepository.current()
+    val exit = rememberSettingsExit(section == "configuration" &&
+        (aiSettings != saved || state.temperatureText != saved.temperature.toString())) { nav.popBackStack() }
     LaunchedEffect(state.feedback) {
         state.feedback?.let {
             session.showToast(it.removePrefix("✓ ").trim())
@@ -81,29 +84,14 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("AI 总结") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                }
-            )
-        }
-    ) { pad ->
-        Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+    SettingsPage(
+        when (section) { "history" -> "AI 总结历史"; "configuration" -> "AI 接口与方案"; else -> "AI 助手" },
+        nav,
+        onBack = exit,
+    ) {
 
 
-            GroupCard {
+            if (section == "configuration") GroupCard {
                 Text(
                     "AI 配置方案",
                     style = MaterialTheme.typography.titleSmall,
@@ -148,7 +136,8 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
 
             }
 
-            AiSettingsForm(
+            if (section == "behavior") SettingMenuRow("接口与配置方案", "API 地址 · 模型 · 提示词 · 预设") { nav.navigate("aiConfiguration") }
+            if (section != "history") AiSettingsForm(
                 aiEnabled = aiSettings.enabled,
                 onAiEnabledChange = {
                     settingsViewModel.updateSettings { settings -> settings.copy(enabled = it) }
@@ -184,8 +173,11 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
                 aiPrompt = aiSettings.prompt,
                 onAiPromptChange = { value -> settingsViewModel.updateSettings { it.copy(prompt = value) } },
                 onSave = settingsViewModel::saveSettings,
+                configuration = section == "configuration",
             )
+            if (section == "history") {
             SwitchRow("仅看收藏的总结", "历史保留每次总结结果，不再覆盖同帖旧记录", checked = favoriteOnly, onCheckedChange = { favoriteOnly = it })
+            if (summaryHistory.isEmpty()) Text("暂无总结记录")
             if (summaryHistory.isNotEmpty()) {
                 GroupLabel("总结历史")
                 GroupCard {
@@ -205,8 +197,8 @@ fun AiSettingsScreen(session: Session, nav: NavHostController) {
                 }
                 if (summaryHistory.size > historyLimit) TextButton(onClick = { historyLimit += 30 }) { Text("显示更多总结") }
             }
+            }
             Spacer(Modifier.height(12.dp))
-        }
     }
 }
 

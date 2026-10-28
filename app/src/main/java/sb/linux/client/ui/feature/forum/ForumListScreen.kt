@@ -23,6 +23,13 @@ import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 import sb.linux.client.util.TopicFilter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,21 +49,19 @@ fun ForumListScreen(session: Session, nav: NavHostController) {
                 state.error != null -> ErrorBox(state.error!!) { viewModel.load() }
                 state.forums.isEmpty() -> EmptyBox("暂无板块")
                 else -> LazyColumn(
-                    // 底部留白让末条内容可滚出玻璃底栏（23）：Scaffold 已消耗导航栏 inset；
-                    // 悬浮玻璃高 58 + 悬浮边距 14；经典底栏不加此留白
+                    // 根导航由外壳 Scaffold 的 bottomBar inset 处理，列表不再叠加固定底栏留白
                     contentPadding = PaddingValues(
-                        start = 14.dp, end = 14.dp, top = 10.dp,
-                        bottom = 10.dp + if (session.bottomBarStyle != 0) 72.dp else 0.dp
+                        start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(state.forums, key = { it.id }) { f ->
                         Surface(
-                            shape = RoundedCornerShape(18.dp),
+                            shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
+                                .clip(MaterialTheme.shapes.large)
                                 .clickable { nav.navigate("forum/${f.id}") },
                         ) {
                             Row(

@@ -29,7 +29,8 @@ internal class SessionPreferenceLoader(
         session.backgroundImageOpacity = prefs.getFloat("background_image_opacity", 0.25f)
             .coerceIn(0.05f, 0.65f)
         session.surfaceOpacity = prefs.getFloat("surface_opacity", 1f).coerceIn(0.2f, 1f)
-        session.keepBackgroundColor = prefs.getBoolean("keep_background_color", true)
+        // 键缺失 = 新默认（带轻微色调的 MD3 表面）；显式 true 仍保留旧的中性面策略。
+        session.keepBackgroundColor = prefs.getBoolean("keep_background_color", false)
         session.themeCustomColors = (prefs.getStringSet("theme_custom_colors", emptySet()) ?: emptySet()).toList()
         session.fontKey = prefs.getString("font_key", "default") ?: "default"
         session.customFontName = prefs.getString("custom_font_name", "") ?: ""
@@ -39,6 +40,7 @@ internal class SessionPreferenceLoader(
         session.applyBrowseSettings(session.browseSettingsRepository.current())
         val general = session.generalSettingsRepository.current()
         session.tabletMode = general.tabletMode
+        session.singleContentColumn = general.singleContentColumn
         session.bottomBarStyle = general.bottomBarStyle
         session.bottomBarItems = general.bottomBarItems
         session.replyBarStyle = general.replyBarStyle

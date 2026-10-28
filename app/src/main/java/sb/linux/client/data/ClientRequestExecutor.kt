@@ -32,6 +32,8 @@ internal class ClientRequestExecutor(
                     // 取消/超时即放弃：否则同一个验证对话框会被 repeat(3) 连弹三次
                     if (!solveVerification(resp.url, resp.html)) throw LsbException("已取消人机验证")
                 } else {
+                    if (resp.code !in 200..299) throw LsbException("原站请求失败（HTTP ${resp.code}），请稍后重试")
+                    if (resp.html.isBlank()) throw LsbException("原站返回空页面，请重试")
                     recordCsrf(resp.html)
                     return@withContext resp
                 }

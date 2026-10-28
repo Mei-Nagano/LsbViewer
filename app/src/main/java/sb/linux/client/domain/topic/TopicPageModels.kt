@@ -28,6 +28,10 @@ data class PostEntry(
     val referencedFloors: List<Int> = emptyList(), // 本楼引用的楼层（整楼 HTML 解析，含正文外的引用块）
     val online: Boolean = false,     // 作者在线（源站 data-online-users-ids 在线集合）
     val titleBadge: TitleBadge? = null, // 作者称号（源站 gacha-title-badge）
+    val redPacketReward: String = "",
+    val signatureHtml: String = "",
+    val userBlocked: Boolean = false,
+    val blockedPlaceholder: String = "",
     val essenceVoteLabel: String = "", // 申精评议回复标签（支持/反对）
     val essenceVoteSupport: Boolean? = null,
 )
@@ -49,6 +53,7 @@ data class TopicPageData(
     val quickReplyAuthor: String = "",      // 快速回复目标（楼主）
     val viewsText: String = "",             // 查看次数（源站展示时）
     val repliesText: String = "",           // 回复总数（post-content-stats 第二个 span）
+    val redPacket: RedPacketPanel? = null,
     val lottery: LotteryPanel? = null,      // 抽奖帖面板
     val poll: TopicPoll? = null,            // 源站投票表单/结果
     val replyCaptcha: LoginVerification? = null, // 回复表单人机验证（CAP / 旧版数学题）

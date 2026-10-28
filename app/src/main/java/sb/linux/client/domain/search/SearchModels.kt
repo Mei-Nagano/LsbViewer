@@ -31,6 +31,7 @@ data class SearchQuery(
     val scope: SearchScope = SearchScope.ALL,
     val sort: SearchSort = SearchSort.RELEVANCE,
     val page: Int = 1,
+    val access: String = "",
 ) {
     val normalizedText: String get() = text.trim()
     val normalizedPage: Int get() = page.coerceAtLeast(1)
@@ -70,6 +71,7 @@ data class SearchPage(
     val items: List<SearchResultItem>,
     val hasPrevious: Boolean,
     val hasNext: Boolean,
+    val charge: SearchCharge? = null,
 )
 
 /** One-page in-memory shortcut for returning to the same search during the current process. */

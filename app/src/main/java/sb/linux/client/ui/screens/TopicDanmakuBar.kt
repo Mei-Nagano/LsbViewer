@@ -23,6 +23,13 @@ import androidx.compose.ui.unit.*
 import kotlinx.coroutines.*
 import sb.linux.client.domain.topic.DanmakuItem
 import sb.linux.client.ui.*
+import sb.linux.client.ui.theme.*
+import sb.linux.client.ui.content.*
+import sb.linux.client.ui.patterns.topic.*
+import sb.linux.client.ui.patterns.user.*
+import sb.linux.client.ui.components.feedback.*
+import sb.linux.client.ui.components.layout.*
+import sb.linux.client.ui.components.navigation.*
 /** 打赏弹幕条：横向自动滚动展示最近打赏；切换时把当前展示的弹幕滚动为可见区第一条 */
 @Composable
 fun DanmakuBar(items: List<DanmakuItem>) {

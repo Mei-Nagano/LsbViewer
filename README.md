@@ -57,6 +57,10 @@ Windows 使用 `gradlew.bat assembleDebug`。安装包输出至 `app/build/outpu
 
 重构约束、兼容性要求及最终设备验收清单见 [`docs/REFACTOR_DEVELOPMENT_GUIDE.md`](docs/REFACTOR_DEVELOPMENT_GUIDE.md)。
 
+UI 分层、公共组件、共享模型与工具、统一视觉及新增页面约束见 [`docs/UI_DEVELOPMENT_GUIDE.md`](docs/UI_DEVELOPMENT_GUIDE.md)。
+
+新一轮完整视觉改版见 [`docs/MD3_UI_REDESIGN.md`](docs/MD3_UI_REDESIGN.md)，包含 MD3 设计系统、页面规格、偏好迁移与实施验收计划；当前实现进度与剩余验收项见 [`docs/md3-redesign/IMPLEMENTATION_STATUS.md`](docs/md3-redesign/IMPLEMENTATION_STATUS.md) 与 [`docs/md3-redesign/ACCEPTANCE_REPORT.md`](docs/md3-redesign/ACCEPTANCE_REPORT.md)。
+
 ## 隐私与使用说明
 
 浏览和互动会连接 Linux.sb；图片上传会连接所选图床。匿名上传的图片通常可被持有链接的人访问，请勿上传敏感资料。AI 总结仅在相关功能启用和请求触发时，将所选内容发送至用户配置的接口。包含 API 密钥或账号信息的备份应妥善保管。

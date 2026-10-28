@@ -27,6 +27,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -36,7 +39,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -52,12 +54,12 @@ import sb.linux.client.common.collection.TopicCollectionTab
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.feature.collection.TopicCollectionsViewModel
 import sb.linux.client.ui.feature.collection.TopicCollectionsViewModelFactory
-import sb.linux.client.ui.Avatar
+import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.Badge
-import sb.linux.client.ui.EmptyBox
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.LoadingBox
-import sb.linux.client.ui.LoginRequiredBox
+import sb.linux.client.ui.components.feedback.EmptyBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.components.feedback.LoginRequiredBox
 
 /**
  * 淘帖中心：原生解析「我的 / 大家的」专辑列表，专辑详情走 collectionActions 路由。
@@ -89,23 +91,29 @@ fun TopicCollectionsScreen(
     // 未登录看「我的淘帖」：源站必然拒绝，直接给登录引导而不是把 repository 的报错抛在屏幕上
     val needsLogin = mine && (!session.account.loginState.loggedIn || requiresLogin)
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text("淘帖中心") },
-            navigationIcon = {
-                if (showBack) IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                }
-            },
-            actions = {
-                IconButton(enabled = !loading, onClick = { viewModel.load(userId, loggedIn) }) { Icon(Icons.Filled.Refresh, "刷新") }
-            },
-        )
-    }) { pad ->
+    sb.linux.client.ui.components.navigation.AppPageScaffold(
+        title = "淘帖",
+        // 作为根目的地嵌在宿主里时没有可返回的上一页；此时外壳不渲染返回图标
+        onBack = if (showBack) ({ nav.popBackStack() }) else null,
+        actions = {
+            IconButton(enabled = !loading, onClick = { viewModel.load(userId, loggedIn) }) { Icon(Icons.Filled.Refresh, "刷新") }
+        },
+    ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            TabRow(selectedTabIndex = if (mine) 0 else 1) {
-                Tab(selected = mine, onClick = { viewModel.selectMine(true) }, text = { Text("我的淘帖") })
-                Tab(selected = !mine, onClick = { viewModel.selectMine(false) }, text = { Text("大家的淘帖") })
+            // 根内分区使用分段控件，避免与根级顶部 Tab 形成两条同形标签栏
+            SingleChoiceSegmentedButtonRow(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                SegmentedButton(
+                    selected = !mine,
+                    onClick = { viewModel.selectMine(false) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) { Text("大家的") }
+                SegmentedButton(
+                    selected = mine,
+                    onClick = { viewModel.selectMine(true) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) { Text("我的") }
             }
             when {
                 needsLogin -> LoginRequiredBox(

@@ -38,7 +38,7 @@ import sb.linux.client.ui.titleRarityColor
 
 @Composable
 internal fun GachaPoolRowView(row: GachaPoolRow) {
-    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -104,7 +104,7 @@ internal fun GachaSystemCard(
     var showAllTitles by rememberSaveable { mutableStateOf(false) }
     val divider = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
     ) {

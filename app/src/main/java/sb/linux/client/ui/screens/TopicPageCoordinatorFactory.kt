@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.CreationExtras
 import sb.linux.client.domain.community.BrowsingHistoryRepository
-import sb.linux.client.domain.community.UsageStatisticsRepository
 import sb.linux.client.domain.gacha.CardRedemptionsRepository
 import sb.linux.client.domain.settings.BrowseSettingsRepository
 import sb.linux.client.domain.topic.TopicFloorPageRepository
@@ -25,7 +24,6 @@ internal class TopicPageCoordinatorFactory(
     private val redemptions: CardRedemptionsRepository,
     private val topicViews: TopicViewsRepository,
     private val browsingHistory: BrowsingHistoryRepository,
-    private val usageStatistics: UsageStatisticsRepository,
     private val showToast: (String) -> Unit,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
@@ -38,6 +36,6 @@ internal class TopicPageCoordinatorFactory(
     private fun <T : ViewModel> createCoordinator(handle: SavedStateHandle): T =
         TopicPageCoordinator(
             topicId, repository, floorPages, pageCache, browseSettings, readingPositions,
-            redemptions, topicViews, browsingHistory, usageStatistics, showToast, handle,
+            redemptions, topicViews, browsingHistory, showToast, handle,
         ) as T
 }

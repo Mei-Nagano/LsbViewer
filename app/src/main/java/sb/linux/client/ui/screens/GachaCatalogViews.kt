@@ -34,7 +34,7 @@ import sb.linux.client.ui.TitleBadgeView
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun GachaNews(news: List<String>) {
-    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -63,7 +63,7 @@ internal fun GachaTitleGroups(titles: List<TitleBadge>) {
         .toSortedMap(compareBy { rarityOrder(it) })
         .forEach { (rarity, badges) ->
             val open = rarity in expanded
-            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Column(Modifier.fillMaxWidth()) {
                     Row(
                         Modifier.fillMaxWidth()

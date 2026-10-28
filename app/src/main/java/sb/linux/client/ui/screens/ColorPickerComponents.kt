@@ -26,10 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import sb.linux.client.ui.colorSeed
-import sb.linux.client.ui.colorToHsv
-import sb.linux.client.ui.hsvColor
-import sb.linux.client.ui.onColorFor
+import sb.linux.client.ui.theme.colorSeed
+import sb.linux.client.ui.theme.colorToHsv
+import sb.linux.client.ui.theme.hsvColor
+import sb.linux.client.ui.util.onColorFor
 
 @Composable
 private fun HueGradientSlider(hue: Float, onValueChange: (Float) -> Unit, modifier: Modifier = Modifier) {
@@ -37,7 +37,7 @@ private fun HueGradientSlider(hue: Float, onValueChange: (Float) -> Unit, modifi
         modifier
             .fillMaxWidth()
             .height(30.dp)
-            .clip(RoundedCornerShape(15.dp))
+            .clip(RoundedCornerShape(16.dp))
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -212,7 +212,7 @@ internal fun ColorPickerDialog(
                                     key.removePrefix("custom#").take(4),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontSize = 8.sp,
-                                    color = sb.linux.client.ui.onColorFor(c)
+                                    color = sb.linux.client.ui.util.onColorFor(c)
                                 )
                             }
                         }

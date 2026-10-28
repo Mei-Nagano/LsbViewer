@@ -8,12 +8,10 @@ internal fun AppSettings.exportBackupJson(
     prefs: SharedPreferences,
     themePrefs: SharedPreferences,
     aiRecords: SharedPreferences,
-    drafts: SharedPreferences,
     readingRecords: SharedPreferences,
 ): String {
         val o = JSONObject()
         o.put("ai_summaries", JSONObject(aiRecords.all))
-        o.put("drafts", JSONObject(drafts.all))
         o.put("reading_positions", JSONObject(readingRecords.all))
         o.put("infinite_scroll", infiniteScroll)
         o.put("danmaku_on", danmakuOn)
@@ -75,11 +73,6 @@ internal fun AppSettings.exportBackupJson(
         o.put("favorites", JSONArray(prefs.getString("local_favorites", "[]") ?: "[]"))
         o.put("history", JSONArray(prefs.getString("local_history", "[]") ?: "[]"))
         o.put("card_redemptions", JSONArray(prefs.getString("card_redemptions", "[]") ?: "[]"))
-        o.put("usage_events", JSONArray(prefs.getString("usage_events", "[]") ?: "[]"))
-        o.put("usage_ai_summary", usageAiSummary)
-        o.put("source_points", JSONArray(prefs.getString("source_points", "[]")))
-        o.put("source_points_synced_at", sourcePointsSyncedAt)
-        o.put("source_usage", sourceUsageJson)
         o.put("builtin_image_provider", builtInImageHostProvider)
         o.put("confirm_gacha_pull", confirmGachaPull)
         // 26：外观主题与字体（lsb_prefs 全量导出，导入后立即生效）
@@ -94,7 +87,7 @@ internal fun AppSettings.exportBackupJson(
         t.put("theme_secondary_override", themePrefs.getString("theme_secondary_override", "") ?: "")
         t.put("theme_tertiary_override", themePrefs.getString("theme_tertiary_override", "") ?: "")
         t.put("theme_background_override", themePrefs.getString("theme_background_override", "") ?: "")
-        t.put("keep_background_color", themePrefs.getBoolean("keep_background_color", true))
+        t.put("keep_background_color", themePrefs.getBoolean("keep_background_color", false))
         t.put("exact_theme_colors", themePrefs.getBoolean("exact_theme_colors", false))
         t.put("background_image", themePrefs.getString("background_image", ""))
         t.put("background_image_enabled", themePrefs.getBoolean("background_image_enabled", false))
@@ -121,16 +114,13 @@ internal fun AppSettings.exportBackupJson(
     prefs: SharedPreferences,
     themePrefs: SharedPreferences,
     aiRecords: SharedPreferences,
-    drafts: SharedPreferences,
     readingRecords: SharedPreferences,
 ): String {
         val full = JSONObject(exportJson())
         val dataKeys = mapOf(
             "history" to setOf("history", "reading_positions"),
-            "drafts" to setOf("drafts"),
             "favorites" to setOf("favorites", "comment_favorites"),
             "cards" to setOf("card_redemptions"),
-            "usage" to setOf("usage_events", "usage_ai_summary", "source_points", "source_points_synced_at", "source_usage"),
             "ai" to setOf("ai_auto", "ai_auto_run", "ai_url", "ai_key", "ai_model", "ai_prompt", "ai_config_presets", "ai_temp", "ai_include_comments", "ai_summaries"),
         )
         dataKeys.forEach { (group, keys) -> if (group !in items) keys.forEach(full::remove) }

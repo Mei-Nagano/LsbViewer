@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import sb.linux.client.domain.community.UsageStatisticsRepository
 import sb.linux.client.domain.topic.NewTopicFormData
 import sb.linux.client.domain.topic.NewTopicDraft
 import sb.linux.client.domain.topic.NewTopicDraftRepository
@@ -27,7 +26,6 @@ data class NewTopicUiState(
 
 class NewTopicViewModel(
     private val repository: NewTopicRepository,
-    private val usageStatistics: UsageStatisticsRepository,
     private val drafts: NewTopicDraftRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(NewTopicUiState())
@@ -84,7 +82,6 @@ class NewTopicViewModel(
                 val failure = repository.submit(input)
                 if (failure != null) mutableState.update { it.copy(submitError = failure) }
                 else {
-                    if (input.editId == 0L) usageStatistics.recordEvent("topic", title = input.title)
                     mutableState.update { it.copy(submissionRevision = it.submissionRevision + 1) }
                 }
             } catch (error: Exception) {
@@ -98,10 +95,9 @@ class NewTopicViewModel(
 
 class NewTopicViewModelFactory(
     private val repository: NewTopicRepository,
-    private val usageStatistics: UsageStatisticsRepository,
     private val drafts: NewTopicDraftRepository,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        NewTopicViewModel(repository, usageStatistics, drafts) as T
+        NewTopicViewModel(repository, drafts) as T
 }

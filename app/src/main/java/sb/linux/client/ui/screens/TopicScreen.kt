@@ -37,8 +37,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         factory = interactionFactory,
         key = "topic-interactions-$topicId",
     )
-    val replyFactory = remember(session.topicReplyRepository, session.usageStatisticsRepository) {
-        TopicReplyViewModelFactory(session.topicReplyRepository, session.usageStatisticsRepository)
+    val replyFactory = remember(session.topicReplyRepository) {
+        TopicReplyViewModelFactory(session.topicReplyRepository)
     }
     val replyViewModel: TopicReplyViewModel = viewModel(
         factory = replyFactory,
@@ -66,7 +66,7 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         topicId, source, floorLoader, session.topicPageCacheRepository,
         session.browseSettingsRepository, session.readingPositionRepository,
         session.cardRedemptionsRepository, session.topicViewsRepository,
-        session.browsingHistoryRepository, session.usageStatisticsRepository,
+        session.browsingHistoryRepository,
     ) {
         TopicPageCoordinatorFactory(
             topicId = topicId,
@@ -78,7 +78,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
             redemptions = session.cardRedemptionsRepository,
             topicViews = session.topicViewsRepository,
             browsingHistory = session.browsingHistoryRepository,
-            usageStatistics = session.usageStatisticsRepository,
             showToast = session::showToast,
         )
     }

@@ -5,6 +5,7 @@ import sb.linux.client.common.error.LsbException
 object ChallengePagePolicy {
         const val UAM_CHALLENGE_JS =
             "(function(){try{var t=(document.title||'');var b=(document.body?document.body.innerText:'');" +
+                "if(document.querySelector('ul.post-list > li.post-item a.post-title, .post-topic-title, .post-content, .user-card, [data-home-keyword-filter-open], input[type=password], a[href=\"/topic/new\"], a[href=\"/index.php?sort=comment\"], a[href=\"/index.php?sort=post\"]'))return false;" +
                 "var el=!!(document.querySelector('#challenge-form')||document.querySelector('.ui-uam-box')||" +
                 "document.querySelector('.cf-browser-verification')||document.querySelector('#cf-challenge-running')||" +
                 "document.querySelector('.challenge-container')||document.querySelector('[class*=\"turnstile\"]')||" +
@@ -36,10 +37,21 @@ object ChallengePagePolicy {
          * 「访问验证恢复失败」而看不到内容。
          */
         private fun hasChallengeMarker(html: String, strong: List<String>, weak: List<String>): Boolean {
-            if (strong.any { html.contains(it, ignoreCase = true) }) return true
+            val document = org.jsoup.Jsoup.parse(html)
+            // 正常论坛页可能带回复验证码，或在帖子正文讨论验证组件。
+            // 这些都不是替代整页内容的访问挑战。
+            if (document.selectFirst("ul.post-list > li.post-item a.post-title, .post-topic-title, .post-content, .user-card, [data-home-keyword-filter-open], input[type=password], a[href=\"/topic/new\"], a[href=\"/index.php?sort=comment\"], a[href=\"/index.php?sort=post\"]") != null) return false
+            val shell = document.clone().apply {
+                select("pre, code, blockquote, .topic-list, .post-list, .reply-list").remove()
+            }.html().replace(
+                // CF JavaScript Detections 会注入正常页面，并不代表整页被访问挑战替代。
+                Regex("/cdn-cgi/challenge-platform/scripts/jsd/[^\\s\\\"'<>;]*", RegexOption.IGNORE_CASE),
+                "",
+            )
+            if (strong.any { shell.contains(it, ignoreCase = true) }) return true
             if (weak.isEmpty()) return false
             if (weak.any { titleOf(html).contains(it, ignoreCase = true) }) return true
-            return html.length < CHALLENGE_MAX_HTML && weak.any { html.contains(it, ignoreCase = true) }
+            return html.length < CHALLENGE_MAX_HTML && weak.any { shell.contains(it, ignoreCase = true) }
         }
 
         private val UAM_STRONG = listOf(
@@ -106,8 +118,7 @@ object ChallengePagePolicy {
          * 关键：CF 盾通常返回 403/503，不能只按 code==200 判断。
          */
         internal fun needsVerification(code: Int, html: String): Boolean =
-            html.isBlank() || isChallenge(html) ||
-                (code == 403 || code == 503 || code == 429) && html.isNotBlank()
+            html.isNotBlank() && isChallenge(html)
 
         internal fun uamNonce(html: String): Int =
             Regex("""var nonce\s*=\s*(\d+)""").find(html)?.groupValues?.get(1)?.toIntOrNull()

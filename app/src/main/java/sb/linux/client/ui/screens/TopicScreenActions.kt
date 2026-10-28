@@ -17,7 +17,7 @@ internal class TopicScreenActions(
     scope: CoroutineScope,
     private val state: TopicPagingState,
     private val ui: TopicScreenUiState,
-    pageCoordinator: TopicPageCoordinator,
+    private val pageCoordinator: TopicPageCoordinator,
     val interactionViewModel: TopicInteractionViewModel,
     val replyViewModel: TopicReplyViewModel,
     aiAssistantViewModel: AiAssistantViewModel,
@@ -41,6 +41,9 @@ internal class TopicScreenActions(
     fun loadAllRemaining() = pageActions.loadAllRemaining()
     fun loadAllForSearch() = pageActions.loadAllForSearch()
     fun restoreCachedPages(maxPage: Int) = pageActions.restoreCachedPages(maxPage)
+    /** 读取版本化阅读锚点；无有效锚点时为 null，页面回退旧 listIndex。 */
+    fun readingAnchor() = pageCoordinator.readingAnchor()
+    fun readingPosition() = pageCoordinator.readingPosition()
     fun loadDanmaku() = pageActions.loadDanmaku()
     fun goLocalReplyPage(target: Int, hasMainPost: Boolean) = pageActions.goLocalReplyPage(target, hasMainPost)
     fun jumpFloor(floor: Int) = pageActions.jumpFloor(floor)

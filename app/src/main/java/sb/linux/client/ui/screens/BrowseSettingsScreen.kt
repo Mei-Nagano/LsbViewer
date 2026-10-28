@@ -31,91 +31,20 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
     val homeInf = state.homeInfinite
     val forumInf = state.forumInfinite
     val topicInf = state.topicInfinite
-    val scopeInf = state.selectedInfinite
     val anyPaged = state.anyPaged
-    val applyScope = state.applyScope
     val topicsText = state.topicsText
     val commentsText = state.commentsText
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("浏览设置") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    // 本菜单重置（3.9）
-                    ResetAction(title = "重置浏览设置") {
-                        viewModel.reset()
-                        session.showToast("已重置浏览设置")
-                    }
-                }
-            )
-        }
-    ) { pad ->
-        Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+    SettingsPage("阅读与交互", nav) {
 
 
             GroupCard("列表与分页", icon = Icons.AutoMirrored.Filled.ViewList) {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
-                    Text(
-                        "滚动模式",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "选择生效分类后切换模式；当前：首页${if (homeInf) "无限滚动" else "翻页"} · 板块内${if (forumInf) "无限滚动" else "翻页"} · 评论${if (topicInf) "无限滚动" else "翻页"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    // 生效分类选择（MD3 FilterChip，3.13）。
-                    // topic 范围实际作用于帖子内评论区的分页，故文案为「仅评论」
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(
-                            "all" to "全部",
-                            "home" to "仅首页",
-                            "forum" to "仅板块",
-                            "topic" to "仅评论",
-                        ).forEach { (key, label) ->
-                            FilterChip(
-                                selected = applyScope == key,
-                                onClick = { viewModel.selectScope(key) },
-                                label = { Text(label) }
-                            )
-                        }
+                listOf(Triple("首页无限滚动", "home", homeInf), Triple("板块无限滚动", "forum", forumInf),
+                    Triple("评论无限滚动", "topic", topicInf)).forEach { (title, key, enabled) ->
+                    SwitchRow(title, "关闭后使用分页", enabled) { value ->
+                        viewModel.selectScope(key)
+                        viewModel.applyScrollMode(value)
                     }
-                    Spacer(Modifier.height(10.dp))
-                    // MD3 SegmentedButton 切换无限滚动 / 翻页（3.13）
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        SegmentedButton(
-                            selected = scopeInf,
-                            onClick = { viewModel.applyScrollMode(true) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                        ) { Text("无限滚动") }
-                        SegmentedButton(
-                            selected = !scopeInf,
-                            onClick = { viewModel.applyScrollMode(false) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                        ) { Text("翻页") }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "分页按评论树根节点分组，子回复随父评论展示；无限滚动按需加载后续评论",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
                 // 翻页相关设置：仅当存在翻页分类时展示（3.14）
                 if (anyPaged) {
@@ -127,7 +56,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                             label = { Text("每页帖子数（5 - 50）") },
                             suffix = { Text("条") },
                             singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(Modifier.height(10.dp))
@@ -137,7 +66,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                             label = { Text("评论每页数量（5 - 100）") },
                             suffix = { Text("条") },
                             singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text(
@@ -160,6 +89,8 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     checked = settings.collapseNewTopics,
                     onCheckedChange = viewModel::setCollapseNewTopics
                 )
+            }
+            GroupCard("侧边栏") {
                 SwitchRow(
                     "侧边栏双列显示",
                     "快捷功能与版块列表双列排布（可在首页侧边栏切换）",
@@ -214,8 +145,8 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = viewModel::setUnfavoriteConfirm
                 )
             }
-            Spacer(Modifier.height(12.dp))
-        }
+            SettingMenuRow("屏蔽规则", "关键词 · 用户 · 板块") { nav.navigate("blockWords") }
+            SettingsResetRow("重置阅读与交互设置", onConfirm = viewModel::reset)
     }
 }
 

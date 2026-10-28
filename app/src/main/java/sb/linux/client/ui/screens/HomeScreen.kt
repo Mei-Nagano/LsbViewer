@@ -16,7 +16,7 @@ import sb.linux.client.ui.feature.home.HomePageViewModel
 import sb.linux.client.ui.feature.home.HomePageViewModelFactory
 import sb.linux.client.ui.navigation.LocalMasterNav
 
-/** 源站首页 tab：新评论 / 新帖子 / 精华（抽奖/发卡通过组合过滤进入） */
+/** 源站首页排序入口；抽奖、发卡、红包和申精使用各自的独立列表。 */
 internal val SORTS = listOf(
     "comment" to "新评论",
     "post" to "新帖子",
@@ -44,8 +44,21 @@ fun HomeScreen(
     val tabIndex = session.homeBrowse.homeTabIndex
     val combo = session.homeBrowse.homeCombo
     val tabStates = session.homeBrowse.homeTabs
-    val current = tabStates[if (combo == 3) 3 else tabIndex.coerceIn(0, SORTS.size - 1)]
-    val currentSort = if (combo == 3) "essence" else SORTS[tabIndex.coerceIn(0, SORTS.size - 1)].first
+    val categoryIndex = when (combo) {
+        1 -> 4
+        2 -> 5
+        3 -> 3
+        4 -> 6
+        else -> tabIndex.coerceIn(0, SORTS.size - 1)
+    }
+    val current = tabStates[categoryIndex]
+    val currentSort = when (combo) {
+        1 -> "lucky"
+        2 -> "card"
+        3 -> "essence"
+        4 -> "red_packet"
+        else -> SORTS[tabIndex.coerceIn(0, SORTS.size - 1)].first
+    }
     // 首页分类生效的滚动模式（浏览设置可按分类覆盖，3.13）
     val homeInfinite = session.preferences.effectiveInfiniteScroll("home")
 
@@ -105,7 +118,7 @@ fun HomeScreen(
         onSearchClose = { searchActive = false; searchQuery = "" },
     )
 
-    val display = rememberHomeTopicDisplay(session, current, combo, homeInfinite)
+    val display = rememberHomeTopicDisplay(session, current, homeInfinite)
     val visibleTopics = display.visibleTopics
     val pagedTopics = display.pagedTopics
     val localTotalPages = display.totalPages

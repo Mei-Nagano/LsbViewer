@@ -45,7 +45,7 @@ import sb.linux.client.common.collection.TopicCollectionActionForm
 import sb.linux.client.common.collection.key
 import sb.linux.client.common.collection.TopicCollectionFormField
 import sb.linux.client.common.collection.TopicCollectionOperation
-import sb.linux.client.ui.EmptyBox
+import sb.linux.client.ui.components.feedback.EmptyBox
 
 /** 淘帖管理页的内容编排：设置、协作和危险操作分组，避免主屏幕承担展示细节。 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -135,7 +135,7 @@ private fun ManageRemovalRow(
     onSubmit: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .65f)),
         modifier = Modifier.fillMaxWidth(),
@@ -229,22 +229,5 @@ private fun ManageSectionTitle(text: String) {
 
 @Composable
 private fun ManageErrorBanner(message: String, onReload: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.errorContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onReload) { Text("重试") }
-        }
-    }
+    sb.linux.client.ui.components.feedback.AppNotice(message, onAction = onReload)
 }

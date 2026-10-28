@@ -47,8 +47,8 @@ import sb.linux.client.common.collection.TopicCollectionPickerOption
 import sb.linux.client.common.collection.actionFor
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.Badge
-import sb.linux.client.ui.ErrorBox
-import sb.linux.client.ui.EmptyBox
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.feature.collection.TopicCollectionPickerViewModel
 import sb.linux.client.ui.feature.collection.TopicCollectionPickerViewModelFactory
 
@@ -105,21 +105,13 @@ fun TopicCollectionSheet(session: Session, topicPath: String, onDismiss: () -> U
     }
 
     confirmRemoveAll?.let { form ->
-        AlertDialog(
-            onDismissRequest = { if (submitting == null) confirmRemoveAll = null },
-            title = { Text("全部取消收录") },
-            text = { Text("将把本帖从所有专辑中移出，此操作无法撤回。") },
-            dismissButton = {
-                TextButton(enabled = submitting == null, onClick = { confirmRemoveAll = null }) { Text("取消") }
-            },
-            confirmButton = {
-                Button(
-                    enabled = submitting == null,
-                    onClick = {
-                        confirmRemoveAll = null
-                        submit(form, owner = 0L, successMessage = "已全部取消收录")
-                    },
-                ) { Text("确认") }
+        sb.linux.client.ui.components.feedback.AppConfirmDialog(
+            title = "全部取消收录", message = "将把本帖从所有专辑中移出，此操作无法撤回。",
+            enabled = submitting == null, destructive = true,
+            onDismiss = { confirmRemoveAll = null },
+            onConfirm = {
+                confirmRemoveAll = null
+                submit(form, owner = 0L, successMessage = "已全部取消收录")
             },
         )
     }
@@ -138,7 +130,7 @@ fun TopicCollectionSheet(session: Session, topicPath: String, onDismiss: () -> U
                 loading -> Box(
                     Modifier.fillMaxWidth().height(180.dp),
                     contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator() }
+                ) { sb.linux.client.ui.components.feedback.LoadingBox() }
                 error != null && current == null -> Box(Modifier.fillMaxWidth().height(220.dp)) {
                     ErrorBox(error!!) { viewModel.load(topicPath) }
                 }
@@ -148,26 +140,7 @@ fun TopicCollectionSheet(session: Session, topicPath: String, onDismiss: () -> U
                 else -> {
                     // 保留旧列表时也要展示重载失败，避免操作后复选状态看起来像没有变化。
                     error?.let { message ->
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(
-                                Modifier.padding(start = 12.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    message,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                TextButton(onClick = {
-                                    viewModel.load(topicPath)
-                                }) { Text("重试") }
-                            }
-                        }
+                        sb.linux.client.ui.components.feedback.AppNotice(message, onAction = { viewModel.load(topicPath) })
                     }
                     // 提交进行中：整块列表保留，仅顶部出进度条，避免选中态闪烁
                     if (submitting != null) LinearProgressIndicator(Modifier.fillMaxWidth())

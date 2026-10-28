@@ -17,13 +17,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.colorSeed
-import sb.linux.client.ui.colorToKey
-import sb.linux.client.ui.isCustomColorKey
+import sb.linux.client.ui.theme.colorSeed
+import sb.linux.client.ui.theme.colorToKey
+import sb.linux.client.ui.theme.isCustomColorKey
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
+fun ThemeSettingsScreen(session: Session, nav: NavHostController, section: String = "overview") {
     var showColorPicker by remember { mutableStateOf(false) }
     var showBackgroundPicker by remember { mutableStateOf(false) }
     var pickingRole by remember { mutableStateOf<PreviewRole?>(null) }
@@ -154,24 +154,9 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("外观设置") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    // 重置外观设置（含卡片元素色与自定义色预选）
-                    ResetAction(title = "重置外观设置") {
-                        session.preferences.resetThemeSettings()
-                        session.showToast("已重置外观设置")
-                    }
-                }
-            )
-        }
+    sb.linux.client.ui.components.navigation.AppPageScaffold(
+        title = when (section) { "colors" -> "主题与配色"; "background" -> "页面背景"; "fonts" -> "字体与文字"; "layout" -> "导航与布局"; else -> "外观与布局" },
+        onBack = { nav.popBackStack() },
     ) { pad ->
         LazyColumn(
             modifier = Modifier
@@ -181,7 +166,24 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
 
-            themeBackgroundPalette(
+            if (section == "overview") item {
+                // 实时示例：只展示公共模式，示例内的点击不触发真实收藏/发帖/导航
+                PostCardPreview(currentScheme) { }
+            }
+            if (section == "overview") item {
+                Column {
+                    GroupLabel("显示模式")
+                    DayNightToggle(session.themeMode) { session.preferences.saveTheme(it, session.dynamicColor) }
+                    listOf(Triple("主题与配色", "主题色 · 动态取色 · OLED · 元素颜色", "themeColors"),
+                        Triple("页面背景", "背景色 · 图片 · 表面透明度", "themeBackground"),
+                        Triple("字体与文字", "字体文件 · 大小 · 粗细", "themeFonts"),
+                        Triple("导航与布局", "主导航 · 单双栏 · 评论底栏", "themeLayout")
+                    ).forEach { (title, summary, route) -> SettingMenuRow(title, summary) { nav.navigate(route) } }
+                    SettingsResetRow("重置外观设置") { session.preferences.resetThemeSettings() }
+                }
+            }
+            if (section == "colors" || section == "background") themeBackgroundPalette(
+                section = section,
                 session = session,
                 currentScheme = currentScheme,
                 backgroundImportBusy = backgroundImportBusy,
@@ -191,9 +193,9 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
                 onPickElement = { pickingElement = it },
                 onOpenThemeColorPicker = { showColorPicker = true },
             )
-            themeStyleSettings(session, dark)
-            themeLayoutSettings(session)
-            themeFontSettings(
+            if (section == "colors") themeStyleSettings(session, dark)
+            if (section == "layout") themeLayoutSettings(session)
+            if (section == "fonts") themeFontSettings(
                 session = session,
                 customFontFamily = customFontFamily,
                 onChooseCustomFont = {

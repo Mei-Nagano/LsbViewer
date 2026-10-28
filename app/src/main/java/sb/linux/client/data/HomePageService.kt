@@ -25,7 +25,7 @@ internal class HomePageService(
         sort == "essence" -> "/topic_essence_review_list?p=$page"
         sort == "featured" && page <= 1 -> "/topic_featured"
         sort == "featured" -> "/topic_featured?p=$page"
-        page <= 1 -> "/?sort=$sort"
+        page <= 1 -> "/index.php?sort=$sort"
         else -> "/index.php?sort=$sort&p=$page"
     }
 }

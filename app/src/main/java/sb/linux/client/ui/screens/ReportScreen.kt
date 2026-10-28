@@ -1,28 +1,43 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package sb.linux.client.ui.screens
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.*
+import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.feature.community.ReportViewModel
 import sb.linux.client.ui.feature.community.ReportViewModelFactory
+import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 
+/** 举报表单：理由整行单选（一个操作语义节点），提交保持 48dp 以上高度。 */
 @Composable
 fun ReportScreen(session: Session, nav: NavHostController) {
     val entry = nav.currentBackStackEntry ?: return
@@ -36,108 +51,103 @@ fun ReportScreen(session: Session, nav: NavHostController) {
     }
     val viewModel: ReportViewModel = viewModel(factory = factory, key = "report-$rtype-$rid")
     val state by viewModel.uiState.collectAsState()
+    val spacing = LocalAppSpacing.current
     LaunchedEffect(viewModel) { viewModel.load() }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("举报") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                }
-            )
-        }
+    AppPageScaffold(
+        title = "举报",
+        onBack = { nav.popBackStack() },
     ) { pad ->
-        val i = state.form ?: run {
-            if (state.loading) LoadingBox()
-            else ErrorBox(state.message ?: "举报表单加载失败", viewModel::load)
-            return@Scaffold
+        val form = state.form
+        if (form == null) {
+            if (state.loading) LoadingBox(Modifier.padding(pad))
+            else ErrorBox(state.message ?: "举报表单加载失败", Modifier.padding(pad), onRetry = viewModel::load)
+            return@AppPageScaffold
         }
         Column(
             Modifier
                 .padding(pad)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
+            verticalArrangement = Arrangement.spacedBy(spacing.contentGap),
         ) {
-            state.message?.let {
+            state.message?.let { message ->
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        it,
+                        message,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        modifier = Modifier.padding(horizontal = spacing.contentGap, vertical = spacing.item),
                     )
                 }
             }
-            // 押金说明卡
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                modifier = Modifier.fillMaxWidth()
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
                     "举报押金 100 积分，举报成立原额退回",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = spacing.contentGap, vertical = spacing.item),
                 )
             }
-            // 举报理由：可选中卡片
-            i.reasons.forEach { (v, label) ->
-                val selected = state.reason == v
+            form.reasons.forEach { (value, label) ->
+                val selected = state.reason == value
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    shape = MaterialTheme.shapes.large,
+                    color = if (selected) MaterialTheme.colorScheme.primaryContainer
                     else MaterialTheme.colorScheme.surfaceContainerLow,
-                    border = if (selected) androidx.compose.foundation.BorderStroke(
-                        1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                    ) else null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { viewModel.selectReason(v) },
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
-                        Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = { viewModel.selectReason(value) },
+                            )
+                            .padding(horizontal = spacing.contentGap, vertical = spacing.item),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(spacing.item),
                     ) {
-                        RadioButton(selected = selected, onClick = { viewModel.selectReason(v) })
+                        RadioButton(selected = selected, onClick = null)
                         Text(
                             label.take(30),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
             }
             OutlinedTextField(
-                value = state.details, onValueChange = viewModel::updateDetails,
+                value = state.details,
+                onValueChange = viewModel::updateDetails,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("补充说明（选填）") },
-                shape = RoundedCornerShape(16.dp),
-                minLines = 3
+                shape = MaterialTheme.shapes.medium,
+                minLines = 3,
             )
             Button(
                 onClick = viewModel::submit,
                 enabled = !state.submitting,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(16.dp)
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = MaterialTheme.shapes.large,
             ) {
                 Text(
                     if (state.submitting) "提交中…" else "提交举报",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
         }

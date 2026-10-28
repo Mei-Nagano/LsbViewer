@@ -9,8 +9,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Bottom-tab navigation is serialized here so a tap received during a destination
- * transition is queued instead of being silently lost by the NavController.
+ * 根导航切换串行化：导航过渡期间到达的点击排队而不是被 NavController 丢弃。
+ * 目的地解析统一走 [AppDestinations]，不再维护第二份 route/显示名映射。
  */
 internal class BottomNavigationCoordinator(
     private val nav: NavHostController,
@@ -44,22 +44,24 @@ internal class BottomNavigationCoordinator(
         closeDrawer()
         awaitNavigationReady()
 
-        if (target == BottomDestination.NEW_TOPIC) {
-            nav.navigate(BottomDestination.NEW_TOPIC) { launchSingleTop = true }
+        // 发帖是动作，不是可选中目的地：进入原站编辑器后立即返回，不改变根选中态。
+        if (AppDestinationId.canonical(target) == AppDestinations.ACTION_NEW_TOPIC) {
+            nav.navigate(AppDestinations.ACTION_NEW_TOPIC) { launchSingleTop = true }
             delay(NAV_FADE_MS.toLong())
             return
         }
 
-        val canonicalTarget = BottomDestination.canonical(target)
-        val current = BottomDestination.canonical(
+        val destination = AppDestinations.byId(AppDestinationId.canonical(target)) ?: return
+        val current = AppDestinationId.canonical(
             nav.currentBackStackEntry?.destination?.route.orEmpty(),
         )
-        if (canonicalTarget == current) {
-            if (canonicalTarget == BottomDestination.HOME) onHomeReselect()
+        if (destination.id == current) {
+            // 重选社区沿用既有刷新行为；其他根只保持当前位置。
+            if (destination.id == AppDestinations.home.id) onHomeReselect()
             return
         }
 
-        nav.navigate(BottomDestination.destination(canonicalTarget)) {
+        nav.navigate(destination.route) {
             popUpTo(nav.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
             restoreState = true
@@ -73,28 +75,5 @@ internal class BottomNavigationCoordinator(
             if (state == null || state.isAtLeast(Lifecycle.State.RESUMED)) return
             delay(16)
         }
-    }
-
-}
-
-/** Canonical names shared by selected-state rendering and navigation requests. */
-internal object BottomDestination {
-    const val HOME = "home"
-    const val FORUMS = "forums"
-    const val TOPIC_COLLECTIONS = "topicCollections"
-    const val DIRECT_MESSAGES = "directMessages"
-    const val ME = "me"
-    const val NEW_TOPIC = "newTopic"
-
-    fun canonical(route: String): String = when (route.substringBefore("?")) {
-        "topicCollectionsRoot" -> TOPIC_COLLECTIONS
-        "directMessagesRoot" -> DIRECT_MESSAGES
-        else -> route.substringBefore("?")
-    }
-
-    fun destination(tab: String): String = when (canonical(tab)) {
-        TOPIC_COLLECTIONS -> "topicCollectionsRoot"
-        DIRECT_MESSAGES -> "directMessagesRoot"
-        else -> canonical(tab)
     }
 }

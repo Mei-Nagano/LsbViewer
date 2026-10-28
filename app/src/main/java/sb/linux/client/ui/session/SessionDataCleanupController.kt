@@ -74,14 +74,12 @@ internal class SessionDataCleanupController(
         if ("reading_positions" in items) session.readingPositionRepository.clear()
         if ("ai_history" in items) session.aiSummaryHistoryRepository.clear()
         if ("ai_config" in items) session.aiConfigurationRepository.reset()
-        if ("drafts" in items) session.newTopicDraftRepository.clear()
         if ("link_previews" in items) session.linkPreviewRepository.clearCache()
         if ("background_image" in items) session.preferences.removeBackgroundImage()
         if ("history" in items) session.browsingHistoryRepository.clear()
         if ("favorites" in items) session.favoritesRepository.clearTopics()
         if ("comment_favorites" in items) session.favoritesRepository.clearComments()
         if ("card_redemptions" in items) session.cardRedemptionsRepository.clear()
-        if ("usage_stats" in items) session.usageStatisticsRepository.clear()
         if (notify) session.showToast("已清理所选数据")
     }
 

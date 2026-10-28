@@ -19,24 +19,18 @@ internal data class HomeTopicDisplay(
 internal fun rememberHomeTopicDisplay(
     session: Session,
     current: HomeTabState,
-    combo: Int,
     homeInfinite: Boolean,
 ): HomeTopicDisplay {
     val filterTopics: (List<TopicCard>) -> List<TopicCard> = { list ->
         val filter = session.keywordFilter
-        val base = TopicFilter.apply(
+        TopicFilter.apply(
             topics = list,
             settings = filter.settings,
             configuredForumIds = KeywordFilterRules.configuredForumIds(filter.settings, filter.policy),
             isHome = true,
         )
-        when (combo) {
-            1 -> base.filter { it.lotteryStatus.isNotBlank() }
-            2 -> base.filter { it.cardStatus.isNotBlank() }
-            else -> base
-        }
     }
-    val visible = remember(current.topics, session.keywordFilter, combo) {
+    val visible = remember(current.topics, session.keywordFilter) {
         filterTopics(current.topics)
     }
     val perPage = session.topicsPerPage.coerceAtLeast(1)

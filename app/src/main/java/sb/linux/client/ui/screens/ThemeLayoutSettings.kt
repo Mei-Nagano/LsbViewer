@@ -9,117 +9,114 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
 
-internal fun LazyListScope.themeLayoutSettings(session: Session) {
-// ---------- 布局：平板模式（从常规设置迁入） ----------
-item { GroupLabel("布局") }
-item {
-    GroupCard {
-        SwitchRow(
-            title = "平板模式",
-            subtitle = "宽屏设备使用左右双栏：导航栏居左，主页/设置占左栏，帖子与详情占右栏。需屏幕宽度 ≥ 600dp 生效",
-            checked = session.tabletMode,
-            onCheckedChange = { session.preferences.saveTabletMode(it) },
-        )
-    }
-}
+/** 设置项使用的根目的地候选；发帖是动作，不在这里列出。 */
+private val BOTTOM_OPTIONS = listOf(
+    "home" to "社区",
+    "forums" to "版块",
+    "topicCollections" to "淘帖",
+    "messages" to "消息",
+    "me" to "我的",
+)
 
-// ---------- 底栏样式：经典通栏 / 液态玻璃悬浮胶囊 ----------
-item { GroupLabel("底栏样式") }
-item {
-    GroupCard {
-        Text(
-            "经典为普通通栏底栏；液态玻璃为居中悬浮胶囊，实时折射身后滚动内容（Android 12 以下退化为半透明条）",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
-        )
-        SingleChoiceSegmentedButtonRow(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 4.dp)
-        ) {
-            SegmentedButton(
-                selected = session.bottomBarStyle == 0,
-                onClick = { session.preferences.saveBottomBarStyle(0) },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-            ) { Text("经典") }
-            SegmentedButton(
-                selected = session.bottomBarStyle == 1,
-                onClick = { session.preferences.saveBottomBarStyle(1) },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-            ) { Text("液态玻璃") }
-        }
-        HorizontalDivider(Modifier.padding(top = 10.dp))
-        Text(
-            "底栏项目与顺序",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(start = 18.dp, top = 14.dp, bottom = 4.dp),
-        )
-        Text(
-            "可选首页、版块、发帖和我的；至少保留两项。箭头用于调整显示顺序。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
-        )
-        val bottomOptions = listOf("home" to "首页", "topicCollections" to "淘帖", "directMessages" to "私信", "newTopic" to "发帖", "me" to "我的")
-        val selectedBottomItems = session.bottomBarItems
-        (selectedBottomItems.mapNotNull { id -> bottomOptions.firstOrNull { it.first == id } } +
-            bottomOptions.filter { it.first !in selectedBottomItems }).forEach { (id, label) ->
-            val index = selectedBottomItems.indexOf(id)
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
+internal fun LazyListScope.themeLayoutSettings(session: Session) {
+    // ---------- 布局：跟随窗口 / 始终单内容栏 ----------
+    item { GroupLabel("布局") }
+    item {
+        GroupCard {
+            Text(
+                "跟随窗口时，宽窗可并排显示列表与详情；主导航仍按窗口宽度在底部导航与侧边 rail 之间切换。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+            )
+            SingleChoiceSegmentedButtonRow(
+                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
             ) {
-                Checkbox(
-                    checked = index >= 0,
-                    enabled = index < 0 || selectedBottomItems.size > 2,
-                    onCheckedChange = { checked ->
-                        if (checked) session.preferences.saveBottomBarItems(selectedBottomItems + id)
-                        else if (selectedBottomItems.size > 2) session.preferences.saveBottomBarItems(selectedBottomItems - id)
-                    },
-                )
-                Text(label, Modifier.weight(1f))
-                TextButton(enabled = index > 0, onClick = {
-                    val changed = selectedBottomItems.toMutableList()
-                    java.util.Collections.swap(changed, index, index - 1)
-                    session.preferences.saveBottomBarItems(changed)
-                }) { Text("↑") }
-                TextButton(enabled = index >= 0 && index < selectedBottomItems.lastIndex, onClick = {
-                    val changed = selectedBottomItems.toMutableList()
-                    java.util.Collections.swap(changed, index, index + 1)
-                    session.preferences.saveBottomBarItems(changed)
-                }) { Text("↓") }
+                SegmentedButton(
+                    selected = !session.singleContentColumn,
+                    onClick = { session.preferences.saveTabletMode(true) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) { Text("跟随窗口") }
+                SegmentedButton(
+                    selected = session.singleContentColumn,
+                    onClick = { session.preferences.saveTabletMode(false) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) { Text("始终单内容栏") }
             }
         }
-        // 评论底栏（帖子内底部快捷回复栏）：与主导航底栏独立的样式选择
-        Text(
-            "评论底栏",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(start = 18.dp, top = 14.dp, bottom = 2.dp)
-        )
-        Text(
-            "帖子内底部的回复/点赞/收藏快捷栏；液态玻璃为悬浮胶囊，实时折射身后滚动的帖子内容（Android 12 以下退化为半透明条）",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
-        )
-        SingleChoiceSegmentedButtonRow(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 4.dp)
-        ) {
-            SegmentedButton(
-                selected = session.replyBarStyle == 0,
-                onClick = { session.preferences.saveReplyBarStyle(0) },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-            ) { Text("经典") }
-            SegmentedButton(
-                selected = session.replyBarStyle == 1,
-                onClick = { session.preferences.saveReplyBarStyle(1) },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-            ) { Text("液态玻璃") }
+    }
+
+    // ---------- 主导航 ----------
+    item { GroupLabel("主导航") }
+    item {
+        GroupCard {
+            Text(
+                "新版使用标准 MD3 底部导航或侧边 rail，不再渲染液态玻璃效果。发帖改为社区页的浮动按钮，" +
+                    "不再占用导航目的地。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+            )
+            Text(
+                "根目的地与顺序（2—5 项）",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(start = 18.dp, top = 14.dp, bottom = 4.dp),
+            )
+            Text(
+                "可选社区、版块、淘帖、消息和我的；至少保留两项，最多五项。" +
+                    "仅两项时使用顶部标签栏。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+            )
+            val selectedBottomItems = session.bottomBarItems
+            (selectedBottomItems.mapNotNull { id -> BOTTOM_OPTIONS.firstOrNull { it.first == id } } +
+                BOTTOM_OPTIONS.filter { it.first !in selectedBottomItems }).forEach { (id, label) ->
+                val index = selectedBottomItems.indexOf(id)
+                val checked = index >= 0
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = checked,
+                        // 少于两项不可再取消；达到五项后不再新增
+                        enabled = if (checked) selectedBottomItems.size > 2 else selectedBottomItems.size < 5,
+                        onCheckedChange = { wantChecked ->
+                            when {
+                                wantChecked && selectedBottomItems.size < 5 ->
+                                    session.preferences.saveBottomBarItems(selectedBottomItems + id)
+                                !wantChecked && selectedBottomItems.size > 2 ->
+                                    session.preferences.saveBottomBarItems(selectedBottomItems - id)
+                            }
+                        },
+                    )
+                    Text(label, Modifier.weight(1f))
+                    TextButton(enabled = index > 0, onClick = {
+                        val changed = selectedBottomItems.toMutableList()
+                        java.util.Collections.swap(changed, index, index - 1)
+                        session.preferences.saveBottomBarItems(changed)
+                    }) { Text("↑") }
+                    TextButton(enabled = index in 0 until selectedBottomItems.lastIndex, onClick = {
+                        val changed = selectedBottomItems.toMutableList()
+                        java.util.Collections.swap(changed, index, index + 1)
+                        session.preferences.saveBottomBarItems(changed)
+                    }) { Text("↓") }
+                }
+            }
         }
     }
-}
 
+    // 旧的「评论底栏样式」开关已移除：阅读操作栏统一为标准 MD3 表面，不再渲染液态玻璃。
+    item {
+        GroupCard {
+            Text(
+                "阅读操作栏使用标准 MD3 表面：伪输入条、点赞与收藏固定在键盘与系统手势区之上。" +
+                    "旧版液态玻璃样式不再提供。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+            )
+        }
+    }
 }
