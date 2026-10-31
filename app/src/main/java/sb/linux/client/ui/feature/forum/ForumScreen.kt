@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -17,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
@@ -54,18 +52,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
 
     LaunchedEffect(viewModel) { viewModel.load(1) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(state.forumName) },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                }
-            )
-        }
-    ) { pad ->
+    AppPageScaffold(title = state.forumName, onBack = { nav.popBackStack() }) { pad ->
         Column(Modifier.padding(pad)) {
             // 排序 tab：新评论 / 新帖子
             Row(
@@ -77,7 +64,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                 listOf("comment" to "新评论", "post" to "新帖子").forEach { (key, label) ->
                     val selected = state.sort == key
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         color = if (selected) MaterialTheme.colorScheme.secondaryContainer
                         else MaterialTheme.colorScheme.surfaceContainerHigh,
                         onClick = {

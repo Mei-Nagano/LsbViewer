@@ -32,7 +32,7 @@ internal fun LotteryTopicFields(
     prizeTypeMenu: Int?,
     onPrizeTypeMenuChange: (Int?) -> Unit,
 ) {    Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -49,21 +49,21 @@ internal fun LotteryTopicFields(
                 value = drawAt, onValueChange = onDrawAtChange,
                 label = { Text("开奖时间") },
                 supportingText = { Text("格式 2026-08-25 20:00，最晚 3 天后") },
-                singleLine = true, shape = RoundedCornerShape(16.dp),
+                singleLine = true, shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = participantTarget, onValueChange = onParticipantTargetChange,
                 label = { Text("自动开奖人数") },
                 supportingText = { Text("达到该参与人数后自动开奖，填 0 不启用") },
-                singleLine = true, shape = RoundedCornerShape(16.dp),
+                singleLine = true, shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = minReplyChars, onValueChange = onMinReplyCharsChange,
                 label = { Text("参与回复最少字数") },
                 supportingText = { Text("去除空白后计算，低于门槛不能回复参与") },
-                singleLine = true, shape = RoundedCornerShape(16.dp),
+                singleLine = true, shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             )
             sb.linux.client.ui.components.input.AppSwitchRow(
@@ -86,7 +86,7 @@ internal fun LotteryTopicFields(
             }
             prizes.forEachIndexed { i, p ->
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     Column(
@@ -101,7 +101,7 @@ internal fun LotteryTopicFields(
                                 },
                                 label = { Text("奖品名称") },
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.medium,
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = { onPrizesChange(prizes.filterIndexed { j, _ -> j != i }) }) {
@@ -135,7 +135,7 @@ internal fun LotteryTopicFields(
                                 },
                                 label = { Text("份数") },
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.medium,
                                 modifier = Modifier.weight(1f)
                             )
                             OutlinedTextField(
@@ -152,7 +152,7 @@ internal fun LotteryTopicFields(
                                     )
                                 },
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.medium,
                                 modifier = Modifier.weight(1.4f)
                             )
                         }

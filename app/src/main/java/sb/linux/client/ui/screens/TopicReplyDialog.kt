@@ -142,7 +142,7 @@ fun ReplyDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = MaterialTheme.shapes.large
                     )
                     ReplyCaptchaField(
                         session = session,
@@ -205,7 +205,7 @@ fun ReplyDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 96.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 trailingIcon = {
                     IconButton(onClick = { expanded = true }) {
                         Icon(

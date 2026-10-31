@@ -93,7 +93,7 @@ internal fun DonateSheet(
                     )
                     msg?.let {
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.errorContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -132,7 +132,7 @@ internal fun DonateSheet(
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("自定义金额（积分）") },
                             placeholder = { Text("范围 1～99") },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             singleLine = true,
                             isError = customText.isNotBlank() && !validAmount,
                             supportingText = { Text("仅支持 1～99 积分") }
@@ -160,7 +160,7 @@ internal fun DonateSheet(
                         onValueChange = { message = it },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("留言") },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = MaterialTheme.shapes.large,
                         singleLine = true
                     )
                     Button(
@@ -175,7 +175,7 @@ internal fun DonateSheet(
                         },
                         enabled = !busy && validAmount,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = MaterialTheme.shapes.large
                     ) {
                         Text(
                             if (busy) "提交中…" else "打赏 $amount 积分",

@@ -38,7 +38,7 @@ import sb.linux.client.ui.titleRarityColor
 
 @Composable
 internal fun GachaPoolRowView(row: GachaPoolRow) {
-    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -69,7 +69,7 @@ private fun GachaCardRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
+            Modifier.size(36.dp).clip(MaterialTheme.shapes.medium)
                 .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)),
             contentAlignment = Alignment.Center,
         ) {

@@ -67,9 +67,9 @@ internal fun BodyImage(
     Box(
         modifier.fillMaxWidth()
             .then(if (fillContainer) Modifier.fillMaxSize() else Modifier.aspectRatio(ratio.coerceIn(0.02f, 20f)))
-            .clip(RoundedCornerShape(8.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.small)
             .onGloballyPositioned { coordinates ->
                 val position = coordinates.positionInWindow()
                 widthPx = coordinates.size.width

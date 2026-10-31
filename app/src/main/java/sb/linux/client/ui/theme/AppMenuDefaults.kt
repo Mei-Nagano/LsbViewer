@@ -21,6 +21,14 @@ object AppMenuDefaults {
     /** 常规菜单行内边距 */
     val rowPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
 
+    /**
+     * 分组卡片内的说明文字、滑条、分隔线左右内边距。
+     *
+     * 必须与 [rowPadding] 的左右值一致，否则说明文字会和同一张卡片里的
+     * 开关行/菜单行错开（历史上各页曾用 18/14/10dp）。页面不要再单独写字面值。
+     */
+    val contentHorizontal = 16.dp
+
     /** 紧凑菜单行内边距 */
     val compactRowPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
 

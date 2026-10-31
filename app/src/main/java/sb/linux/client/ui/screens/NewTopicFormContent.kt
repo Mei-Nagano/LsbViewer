@@ -56,7 +56,7 @@ internal fun NewTopicFormContent(
                     value = TextFieldValue(body, bodySelection),
                     onValueChange = { onBodyChange(it) },
                     label = { Text("内容 (Markdown)") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     textStyle = TextStyle(fontFamily = FontFamily.Monospace),
                 )
@@ -74,7 +74,7 @@ internal fun NewTopicFormContent(
         ) {
             if (!session.account.loginState.loggedIn) {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -94,7 +94,7 @@ internal fun NewTopicFormContent(
 
             // 版块选择
             Box {
-                OutlinedButton(onClick = { form.forumExpanded = true }, shape = RoundedCornerShape(16.dp)) {
+                OutlinedButton(onClick = { form.forumExpanded = true }, shape = MaterialTheme.shapes.large) {
                     Text("版块：${form.forums.firstOrNull { it.id == form.forumId }?.name ?: "选择"}")
                 }
                 DropdownMenu(expanded = form.forumExpanded, onDismissRequest = { form.forumExpanded = false }) {
@@ -161,13 +161,13 @@ internal fun NewTopicFormContent(
             OutlinedTextField(
                 value = form.title, onValueChange = { form.title = it },
                 label = { Text("标题") }, singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             )
 
             if (editId > 0 && form.replyOrderOptions.isNotEmpty()) {
                 Box {
-                    OutlinedButton(onClick = { form.replyOrderMenu = true }, shape = RoundedCornerShape(16.dp)) {
+                    OutlinedButton(onClick = { form.replyOrderMenu = true }, shape = MaterialTheme.shapes.large) {
                         Text("回帖排序：${form.replyOrderOptions.firstOrNull { it.first == form.replyOrder }?.second.orEmpty()}")
                     }
                     DropdownMenu(expanded = form.replyOrderMenu, onDismissRequest = { form.replyOrderMenu = false }) {
@@ -191,7 +191,7 @@ internal fun NewTopicFormContent(
                 // 预览：Markdown → HTML 后用帖子同款渲染器展示（表格/代码块/链接等所见即所得）
                 val previewHtml = remember(body) { HtmlTextConversion.markdownToHtml(body) }
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -219,7 +219,7 @@ internal fun NewTopicFormContent(
                     value = TextFieldValue(body, bodySelection),
                     onValueChange = { onBodyChange(it) },
                     label = { Text("内容 (Markdown)") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 260.dp)

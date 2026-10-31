@@ -11,6 +11,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.feature.media.ImageHostSettingsViewModel
 import sb.linux.client.ui.feature.media.ImageHostSettingsViewModelFactory
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 @Composable
 internal fun ImageHostSettingsCard(session: Session, resetTick: Int) {
@@ -30,7 +31,7 @@ internal fun ImageHostSettingsCard(session: Session, resetTick: Int) {
 
     GroupCard {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("内置图床", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)

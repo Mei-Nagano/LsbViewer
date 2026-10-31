@@ -24,6 +24,7 @@ import sb.linux.client.ui.feature.backup.WebDavBackupViewModel
 import sb.linux.client.ui.feature.backup.WebDavBackupViewModelFactory
 import sb.linux.client.ui.feature.backup.BackupSettingsViewModel
 import sb.linux.client.ui.feature.backup.BackupSettingsViewModelFactory
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,7 +120,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController, cloud: Bool
                     "选择要写入 JSON 和 WebDAV 的内容。导入时只恢复文件中存在的项目，未备份的本地数据不受影响。自定义字体文件本体不随备份迁移。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)
                 )
                 val backupOptions = listOf(
                     "settings" to "应用设置",
@@ -143,7 +144,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController, cloud: Bool
                     }
                 }
                 if (!cloud) Row(
-                    Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                    Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
@@ -154,14 +155,14 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController, cloud: Bool
                             ).format(java.util.Date())
                             exportJsonLauncher.launch("lsb_settings_$now.json")
                         },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.weight(1f)
                     ) { Text("导出设置") }
                     Button(
                         onClick = {
                             importLauncher.launch(arrayOf("application/json", "text/plain", "text/*", "application/octet-stream"))
                         },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.weight(1f)
                     ) { Text("导入设置") }
                 }

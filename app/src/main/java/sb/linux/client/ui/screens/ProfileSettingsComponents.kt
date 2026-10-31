@@ -80,7 +80,7 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(f.label) },
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             minLines = 2,
         )
 
@@ -93,7 +93,7 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
                 readOnly = true,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(f.label) },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 trailingIcon = { TextButton(onClick = { expanded = true }) { Text("选择") } },
             )
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -118,7 +118,7 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(f.label) },
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             singleLine = true,
         )
     }

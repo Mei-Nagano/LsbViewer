@@ -30,7 +30,7 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(shape = RoundedCornerShape(12.dp), color = colors.errorContainer) {
+                Surface(shape = MaterialTheme.shapes.medium, color = colors.errorContainer) {
                     Icon(Icons.Default.CardGiftcard, contentDescription = null,
                         tint = colors.onErrorContainer, modifier = Modifier.padding(10.dp).size(22.dp))
                 }
@@ -50,7 +50,7 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
             details.chunked(2).forEach { fields ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     fields.forEach { field ->
-                        Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
+                        Surface(modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium,
                             color = colors.surfaceContainerHigh) {
                             Text(field, style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
@@ -72,7 +72,7 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
                 }
             }
             OutlinedButton(onClick = onOpenSource, modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)) {
+                shape = MaterialTheme.shapes.medium) {
                 Text("查看原站红包详情")
             }
         }

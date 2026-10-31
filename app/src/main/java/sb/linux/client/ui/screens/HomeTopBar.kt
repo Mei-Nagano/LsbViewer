@@ -26,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.HomeTabState
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.components.navigation.AppTopBar
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -145,9 +146,9 @@ internal fun HomeTopBar(
                             }
                         }
                     } else {
-                        TopAppBar(
+                        AppTopBar(
                             windowInsets = WindowInsets(0, 0, 0, 0),
-                            title = { Text("LINUX SB") },
+                            title = "LINUX SB",
                             navigationIcon = {
                                 // 平板双栏：侧边栏按钮已移到左侧导航栏顶部，顶栏不再重复展示
                                 if (masterNav == null) {

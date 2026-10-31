@@ -37,7 +37,7 @@ private fun HueGradientSlider(hue: Float, onValueChange: (Float) -> Unit, modifi
         modifier
             .fillMaxWidth()
             .height(30.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.large)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -94,7 +94,7 @@ internal fun ColorPickerDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -113,7 +113,7 @@ internal fun ColorPickerDialog(
                     Modifier
                         .fillMaxWidth()
                         .height(160.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(MaterialTheme.shapes.large)
                         .pointerInput(Unit) {
                             awaitEachGesture {
                                 val down = awaitFirstDown()
@@ -154,7 +154,7 @@ internal fun ColorPickerDialog(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(MaterialTheme.shapes.large)
                         .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -199,13 +199,13 @@ internal fun ColorPickerDialog(
                             Box(
                                 Modifier
                                     .size(34.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(MaterialTheme.shapes.medium)
                                     .background(c)
                                     .combinedClickable(
                                         onClick = { applyColor(c) },
                                         onLongClick = { onRemovePreset?.invoke(key) }
                                     )
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(

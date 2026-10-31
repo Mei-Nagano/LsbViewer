@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 internal fun LazyListScope.themeFontSettings(
     session: Session,
@@ -24,11 +25,11 @@ item {
             "选择应用内全局字体；「自定义」从文件导入 ttf/otf 字体，导入后长按可移除",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)
         )
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+            contentPadding = PaddingValues(horizontal = AppMenuDefaults.contentHorizontal, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item(key = "default") {
@@ -65,9 +66,9 @@ item {
                 )
             }
         }
-        HorizontalDivider(Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
+        HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp))
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+            Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("字体大小", style = MaterialTheme.typography.bodyMedium)
@@ -79,10 +80,10 @@ item {
             onValueChange = session.preferences::saveFontScale,
             valueRange = 0.85f..1.30f,
             steps = 8,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal),
         )
-        Text("字体粗细", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 18.dp))
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
+        Text("字体粗细", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal))
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)) {
             listOf("标准", "较粗", "粗体").forEachIndexed { index, label ->
                 SegmentedButton(
                     selected = session.fontWeightLevel == index,

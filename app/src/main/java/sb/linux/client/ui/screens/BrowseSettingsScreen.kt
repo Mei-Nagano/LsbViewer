@@ -18,6 +18,7 @@ import sb.linux.client.ui.session.Session
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.feature.settings.BrowseSettingsViewModel
 import sb.linux.client.ui.feature.settings.BrowseSettingsViewModelFactory
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,15 +49,15 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                 }
                 // 翻页相关设置：仅当存在翻页分类时展示（3.14）
                 if (anyPaged) {
-                    HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
+                    HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)) {
                         OutlinedTextField(
                             value = topicsText,
                             onValueChange = viewModel::setTopicsText,
                             label = { Text("每页帖子数（5 - 50）") },
                             suffix = { Text("条") },
                             singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(Modifier.height(10.dp))
@@ -66,7 +67,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                             label = { Text("评论每页数量（5 - 100）") },
                             suffix = { Text("条") },
                             singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text(

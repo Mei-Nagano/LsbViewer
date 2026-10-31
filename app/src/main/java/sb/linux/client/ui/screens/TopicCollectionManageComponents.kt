@@ -135,7 +135,7 @@ private fun ManageRemovalRow(
     onSubmit: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .65f)),
         modifier = Modifier.fillMaxWidth(),

@@ -39,7 +39,7 @@ internal fun CopySheetItem(icon: ImageVector, title: String, subtitle: String, o
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.large)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -48,7 +48,7 @@ internal fun CopySheetItem(icon: ImageVector, title: String, subtitle: String, o
         Box(
             Modifier
                 .size(42.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {

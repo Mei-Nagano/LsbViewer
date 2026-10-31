@@ -15,6 +15,7 @@ import sb.linux.client.ui.session.Session
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.feature.settings.GeneralSettingsViewModel
 import sb.linux.client.ui.feature.settings.GeneralSettingsViewModelFactory
+import sb.linux.client.ui.theme.AppMenuDefaults
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun LinkSettingsContent(session: Session) {
@@ -23,7 +24,7 @@ internal fun LinkSettingsContent(session: Session) {
     val linkMode = viewModel.state.settings.linkOpenMode
             // ---------- 打开链接方式 ----------
             GroupCard {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
+                Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp)) {
                     Text("打开外部链接方式", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(4.dp))
                     Text(

@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import sb.linux.client.ui.components.navigation.AppTopBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TopicTopBar(
@@ -36,16 +37,15 @@ internal fun TopicTopBar(
     onRefresh: () -> Unit,
     onToggleScrollMode: () -> Unit,
 ) {
-    if (!searchOpen) TopAppBar(
+    if (!searchOpen) AppTopBar(
         modifier = modifier,
-        title = {
+        title = title,
+        titleContent = {
             AnimatedVisibility(visible = showTitle, enter = fadeIn(), exit = fadeOut()) {
                 Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
-        navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
-        },
+        onBack = onBack,
         actions = {
             IconButton(onClick = onComments) { Icon(Icons.AutoMirrored.Filled.Chat, "直达评论区") }
             Box {
@@ -99,6 +99,5 @@ internal fun TopicTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
     )
 }

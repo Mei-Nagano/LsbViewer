@@ -108,7 +108,7 @@ internal fun ReplyBar(
 private fun TopicBarAction(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 3.dp),
+        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 3.dp),
     ) {
         val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         Icon(icon, label, Modifier.size(18.dp), tint = color)

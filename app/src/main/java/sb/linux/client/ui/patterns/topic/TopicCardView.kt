@@ -121,7 +121,7 @@ fun TopicCardView(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.let { m ->
                             if (onElementClick != null)
-                                m.clip(RoundedCornerShape(4.dp)).clickable { onElementClick(CardColorOverrides.USER) }
+                                m.clip(MaterialTheme.shapes.extraSmall).clickable { onElementClick(CardColorOverrides.USER) }
                             else m
                         },
                     )
@@ -133,7 +133,7 @@ fun TopicCardView(
                             color = forumOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable {
+                            modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable {
                                 if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
                                 else onForumClick(card.forumId)
                             },
@@ -145,7 +145,7 @@ fun TopicCardView(
                         color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.let { m ->
                             if (onElementClick != null)
-                                m.clip(RoundedCornerShape(4.dp)).clickable { onElementClick(CardColorOverrides.TIME) }
+                                m.clip(MaterialTheme.shapes.extraSmall).clickable { onElementClick(CardColorOverrides.TIME) }
                             else m
                         },
                     )
@@ -155,7 +155,7 @@ fun TopicCardView(
                             horizontalArrangement = Arrangement.spacedBy(3.dp),
                             modifier = Modifier.let { m ->
                                 if (onElementClick != null)
-                                    m.clip(RoundedCornerShape(4.dp)).clickable { onElementClick(CardColorOverrides.COMMENTS) }
+                                    m.clip(MaterialTheme.shapes.extraSmall).clickable { onElementClick(CardColorOverrides.COMMENTS) }
                                 else m
                             },
                         ) {

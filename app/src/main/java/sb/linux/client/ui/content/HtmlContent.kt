@@ -164,7 +164,7 @@ fun HtmlContent(
                 )
                 b.isQuote -> {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f),
                         modifier = anchorModifier.padding(start = (b.quoteDepth * 12).dp, top = 3.dp, bottom = 3.dp)
                     ) {

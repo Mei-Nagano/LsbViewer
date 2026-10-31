@@ -29,7 +29,7 @@ internal fun VirtualCardTopicFields(
     cardValues: String,
     onCardValuesChange: (String) -> Unit,
 ) {    Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -46,7 +46,7 @@ internal fun VirtualCardTopicFields(
                 value = cardName, onValueChange = onCardNameChange,
                 label = { Text("卡片名称") },
                 supportingText = { Text("例如：月卡兑换码、软件激活码") },
-                singleLine = true, shape = RoundedCornerShape(16.dp),
+                singleLine = true, shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             )
             Box {
@@ -66,14 +66,14 @@ internal fun VirtualCardTopicFields(
                 OutlinedTextField(
                     value = cardPrice, onValueChange = onCardPriceChange,
                     label = { Text("兑换价格") },
-                    singleLine = true, shape = RoundedCornerShape(16.dp),
+                    singleLine = true, shape = MaterialTheme.shapes.large,
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedTextField(
                     value = cardLimit, onValueChange = onCardLimitChange,
                     label = { Text("每人限购") },
                     supportingText = { Text("0 为不限制") },
-                    singleLine = true, shape = RoundedCornerShape(16.dp),
+                    singleLine = true, shape = MaterialTheme.shapes.large,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -90,7 +90,7 @@ internal fun VirtualCardTopicFields(
                     onValueChange = onCardAutoReplyContentChange,
                     label = { Text("自动回帖内容") },
                     supportingText = { Text("支持变量 {card_name} {price} {username}") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -98,7 +98,7 @@ internal fun VirtualCardTopicFields(
                 value = cardValues, onValueChange = onCardValuesChange,
                 label = { Text("添加虚拟卡") },
                 supportingText = { Text("每行一张卡，最多 5000 张") },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 120.dp)

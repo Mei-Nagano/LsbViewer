@@ -65,7 +65,7 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Bool
     val bg = sourceTitleColor(title, if (dark) "dark-bg" else "bg", soft, dark)
     val serialBg = sourceTitleColor(title, if (dark) "dark-serial-bg" else "color", fg, dark)
     val openLink = LocalLinkHandler.current
-    Surface(shape = RoundedCornerShape(4.dp), color = bg,
+    Surface(shape = MaterialTheme.shapes.extraSmall, color = bg,
         modifier = modifier.clickable(enabled = openLink != null) { openLink?.invoke("https://linux.sb/gacha") }) {
         Row(Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -74,7 +74,7 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Bool
                 fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val label = if (title.rarity.uppercase().startsWith("UR") && title.serial.isNotBlank())
                 title.serial else title.rarity
-            if (label.isNotBlank()) Surface(color = serialBg, shape = RoundedCornerShape(4.dp)) {
+            if (label.isNotBlank()) Surface(color = serialBg, shape = MaterialTheme.shapes.extraSmall) {
                 Text(label, color = Color.White, fontSize = 10.sp, lineHeight = 14.sp,
                     fontWeight = FontWeight.Bold, maxLines = 1,
                     modifier = Modifier.padding(horizontal = 3.dp))

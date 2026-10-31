@@ -22,7 +22,7 @@ if (LocalSmartDecode.current) {
                 Spacer(Modifier.height(8.dp))
                 decodedItems.forEach { decoded ->
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                     ) {

@@ -131,7 +131,7 @@ private fun ThreadPostItem(
             .padding(vertical = 10.dp)
             .then(
                 if (isCurrent) Modifier
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(MaterialTheme.shapes.large)
                     .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f))
                     .padding(10.dp)
                 else Modifier.padding(horizontal = 2.dp)
@@ -156,7 +156,7 @@ private fun ThreadPostItem(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = if (onJumpFloor != null) Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .clickable { onJumpFloor(post.floor) }
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                     else Modifier

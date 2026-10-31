@@ -33,8 +33,8 @@ internal fun PaletteStyleSwatch(
     val borderWidth = if (selected) 2.dp else 1.dp
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
-            .border(borderWidth, borderColor, RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.large)
+            .border(borderWidth, borderColor, MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable(onClick = onClick)
     ) {

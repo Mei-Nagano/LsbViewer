@@ -49,7 +49,7 @@ internal fun GachaPullResultDialog(
                 ) {
                     itemsIndexed(result.items) { index, item ->
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ) {
                             Row(

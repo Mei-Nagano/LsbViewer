@@ -46,7 +46,7 @@ internal fun DayNightToggle(mode: ThemeModePref, onSelect: (ThemeModePref) -> Un
                 Modifier
                     .weight(1f)
                     .height(44.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(MaterialTheme.shapes.large)
                     .background(bg)
                     .clickable { onSelect(m) },
                 horizontalArrangement = Arrangement.Center,
@@ -86,8 +86,8 @@ internal fun ColorSwatch(
         Box(
             Modifier
                 .size(44.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .border(borderWidth, borderColor, RoundedCornerShape(16.dp))
+                .clip(MaterialTheme.shapes.large)
+                .border(borderWidth, borderColor, MaterialTheme.shapes.large)
                 .background(color)
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick),
             contentAlignment = Alignment.Center
@@ -148,8 +148,8 @@ internal fun FontSwatch(
         Box(
             Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .border(borderWidth, borderColor, RoundedCornerShape(16.dp))
+                .clip(MaterialTheme.shapes.large)
+                .border(borderWidth, borderColor, MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick),
             contentAlignment = Alignment.Center

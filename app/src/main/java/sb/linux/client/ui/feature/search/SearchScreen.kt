@@ -19,22 +19,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,10 +53,10 @@ import sb.linux.client.domain.search.SearchSort
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** Search UI backed by the source site's current GET/Meilisearch contract. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(session: Session, nav: NavHostController, entry: NavBackStackEntry) {
     val initialQuery = entry?.arguments?.getString("q").orEmpty()
@@ -100,18 +96,7 @@ fun SearchScreen(session: Session, nav: NavHostController, entry: NavBackStackEn
         if (initialQuery.isNotBlank() && cached == null) viewModel.search(1)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("搜索") },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-            )
-        },
-    ) { padding ->
+    AppPageScaffold(title = "搜索", onBack = { nav.popBackStack() }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Column(Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.item)) {
                 OutlinedTextField(
@@ -122,7 +107,7 @@ fun SearchScreen(session: Session, nav: NavHostController, entry: NavBackStackEn
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { viewModel.search(1) }),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
                     leadingIcon = { Icon(Icons.Filled.Search, null, Modifier.size(20.dp)) },
                     trailingIcon = {
                         if (state.query.isNotEmpty()) {

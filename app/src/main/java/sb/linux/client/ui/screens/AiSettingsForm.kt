@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.ai.AiAssistantDefaults
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 @Composable
 internal fun AiSettingsForm(
@@ -62,7 +63,7 @@ internal fun AiSettingsForm(
         )
         }
         if (configuration) Column(
-            Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
+            Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             OutlinedTextField(
@@ -71,7 +72,7 @@ internal fun AiSettingsForm(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API 地址") },
                 placeholder = { Text("https://api.openai.com/v1") },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 singleLine = true,
             )
             OutlinedTextField(
@@ -80,7 +81,7 @@ internal fun AiSettingsForm(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API 密钥") },
                 placeholder = { Text("sk-…") },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
             )
@@ -91,7 +92,7 @@ internal fun AiSettingsForm(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("模型") },
                     placeholder = { Text("gpt-4o-mini") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     singleLine = true,
                     trailingIcon = {
                         if (modelOptions.isNotEmpty()) {
@@ -120,7 +121,7 @@ internal fun AiSettingsForm(
                 onValueChange = onAiTempChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("温度 (0 - 2)") },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 singleLine = true,
             )
             OutlinedTextField(
@@ -130,13 +131,13 @@ internal fun AiSettingsForm(
                 label = { Text("自定义总结提示词") },
                 placeholder = { Text(AiAssistantDefaults.SUMMARY_PROMPT) },
                 supportingText = { Text("留空使用内置提示词") },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
             )
         }
         if (configuration) Button(
             onClick = onSave,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp),
         ) { Text("保存 AI 设置") }
     }
 }

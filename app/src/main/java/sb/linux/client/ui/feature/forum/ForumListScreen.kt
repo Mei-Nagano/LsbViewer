@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -32,7 +31,6 @@ import sb.linux.client.ui.components.layout.*
 import sb.linux.client.ui.components.navigation.*
 import sb.linux.client.util.TopicFilter
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForumListScreen(session: Session, nav: NavHostController) {
     val factory = remember(session.forumRepository) {
@@ -42,7 +40,7 @@ fun ForumListScreen(session: Session, nav: NavHostController) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(viewModel) { viewModel.load() }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("板块导航") }) }) { pad ->
+    AppPageScaffold(title = "板块导航", onBack = null) { pad ->
         Box(Modifier.padding(pad)) {
             when {
                 state.loading -> LoadingBox()

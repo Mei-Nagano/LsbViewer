@@ -31,6 +31,7 @@ import sb.linux.client.ui.feature.gacha.CardRedemptionsViewModelFactory
 import sb.linux.client.ui.session.Session
 import java.text.SimpleDateFormat
 import java.util.Date
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 /**
  * 发卡兑换记录：兑换码默认隐藏，按需查看/复制；空码显示“未记录兑换码”，不展示空白行。
@@ -56,7 +57,7 @@ fun CardRedemptionsScreen(session: Session, nav: NavHostController) {
                     "暂无兑换记录\n打开已兑换的发卡帖后会自动保存；游客也能查看本机记录。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(18.dp),
+                    modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
                 )
             }
         } else {
@@ -78,7 +79,7 @@ fun CardRedemptionsScreen(session: Session, nav: NavHostController) {
                     )
                     if (index != records.lastIndex) {
                         HorizontalDivider(
-                            Modifier.padding(horizontal = 18.dp),
+                            Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                         )
                     }
@@ -102,7 +103,7 @@ private fun RedemptionRow(
     onCopy: () -> Unit,
     onOpenTopic: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp)) {
         Text(
             record.topicTitle.ifBlank { "帖子 #${record.topicId}" },
             style = MaterialTheme.typography.titleMedium,

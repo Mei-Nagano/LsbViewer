@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SentimentSatisfied
@@ -72,29 +71,25 @@ fun ChatScreen(session: Session, nav: NavHostController) {
         onConfirm = { confirmBlock = false; viewModel.toggleBlock() },
         confirmText = "确认", dismissText = "取消",
     )
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // 顶栏对方头像同样可点击进入其个人主页
-                        Box(
-                            Modifier.clip(RoundedCornerShape(4.dp)).clickable(enabled = partnerId > 0) {
-                                nav.navigate("user/$partnerId")
-                            }
-                        ) { sb.linux.client.ui.patterns.user.UserAvatar(partnerId, state.avatarUrl, 30) }
-                        Text(state.name.ifBlank { "用户 $partnerId" }, style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+    AppPageScaffold(
+        title = "",
+        onBack = { nav.popBackStack() },
+        // 顶栏对方头像同样可点击进入其个人主页
+        titleContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(enabled = partnerId > 0) {
+                        nav.navigate("user/$partnerId")
                     }
-                },
-                actions = {
-                    if (state.blockLabel.isNotBlank()) TextButton(enabled = !state.blocking && !state.loading,
-                        onClick = { confirmBlock = true }) { Text(state.blockLabel) }
-                    IconButton(enabled = !state.loading && !state.sending, onClick = viewModel::sync) { Icon(Icons.Filled.Refresh, "同步私信") } },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
-                }
-            )
+                ) { sb.linux.client.ui.patterns.user.UserAvatar(partnerId, state.avatarUrl, 30) }
+                Text(state.name.ifBlank { "用户 $partnerId" }, style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        },
+        actions = {
+            if (state.blockLabel.isNotBlank()) TextButton(enabled = !state.blocking && !state.loading,
+                onClick = { confirmBlock = true }) { Text(state.blockLabel) }
+            IconButton(enabled = !state.loading && !state.sending, onClick = viewModel::sync) { Icon(Icons.Filled.Refresh, "同步私信") }
         },
         bottomBar = {
             // 输入工具区用色调表面，不再叠 6dp 阴影

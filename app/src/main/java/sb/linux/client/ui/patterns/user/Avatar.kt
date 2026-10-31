@@ -150,7 +150,7 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
         Box(
             Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(4.dp))
+                .clip(MaterialTheme.shapes.extraSmall)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
             contentAlignment = Alignment.Center
         ) {

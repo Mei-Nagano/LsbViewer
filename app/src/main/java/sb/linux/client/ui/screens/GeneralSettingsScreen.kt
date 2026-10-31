@@ -18,6 +18,7 @@ import sb.linux.client.ui.AppUpdatePromptDialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.feature.settings.GeneralSettingsViewModel
 import sb.linux.client.ui.feature.settings.GeneralSettingsViewModelFactory
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +49,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
             Text("当前版本 v${currentVersionName(context)}")
             // ---------- 检查更新 ----------
             GroupCard {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
+                Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp)) {
                     Text("检查更新时机", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(10.dp))
                     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -80,7 +81,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                             label = { Text("检查间隔（1 - 720 小时）") },
                             suffix = { Text("小时") },
                             singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -88,7 +89,7 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                     Button(
                         onClick = { doCheck(false) },
                         enabled = !updateState.checking,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (updateState.checking) "检查中…" else "立即检查更新") }
                     updateState.msg?.let {

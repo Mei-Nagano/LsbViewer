@@ -118,7 +118,7 @@ internal fun GachaDynamicForm(
                             }
                         }
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.medium,
                             color = if (selectedCount > 0) MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.surfaceContainerHigh,
                             border = if (selectedCount > 0) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
@@ -190,7 +190,7 @@ internal fun GachaDynamicForm(
             // 点了按钮没反应又看不到原因，跟「按钮点不了」难以区分。
             validationError?.let {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {

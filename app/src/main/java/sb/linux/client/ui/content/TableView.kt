@@ -62,7 +62,7 @@ internal fun TableView(
     Column(Modifier.fillMaxWidth()) {
     Box(Modifier.fillMaxWidth().then(if (horizontal) Modifier.horizontalScroll(horizontalState) else Modifier)) {
       Surface(
-          shape = RoundedCornerShape(12.dp),
+          shape = MaterialTheme.shapes.medium,
           color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
           modifier = Modifier.padding(vertical = 4.dp).then(if (horizontal) Modifier.width(tableWidth) else Modifier.fillMaxWidth())
       ) {
@@ -73,7 +73,7 @@ internal fun TableView(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .background(
                             if (isHeaderRow) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                             else Color.Transparent

@@ -58,7 +58,7 @@ internal fun ImagePager(urls: List<String>, modifier: Modifier = Modifier, onCli
             .then(modifier)
             .fillMaxWidth()
             .aspectRatio(aspect)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable { onClick(pagerState.currentPage) }
     ) {

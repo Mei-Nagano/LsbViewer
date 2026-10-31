@@ -111,7 +111,7 @@ internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Bool
                 Box(
                     Modifier
                         .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .clickable { onFloor(post.floor) },
                     contentAlignment = Alignment.Center,
                 ) {

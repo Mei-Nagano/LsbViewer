@@ -43,7 +43,7 @@ fun AiSummaryCard(
 ) {
     if (busy || summary != null || error != null) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier
                 .fillMaxWidth()
@@ -54,7 +54,7 @@ fun AiSummaryCard(
                     Box(
                         Modifier
                             .size(26.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(MaterialTheme.shapes.small)
                             .background(MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {

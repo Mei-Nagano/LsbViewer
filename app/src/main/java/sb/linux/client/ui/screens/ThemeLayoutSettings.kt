@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 /** 设置项使用的根目的地候选；发帖是动作，不在这里列出。 */
 private val BOTTOM_OPTIONS = listOf(
@@ -27,10 +28,10 @@ internal fun LazyListScope.themeLayoutSettings(session: Session) {
                 "跟随窗口时，宽窗可并排显示列表与详情；主导航仍按窗口宽度在底部导航与侧边 rail 之间切换。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp),
             )
             SingleChoiceSegmentedButtonRow(
-                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+                Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 4.dp),
             ) {
                 SegmentedButton(
                     selected = !session.singleContentColumn,
@@ -55,19 +56,19 @@ internal fun LazyListScope.themeLayoutSettings(session: Session) {
                     "不再占用导航目的地。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp),
             )
             Text(
                 "根目的地与顺序（2—5 项）",
                 style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(start = 18.dp, top = 14.dp, bottom = 4.dp),
+                modifier = Modifier.padding(start = AppMenuDefaults.contentHorizontal, top = 14.dp, bottom = 4.dp),
             )
             Text(
                 "可选社区、版块、淘帖、消息和我的；至少保留两项，最多五项。" +
                     "仅两项时使用顶部标签栏。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 4.dp),
             )
             val selectedBottomItems = session.bottomBarItems
             (selectedBottomItems.mapNotNull { id -> BOTTOM_OPTIONS.firstOrNull { it.first == id } } +
@@ -75,7 +76,7 @@ internal fun LazyListScope.themeLayoutSettings(session: Session) {
                 val index = selectedBottomItems.indexOf(id)
                 val checked = index >= 0
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(
@@ -115,7 +116,7 @@ internal fun LazyListScope.themeLayoutSettings(session: Session) {
                     "旧版液态玻璃样式不再提供。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp),
             )
         }
     }

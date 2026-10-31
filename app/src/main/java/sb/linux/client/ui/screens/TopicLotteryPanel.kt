@@ -87,7 +87,7 @@ fun LotteryPanelView(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .clickable { expanded = !expanded }
                         .padding(vertical = 2.dp)
                 ) {

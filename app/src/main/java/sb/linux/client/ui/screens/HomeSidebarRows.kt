@@ -118,7 +118,7 @@ internal fun parseSidebarStats(text: String): List<Pair<String, String>> {
 /** 侧板选项条目：无图标，统一圆角矩形背景框住（快捷功能 / 最近版块等） */
 @Composable
 internal fun DrawerPillRow(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier.padding(vertical = 2.dp)) {
         sb.linux.client.ui.components.layout.AppMenuRow(text, trailing = {}, compact = true, onClick = onClick)
     }
@@ -129,7 +129,7 @@ internal fun DrawerPillRow(text: String, onClick: () -> Unit, modifier: Modifier
 internal fun HotTopicRow(t: HotTopic, onOpenTopic: (Long) -> Unit, modifier: Modifier = Modifier) {
     Surface(
         onClick = { onOpenTopic(t.topicId) },
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier.padding(vertical = 2.dp),
     ) {
@@ -159,7 +159,7 @@ internal fun ForumEntryRow(
 ) {
     Surface(
         onClick = { onOpenForum(f.id) },
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier.padding(vertical = 2.dp),
     ) {

@@ -51,7 +51,7 @@ fun CodeBlockView(code: String, highlightQuery: String = "", onSearchPosition: (
         if (highlightQuery.isNotBlank() && code.contains(highlightQuery.trim(), ignoreCase = true)) expanded = true
     }
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = Modifier.padding(vertical = 4.dp)
     ) {

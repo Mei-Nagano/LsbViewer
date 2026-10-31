@@ -21,6 +21,7 @@ import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.feature.ai.AiSettingsViewModel
 import sb.linux.client.ui.feature.ai.AiSettingsViewModelFactory
 import sb.linux.client.domain.ai.AiSummaryRecord
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,10 +96,10 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
                 Text(
                     "AI 配置方案",
                     style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(start = 18.dp, top = 12.dp, bottom = 4.dp),
+                    modifier = Modifier.padding(start = AppMenuDefaults.contentHorizontal, top = 12.dp, bottom = 4.dp),
                 )
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -192,7 +193,7 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
                             },
                             modifier = Modifier.clickable { selectedSummary = record },
                         )
-                        if (index < summaryHistory.take(historyLimit).lastIndex) HorizontalDivider(Modifier.padding(horizontal = 18.dp))
+                        if (index < summaryHistory.take(historyLimit).lastIndex) HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal))
                     }
                 }
                 if (summaryHistory.size > historyLimit) TextButton(onClick = { historyLimit += 30 }) { Text("显示更多总结") }

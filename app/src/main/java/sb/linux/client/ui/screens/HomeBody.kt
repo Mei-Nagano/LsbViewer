@@ -134,7 +134,7 @@ internal fun HomeBody(
                                                 current.topics = onAcceptPendingTopics(current.topics)
                                                 scope.launch { listState.animateScrollToItem(0) }
                                             },
-                                            shape = RoundedCornerShape(16.dp),
+                                            shape = MaterialTheme.shapes.large,
                                             color = MaterialTheme.colorScheme.primaryContainer,
                                             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
                                         ) {

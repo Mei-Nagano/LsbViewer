@@ -3,14 +3,6 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,18 +10,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.components.feedback.ErrorBox
 import sb.linux.client.ui.components.feedback.LoadingBox
+import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.session.Session
 
 /**
  * 本地导出 HTML 查看页：只读取 filesDir/exports 下的导出文件，JS 关闭、baseUrl 指向导出目录。
  * 与联网 WebScreen 完全分开，避免把离线内容放进可执行脚本的环境。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportedHtmlScreen(session: Session, nav: NavHostController) {
     val entry = nav.currentBackStackEntry ?: return
@@ -52,24 +43,7 @@ fun ExportedHtmlScreen(session: Session, nav: NavHostController) {
         }.onFailure { error = it.message ?: "读取失败" }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                }
-            )
-        }
-    ) { pad ->
+    AppPageScaffold(title = title, onBack = { nav.popBackStack() }) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when {
                 error != null -> ErrorBox(error!!) { html = null; error = null; retryKey++ }

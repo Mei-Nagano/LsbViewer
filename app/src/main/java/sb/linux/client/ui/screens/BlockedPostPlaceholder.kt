@@ -22,7 +22,7 @@ internal fun BlockedPostPlaceholder(
 ) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
-            shape = RoundedCornerShape(4.dp),
+            shape = MaterialTheme.shapes.extraSmall,
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
             modifier = Modifier.size(avatarSize.dp),
         ) {
@@ -45,7 +45,7 @@ internal fun BlockedPostPlaceholder(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Surface(
-                shape = RoundedCornerShape(4.dp),
+                shape = MaterialTheme.shapes.extraSmall,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {

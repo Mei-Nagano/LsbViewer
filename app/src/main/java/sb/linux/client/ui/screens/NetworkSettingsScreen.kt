@@ -17,6 +17,7 @@ import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.feature.network.NetworkSettingsViewModel
 import sb.linux.client.ui.feature.network.NetworkSettingsViewModelFactory
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +43,7 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
     SettingsPage("网络与链接", nav, onBack = exit) {
             GroupCard {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Text("应用代理", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)

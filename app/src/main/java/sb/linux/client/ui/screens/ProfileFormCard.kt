@@ -221,7 +221,7 @@ internal fun ProfileFormCard(
                             onValueChange = { values[f.name] = it },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text(f.label) },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation()
                         )
@@ -241,7 +241,7 @@ internal fun ProfileFormCard(
                     onSubmit(payload, pickedFile, pickedMime) { localBusy = false; pickedFile = null; pickedPreset = null }
                 },
                 enabled = !busy && !localBusy,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (localBusy) "提交中…" else form.submitText) }
         }

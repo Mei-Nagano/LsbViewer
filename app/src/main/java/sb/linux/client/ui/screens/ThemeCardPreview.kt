@@ -84,7 +84,7 @@ internal fun ElementSelectorList(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(MaterialTheme.shapes.medium)
                     .clickable { expanded = !expanded }
                     .padding(horizontal = 4.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -130,7 +130,7 @@ internal fun ElementSelectorList(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(MaterialTheme.shapes.medium)
                             .clickable { onClickRole(role) }
                             .padding(horizontal = 4.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -160,7 +160,7 @@ internal fun ElementSelectorList(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(MaterialTheme.shapes.medium)
                             .clickable { onClickElement(el.key) }
                             .padding(horizontal = 4.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically

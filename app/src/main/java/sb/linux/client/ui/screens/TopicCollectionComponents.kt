@@ -59,7 +59,7 @@ internal fun CollectionOptionRow(
     Surface(
         onClick = onToggle,
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = if (option.included) MaterialTheme.colorScheme.secondaryContainer
         else MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
@@ -101,7 +101,7 @@ internal fun SheetActionRow(
     Surface(
         onClick = onClick,
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth(),
     ) {

@@ -87,7 +87,7 @@ internal fun GachaStatCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(16.dp))
+                Modifier.size(42.dp).clip(MaterialTheme.shapes.large)
                     .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -119,7 +119,7 @@ internal fun RarityCard(
 ) {
     val accent = rarityAccent(rarity)
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier.fillMaxWidth(),
     ) {

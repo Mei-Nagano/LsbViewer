@@ -20,6 +20,7 @@ import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.feature.settings.DataManagementViewModel
 import sb.linux.client.ui.feature.settings.DataManagementViewModelFactory
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,7 +68,7 @@ fun DataManagementScreen(session: Session, nav: NavHostController, automatic: Bo
             if (!automatic) {
             GroupLabel("空间占用")
             GroupCard {
-                Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp)) {
                     CacheAnalysisCard(session, cacheRevision)
                 }
             }
@@ -97,7 +98,7 @@ fun DataManagementScreen(session: Session, nav: NavHostController, automatic: Bo
                     "正常退出时清理所选项目；系统强制结束进程时，会在下次启动补做。所选历史或 AI 配置会永久删除，请谨慎开启；账号登录不受影响。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
                 )
                 options.forEach { (key, labels) ->
                     SwitchRow(

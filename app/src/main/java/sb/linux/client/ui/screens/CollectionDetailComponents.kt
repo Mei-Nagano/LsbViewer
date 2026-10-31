@@ -99,7 +99,7 @@ internal fun CollectionDetailList(
         opPage?.notes.orEmpty().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { notes ->
             item {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                 ) {

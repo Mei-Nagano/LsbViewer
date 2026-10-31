@@ -76,7 +76,7 @@ internal fun UserSummaryContent(
             if (current.bio.isNotBlank()) SummaryBio(current.bio, open)
             if (current.stats.isNotEmpty()) Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                shape = MaterialTheme.shapes.extraSmall,
             ) {
                 Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     current.stats.chunked(2).forEach { pair ->

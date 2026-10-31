@@ -47,7 +47,7 @@ internal fun TopicPollView(
         val currentPoll = vote ?: return
         val selected = option.value in selectedValues
         Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = MaterialTheme.shapes.medium,
             color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
             border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
@@ -77,7 +77,7 @@ internal fun TopicPollView(
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(
-                    Modifier.size(38.dp).clip(RoundedCornerShape(12.dp))
+                    Modifier.size(38.dp).clip(MaterialTheme.shapes.medium)
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -139,7 +139,7 @@ internal fun TopicPollView(
                 }
             }
             essence?.takeIf { it.poolTitle.isNotBlank() || it.poolItems.isNotEmpty() }?.let { review ->
-                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)) {
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Paid, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
@@ -154,7 +154,7 @@ internal fun TopicPollView(
             }
             val panelNote = essence?.actionNote.orEmpty().ifBlank { vote?.note.orEmpty() }
             if (panelNote.isNotBlank()) Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Text(
@@ -174,7 +174,7 @@ internal fun TopicPollView(
                 label = { Text(if (vote.reasonRequired) "投票理由（必填）" else "投票理由") },
                 supportingText = { Text(vote.reasonHint.ifBlank { "${reason.length}/${vote.reasonMaxLength}" }) },
                 modifier = Modifier.fillMaxWidth(), enabled = !busy && !vote.closed,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
             )
             if (vote != null) when {
                 vote.unavailableReason.isNotBlank() -> Text(
@@ -215,7 +215,7 @@ internal fun TopicPollView(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         enabled = !topUpBusy,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = MaterialTheme.shapes.large,
                         modifier = Modifier.weight(1f),
                     )
                     val amount = topUpText.toIntOrNull()

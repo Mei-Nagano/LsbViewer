@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.colorSeed
 import sb.linux.client.ui.theme.isCustomColorKey
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 internal fun LazyListScope.themeBackgroundPalette(
     section: String,
@@ -35,7 +36,7 @@ item { GroupLabel("页面背景") }
 item {
     GroupCard {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
@@ -58,7 +59,7 @@ item {
                     .clickable { onOpenBackgroundPicker() },
             )
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal), verticalAlignment = Alignment.CenterVertically) {
             TextButton(enabled = !backgroundImportBusy, onClick = { onSelectBackgroundImage() }) {
                 Text(if (backgroundImportBusy) "正在处理图片…" else "选择背景图片")
             }
@@ -67,14 +68,14 @@ item {
         if (session.backgroundImage.isNotEmpty()) {
             SwitchRow("启用背景图片", "本地保存，随设置备份；不上传图床", checked = session.backgroundImageEnabled,
                 onCheckedChange = session.preferences::saveBackgroundImageEnabled)
-            Column(Modifier.padding(horizontal = 18.dp)) {
+            Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal)) {
                 Text("背景图片不透明度 ${(session.backgroundImageOpacity * 100).toInt()}%")
                 Slider(value = session.backgroundImageOpacity, onValueChange = session.preferences::saveBackgroundImageOpacity, valueRange = 0.05f..0.65f)
                 Text("卡片、顶栏表面不透明度 ${(session.surfaceOpacity * 100).toInt()}%")
                 Slider(value = session.surfaceOpacity, onValueChange = session.preferences::saveSurfaceOpacity, valueRange = 0.2f..1f)
             }
         }
-        HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         SwitchRow(
             "禁止页面染色（兼容旧版）",
             "新默认使用带轻微色调的 MD3 表面；开启后页面底色、普通卡片和弹窗保持中性色，按钮、选中状态、标签和高亮完整保留强调色。手动自定义背景不受影响",
@@ -107,11 +108,11 @@ item {
             "选择起点色由主题引擎生成配色；自定义色可「存为预选」，长按色块可移除",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)
         )
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+            contentPadding = PaddingValues(horizontal = AppMenuDefaults.contentHorizontal, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(sb.linux.client.ui.theme.ThemeColorPresets) { preset ->

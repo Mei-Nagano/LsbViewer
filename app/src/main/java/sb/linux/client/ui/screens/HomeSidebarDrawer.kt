@@ -112,7 +112,7 @@ internal fun HomeSidebarDrawer(
                     item {
                         val stats = remember(sb!!.statsText) { parseSidebarStats(sb!!.statsText) }
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.medium,
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.padding(vertical = 2.dp),
                         ) {
@@ -136,7 +136,7 @@ internal fun HomeSidebarDrawer(
                     item { DrawerTitle("当前在线${sb!!.onlineUsers.count.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""}") }
                     item {
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.medium,
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.padding(vertical = 2.dp),
                         ) {

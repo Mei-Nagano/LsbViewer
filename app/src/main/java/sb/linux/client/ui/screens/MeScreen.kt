@@ -29,12 +29,9 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.navigation.LocalMasterNav
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.patterns.user.UserInfoCard
@@ -54,7 +52,6 @@ import sb.linux.client.ui.theme.LocalAppSpacing
  * 游客头部解释登录价值并给一个主按钮，同时保留公开社区入口、应用设置与本地内容；
  * 自动签到不设按钮，只展示业务已提供的结果。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeScreen(session: Session, nav: NavHostController) {
     val state = session.account.loginState
@@ -73,7 +70,7 @@ fun MeScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("我的") }) }) { pad ->
+    AppPageScaffold(title = "我的", onBack = null) { pad ->
         Column(
             Modifier
                 .padding(pad)
