@@ -20,19 +20,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.components.feedback.LoginRequiredBox
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 卡片内的空态/提示：不占满全屏，可放进滚动内容中间。 */
 @Composable
 internal fun GachaEmptyCard(text: String) {
+    val spacing = LocalAppSpacing.current
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            Modifier.padding(vertical = 28.dp, horizontal = 16.dp),
+            Modifier.padding(vertical = spacing.section, horizontal = spacing.pageHorizontal),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(spacing.contentGap),
         ) {
             Box(
                 Modifier.size(48.dp).clip(CircleShape)

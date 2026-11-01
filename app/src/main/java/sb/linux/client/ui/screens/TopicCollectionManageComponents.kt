@@ -179,13 +179,14 @@ private fun ManageHeader(
     enabled: Boolean,
     onDelete: () -> Unit,
 ) {
+    val spacing = sb.linux.client.ui.theme.LocalAppSpacing.current
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.primaryContainer,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 15.dp),
+            Modifier.padding(horizontal = spacing.pageHorizontal, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

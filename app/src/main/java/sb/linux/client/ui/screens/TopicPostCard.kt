@@ -76,7 +76,7 @@ fun PostCard(
             Modifier
                 .fillMaxWidth()
                 .background(if (protectSurface) MaterialTheme.colorScheme.surface else Color.Transparent)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
         ) {
             PostCardContent(
                 post, loggedIn, isOpAuthor,
@@ -116,7 +116,7 @@ fun PostCard(
                 .fillMaxWidth()
                 .background(bg)
                 .combinedClickable(onClick = {}, onLongClick = onCopy)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 10.dp),
         ) {
             PostCardContent(
                 post, loggedIn, isOpAuthor,
