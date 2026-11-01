@@ -83,7 +83,7 @@ internal fun CollectionList(
                 top = spacing.pageVertical,
                 bottom = spacing.pageVertical,
             ),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
         ) {
             if (loading) item("progress") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             // 已有内容时错误降级为条幅，不清空正在看的列表
@@ -116,7 +116,7 @@ private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit)
             ),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Avatar(summary.avatarUrl, 40)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -170,7 +170,7 @@ private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit)
             if (meta.isNotEmpty()) {
                 FlowRow(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     meta.forEach {

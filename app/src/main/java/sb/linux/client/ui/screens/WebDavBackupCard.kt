@@ -11,6 +11,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @Composable
 internal fun WebDavBackupCard(
@@ -82,7 +83,7 @@ internal fun WebDavBackupCard(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Button(
                     onClick = onBackup,
                     enabled = !busy,

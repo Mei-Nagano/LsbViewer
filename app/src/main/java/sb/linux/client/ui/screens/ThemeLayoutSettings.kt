@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 设置项使用的根目的地候选；发帖是动作，不在这里列出。 */
 private val BOTTOM_OPTIONS = listOf(
@@ -61,7 +62,11 @@ internal fun LazyListScope.themeLayoutSettings(session: Session) {
             Text(
                 "根目的地与顺序（2—5 项）",
                 style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(start = AppMenuDefaults.contentHorizontal, top = 14.dp, bottom = 4.dp),
+                modifier = Modifier.padding(
+                    start = AppMenuDefaults.contentHorizontal,
+                    top = LocalAppSpacing.current.contentGap,
+                    bottom = LocalAppSpacing.current.inline,
+                ),
             )
             Text(
                 "可选社区、版块、淘帖、消息和我的；至少保留两项，最多五项。" +

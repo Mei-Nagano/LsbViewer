@@ -24,6 +24,7 @@ import sb.linux.client.ui.feature.backup.WebDavBackupViewModelFactory
 import sb.linux.client.ui.feature.backup.BackupSettingsViewModel
 import sb.linux.client.ui.feature.backup.BackupSettingsViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -144,7 +145,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController, cloud: Bool
                 }
                 if (!cloud) Row(
                     Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
                 ) {
                     Button(
                         onClick = {

@@ -81,7 +81,7 @@ fun ExportDialog(
                 }
             }
             if (scopeMode == "range") {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                     OutlinedTextField(
                         value = fromFloor, onValueChange = { fromFloor = it.filter(Char::isDigit) },
                         label = { Text("起始楼层") }, singleLine = true, modifier = Modifier.weight(1f),
@@ -165,7 +165,7 @@ private fun ExportSheetItem(
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
     ) {
         Box(
             Modifier

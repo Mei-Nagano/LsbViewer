@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.ui.components.navigation.PaginationBar
+import sb.linux.client.ui.theme.LocalAppSpacing
 internal fun LazyListScope.topicReplyListItems(
     state: TopicReplyListState,
     actions: TopicReplyListActions,
@@ -25,7 +26,12 @@ internal fun LazyListScope.topicReplyListItems(
         item(key = "comments-header") {
             Column {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
+                    Modifier.fillMaxWidth().padding(
+                        start = LocalAppSpacing.current.pageHorizontal,
+                        end = LocalAppSpacing.current.pageHorizontal,
+                        top = LocalAppSpacing.current.contentGap,
+                        bottom = LocalAppSpacing.current.item,
+                    ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("全部回复", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)

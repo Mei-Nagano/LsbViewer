@@ -109,7 +109,7 @@ internal fun SheetActionRow(
         Row(
             Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
         ) {
             Icon(
                 icon, null, Modifier.size(18.dp),

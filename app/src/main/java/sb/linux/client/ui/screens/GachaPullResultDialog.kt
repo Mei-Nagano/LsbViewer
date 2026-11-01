@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.gacha.GachaPullResult
 import sb.linux.client.ui.TitleBadgeView
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 展示完整的单抽、十连抽或百连抽结果。 */
 @Composable
@@ -36,7 +37,7 @@ internal fun GachaPullResultDialog(
         icon = { Icon(Icons.Filled.Casino, null) },
         title = { Text(result.title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Text(
                     "获得 ${result.items.size} 枚称号 · 消耗 $cost 积分",
                     style = MaterialTheme.typography.bodyMedium,

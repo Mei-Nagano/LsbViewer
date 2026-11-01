@@ -190,7 +190,7 @@ internal fun ColorPickerDialog(
                     )
                     Spacer(Modifier.height(6.dp))
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         items(presets.size) { i ->

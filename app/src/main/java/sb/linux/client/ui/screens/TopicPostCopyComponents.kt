@@ -43,7 +43,7 @@ internal fun CopySheetItem(icon: ImageVector, title: String, subtitle: String, o
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
     ) {
         Box(
             Modifier

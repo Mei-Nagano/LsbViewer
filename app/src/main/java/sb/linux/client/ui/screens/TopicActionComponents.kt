@@ -68,7 +68,7 @@ internal fun ReplyBar(
                 .fillMaxWidth()
                 .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             Surface(
                 shape = CircleShape,

@@ -64,8 +64,8 @@ internal fun ManageActionCard(
         border = BorderStroke(1.dp, borderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Surface(
                     shape = CircleShape,
                     color = if (destructive) MaterialTheme.colorScheme.errorContainer

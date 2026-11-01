@@ -14,6 +14,7 @@ import sb.linux.client.ui.session.Session
 import androidx.compose.runtime.saveable.rememberSaveable
 import sb.linux.client.ui.navigation.LocalMasterNav
 import sb.linux.client.ui.feature.settings.SettingsSearchIndex
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @Composable
 fun AppSettingsScreen(session: Session, nav: NavHostController) {
@@ -30,7 +31,12 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
             SettingMenuRow("我的内容", "浏览历史 · 收藏 · 总结 · 兑换记录 · 导出 · 统计") { nav.navigate("myContent") }
         } else {
             val results = SettingsSearchIndex.search(query)
-            if (results.isEmpty()) Text("没有找到相关设置")
+            if (results.isEmpty()) Text(
+                "没有找到相关设置",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = LocalAppSpacing.current.item),
+            )
             results.forEach { SettingMenuRow(it.title, it.category) { nav.navigate(it.route) } }
         }
     }

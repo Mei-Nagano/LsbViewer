@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.topic.PostEntry
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** Match the source user-block-hidden-reply avatar and bordered notice. */
 @Composable
@@ -17,7 +18,7 @@ internal fun BlockedPostPlaceholder(
     modifier: Modifier = Modifier,
     onFloor: (Int) -> Unit = {},
 ) {
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
         Surface(
             shape = MaterialTheme.shapes.extraSmall,
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),

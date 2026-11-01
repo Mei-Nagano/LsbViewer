@@ -18,6 +18,7 @@ import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.feature.network.NetworkSettingsViewModel
 import sb.linux.client.ui.feature.network.NetworkSettingsViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +45,7 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
             GroupCard {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
                 ) {
                     Text("应用代理", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     Text(

@@ -29,7 +29,7 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 8.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Surface(shape = MaterialTheme.shapes.medium, color = colors.errorContainer) {
                     Icon(Icons.Default.CardGiftcard, contentDescription = null,
                         tint = colors.onErrorContainer, modifier = Modifier.padding(10.dp).size(22.dp))

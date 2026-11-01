@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 private val CardCurrencyLabels = listOf("points" to "积分", "wallet" to "烧饼")
 
@@ -34,7 +35,7 @@ internal fun VirtualCardTopicFields(
     ) {
         Column(
             Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             Text(
                 "用户用积分或烧饼兑换卡密；编辑帖子时卡密列表只显示未售出的卡。",

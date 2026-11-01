@@ -11,6 +11,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.ai.AiAssistantDefaults
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @Composable
 internal fun AiSettingsForm(
@@ -63,7 +64,7 @@ internal fun AiSettingsForm(
         }
         if (configuration) Column(
             Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
         ) {
             OutlinedTextField(
                 value = aiUrl,

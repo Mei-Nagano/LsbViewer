@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.topic.PrizeRow
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 private val PrizeTypeLabels = listOf(
     "points" to "积分", "wallet" to "烧饼", "code" to "兑换码", "manual" to "手工发奖",
@@ -37,7 +38,7 @@ internal fun LotteryTopicFields(
     ) {
         Column(
             Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             Text(
                 "用户回帖参与抽奖；发布抽奖至少需托管 5 个烧饼。",

@@ -79,7 +79,7 @@ internal fun GachaDynamicForm(
         form, values, checked, radioValues, multiValues,
     )
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
             val checkboxIndices = form.fields.indices.filter { form.fields[it].type == "checkbox" }
             if (checkboxIndices.isNotEmpty()) {
                 val groups = checkboxIndices.groupBy { index ->

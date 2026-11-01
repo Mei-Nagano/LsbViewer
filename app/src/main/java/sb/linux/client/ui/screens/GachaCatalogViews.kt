@@ -70,7 +70,7 @@ internal fun GachaTitleGroups(titles: List<TitleBadge>) {
                             .clickable { expanded = if (open) expanded - rarity else expanded + rarity }
                             .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
                     ) {
                         RarityPill(rarity)
                         Text(

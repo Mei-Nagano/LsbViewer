@@ -76,7 +76,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
         onBack = { nav.popBackStack() },
         // 顶栏对方头像同样可点击进入其个人主页
         titleContent = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Box(
                     Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(enabled = partnerId > 0) {
                         nav.navigate("user/$partnerId")
