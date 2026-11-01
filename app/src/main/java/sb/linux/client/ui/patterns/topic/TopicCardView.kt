@@ -1,26 +1,24 @@
 package sb.linux.client.ui.patterns.topic
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -28,20 +26,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.topic.TopicCard
 import sb.linux.client.ui.TitleBadgeView
-import sb.linux.client.ui.patterns.user.UserAvatar
-import sb.linux.client.ui.theme.LocalAppSpacing
+import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.theme.LocalSurfaceOpacity
+import sb.linux.client.ui.util.onColorFor
 
 /**
- * 社区帖子条目（DESIGN_SYSTEM D07）：平面单列列表项。
+ * 帖子卡片（沿用 main 分支样式）：圆角卡片容器，左侧头像，中间标题与元信息，
+ * 板块徽标固定在右上角。
  *
- * 起始为 48dp 头像槽（图像 40dp），后接 12dp 与弹性文字列；标题 titleMedium 最多两行，
- * 元信息 bodySmall 可换成两行；板块位于元信息而不是右侧大胶囊。整行打开帖子，
- * 头像打开用户；长按打开动作菜单，三个动作触区互不重叠。
+ * compact = 单列精简模式：隐藏头像与回复数。
+ * onElementClick 非空时进入「预览改色」模式：点按各元素回调对应 [CardColorOverrides] key（标题不可改色）。
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -52,11 +51,10 @@ fun TopicCardView(
     compact: Boolean = false,
     views: Int = -1,
     showComments: Boolean = true,   // false 时不显示评论数（浏览历史只展示浏览时间）
-    showForum: Boolean = true,      // false 时不显示板块（浏览历史）
+    showForum: Boolean = true,      // false 时不显示板块徽标（浏览历史）
     onElementClick: ((key: String) -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val spacing = LocalAppSpacing.current
     val titleColor = remember(card.titleColor) {
         runCatching { Color(android.graphics.Color.parseColor(card.titleColor)) }
             .getOrNull()?.takeIf { card.titleColor.isNotBlank() }
@@ -69,115 +67,138 @@ fun TopicCardView(
     val userOverride = cardColors[CardColorOverrides.USER]
     val commentsOverride = cardColors[CardColorOverrides.COMMENTS]
     val forumOverride = cardColors[CardColorOverrides.FORUM]
-    Column(
-        Modifier
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = (bgOverride ?: MaterialTheme.colorScheme.surfaceContainerLow)
+            .copy(alpha = LocalSurfaceOpacity.current),
+        modifier = Modifier
             .fillMaxWidth()
-            .background((bgOverride ?: Color.Transparent).copy(alpha = LocalSurfaceOpacity.current))
+            .padding(horizontal = 14.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(18.dp))
             .combinedClickable(
                 onClick = {
                     // 预览改色模式：点按卡片空白处改背景色；正常模式打开帖子
                     if (onElementClick != null) onElementClick(CardColorOverrides.BACKGROUND) else onClick()
                 },
                 onLongClick = if (onElementClick == null) onLongClick else null,
-            )
-            .padding(horizontal = spacing.pageHorizontal, vertical = spacing.contentGap),
+            ),
     ) {
-        Row {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
             if (!compact) {
-                // 48dp 独立触区包住 40dp 头像，整行打开帖子、头像打开用户
-                UserAvatar(
-                    card.authorId,
-                    card.avatarUrl,
-                    40,
-                    online = card.online,
-                    minTouchTarget = true,
-                )
-                Spacer(Modifier.width(spacing.contentGap))
+                Avatar(card.avatarUrl, 34, online = card.online)
+                Spacer(Modifier.width(10.dp))
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
-                TopicCardTags(card, tagColor)
-                Text(
-                    card.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    // 读过条目降低强调但保持可读；源站彩色标题优先
-                    color = titleColor ?: if (card.unread) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                FlowRow(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalArrangement = Arrangement.spacedBy(spacing.item),
-                ) {
-                    Text(
-                        card.authorName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = userOverride ?: MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.let { m ->
-                            if (onElementClick != null)
-                                m.clip(MaterialTheme.shapes.extraSmall).clickable { onElementClick(CardColorOverrides.USER) }
-                            else m
-                        },
-                    )
-                    card.titleBadge?.let { TitleBadgeView(it, small = true) }
-                    if (showForum) {
-                        Text(
-                            card.forumName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = forumOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable {
-                                if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
-                                else onForumClick(card.forumId)
-                            },
-                        )
-                    }
-                    Text(
-                        card.timeText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.let { m ->
-                            if (onElementClick != null)
-                                m.clip(MaterialTheme.shapes.extraSmall).clickable { onElementClick(CardColorOverrides.TIME) }
-                            else m
-                        },
-                    )
-                    if (!compact && showComments) {
+            Column(Modifier.weight(1f)) {
+                // 顶行：标题（含标签）占左侧，板块标识固定在卡片右上角，与置顶/热等标签同一行以节省高度
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f)) {
+                        // 帖子标签（置顶/热/精华/未读/抽奖/发卡）置于标题前面
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
                             modifier = Modifier.let { m ->
                                 if (onElementClick != null)
-                                    m.clip(MaterialTheme.shapes.extraSmall).clickable { onElementClick(CardColorOverrides.COMMENTS) }
+                                    m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TAG) }
                                 else m
                             },
                         ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Chat, null,
-                                modifier = Modifier.size(14.dp),
-                                tint = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            TopicCardTags(card, tagColor)
+                        }
+                        Text(
+                            card.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (card.pinned || card.featured) FontWeight.Bold else FontWeight.SemiBold,
+                            // 标题颜色不可自定义，仅保留源站解析出的彩色标题
+                            color = titleColor ?: Color.Unspecified,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            lineHeight = MaterialTheme.typography.titleSmall.lineHeight * 1.1f,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        // 用户名 / 时间 / 评论数：不使用分隔点。
+                        // 用 FlowRow 让行内放不下时自动换行，避免称号徽章挤占导致用户名被截断
+                        FlowRow(
+                            verticalArrangement = Arrangement.Center,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
                             Text(
-                                "${card.replies}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                                card.authorName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = userOverride ?: MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.let { m ->
+                                    if (onElementClick != null)
+                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.USER) }
+                                    else m
+                                },
+                            )
+                            // 作者称号（源站称号系统徽章）：用 small 缩小比例，避免过宽/换行
+                            card.titleBadge?.let {
+                                TitleBadgeView(it, small = true)
+                            }
+                            Text(
+                                card.timeText,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = timeOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.let { m ->
+                                    if (onElementClick != null)
+                                        m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.TIME) }
+                                    else m
+                                },
+                            )
+                            if (!compact && showComments) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    modifier = Modifier.let { m ->
+                                        if (onElementClick != null)
+                                            m.clip(RoundedCornerShape(6.dp)).clickable { onElementClick(CardColorOverrides.COMMENTS) }
+                                        else m
+                                    },
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.Chat, null,
+                                        modifier = Modifier.size(12.dp),
+                                        tint = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        "${card.replies}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = commentsOverride ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    // 板块标识：固定在卡片右上角（与标题顶部对齐）
+                    if (showForum) {
+                        Spacer(Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = forumOverride ?: MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                            onClick = {
+                                if (onElementClick != null) onElementClick(CardColorOverrides.FORUM)
+                                else onForumClick(card.forumId)
+                            },
+                        ) {
+                            Text(
+                                card.forumName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = forumOverride?.let { onColorFor(it) }
+                                    ?: MaterialTheme.colorScheme.onSecondaryContainer,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             )
                         }
                     }
                 }
             }
         }
-        Spacer(Modifier.height(spacing.contentGap))
-        // inset divider：与标题列左缘对齐，列表保持平面
-        HorizontalDivider(
-            modifier = Modifier.padding(start = if (compact) 0.dp else 60.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-        )
     }
 }
