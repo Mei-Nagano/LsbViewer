@@ -61,8 +61,8 @@ internal fun CollectionDetailList(
     val inputForms = forms.filter { it.fields.isNotEmpty() }
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(top = spacing.contentGap, bottom = spacing.section),
+        verticalArrangement = Arrangement.spacedBy(spacing.contentGap),
     ) {
         if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal)) }
         // 已有内容时错误降级为条幅，不清空正在看的列表

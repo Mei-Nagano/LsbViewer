@@ -48,7 +48,7 @@ fun AiSummaryCard(
             color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp)
         ) {
             Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

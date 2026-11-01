@@ -147,7 +147,7 @@ item {
             item {
                 val isCustom = isCustomColorKey(session.themeColorKey)
                 ColorSwatch(
-                    color = if (isCustom) colorSeed(session.themeColorKey) else MaterialTheme.colorScheme.surfaceContainerHighest,
+                    color = if (isCustom) colorSeed(session.themeColorKey) else MaterialTheme.colorScheme.surfaceContainerHigh,
                     label = "自定义",
                     selected = isCustom,
                     custom = true,

@@ -55,7 +55,7 @@ fun DanmakuBar(items: List<DanmakuItem>) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp),
+        contentPadding = PaddingValues(horizontal = LocalAppSpacing.current.pageHorizontal),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         itemsIndexed(items, key = { i, d -> "$i-${d.user}-${d.amount}" }) { _, d ->

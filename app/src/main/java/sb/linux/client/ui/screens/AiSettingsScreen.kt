@@ -177,7 +177,12 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
             )
             if (section == "history") {
             SwitchRow("仅看收藏的总结", "历史保留每次总结结果，不再覆盖同帖旧记录", checked = favoriteOnly, onCheckedChange = { favoriteOnly = it })
-            if (summaryHistory.isEmpty()) Text("暂无总结记录")
+            if (summaryHistory.isEmpty()) Text(
+                "暂无总结记录",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
             if (summaryHistory.isNotEmpty()) {
                 GroupLabel("总结历史")
                 GroupCard {
