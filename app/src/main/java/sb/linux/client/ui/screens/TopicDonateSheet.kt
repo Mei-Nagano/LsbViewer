@@ -73,7 +73,7 @@ internal fun DonateSheet(
                     "加载失败：${loadError}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(vertical = 24.dp)
+                    modifier = Modifier.padding(vertical = LocalAppSpacing.current.section)
                 )
                 info == null -> Box(
                     Modifier.fillMaxWidth().height(200.dp),

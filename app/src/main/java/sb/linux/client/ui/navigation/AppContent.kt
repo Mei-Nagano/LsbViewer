@@ -38,6 +38,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.LocalAppSizes
+import sb.linux.client.ui.theme.LocalAppSpacing
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -115,7 +116,7 @@ internal fun AppContent(
                         ) { masterRoutes(session, detailNav, homeDrawerState) }
                         // 两项兼容布局没有 rail，发帖动作落在主栏右下角，避免两处宿主都不渲染
                         if (showComposeAction && twoItemLayout) {
-                            Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) { composeAction() }
+                            Box(Modifier.align(Alignment.BottomEnd).padding(LocalAppSpacing.current.pageHorizontal)) { composeAction() }
                         }
                     }
                     VerticalDivider(Modifier.fillMaxHeight())

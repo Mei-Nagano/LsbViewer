@@ -125,7 +125,10 @@ internal fun GachaDynamicForm(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(
-                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                Modifier.padding(
+                                    horizontal = LocalAppSpacing.current.contentGap,
+                                    vertical = LocalAppSpacing.current.item,
+                                ),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
@@ -196,7 +199,10 @@ internal fun GachaDynamicForm(
                 ) {
                     Text(
                         it,
-                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        Modifier.padding(
+                            horizontal = LocalAppSpacing.current.contentGap,
+                            vertical = LocalAppSpacing.current.item,
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )

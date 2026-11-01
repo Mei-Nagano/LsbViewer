@@ -197,7 +197,7 @@ internal fun GachaTitleRow(
     Row(
         Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 5.dp)
             .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 色条与文字块等高，稀有度靠色条表达，不再额外占一行标签。

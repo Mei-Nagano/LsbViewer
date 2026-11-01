@@ -59,7 +59,11 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
                         Surface(modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium,
                             color = colors.surfaceContainerHigh) {
                             Text(field, style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                                modifier = Modifier.padding(
+                                    horizontal = LocalAppSpacing.current.contentGap,
+                                    vertical = LocalAppSpacing.current.item,
+                                ),
+                            )
                         }
                     }
                     if (fields.size == 1 && details.size > 1) Spacer(Modifier.weight(1f))

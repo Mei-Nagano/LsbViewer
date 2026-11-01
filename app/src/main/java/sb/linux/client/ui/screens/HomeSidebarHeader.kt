@@ -48,14 +48,20 @@ internal fun HomeSidebarHeader(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(
+                        horizontal = LocalAppSpacing.current.pageHorizontal,
+                        vertical = LocalAppSpacing.current.contentGap,
+                    ),
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerLow
             ) {
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(
+                            horizontal = LocalAppSpacing.current.contentGap,
+                            vertical = LocalAppSpacing.current.item,
+                        ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(

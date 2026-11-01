@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.topic.PostEntry
+import sb.linux.client.ui.theme.LocalAppSpacing
 internal data class TopicSearchHit(val post: PostEntry, val snippet: String)
 
 @Composable
@@ -79,7 +80,15 @@ internal fun TopicSearchOverlay(
         shadowElevation = 12.dp,
         modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = LocalAppSpacing.current.contentGap,
+                    vertical = LocalAppSpacing.current.item,
+                ),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "关闭搜索") }
                 OutlinedTextField(

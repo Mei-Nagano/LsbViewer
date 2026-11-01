@@ -12,6 +12,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.community.ForumCount
 import sb.linux.client.domain.community.HotTopic
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @Composable
 internal fun DrawerTitle(text: String) {
@@ -26,7 +27,10 @@ internal fun SidebarStatsCard(stats: List<Pair<String, String>>) {
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(
+                horizontal = LocalAppSpacing.current.contentGap,
+                vertical = LocalAppSpacing.current.item,
+            ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         numeric.chunked(3).forEach { row ->
@@ -133,7 +137,12 @@ internal fun HotTopicRow(t: HotTopic, onOpenTopic: (Long) -> Unit, modifier: Mod
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier.padding(vertical = 2.dp),
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
+        Column(
+            Modifier.padding(
+                horizontal = LocalAppSpacing.current.contentGap,
+                vertical = LocalAppSpacing.current.item,
+            ),
+        ) {
             Text(
                 t.title, style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -166,7 +175,10 @@ internal fun ForumEntryRow(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(
+                    horizontal = LocalAppSpacing.current.contentGap,
+                    vertical = LocalAppSpacing.current.item,
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {

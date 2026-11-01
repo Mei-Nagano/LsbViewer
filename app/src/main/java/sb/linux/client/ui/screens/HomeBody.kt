@@ -136,10 +136,10 @@ internal fun HomeBody(
                                             },
                                             shape = MaterialTheme.shapes.large,
                                             color = MaterialTheme.colorScheme.primaryContainer,
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp),
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = LocalAppSpacing.current.item),
                                         ) {
                                             Row(
-                                                Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 11.dp),
+                                                Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = LocalAppSpacing.current.item),
                                                 verticalAlignment = Alignment.CenterVertically,
                                             ) {
                                                 Text(
@@ -172,7 +172,7 @@ internal fun HomeBody(
                                             Box(
                                                 Modifier
                                                     .fillMaxWidth()
-                                                    .padding(12.dp),
+                                                    .padding(LocalAppSpacing.current.contentGap),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 if (loadingMore) AppInlineLoading()

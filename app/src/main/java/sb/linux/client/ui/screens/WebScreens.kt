@@ -139,7 +139,7 @@ fun WebScreen(
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(12.dp),
+                    modifier = Modifier.align(Alignment.TopCenter).padding(LocalAppSpacing.current.contentGap),
                 ) {
                     Row(
                         Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),

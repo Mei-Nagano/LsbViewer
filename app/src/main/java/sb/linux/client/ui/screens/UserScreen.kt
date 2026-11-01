@@ -182,8 +182,8 @@ fun UserScreen(session: Session, nav: NavHostController) {
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(end = spacing.pageHorizontal, bottom = spacing.section),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                     ) {
                         Icon(Icons.Filled.KeyboardArrowUp, "回到顶部")
                     }

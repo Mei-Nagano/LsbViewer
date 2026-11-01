@@ -34,7 +34,7 @@ internal fun VirtualCardTopicFields(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            Modifier.padding(12.dp),
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
             verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             Text(
@@ -62,7 +62,7 @@ internal fun VirtualCardTopicFields(
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item)) {
                 OutlinedTextField(
                     value = cardPrice, onValueChange = onCardPriceChange,
                     label = { Text("兑换价格") },

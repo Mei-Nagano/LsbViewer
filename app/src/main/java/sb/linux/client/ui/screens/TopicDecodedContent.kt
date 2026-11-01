@@ -12,6 +12,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.LocalSmartDecode
+import sb.linux.client.ui.theme.LocalAppSpacing
 @Composable
 internal fun SmartDecodedContentPanel(html: String) {
 if (LocalSmartDecode.current) {
@@ -25,7 +26,12 @@ if (LocalSmartDecode.current) {
                         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                     ) {
-                        Column(Modifier.padding(10.dp)) {
+                        Column(
+                            Modifier.padding(
+                                horizontal = LocalAppSpacing.current.contentGap,
+                                vertical = LocalAppSpacing.current.item,
+                            )
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     "识别到 ${decoded.type}",

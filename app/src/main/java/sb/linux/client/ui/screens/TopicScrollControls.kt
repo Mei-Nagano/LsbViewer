@@ -108,7 +108,10 @@ internal fun BoxScope.TopicScrollControls(
                 onReturnPositionChange(listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset)
                 scope.launch { listState.animateScrollToItem(0) }
             },
-            modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
+            modifier = Modifier.padding(
+                end = LocalAppSpacing.current.pageHorizontal,
+                bottom = LocalAppSpacing.current.pageHorizontal,
+            ),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) { Icon(Icons.Filled.KeyboardArrowUp, "回到顶部") }
@@ -155,7 +158,7 @@ internal fun BoxScope.TopicScrollControls(
                 containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.95f),
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             ) {
-                Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.padding(horizontal = LocalAppSpacing.current.contentGap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.AutoMirrored.Filled.Chat, null, Modifier.size(15.dp))
                     Text("回到原位置", style = MaterialTheme.typography.labelMedium)
                 }

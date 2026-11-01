@@ -64,7 +64,7 @@ fun ThreadDialog(
                 loading -> Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(vertical = 20.dp)
+                    modifier = Modifier.padding(vertical = LocalAppSpacing.current.section)
                 ) {
                     AppInlineLoading(size = 16.dp)
                     Text("正在串联全部相关楼层…", style = MaterialTheme.typography.bodyMedium)
@@ -73,7 +73,7 @@ fun ThreadDialog(
                     error ?: "加载失败",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(vertical = 20.dp)
+                    modifier = Modifier.padding(vertical = LocalAppSpacing.current.section)
                 )
                 else -> {
                     Text(
@@ -121,19 +121,19 @@ private fun ThreadPostItem(
     onJumpFloor: ((Int) -> Unit)? = null,
 ) {
     if (post.userBlocked) {
-        BlockedPostPlaceholder(post, 28, Modifier.padding(vertical = 10.dp)) { onJumpFloor?.invoke(it) }
+        BlockedPostPlaceholder(post, 28, Modifier.padding(vertical = LocalAppSpacing.current.item)) { onJumpFloor?.invoke(it) }
         if (showDivider && !isCurrent) HorizontalDivider()
         return
     }
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp)
+            .padding(vertical = LocalAppSpacing.current.item)
             .then(
                 if (isCurrent) Modifier
                     .clip(MaterialTheme.shapes.large)
                     .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f))
-                    .padding(10.dp)
+                    .padding(LocalAppSpacing.current.contentGap)
                 else Modifier.padding(horizontal = 2.dp)
             )
     ) {

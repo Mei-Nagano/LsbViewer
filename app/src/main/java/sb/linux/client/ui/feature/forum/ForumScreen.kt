@@ -141,7 +141,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                         onClick = { scope.launch { listState.animateScrollToItem(0) } },
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 24.dp),
+                            .padding(end = LocalAppSpacing.current.pageHorizontal, bottom = LocalAppSpacing.current.section),
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
                         contentColor = MaterialTheme.colorScheme.onSurface,
                     ) {

@@ -141,7 +141,13 @@ internal fun TopicPollView(
             }
             essence?.takeIf { it.poolTitle.isNotBlank() || it.poolItems.isNotEmpty() }?.let { review ->
                 Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(
+                            horizontal = LocalAppSpacing.current.contentGap,
+                            vertical = LocalAppSpacing.current.item,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Paid, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
                             Spacer(Modifier.width(6.dp))
@@ -160,7 +166,7 @@ internal fun TopicPollView(
             ) {
                 Text(
                     panelNote,
-                    Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.contentGap, vertical = LocalAppSpacing.current.item),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

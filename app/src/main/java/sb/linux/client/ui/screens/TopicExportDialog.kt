@@ -96,7 +96,7 @@ fun ExportDialog(
                 Row {
                     TextButton(onClick = { selectedIds = posts.map { it.id }.toSet() }) { Text("全选") }
                     TextButton(onClick = { selectedIds = emptySet() }) { Text("清空") }
-                    Text("已选 ${selectedIds.size} 层", modifier = Modifier.padding(12.dp))
+                    Text("已选 ${selectedIds.size} 层", modifier = Modifier.padding(LocalAppSpacing.current.contentGap))
                 }
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
                     items(posts, key = { it.id }) { post ->

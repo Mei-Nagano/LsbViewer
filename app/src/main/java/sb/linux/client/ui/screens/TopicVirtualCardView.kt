@@ -39,11 +39,11 @@ fun VirtualCardView(vc: VirtualCard, loggedIn: Boolean, onBuy: () -> Unit) {
         else MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp)
+            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = LocalAppSpacing.current.item)
     ) {
         Column(
             Modifier.padding(LocalAppSpacing.current.pageHorizontal),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {

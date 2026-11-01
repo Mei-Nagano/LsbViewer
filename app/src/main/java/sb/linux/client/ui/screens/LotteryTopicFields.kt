@@ -37,7 +37,7 @@ internal fun LotteryTopicFields(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            Modifier.padding(12.dp),
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
             verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             Text(
@@ -90,8 +90,11 @@ internal fun LotteryTopicFields(
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     Column(
-                        Modifier.padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Modifier.padding(
+                            horizontal = LocalAppSpacing.current.contentGap,
+                            vertical = LocalAppSpacing.current.item,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             OutlinedTextField(
@@ -127,7 +130,7 @@ internal fun LotteryTopicFields(
                                 }
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item)) {
                             OutlinedTextField(
                                 value = p.quantity,
                                 onValueChange = { v ->

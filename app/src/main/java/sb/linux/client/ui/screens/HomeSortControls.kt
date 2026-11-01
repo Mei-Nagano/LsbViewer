@@ -129,7 +129,10 @@ internal fun ColumnScope.HomeSortControls(
                                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                                 color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                                                 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp)
+                                                modifier = Modifier.padding(
+                                                    horizontal = LocalAppSpacing.current.pageHorizontal,
+                                                    vertical = LocalAppSpacing.current.item,
+                                                )
                                             )
                                         }
                                     }

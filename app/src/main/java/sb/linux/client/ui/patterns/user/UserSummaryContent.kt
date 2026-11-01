@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.domain.account.UserSummary
 import sb.linux.client.domain.account.UserSummaryRepository
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @Composable
 internal fun UserSummaryContent(
@@ -44,8 +45,13 @@ internal fun UserSummaryContent(
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) { error = failure.message ?: "加载失败" }
     }
-    Column(Modifier.width(240.dp).padding(horizontal = 12.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        Modifier.width(240.dp).padding(
+            horizontal = LocalAppSpacing.current.pageHorizontal,
+            vertical = LocalAppSpacing.current.inline,
+        ),
+        verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item),
+    ) {
         val current = user
         if (current == null) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -79,7 +85,13 @@ internal fun UserSummaryContent(
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 shape = MaterialTheme.shapes.extraSmall,
             ) {
-                Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    Modifier.padding(
+                        horizontal = LocalAppSpacing.current.contentGap,
+                        vertical = LocalAppSpacing.current.item,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     current.stats.chunked(2).forEach { pair ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             pair.forEach { stat ->
