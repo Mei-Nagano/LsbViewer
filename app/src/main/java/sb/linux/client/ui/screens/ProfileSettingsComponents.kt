@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.profile.ProfileSettingsField
 import sb.linux.client.ui.patterns.user.Avatar
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 个人资料摘要卡：只负责展示用户头像和源站返回的优先信息。 */
 @Composable
@@ -36,10 +37,13 @@ internal fun ProfileHeaderCard(avatarUrl: String, username: String, info: List<P
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Avatar(avatarUrl, 64)
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(LocalAppSpacing.current.contentGap))
                 Column {
                     Text(username.ifBlank { "未命名" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }

@@ -66,7 +66,7 @@ fun ForumListScreen(session: Session, nav: NavHostController) {
                             Row(
                                 Modifier.padding(spacing.pageHorizontal),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(spacing.contentGap)
                             ) {
                                 Column(Modifier.weight(1f)) {
                                     Text(

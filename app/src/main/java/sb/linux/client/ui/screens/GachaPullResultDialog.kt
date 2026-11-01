@@ -53,7 +53,10 @@ internal fun GachaPullResultDialog(
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ) {
                             Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                Modifier.fillMaxWidth().padding(
+                                    horizontal = LocalAppSpacing.current.contentGap,
+                                    vertical = LocalAppSpacing.current.item,
+                                ),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {

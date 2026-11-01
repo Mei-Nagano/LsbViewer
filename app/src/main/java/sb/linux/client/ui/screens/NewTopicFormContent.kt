@@ -203,12 +203,12 @@ internal fun NewTopicFormContent(
                             "暂无内容，退出预览继续编辑",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(LocalAppSpacing.current.pageHorizontal)
                         )
                     } else {
                         sb.linux.client.ui.content.HtmlContent(
                             html = previewHtml,
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(LocalAppSpacing.current.pageHorizontal),
                             mergeImages = false,
                             // 每敲一个键都是全新 HTML，不写共享解析缓存（否则挤掉阅读中的楼层）
                             cacheable = false

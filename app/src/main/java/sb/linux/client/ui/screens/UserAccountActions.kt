@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 本人主页的设置与退出入口，封装确认弹窗和单双栏导航切换。 */
 @Composable
@@ -41,7 +42,10 @@ internal fun UserAccountActions(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(
+                horizontal = LocalAppSpacing.current.pageHorizontal,
+                vertical = LocalAppSpacing.current.inline,
+            ),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
@@ -50,7 +54,10 @@ internal fun UserAccountActions(
                 Modifier
                     .fillMaxWidth()
                     .clickable { nav.navigate("settings") }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(
+                        horizontal = LocalAppSpacing.current.pageHorizontal,
+                        vertical = LocalAppSpacing.current.contentGap,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.Settings, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
@@ -65,7 +72,10 @@ internal fun UserAccountActions(
                 Modifier
                     .fillMaxWidth()
                     .clickable { confirmLogout = true }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(
+                        horizontal = LocalAppSpacing.current.pageHorizontal,
+                        vertical = LocalAppSpacing.current.contentGap,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.AutoMirrored.Filled.Logout, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)

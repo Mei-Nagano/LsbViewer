@@ -26,9 +26,15 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
         shape = MaterialTheme.shapes.large,
         color = colors.surfaceContainerLow,
         border = BorderStroke(1.dp, colors.error.copy(alpha = 0.2f)),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(
+            horizontal = LocalAppSpacing.current.pageHorizontal,
+            vertical = LocalAppSpacing.current.item,
+        ),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Surface(shape = MaterialTheme.shapes.medium, color = colors.errorContainer) {
                     Icon(Icons.Default.CardGiftcard, contentDescription = null,

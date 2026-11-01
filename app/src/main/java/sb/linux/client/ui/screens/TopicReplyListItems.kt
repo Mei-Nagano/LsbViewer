@@ -59,7 +59,7 @@ internal fun LazyListScope.topicReplyListItems(
                     }
                 }
                 HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                 )
             }
@@ -121,7 +121,7 @@ internal fun LazyListScope.topicReplyListItems(
     item(key = "pagination-" + state.replyModeTick) {
         if (state.infinite) {
             if ((state.page.page ?: 1) < (state.page.totalPages ?: 1)) {
-                Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().padding(LocalAppSpacing.current.contentGap), contentAlignment = Alignment.Center) {
                     if (state.loadingMore) AppInlineLoading()
                     else TextButton(onClick = actions.onLoadMore) { Text("加载更多") }
                 }
