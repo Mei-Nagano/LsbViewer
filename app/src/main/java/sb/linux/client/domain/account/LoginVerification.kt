@@ -21,6 +21,8 @@ sealed interface LoginVerification {
         val fieldName: String = "cap-token",
         val widgetScript: String = "",
         val wasmDataUrl: String = "",
+        /** 源站用 ES module 加载组件脚本时，内联脚本也必须按模块执行。 */
+        val scriptModule: Boolean = false,
     ) : LoginVerification
 }
 

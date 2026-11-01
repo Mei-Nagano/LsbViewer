@@ -22,15 +22,28 @@ internal class LsbAuthenticationClient(
         // 登录页同样被访问盾/CF 保护：先触发一次验证，避免登录页 302 到挑战页
         get("/")
         val page = get("/login")
-        // 已登录时源站把 /login 302 到首页（最终 URL 不再含 /login），无验证码组件可解析：
-        // 给出明确提示而非笼统的"解析失败"（访客页也有 .user-name"访客"，不能用作登录态判定）
-        if (!page.url.contains("/login")) {
-            throw LsbException("已是登录状态，无需重复登录（请先退出登录）")
+        val parsed = LoginVerificationParser.parse(page.html, page.url)
+            ?: throw LsbException(
+                // 已登录时源站把 /login 302 到首页（最终 URL 不再含 /login），无验证码组件可解析：
+                // 给出明确提示而非笼统的"解析失败"（访客页也有 .user-name"访客"，不能用作登录态判定）
+                if (!page.url.contains("/login")) "已是登录状态，无需重复登录（请先退出登录）"
+                else "未找到受支持的人机验证组件"
+            )
+        val verification = if (parsed is sb.linux.client.domain.account.LoginVerification.Cap) {
+            CapVerificationAssets.load(http, parsed)
+        } else {
+            parsed
         }
-        val verification = LoginVerificationParser.parse(page.html, page.url)
-            ?: throw LsbException("未找到受支持的人机验证组件")
-        if (verification is sb.linux.client.domain.account.LoginVerification.Cap) {
-            CapVerificationAssets.load(http, verification)
+        // 登录页偶尔不给 _csrf（例如页面由组件渲染）：提交前回退到会话现取的令牌，
+        // 不能因此丢掉整个验证码组件。
+        if (verification.csrf.isBlank()) {
+            val token = runCatching { csrf() }.getOrDefault("")
+            when (verification) {
+                is sb.linux.client.domain.account.LoginVerification.Native ->
+                    verification.copy(csrf = token)
+                is sb.linux.client.domain.account.LoginVerification.Cap ->
+                    verification.copy(csrf = token)
+            }
         } else {
             verification
         }

@@ -19,7 +19,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Density
 import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 
@@ -130,19 +132,28 @@ fun LsbTheme(
         surfaceContainerHigh = finalScheme.surfaceContainerHigh.copy(alpha = surfaceOpacity),
         surfaceContainerHighest = finalScheme.surfaceContainerHighest.copy(alpha = surfaceOpacity),
     )
+    // 应用字号因子下沉到 LocalDensity（Density.fontScale）：
+    // - 所有 sp 文本（MaterialTheme 字阶、阅读字阶、页面中固定 sp 如列表缩进/行高）统一缩放；
+    // - dp 尺寸不受影响；系统字号缩放继续叠加，不再由字阶各自乘一次。
+    val baseDensity = LocalDensity.current
+    val appFontScale = fontScale.coerceIn(0.85f, 1.30f)
+    val contentDensity = remember(baseDensity, appFontScale) {
+        Density(baseDensity.density, baseDensity.fontScale * appFontScale)
+    }
     MaterialTheme(
         colorScheme = surfaces,
-        typography = appTypography(fontFamily, fontScale, fontWeightLevel),
+        typography = appTypography(fontFamily, fontWeightLevel),
         shapes = AppShapes,
     ) {
         // 表面层次来自角色明度；Surface 的色调海拔不再用主色给中性面板叠色。
         // 命名间距、尺寸与阅读字阶由根部统一注入，页面只读角色，不自建页面级常量。
         val appSpacing = remember { AppSpacing() }
         val appSizes = remember { AppSizes() }
-        val readingType = remember(fontFamily, fontScale, fontWeightLevel) {
-            appReadingType(fontFamily, fontScale, fontWeightLevel)
+        val readingType = remember(fontFamily, fontWeightLevel) {
+            appReadingType(fontFamily, fontWeightLevel)
         }
         CompositionLocalProvider(
+            LocalDensity provides contentDensity,
             LocalTonalElevationEnabled provides false,
             LocalSurfaceOpacity provides if (wallpaper == null) 1f else surfaceOpacity,
             LocalAppSpacing provides appSpacing,

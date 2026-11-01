@@ -33,11 +33,18 @@ internal fun sb.linux.client.domain.account.LoginVerification.Cap.widgetHtml(): 
     val scriptAttr = scriptUrl.escapeHtmlAttribute()
     val fieldAttr = fieldName.escapeHtmlAttribute()
     val fieldJs = org.json.JSONObject.quote(fieldName)
+    val scriptUrlJs = org.json.JSONObject.quote(scriptUrl)
+    val moduleJs = if (scriptModule) "true" else "false"
     val wasmJs = org.json.JSONObject.quote(wasmDataUrl.ifBlank { wasmUrl })
-    val componentScript = if (widgetScript.isNotBlank()) {
-        "<script>${widgetScript.escapeInlineScript()}</script>"
-    } else {
-        "<script type=\"module\" src=\"$scriptAttr\"></script>"
+    val componentScript = when {
+        // 先以内联方式执行（同源，不受跨域模块脚本的 CORS 限制）；
+        // 源站用 ES module 时内联也必须声明 type=module，否则会语法错误。
+        widgetScript.isNotBlank() ->
+            "<script${if (scriptModule) " type=\"module\"" else ""}>${widgetScript.escapeInlineScript()}</script>"
+        // 本地脚本拿不到时直接按源站的加载方式补上，组件仍有机会显示。
+        scriptUrl.isNotBlank() ->
+            "<script${if (scriptModule) " type=\"module\"" else ""} src=\"$scriptAttr\"></script>"
+        else -> ""
     }
     return """
         <!doctype html><html><head><meta charset="utf-8">
@@ -159,8 +166,35 @@ internal fun sb.linux.client.domain.account.LoginVerification.Cap.widgetHtml(): 
             const message=window.__lsbCapLastFailure||source;
             location.href='lsbcap://error?message='+encodeURIComponent(message);
           });
+          // 首轮加载失败（模块语法被拒、资源下载失败等）时，按相反的脚本类型
+          // 从源站补加载一次，再退回模块方式；模块依赖按脚本自身地址解析。
+          const addScript=(module)=>{
+            if(!$scriptUrlJs)return;
+            const script=document.createElement('script');
+            script.src=$scriptUrlJs;
+            if(module)script.type='module';
+            script.onerror=()=>{window.__lsbCapLastFailure=window.__lsbCapLastFailure||'验证码组件下载失败'};
+            document.head.appendChild(script);
+          };
+          const retryScript=()=>{
+            if(customElements.get('cap-widget'))return;
+            const stage=window.__lsbCapRetryStage||0;
+            if(stage>=2)return;
+            window.__lsbCapRetryStage=stage+1;
+            addScript(stage===0?!$moduleJs:true);
+          };
+          setTimeout(retryScript,1500);
+          setTimeout(retryScript,5000);
           setInterval(()=>{const input=document.querySelector('input[name='+$fieldJs+']');if(input)done(input.value)},400);
-          setTimeout(()=>{if(!customElements.get('cap-widget'))location.href='lsbcap://error?message='+encodeURIComponent('验证码组件加载超时')},12000);
+          // 组件注册成功却没有任何可见高度时也要上报：否则用户只会看到一块空白。
+          setTimeout(()=>{
+            if(!customElements.get('cap-widget')){
+              location.href='lsbcap://error?message='+encodeURIComponent(window.__lsbCapLastFailure||'验证码组件加载超时');
+              return;
+            }
+            if(cap&&cap.getBoundingClientRect().height<8)
+              location.href='lsbcap://error?message='+encodeURIComponent('验证码组件未渲染，请重新加载');
+          },12000);
         })();
         </script></body></html>
     """.trimIndent()

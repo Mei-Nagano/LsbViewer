@@ -53,8 +53,10 @@ internal fun CapVerificationWidget(
         if (prepared != null) return@LaunchedEffect
         try {
             prepared = gateway.prepare(verification)
-        } catch (error: Exception) {
-            latestError(error.message ?: "验证码资源加载失败")
+        } catch (_: Exception) {
+            // 本地资源准备失败时仍然交给组件页直接加载源站脚本，
+            // 否则验证码区域会变成一块空白，用户看不到任何可操作内容。
+            prepared = verification
         } finally {
             preparing = false
         }
