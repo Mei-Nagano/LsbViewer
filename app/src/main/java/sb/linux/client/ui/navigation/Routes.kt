@@ -116,11 +116,8 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
     settingsComposable("settings") { SettingsScreen(session, nav) }
     settingsComposable("generalSettings") { GeneralSettingsScreen(session, nav) }
     settingsComposable("networkSettings") { NetworkSettingsScreen(session, nav) }
-    settingsComposable("dohSettings") { DohSettingsScreen(session, nav) }
     settingsComposable("browseSettings") { BrowseSettingsScreen(session, nav) }
-    settingsComposable("dataManagement") { DataManagementScreen(session, nav) }
     settingsComposable("aiSettings") { AiSettingsScreen(session, nav) }
-    settingsComposable("transferSettings") { TransferSettingsScreen(session, nav) }
     settingsComposable("themeSettings") { ThemeSettingsScreen(session, nav) }
     settingsComposable("exportedTopics") { ExportedTopicsScreen(session, nav) }
     composable(

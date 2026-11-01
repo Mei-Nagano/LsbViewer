@@ -75,7 +75,6 @@ item {
                 Slider(value = session.surfaceOpacity, onValueChange = session.preferences::saveSurfaceOpacity, valueRange = 0.2f..1f)
             }
         }
-        HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         SwitchRow(
             "禁止页面染色（兼容旧版）",
             "新默认使用带轻微色调的 MD3 表面；开启后页面底色、普通卡片和弹窗保持中性色，按钮、选中状态、标签和高亮完整保留强调色。手动自定义背景不受影响",

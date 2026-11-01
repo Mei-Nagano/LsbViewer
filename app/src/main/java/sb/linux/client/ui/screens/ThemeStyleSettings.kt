@@ -64,7 +64,6 @@ item {
                 session.preferences.saveTheme(session.themeMode, on, if (on) "default" else session.themeColorKey)
             }
         )
-        HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         SwitchRow(
             "OLED 纯黑",
             "深色模式下使用纯黑背景",

@@ -3,9 +3,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -86,13 +83,8 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
                     Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) { Text("保存代理设置") }
                 }
             }
-            GroupCard {
-                SettingMenuRow(
-                    "DNS over HTTPS",
-                    "启用状态 · 默认与自定义服务器 · VPN 旁路 · 查询测速",
-                    Icons.Filled.Dns,
-                ) { nav.navigate("dohSettings") }
-            }
+            GroupLabel("DNS over HTTPS")
+            DohSettingsContent(session)
             GroupLabel("链接")
             LinkSettingsContent(session)
             SettingsResetRow("重置网络设置", onConfirm = viewModel::reset)

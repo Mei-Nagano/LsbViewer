@@ -3,20 +3,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.feature.backup.WebDavBackupViewModel
@@ -26,9 +18,14 @@ import sb.linux.client.ui.feature.backup.BackupSettingsViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
 import sb.linux.client.ui.theme.LocalAppSpacing
 
+/** 备份内容：并入「存储与备份」二级页展示；`cloud` 决定显示本地导入导出还是 WebDAV 配置。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransferSettingsScreen(session: Session, nav: NavHostController, cloud: Boolean = false) {
+internal fun TransferSettingsContent(
+    session: Session,
+    cloud: Boolean = false,
+    showItems: Boolean = true,
+) {
     val context = LocalContext.current
     val settingsFactory = remember(session.backupSettingsRepository) {
         BackupSettingsViewModelFactory(session.backupSettingsRepository)
@@ -49,6 +46,7 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController, cloud: Bool
 
     var davBusy by remember { mutableStateOf(false) }
     var davPassVisible by remember { mutableStateOf(false) }
+    val spacing = LocalAppSpacing.current
 
     val exportJsonLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -112,78 +110,77 @@ fun TransferSettingsScreen(session: Session, nav: NavHostController, cloud: Bool
         }
     }
 
-    SettingsPage(if (cloud) "WebDAV 云备份" else "本地备份", nav) {
-
-
-            GroupCard {
-                Text(
-                    "选择要写入 JSON 和 WebDAV 的内容。导入时只恢复文件中存在的项目，未备份的本地数据不受影响。自定义字体文件本体不随备份迁移。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)
-                )
-                val backupOptions = listOf(
-                    "settings" to "应用设置",
-                    "history" to "浏览历史与阅读位置",
-                    "favorites" to "帖子与评论收藏",
-                    "ai" to "AI 配置、总结历史与总结收藏",
-                    "cards" to "发卡兑换记录",
-                )
-                backupOptions.forEach { (key, label) ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable {
-                            settingsViewModel.setItemEnabled(key, key !in backupItems)
-                        }.padding(horizontal = 10.dp, vertical = 1.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = key in backupItems,
-                            onCheckedChange = { checked -> settingsViewModel.setItemEnabled(key, checked) },
-                        )
-                        Text(label, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                if (!cloud) Row(
-                    Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
+        if (showItems) {
+        GroupCard {
+            Text(
+                "选择要写入 JSON 和 WebDAV 的内容。导入时只恢复文件中存在的项目，未备份的本地数据不受影响。自定义字体文件本体不随备份迁移。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)
+            )
+            val backupOptions = listOf(
+                "settings" to "应用设置",
+                "history" to "浏览历史与阅读位置",
+                "favorites" to "帖子与评论收藏",
+                "ai" to "AI 配置、总结历史与总结收藏",
+                "cards" to "发卡兑换记录",
+            )
+            backupOptions.forEach { (key, label) ->
+                Row(
+                    Modifier.fillMaxWidth().clickable {
+                        settingsViewModel.setItemEnabled(key, key !in backupItems)
+                    }.padding(horizontal = 10.dp, vertical = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Button(
-                        onClick = {
-                            // 导出文件名带当前日期时间（3.3）
-                            val now = java.text.SimpleDateFormat(
-                                "yyyyMMdd_HHmmss", java.util.Locale.getDefault()
-                            ).format(java.util.Date())
-                            exportJsonLauncher.launch("lsb_settings_$now.json")
-                        },
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.weight(1f)
-                    ) { Text("导出设置") }
-                    Button(
-                        onClick = {
-                            importLauncher.launch(arrayOf("application/json", "text/plain", "text/*", "application/octet-stream"))
-                        },
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.weight(1f)
-                    ) { Text("导入设置") }
+                    Checkbox(
+                        checked = key in backupItems,
+                        onCheckedChange = { checked -> settingsViewModel.setItemEnabled(key, checked) },
+                    )
+                    Text(label, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+            if (!cloud) Row(
+                Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
+            ) {
+                Button(
+                    onClick = {
+                        // 导出文件名带当前日期时间（3.3）
+                        val now = java.text.SimpleDateFormat(
+                            "yyyyMMdd_HHmmss", java.util.Locale.getDefault()
+                        ).format(java.util.Date())
+                        exportJsonLauncher.launch("lsb_settings_$now.json")
+                    },
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.weight(1f)
+                ) { Text("导出设置") }
+                Button(
+                    onClick = {
+                        importLauncher.launch(arrayOf("application/json", "text/plain", "text/*", "application/octet-stream"))
+                    },
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.weight(1f)
+                ) { Text("导入设置") }
+            }
+        }
+        }
 
-            if (cloud) WebDavBackupCard(
-                url = davUrl,
-                onUrlChange = settingsViewModel::setWebDavUrl,
-                username = davUser,
-                onUsernameChange = settingsViewModel::setWebDavUsername,
-                password = davPass,
-                onPasswordChange = settingsViewModel::setWebDavPassword,
-                passwordVisible = davPassVisible,
-                onPasswordVisibleChange = { davPassVisible = it },
-                directory = davDir,
-                onDirectoryChange = settingsViewModel::setWebDavDirectory,
-                busy = davBusy,
-                onBackup = ::davBackup,
-                onRestore = ::davRestore,
-            )
-            Spacer(Modifier.height(12.dp))
+        if (cloud) WebDavBackupCard(
+            url = davUrl,
+            onUrlChange = settingsViewModel::setWebDavUrl,
+            username = davUser,
+            onUsernameChange = settingsViewModel::setWebDavUsername,
+            password = davPass,
+            onPasswordChange = settingsViewModel::setWebDavPassword,
+            passwordVisible = davPassVisible,
+            onPasswordVisibleChange = { davPassVisible = it },
+            directory = davDir,
+            onDirectoryChange = settingsViewModel::setWebDavDirectory,
+            busy = davBusy,
+            onBackup = ::davBackup,
+            onRestore = ::davRestore,
+        )
     }
 }
 

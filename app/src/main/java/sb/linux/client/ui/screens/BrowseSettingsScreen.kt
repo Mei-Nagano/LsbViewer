@@ -43,7 +43,6 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                 }
                 // 翻页相关设置：仅当存在翻页分类时展示（3.14）
                 if (anyPaged) {
-                    HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)) {
                         OutlinedTextField(
                             value = topicsText,
@@ -140,7 +139,8 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = viewModel::setUnfavoriteConfirm
                 )
             }
-            SettingMenuRow("屏蔽规则", "关键词 · 用户 · 板块") { nav.navigate("blockWords") }
+            GroupLabel("屏蔽规则")
+            BlockWordsContent(session, nav)
             SettingsResetRow("重置阅读与交互设置", onConfirm = viewModel::reset)
     }
 }

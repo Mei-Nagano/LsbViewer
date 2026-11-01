@@ -38,7 +38,7 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
     val state = settingsViewModel.state
     val aiSettings = state.settings
     val saved = session.aiConfigurationRepository.current()
-    val exit = rememberSettingsExit(section == "configuration" &&
+    val exit = rememberSettingsExit(section != "history" &&
         (aiSettings != saved || state.temperatureText != saved.temperature.toString())) { nav.popBackStack() }
     LaunchedEffect(state.feedback) {
         state.feedback?.let {
@@ -85,13 +85,13 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
     }
 
     SettingsPage(
-        when (section) { "history" -> "AI 总结历史"; "configuration" -> "AI 接口与方案"; else -> "AI 助手" },
+        if (section == "history") "AI 总结历史" else "AI 助手",
         nav,
         onBack = exit,
     ) {
 
 
-            if (section == "configuration") GroupCard {
+            if (section != "history") GroupCard {
                 Text(
                     "AI 配置方案",
                     style = MaterialTheme.typography.titleSmall,
@@ -136,7 +136,6 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
 
             }
 
-            if (section == "behavior") SettingMenuRow("接口与配置方案", "API 地址 · 模型 · 提示词 · 预设") { nav.navigate("aiConfiguration") }
             if (section != "history") AiSettingsForm(
                 aiEnabled = aiSettings.enabled,
                 onAiEnabledChange = {
@@ -173,7 +172,37 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
                 aiPrompt = aiSettings.prompt,
                 onAiPromptChange = { value -> settingsViewModel.updateSettings { it.copy(prompt = value) } },
                 onSave = settingsViewModel::saveSettings,
-                configuration = section == "configuration",
+                // 原「接口与配置方案」三级页并入本页：摘要开关与接口配置一起展示
+                configuration = false,
+            )
+            if (section != "history") AiSettingsForm(
+                aiEnabled = aiSettings.enabled,
+                onAiEnabledChange = {},
+                aiAutoRun = aiSettings.autoRun,
+                onAiAutoRunChange = {},
+                aiIncludeComments = aiSettings.includeComments,
+                onAiIncludeCommentsChange = {},
+                aiUrl = aiSettings.apiUrl,
+                onAiUrlChange = { value -> settingsViewModel.updateSettings { it.copy(apiUrl = value) } },
+                aiKey = aiSettings.apiKey,
+                onAiKeyChange = { value -> settingsViewModel.updateSettings { it.copy(apiKey = value) } },
+                aiModel = aiSettings.model,
+                onAiModelChange = { value -> settingsViewModel.updateSettings { it.copy(model = value) } },
+                modelOptions = state.modelOptions,
+                modelMenuOpen = state.modelMenuOpen,
+                onModelMenuOpenChange = settingsViewModel::setModelMenuOpen,
+                modelBusy = state.modelBusy,
+                onFetchModels = settingsViewModel::fetchModels,
+                aiTemp = state.temperatureText,
+                onAiTempChange = {
+                    if (it.length <= 4 && (it.isEmpty() || it.matches(Regex("""\d*\.?\d*""")))) {
+                        settingsViewModel.setTemperatureText(it)
+                    }
+                },
+                aiPrompt = aiSettings.prompt,
+                onAiPromptChange = { value -> settingsViewModel.updateSettings { it.copy(prompt = value) } },
+                onSave = settingsViewModel::saveSettings,
+                configuration = true,
             )
             if (section == "history") {
             SwitchRow("仅看收藏的总结", "历史保留每次总结结果，不再覆盖同帖旧记录", checked = favoriteOnly, onCheckedChange = { favoriteOnly = it })
@@ -186,7 +215,7 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
             if (summaryHistory.isNotEmpty()) {
                 GroupLabel("总结历史")
                 GroupCard {
-                    summaryHistory.take(historyLimit).forEachIndexed { index, record ->
+                    summaryHistory.take(historyLimit).forEach { record ->
                         ListItem(
                             headlineContent = { Text(record.title.ifBlank { "帖子 #${record.topicId}" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             supportingContent = { Text(record.summary.replace("\n", " "), maxLines = 2, overflow = TextOverflow.Ellipsis) },
@@ -197,7 +226,6 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
                             },
                             modifier = Modifier.clickable { selectedSummary = record },
                         )
-                        if (index < summaryHistory.take(historyLimit).lastIndex) HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal))
                     }
                 }
                 if (summaryHistory.size > historyLimit) TextButton(onClick = { historyLimit += 30 }) { Text("显示更多总结") }

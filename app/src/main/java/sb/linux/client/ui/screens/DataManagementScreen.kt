@@ -1,25 +1,25 @@
 package sb.linux.client.ui.screens
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.feature.settings.DataManagementViewModel
 import sb.linux.client.ui.feature.settings.DataManagementViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.theme.LocalAppSpacing
 
+/** 数据清理内容：并入「存储与备份」二级页展示，不再单独成页。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DataManagementScreen(session: Session, nav: NavHostController, automatic: Boolean = false) {
+internal fun DataManagementContent(
+    session: Session,
+    automatic: Boolean,
+    showAnalysis: Boolean = true,
+) {
     val factory = remember(session.dataManagementRepository) {
         DataManagementViewModelFactory(session.dataManagementRepository)
     }
@@ -42,6 +42,7 @@ fun DataManagementScreen(session: Session, nav: NavHostController, automatic: Bo
     var selected by remember { mutableStateOf(emptySet<String>()) }
     var confirmClear by remember { mutableStateOf(false) }
     var cacheRevision by remember { mutableIntStateOf(0) }
+    val spacing = LocalAppSpacing.current
 
     if (confirmClear) sb.linux.client.ui.components.feedback.AppConfirmDialog(
         title = "清理所选数据",
@@ -59,17 +60,19 @@ fun DataManagementScreen(session: Session, nav: NavHostController, automatic: Bo
         confirmText = "清理", dismissText = "取消",
     )
 
-    SettingsPage(if (automatic) "退出时自动清理" else "立即清理", nav) {
-            if (!automatic) {
-            GroupLabel("空间占用")
-            GroupCard {
-                Column(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp)) {
-                    CacheAnalysisCard(session, cacheRevision)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
+        if (!automatic) {
+            if (showAnalysis) {
+                GroupLabel("空间占用")
+                GroupCard {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp)) {
+                        CacheAnalysisCard(session, cacheRevision)
+                    }
                 }
             }
             GroupLabel("立即清理")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                options.forEachIndexed { index, (key, labels) ->
+                options.forEach { (key, labels) ->
                     val checked = key in selected
                     ListItem(
                         headlineContent = { Text(labels.first) },
@@ -86,22 +89,23 @@ fun DataManagementScreen(session: Session, nav: NavHostController, automatic: Bo
                 onClick = { confirmClear = true }, enabled = selected.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("清理所选项") }
-
-            }
-            if (automatic) GroupCard("退出时自动清理") {
-                Text(
-                    "正常退出时清理所选项目；系统强制结束进程时，会在下次启动补做。所选历史或 AI 配置会永久删除，请谨慎开启；账号登录不受影响。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
+        }
+        if (automatic) {
+        GroupCard("退出时自动清理") {
+            Text(
+                "正常退出时清理所选项目；系统强制结束进程时，会在下次启动补做。所选历史或 AI 配置会永久删除，请谨慎开启；账号登录不受影响。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
+            )
+            options.forEach { (key, labels) ->
+                SwitchRow(
+                    labels.first, labels.second,
+                    checked = key in autoClear,
+                    onCheckedChange = { enabled -> viewModel.setAutoClearEnabled(key, enabled) },
                 )
-                options.forEach { (key, labels) ->
-                    SwitchRow(
-                        labels.first, labels.second,
-                        checked = key in autoClear,
-                        onCheckedChange = { enabled -> viewModel.setAutoClearEnabled(key, enabled) },
-                    )
-                }
             }
+        }
+        }
     }
 }

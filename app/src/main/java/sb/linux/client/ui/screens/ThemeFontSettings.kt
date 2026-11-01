@@ -66,7 +66,6 @@ item {
                 )
             }
         }
-        HorizontalDivider(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp))
         Row(
             Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal),
             verticalAlignment = Alignment.CenterVertically,

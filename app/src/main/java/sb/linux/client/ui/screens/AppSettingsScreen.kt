@@ -1,12 +1,14 @@
 package sb.linux.client.ui.screens
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
@@ -20,24 +22,63 @@ import sb.linux.client.ui.theme.LocalAppSpacing
 fun AppSettingsScreen(session: Session, nav: NavHostController) {
     var query by rememberSaveable { mutableStateOf("") }
     val master = LocalMasterNav.current
+    val spacing = LocalAppSpacing.current
     SettingsPage("设置", nav, onBack = { (master ?: nav).popBackStack() }) {
-        OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true,
-            placeholder = { Text("搜索设置") }, modifier = Modifier.fillMaxWidth())
-        if (query.isBlank()) {
-            SettingsCategories.forEach { (title, summary, route) ->
-                SettingMenuRow(title, summary) { nav.navigate(route) }
+        // 顶部搜索框：圆角胶囊，比整栏略窄
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier
+                .fillMaxWidth(0.88f)
+                .height(44.dp)
+                .align(Alignment.CenterHorizontally),
+        ) {
+            Row(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Search, null, Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Box(Modifier.weight(1f)) {
+                    if (query.isEmpty()) Text(
+                        "搜索设置",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
-            HorizontalDivider()
-            SettingMenuRow("我的内容", "浏览历史 · 收藏 · 总结 · 兑换记录 · 导出 · 统计") { nav.navigate("myContent") }
+        }
+        if (query.isBlank()) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.item)) {
+                SettingsCategories.forEach { (title, summary, route) ->
+                    SettingMenuRow(title, summary) { nav.navigate(route) }
+                }
+                SettingMenuRow("我的内容", "浏览历史 · 收藏 · 总结 · 兑换记录 · 导出 · 统计") { nav.navigate("myContent") }
+            }
         } else {
             val results = SettingsSearchIndex.search(query)
             if (results.isEmpty()) Text(
                 "没有找到相关设置",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = LocalAppSpacing.current.item),
+                modifier = Modifier.padding(vertical = spacing.item),
             )
-            results.forEach { SettingMenuRow(it.title, it.category) { nav.navigate(it.route) } }
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.item)) {
+                results.forEach { SettingMenuRow(it.title, it.category) { nav.navigate(it.route) } }
+            }
         }
     }
 }
