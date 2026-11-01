@@ -16,6 +16,7 @@ import sb.linux.client.domain.topic.TitleBadge
 import sb.linux.client.ui.common.content.htmlTextLength
 import sb.linux.client.ui.content.HtmlContent
 import sb.linux.client.ui.TitleBadgeView
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** Shared visual model; callers supply source data and their own navigation. */
 data class UserInfoCardData(
@@ -36,7 +37,7 @@ fun UserInfoCard(
     compact: Boolean = false,
     onProfile: (() -> Unit)? = null,
 ) {
-    val padding = if (compact) 14.dp else 18.dp
+    val padding = LocalAppSpacing.current.pageHorizontal
     val avatarSize = if (compact) 46 else 60
     Surface(
         modifier = modifier.fillMaxWidth(),

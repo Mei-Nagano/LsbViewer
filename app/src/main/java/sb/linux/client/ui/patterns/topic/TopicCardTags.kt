@@ -46,7 +46,7 @@ internal fun TopicCardTags(card: TopicCard, overrideColor: Color?) {
             val scheme = MaterialTheme.colorScheme
             Badge(
                 "+${distinct.size - visible.size}",
-                overrideColor ?: scheme.surfaceContainerHighest,
+                overrideColor ?: scheme.surfaceContainerHigh,
                 overrideColor?.let { onColorFor(it) } ?: scheme.onSurfaceVariant,
                 modifier = Modifier.clip(CircleShape).clickable { expanded = true },
             )
@@ -62,7 +62,7 @@ private fun TagBadge(label: String, overrideColor: Color?) {
         label == "热" || label.contains("发卡") -> scheme.tertiaryContainer
         label == "精华" -> scheme.secondaryContainer
         // 未读是阅读状态，不与其他业务标签共用同一种蓝底
-        label == "未读" -> scheme.surfaceContainerHighest
+        label == "未读" -> scheme.surfaceContainerHigh
         else -> scheme.primaryContainer
     }
     Badge(label, background, onColorFor(background))

@@ -39,7 +39,7 @@ fun VirtualCardView(vc: VirtualCard, loggedIn: Boolean, onBuy: () -> Unit) {
         else MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -47,7 +47,7 @@ fun VirtualCardView(vc: VirtualCard, loggedIn: Boolean, onBuy: () -> Unit) {
                     Text(vc.kicker, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
                     Text(vc.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
-                Badge(vc.status, MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+                Badge(vc.status, MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("${vc.priceText}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             if (vc.footText.isNotBlank()) {

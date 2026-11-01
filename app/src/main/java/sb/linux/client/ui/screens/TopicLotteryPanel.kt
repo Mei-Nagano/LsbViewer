@@ -45,13 +45,16 @@ fun LotteryPanelView(
     var expanded by remember(lp) { mutableStateOf(!drawn || selfWon) }
     Surface(
         shape = MaterialTheme.shapes.large,
-        color = if (drawn) MaterialTheme.colorScheme.surfaceContainerHighest
+        color = if (drawn) MaterialTheme.colorScheme.surfaceContainerLow
         else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Column(
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("抽奖帖", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

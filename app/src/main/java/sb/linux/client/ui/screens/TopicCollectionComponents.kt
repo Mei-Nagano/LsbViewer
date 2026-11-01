@@ -59,8 +59,10 @@ internal fun CollectionOptionRow(
         onClick = onToggle,
         enabled = enabled,
         shape = MaterialTheme.shapes.medium,
-        color = if (option.included) MaterialTheme.colorScheme.secondaryContainer
+        color = if (option.included) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (option.included) MaterialTheme.colorScheme.onPrimaryContainer
+        else MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(

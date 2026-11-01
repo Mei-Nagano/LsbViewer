@@ -37,6 +37,7 @@ internal fun NewTopicFormContent(
     onInsert: (String, String, String) -> Unit,
     onUploadImage: () -> Unit,
 ) {
+        val spacing = LocalAppSpacing.current
         if (form.loading) {
             sb.linux.client.ui.components.feedback.LoadingBox()
             return
@@ -44,8 +45,8 @@ internal fun NewTopicFormContent(
         if (fullScreenEditor) {
             Column(
                 Modifier.padding(pad).fillMaxSize().imePadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = spacing.pageHorizontal, vertical = spacing.item),
+                verticalArrangement = Arrangement.spacedBy(spacing.item),
             ) {
                 sb.linux.client.ui.content.MarkdownEditorTools(
                     onInsert = { b, a, p -> onInsert(b, a, p) },
@@ -69,8 +70,8 @@ internal fun NewTopicFormContent(
                 .fillMaxSize()
                 .imePadding()
                 .verticalScroll(pageScrollState)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(spacing.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(spacing.contentGap)
         ) {
             if (!session.account.loginState.loggedIn) {
                 Surface(

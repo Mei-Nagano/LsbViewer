@@ -197,7 +197,7 @@ private fun DismissibleHistory(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 5.dp)
+                    .padding(horizontal = spacing.pageHorizontal, vertical = 5.dp)
                     .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.large),
                 contentAlignment = Alignment.CenterEnd,
             ) {

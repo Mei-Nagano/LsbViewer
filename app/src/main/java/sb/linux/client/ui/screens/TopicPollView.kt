@@ -102,7 +102,7 @@ internal fun TopicPollView(
                 Surface(
                     shape = CircleShape,
                     color = if (essence?.status in setOf("voting", "featured", "pending_approval") || (vote != null && !vote.closed && vote.unavailableReason.isBlank()))
-                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     Text(
                         essence?.statusLabel?.ifBlank { null }
@@ -118,7 +118,7 @@ internal fun TopicPollView(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(
                         Modifier.weight(1f).height(10.dp).clip(CircleShape)
-                            .background(if (review.progress < 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHighest)
+                            .background(if (review.progress < 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
                         Box(
                             Modifier.fillMaxHeight()

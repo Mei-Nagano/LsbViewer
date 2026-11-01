@@ -42,10 +42,10 @@ internal fun LazyListScope.topicReplyListItems(
                             Text(
                                 label,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.clip(CircleShape)
-                                    .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                                    .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                                     .clickable { if (!selected) actions.onSortChange(index) }
                                     .padding(horizontal = 10.dp, vertical = 3.dp),
                             )

@@ -58,14 +58,14 @@ fun ForumScreen(session: Session, nav: NavHostController) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf("comment" to "新评论", "post" to "新帖子").forEach { (key, label) ->
                     val selected = state.sort == key
                     Surface(
                         shape = MaterialTheme.shapes.medium,
-                        color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                        color = if (selected) MaterialTheme.colorScheme.primaryContainer
                         else MaterialTheme.colorScheme.surfaceContainerHigh,
                         onClick = {
                             if (state.sort != key) {
@@ -79,7 +79,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                             label,
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier

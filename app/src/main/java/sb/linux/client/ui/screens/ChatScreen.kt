@@ -126,12 +126,12 @@ fun ChatScreen(session: Session, nav: NavHostController) {
         }
     ) { pad ->
         when {
-            partnerId <= 0 -> Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) { Text("无效的会话") }
+            partnerId <= 0 -> EmptyBox("无效的会话", "请返回消息列表重新选择联系人", Modifier.padding(pad))
             state.loading && state.messages.isEmpty() -> LoadingBox(Modifier.padding(pad))
             state.syncError != null && state.messages.isEmpty() -> ErrorBox(state.syncError!!, Modifier.padding(pad)) { viewModel.sync() }
             state.messages.isEmpty() -> EmptyBox(
                 "还没有消息", "在这里发送第一条，或对方发来私信后，往来消息会显示在此",
-                Modifier.padding(pad).padding(AppStateDefaults.pagePadding),
+                Modifier.padding(pad),
             )
             else -> LazyColumn(
                 Modifier.padding(pad).fillMaxSize(),

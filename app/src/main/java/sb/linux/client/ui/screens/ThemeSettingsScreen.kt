@@ -165,7 +165,7 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController, section: Strin
                 .padding(pad)
                 .fillMaxSize(),
             contentPadding = PaddingValues(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(spacing.contentGap)
         ) {
 
             if (section == "overview") item {

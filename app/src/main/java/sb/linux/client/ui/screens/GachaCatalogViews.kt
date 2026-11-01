@@ -88,7 +88,7 @@ internal fun GachaTitleGroups(titles: List<TitleBadge>) {
                     }
                     if (open) {
                         FlowRow(
-                            Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                            Modifier.fillMaxWidth().padding(LocalAppSpacing.current.pageHorizontal),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {

@@ -110,7 +110,10 @@ private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit)
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
-            Modifier.padding(start = 14.dp, top = 13.dp, end = 10.dp, bottom = 12.dp),
+            Modifier.padding(
+                horizontal = LocalAppSpacing.current.pageHorizontal,
+                vertical = LocalAppSpacing.current.contentGap,
+            ),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

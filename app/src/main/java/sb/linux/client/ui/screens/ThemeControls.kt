@@ -34,12 +34,12 @@ internal fun DayNightToggle(mode: ThemeModePref, onSelect: (ThemeModePref) -> Un
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items.forEach { (m, icon, label) ->
             val selected = mode == m
-            val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
+            val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
             val fg = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             Row(
                 Modifier
@@ -149,7 +149,7 @@ internal fun FontSwatch(
                 .size(48.dp)
                 .clip(MaterialTheme.shapes.large)
                 .border(borderWidth, borderColor, MaterialTheme.shapes.large)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick),
             contentAlignment = Alignment.Center
         ) {

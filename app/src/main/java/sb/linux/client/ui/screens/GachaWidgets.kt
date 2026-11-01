@@ -84,7 +84,7 @@ internal fun GachaStatCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -154,7 +154,7 @@ internal fun RarityPill(rarity: String) {
 /** 计数小胶囊：持有数量、剩余数量等次要数字。 */
 @Composable
 internal fun GachaCountPill(text: String) {
-    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Text(
             text,
             Modifier.padding(horizontal = 7.dp, vertical = 2.dp),

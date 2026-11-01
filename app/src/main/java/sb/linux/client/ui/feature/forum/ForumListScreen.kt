@@ -64,7 +64,7 @@ fun ForumListScreen(session: Session, nav: NavHostController) {
                                 .clickable { nav.navigate("forum/${f.id}") },
                         ) {
                             Row(
-                                Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                Modifier.padding(spacing.pageHorizontal),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {

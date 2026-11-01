@@ -130,7 +130,7 @@ internal fun CollectionDetailList(
             item {
                 Text("这个专辑还没有收录内容", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = spacing.pageHorizontal, vertical = 4.dp))
+                    modifier = Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.item))
             }
         }
         // 翻页：源站分页链接做成一行胶囊，不再竖排文字按钮
@@ -141,13 +141,13 @@ internal fun CollectionDetailList(
                         val current = href == path
                         Surface(
                             shape = CircleShape,
-                            color = if (current) MaterialTheme.colorScheme.secondaryContainer
+                            color = if (current) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.clip(CircleShape).clickable(enabled = !current && !loading) { onPath(href) },
                         ) {
                             Text(label, style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (current) FontWeight.Bold else FontWeight.Medium,
-                                color = if (current) MaterialTheme.colorScheme.onSecondaryContainer
+                                color = if (current) MaterialTheme.colorScheme.onPrimaryContainer
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
                         }

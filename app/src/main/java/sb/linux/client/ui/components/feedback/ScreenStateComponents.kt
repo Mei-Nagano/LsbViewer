@@ -93,7 +93,11 @@ fun ErrorBox(msg: String, modifier: Modifier = Modifier, onRetry: () -> Unit) {
 
 @Composable
 fun EmptyBox(text: String = "暂无内容", subtitle: String = "", modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .padding(AppStateDefaults.pagePadding), contentAlignment = Alignment.Center
+    ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(AppStateDefaults.infoSpacing)

@@ -54,6 +54,7 @@ import sb.linux.client.domain.community.CommentFavorite
 import sb.linux.client.domain.topic.TopicCard
 import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.patterns.topic.TopicCardView
+import sb.linux.client.ui.theme.AppSummaryDefaults
 import sb.linux.client.ui.theme.LocalAppSpacing
 
 @Composable
@@ -142,7 +143,7 @@ private fun DismissibleFavorite(onDismiss: () -> Unit, content: @Composable () -
             Box(
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 5.dp)
+                    .padding(AppSummaryDefaults.itemPadding)
                     .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.large),
                 contentAlignment = Alignment.CenterEnd,
             ) {

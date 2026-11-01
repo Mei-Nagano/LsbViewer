@@ -61,7 +61,8 @@ internal fun ReplyBar(
     onFavorite: () -> Unit,
     onPin: () -> Unit,
 ) {
-    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+    // 底栏容器统一走 surfaceContainer，与聊天输入栏、其它底栏保持同一种层次
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -120,35 +121,36 @@ private fun TopicBarAction(icon: ImageVector, label: String, active: Boolean, on
 /** 未登录评论区引导卡 */
 @Composable
 internal fun LoginPromptCard(count: Int, onLogin: () -> Unit) {
+    val spacing = LocalAppSpacing.current
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = spacing.pageHorizontal, vertical = spacing.contentGap)
     ) {
         Column(
-            Modifier.padding(vertical = 24.dp),
+            Modifier.padding(vertical = spacing.section),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Filled.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(spacing.contentGap))
             Text("还有 $count 条回复", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(spacing.inline))
             Text(
                 "登录后即可查看全部评论并参与讨论",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(spacing.paragraph))
             Button(onClick = onLogin, shape = CircleShape) { Text("立即登录") }
         }
     }

@@ -123,7 +123,7 @@ internal fun GachaSystemCard(
                 if (titles.isEmpty()) {
                     Text(
                         "还没有称号，去下面的称号抽取试试",
-                        Modifier.padding(start = 65.dp, end = 16.dp, bottom = 12.dp),
+                        Modifier.padding(start = 65.dp, end = LocalAppSpacing.current.pageHorizontal, bottom = LocalAppSpacing.current.contentGap),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

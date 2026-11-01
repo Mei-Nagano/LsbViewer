@@ -70,7 +70,7 @@ internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Bool
                             when (support) {
                                 true -> MaterialTheme.colorScheme.tertiaryContainer
                                 false -> MaterialTheme.colorScheme.errorContainer
-                                null -> MaterialTheme.colorScheme.surfaceContainerHighest
+                                null -> MaterialTheme.colorScheme.surfaceContainerHigh
                             },
                             Modifier.align(Alignment.CenterVertically),
                         )
