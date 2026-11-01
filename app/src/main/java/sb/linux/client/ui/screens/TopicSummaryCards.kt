@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.*
 import androidx.compose.material.icons.Icons
@@ -81,7 +82,7 @@ fun AiSummaryCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
+                        AppInlineLoading(size = 15.dp)
                         Text("正在总结…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
                     error != null -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -89,7 +90,7 @@ fun AiSummaryCard(
                         FilledTonalButton(
                             onClick = onRegenerate,
                             enabled = enabled,
-                            shape = RoundedCornerShape(50)
+                            shape = CircleShape
                         ) { Text("重试") }
                     }
                     // 模型返回的是 Markdown：直接 Text 会把 ## 和 ** 记号原样显示出来
@@ -104,7 +105,7 @@ fun AiSummaryCard(
         FilledTonalButton(
             onClick = onRun,
             enabled = enabled,
-            shape = RoundedCornerShape(50),
+            shape = CircleShape,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 4.dp)

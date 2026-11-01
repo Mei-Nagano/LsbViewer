@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.HomeTabState
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 @Composable
 internal fun ColumnScope.HomeSortControls(
     session: Session,
@@ -35,7 +36,7 @@ internal fun ColumnScope.HomeSortControls(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp),
                         shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 2.dp,
@@ -112,7 +113,7 @@ internal fun ColumnScope.HomeSortControls(
                                         val selected = tabIndex == i
                                         Surface(
                                             shape = MaterialTheme.shapes.medium,
-                                            color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                                            color = if (selected) MaterialTheme.colorScheme.primaryContainer
                                             else MaterialTheme.colorScheme.surfaceContainerHigh,
                                             shadowElevation = if (selected) 2.dp else 0.dp,
                                             modifier = Modifier
@@ -126,7 +127,7 @@ internal fun ColumnScope.HomeSortControls(
                                                 label,
                                                 style = MaterialTheme.typography.labelLarge,
                                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp)
                                             )

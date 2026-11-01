@@ -4,7 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,7 +48,7 @@ internal fun TopicCardTags(card: TopicCard, overrideColor: Color?) {
                 "+${distinct.size - visible.size}",
                 overrideColor ?: scheme.surfaceContainerHighest,
                 overrideColor?.let { onColorFor(it) } ?: scheme.onSurfaceVariant,
-                modifier = Modifier.clip(RoundedCornerShape(50)).clickable { expanded = true },
+                modifier = Modifier.clip(CircleShape).clickable { expanded = true },
             )
         }
     }

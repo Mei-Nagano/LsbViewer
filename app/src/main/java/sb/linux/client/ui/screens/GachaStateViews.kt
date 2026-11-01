@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.Inbox
@@ -37,7 +37,7 @@ internal fun GachaEmptyCard(text: String) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Box(
-                Modifier.size(48.dp).clip(RoundedCornerShape(50))
+                Modifier.size(48.dp).clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                 contentAlignment = Alignment.Center,
             ) {
@@ -57,14 +57,14 @@ internal fun GachaLoginPrompt(onLogin: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
-                Modifier.size(58.dp).clip(RoundedCornerShape(50))
+                Modifier.size(58.dp).clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.AutoMirrored.Filled.Login, null, Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
             Text("登录后可进入称号中心", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = onLogin, shape = RoundedCornerShape(50)) { Text("去登录") }
+            Button(onClick = onLogin, shape = CircleShape) { Text("去登录") }
         }
     }
 }

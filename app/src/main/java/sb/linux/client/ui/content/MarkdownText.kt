@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -135,7 +134,7 @@ private fun MdBlockView(block: MdBlock, style: TextStyle, t: MdTheme) {
         // 表格：模型常无视「不要用表格」的提示，这里按行列渲染，否则整张表会以竖线原文糊在一起。
         // 底色从正文色派生（本组件可能位于彩色容器内），不取主题表面色。
         is MdBlock.Table -> Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = MaterialTheme.shapes.medium,
             color = t.muted.copy(alpha = 0.10f),
             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         ) {

@@ -102,7 +102,7 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
                 topics.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) }
             }
             when {
-                topics.isEmpty() -> EmptyBox("暂无浏览历史\n打开帖子后会自动记录，最多保留 200 条")
+                topics.isEmpty() -> EmptyBox("暂无浏览历史", "打开帖子后会自动记录，最多保留 200 条")
                 filtered.isEmpty() -> EmptyBox("无匹配“$query”的记录")
                 else -> HistoryList(filtered, nav, spacing, onRemove = {
                     viewModel.remove(it)

@@ -1,6 +1,6 @@
 package sb.linux.client.ui.screens
 
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -179,7 +179,7 @@ internal fun ForumEntryRow(
             // 单列展示时在板块右侧显示帖量（源站侧边栏的版块主题数）
             if (showCount && f.count.isNotBlank()) {
                 Surface(
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
                 ) {
                     Text(

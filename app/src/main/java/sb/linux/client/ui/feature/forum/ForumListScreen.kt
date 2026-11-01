@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -41,6 +40,7 @@ fun ForumListScreen(session: Session, nav: NavHostController) {
     LaunchedEffect(viewModel) { viewModel.load() }
 
     AppPageScaffold(title = "板块导航", onBack = null) { pad ->
+        val spacing = LocalAppSpacing.current
         Box(Modifier.padding(pad)) {
             when {
                 state.loading -> LoadingBox()
@@ -49,7 +49,8 @@ fun ForumListScreen(session: Session, nav: NavHostController) {
                 else -> LazyColumn(
                     // 根导航由外壳 Scaffold 的 bottomBar inset 处理，列表不再叠加固定底栏留白
                     contentPadding = PaddingValues(
-                        start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp
+                        start = spacing.pageHorizontal, end = spacing.pageHorizontal,
+                        top = spacing.pageVertical, bottom = spacing.pageVertical,
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {

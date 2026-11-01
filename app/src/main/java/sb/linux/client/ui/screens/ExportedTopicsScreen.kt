@@ -80,7 +80,7 @@ fun ExportedTopicsScreen(session: Session, nav: NavHostController) {
             val list = files
             when {
                 list == null -> LoadingBox()
-                list.isEmpty() -> EmptyBox("暂无已导出的帖子\n在帖子右上角菜单选择「导出帖子」导出 HTML")
+                list.isEmpty() -> EmptyBox("暂无已导出的帖子", "在帖子右上角菜单选择「导出帖子」导出 HTML")
                 else -> LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
                     items(list, key = { it.absolutePath }) { f ->
                         Row(

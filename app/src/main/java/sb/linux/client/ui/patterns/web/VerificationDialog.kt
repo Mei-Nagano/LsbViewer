@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.platform.webview.WebViewDoh
 
 private const val VERIFY_CHALLENGE_JS =
@@ -204,11 +203,7 @@ fun VerificationDialog(
                         modifier = Modifier.fillMaxSize().alpha(if (challengeVisible) 1f else 0f),
                     )
                     if (pageLoading) {
-                        CircularProgressIndicator(
-                            Modifier
-                                .align(Alignment.Center)
-                                .size(28.dp)
-                        )
+                        AppInlineLoading(Modifier.align(Alignment.Center), size = 28.dp)
                     }
                 }
                 Spacer(Modifier.height(6.dp))

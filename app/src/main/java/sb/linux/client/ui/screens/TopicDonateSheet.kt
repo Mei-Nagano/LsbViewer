@@ -78,7 +78,7 @@ internal fun DonateSheet(
                 info == null -> Box(
                     Modifier.fillMaxWidth().height(200.dp),
                     contentAlignment = Alignment.Center
-                ) { CircularProgressIndicator() }
+                ) { AppInlineLoading(size = 32.dp) }
                 info?.unavailableReason?.isNotBlank() == true -> {
                     Text("暂时无法打赏", style = MaterialTheme.typography.titleLarge)
                     Text(info!!.unavailableReason)

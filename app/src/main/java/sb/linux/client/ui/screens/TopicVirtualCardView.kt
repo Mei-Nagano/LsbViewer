@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.*
 import androidx.compose.material.icons.Icons
@@ -78,7 +79,7 @@ fun VirtualCardView(vc: VirtualCard, loggedIn: Boolean, onBuy: () -> Unit) {
                 Button(
                     onClick = onBuy,
                     enabled = loggedIn,
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (loggedIn) "确认兑换" else "登录后兑换") }
             } else if (!vc.inStock) {

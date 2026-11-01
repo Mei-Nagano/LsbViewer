@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -144,12 +144,12 @@ internal fun TableView(
             val progress = horizontalState.value.toFloat() / horizontalState.maxValue.toFloat()
             val travelPx = with(LocalDensity.current) { travel.toPx() }.coerceAtLeast(1f)
             Box(
-                Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50))
+                Modifier.fillMaxWidth().height(6.dp).clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceContainerHighest)
             )
             Box(
                 Modifier.offset(x = travel * progress).width(thumbWidth).height(6.dp)
-                    .clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary)
+                    .clip(CircleShape).background(MaterialTheme.colorScheme.primary)
                     .pointerInput(horizontalState.maxValue, travelPx) {
                         detectHorizontalDragGestures { change, dragAmount ->
                             change.consume()

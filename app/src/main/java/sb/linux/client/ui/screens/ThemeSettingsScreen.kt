@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.theme.colorSeed
 import sb.linux.client.ui.theme.colorToKey
 import sb.linux.client.ui.theme.isCustomColorKey
@@ -158,11 +159,12 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController, section: Strin
         title = when (section) { "colors" -> "主题与配色"; "background" -> "页面背景"; "fonts" -> "字体与文字"; "layout" -> "导航与布局"; else -> "外观与布局" },
         onBack = { nav.popBackStack() },
     ) { pad ->
+        val spacing = LocalAppSpacing.current
         LazyColumn(
             modifier = Modifier
                 .padding(pad)
                 .fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+            contentPadding = PaddingValues(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
 

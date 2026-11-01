@@ -2,6 +2,7 @@ package sb.linux.client.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.selection.*
 import androidx.compose.material.icons.*
@@ -87,9 +88,9 @@ internal fun PostCardContent(
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (showReplyCapsule && post.parentFloor > 0) {
                     Surface(
-                        shape = RoundedCornerShape(50),
+                        shape = CircleShape,
                         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
-                        modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onFloor(post.parentFloor) }
+                        modifier = Modifier.clip(CircleShape).clickable { onFloor(post.parentFloor) }
                     ) {
                         Row(
                             Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
@@ -104,9 +105,9 @@ internal fun PostCardContent(
                 }
                 if (childReplyCount > 0) {
                     Surface(
-                        shape = RoundedCornerShape(50),
+                        shape = CircleShape,
                         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.58f),
-                        modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onToggleChildren),
+                        modifier = Modifier.clip(CircleShape).clickable(onClick = onToggleChildren),
                     ) {
                         Row(Modifier.padding(horizontal = 9.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -129,9 +130,9 @@ internal fun PostCardContent(
         if (threadEnabled && (refFloors.isNotEmpty() || threadReplyCount > 0)) {
             Spacer(Modifier.height(6.dp))
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                modifier = Modifier.clip(RoundedCornerShape(50))
+                modifier = Modifier.clip(CircleShape)
                     .clickable { onThread() }
             ) {
                 Row(

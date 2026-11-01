@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
@@ -53,6 +52,7 @@ import kotlinx.coroutines.launch
 import sb.linux.client.common.collection.TopicCollectionSummary
 import sb.linux.client.common.collection.TopicCollectionTab
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.Badge
 import sb.linux.client.ui.components.feedback.EmptyBox
@@ -74,14 +74,15 @@ internal fun CollectionList(
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize(),
     ) {
+        val spacing = LocalAppSpacing.current
         LazyColumn(
             Modifier.fillMaxSize(),
             // 根导航由外壳 Scaffold 的 bottomBar inset 处理，列表不再叠加固定底栏留白
             contentPadding = PaddingValues(
-                start = 14.dp,
-                end = 14.dp,
-                top = 12.dp,
-                bottom = 12.dp,
+                start = spacing.pageHorizontal,
+                end = spacing.pageHorizontal,
+                top = spacing.pageVertical,
+                bottom = spacing.pageVertical,
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {

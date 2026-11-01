@@ -2,7 +2,6 @@ package sb.linux.client.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,6 +22,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.account.LoginVerification
@@ -142,7 +142,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                     state.captchaError?.let { message ->
                         Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         TextButton(onClick = viewModel::loadChallenge) { Text("重新加载验证码") }
-                    } ?: CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                    } ?: AppInlineLoading(size = 24.dp)
                 }
             }
 
@@ -157,7 +157,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    AppInlineLoading(size = 18.dp)
                     Spacer(Modifier.width(10.dp))
                     Text(state.status, style = MaterialTheme.typography.bodySmall)
                 }

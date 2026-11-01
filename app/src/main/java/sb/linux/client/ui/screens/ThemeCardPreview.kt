@@ -2,7 +2,6 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ExpandLess
@@ -135,7 +134,7 @@ internal fun ElementSelectorList(
                             .padding(horizontal = 4.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(color))
+                        Box(Modifier.size(30.dp).clip(MaterialTheme.shapes.small).background(color))
                         Spacer(Modifier.width(10.dp))
                         Text(role.label, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.width(8.dp))
@@ -165,7 +164,7 @@ internal fun ElementSelectorList(
                             .padding(horizontal = 4.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(color))
+                        Box(Modifier.size(30.dp).clip(MaterialTheme.shapes.small).background(color))
                         Spacer(Modifier.width(10.dp))
                         Text(el.label, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.width(8.dp))

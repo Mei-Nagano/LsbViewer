@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -57,6 +56,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     var confirmBlock by remember { mutableStateOf(false) }
     var emojiOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val spacing = LocalAppSpacing.current
 
     LaunchedEffect(viewModel) { viewModel.sync() }
     // 消息变化自动滚到底部
@@ -82,7 +82,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
                         nav.navigate("user/$partnerId")
                     }
                 ) { sb.linux.client.ui.patterns.user.UserAvatar(partnerId, state.avatarUrl, 30) }
-                Text(state.name.ifBlank { "用户 $partnerId" }, style = MaterialTheme.typography.titleMedium,
+                Text(state.name.ifBlank { "用户 $partnerId" }, style = MaterialTheme.typography.titleLarge,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
@@ -95,7 +95,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
             // 输入工具区用色调表面，不再叠 6dp 阴影
             Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
                 Row(
-                    Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 10.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = spacing.pageHorizontal, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box {
@@ -136,7 +136,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
             else -> LazyColumn(
                 Modifier.padding(pad).fillMaxSize(),
                 state = listState,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                contentPadding = PaddingValues(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
             ) {
                 state.syncError?.let { message -> item { AppNotice(message, actionLabel = "重试同步", onAction = viewModel::sync) } }
                 items(state.messages) { m ->

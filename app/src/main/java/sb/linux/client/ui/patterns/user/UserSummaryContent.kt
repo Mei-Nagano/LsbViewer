@@ -17,9 +17,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.domain.account.UserSummary
 import sb.linux.client.domain.account.UserSummaryRepository
 
@@ -52,7 +52,7 @@ internal fun UserSummaryContent(
                 Text("个人信息", Modifier.weight(1f))
                 TextButton(onClick = close) { Text("×") }
             }
-            if (error == null) CircularProgressIndicator(Modifier.size(24.dp))
+            if (error == null) AppInlineLoading(size = 24.dp)
             else {
                 Text(error.orEmpty(), style = MaterialTheme.typography.bodySmall)
                 Row {
@@ -64,9 +64,10 @@ internal fun UserSummaryContent(
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Avatar(current.avatar, 36)
                 Column(Modifier.weight(1f)) {
-                    Text(current.username, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    Text(current.username, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
                         modifier = Modifier.clickable { open(current.home.ifBlank { "/user/$userId" }) })
-                    if (current.subtitle.isNotBlank()) Text(current.subtitle, fontSize = 9.sp,
+                    if (current.subtitle.isNotBlank()) Text(current.subtitle,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
                         overflow = TextOverflow.Ellipsis)
                 }
@@ -96,7 +97,7 @@ internal fun UserSummaryContent(
                                         append("${stat.label} ")
                                         pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
                                         append(stat.value); pop()
-                                    }, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    }, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f))
                                 }
                             }
@@ -105,7 +106,7 @@ internal fun UserSummaryContent(
                     }
                 }
             }
-            blockError?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.error) }
+            blockError?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 if (current.canBlock) SummaryAction(
                     if (blocking) "处理中" else if (current.blocked) "已屏蔽" else "屏蔽",
@@ -130,7 +131,7 @@ internal fun UserSummaryContent(
 
 @Composable
 private fun SummaryAction(label: String, enabled: Boolean, action: () -> Unit) {
-    Text(label, fontSize = 12.sp,
+    Text(label, style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.38f),
         modifier = Modifier.clickable(enabled = enabled, onClick = action).padding(vertical = 8.dp, horizontal = 3.dp))
 }

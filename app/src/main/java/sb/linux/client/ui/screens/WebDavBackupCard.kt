@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.ui.theme.AppMenuDefaults
 
 @Composable
@@ -89,8 +90,8 @@ internal fun WebDavBackupCard(
                     modifier = Modifier.weight(1f),
                 ) {
                     if (busy) {
-                        CircularProgressIndicator(
-                            Modifier.size(14.dp), strokeWidth = 2.dp,
+                        AppInlineLoading(
+                            size = 14.dp,
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                         Spacer(Modifier.width(6.dp))

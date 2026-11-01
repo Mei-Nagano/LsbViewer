@@ -42,7 +42,7 @@ internal fun TopicTopBar(
         title = title,
         titleContent = {
             AnimatedVisibility(visible = showTitle, enter = fadeIn(), exit = fadeOut()) {
-                Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
         onBack = onBack,

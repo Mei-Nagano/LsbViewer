@@ -136,7 +136,7 @@ internal fun HomeBody(
                                             },
                                             shape = MaterialTheme.shapes.large,
                                             color = MaterialTheme.colorScheme.primaryContainer,
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp),
                                         ) {
                                             Row(
                                                 Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
@@ -175,7 +175,7 @@ internal fun HomeBody(
                                                     .padding(12.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                if (loadingMore) CircularProgressIndicator(Modifier.size(22.dp))
+                                                if (loadingMore) AppInlineLoading()
                                                 else Button(onClick = { onLoadPage(current.page + 1, true, false) }) {
                                                     Text("加载更多")
                                                 }

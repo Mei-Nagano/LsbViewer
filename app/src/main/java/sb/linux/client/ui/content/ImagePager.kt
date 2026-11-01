@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
@@ -75,7 +74,7 @@ internal fun ImagePager(urls: List<String>, modifier: Modifier = Modifier, onCli
         }
         // 页码指示：当前页/总页数
         Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = MaterialTheme.shapes.medium,
             color = Color(0x99000000),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -133,7 +132,7 @@ internal fun ZoomImageViewer(urls: List<String>, initialIndex: Int, onDismiss: (
             // 底部页码
             if (urls.size > 1) {
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = MaterialTheme.shapes.medium,
                     color = Color(0x99000000),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)

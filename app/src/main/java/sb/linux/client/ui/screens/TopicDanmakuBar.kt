@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.*
 import androidx.compose.material.icons.Icons
@@ -59,7 +60,7 @@ fun DanmakuBar(items: List<DanmakuItem>) {
     ) {
         itemsIndexed(items, key = { i, d -> "$i-${d.user}-${d.amount}" }) { _, d ->
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.75f)
             ) {
                 Row(

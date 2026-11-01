@@ -21,7 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.theme.AppStateDefaults
 
 /** 首次加载占位：调用方传入内边距，不再在外面套一层 `Box(Modifier.padding(...))`。 */
@@ -30,6 +33,25 @@ fun LoadingBox(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator()
     }
+}
+
+/**
+ * 行内加载指示器（加载更多、按钮内、局部刷新）。
+ *
+ * 默认 22dp / 2dp 描边，局部区域需要更大时传 [size]；整页首次加载用 [LoadingBox]。
+ */
+@Composable
+fun AppInlineLoading(
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp,
+    strokeWidth: Dp = 2.dp,
+    color: Color = Color.Unspecified,
+) {
+    CircularProgressIndicator(
+        modifier = modifier.size(size),
+        color = color,
+        strokeWidth = strokeWidth,
+    )
 }
 
 @Composable

@@ -66,7 +66,7 @@ fun ThreadDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(vertical = 20.dp)
                 ) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    AppInlineLoading(size = 16.dp)
                     Text("正在串联全部相关楼层…", style = MaterialTheme.typography.bodyMedium)
                 }
                 posts == null || posts.isEmpty() -> Text(

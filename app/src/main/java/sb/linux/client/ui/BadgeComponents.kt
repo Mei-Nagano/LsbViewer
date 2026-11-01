@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,10 +28,10 @@ import sb.linux.client.ui.theme.sourceTitleColor
 
 @Composable
 fun Badge(text: String, bg: Color, fg: Color, small: Boolean = false, modifier: Modifier = Modifier) {
-    Surface(shape = RoundedCornerShape(50), color = bg, modifier = modifier) {
+    Surface(shape = CircleShape, color = bg, modifier = modifier) {
         Text(
             text,
-            style = if (small) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp)
+            style = if (small) MaterialTheme.typography.labelSmall.copy(lineHeight = 12.sp)
             else MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
             fontWeight = FontWeight.Medium,
             color = fg,
@@ -70,12 +70,12 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Bool
         Row(Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title.name, color = fg, fontSize = 11.sp, lineHeight = 16.5.sp,
+            Text(title.name, color = fg, style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val label = if (title.rarity.uppercase().startsWith("UR") && title.serial.isNotBlank())
                 title.serial else title.rarity
             if (label.isNotBlank()) Surface(color = serialBg, shape = MaterialTheme.shapes.extraSmall) {
-                Text(label, color = Color.White, fontSize = 10.sp, lineHeight = 14.sp,
+                Text(label, color = Color.White, style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
                     fontWeight = FontWeight.Bold, maxLines = 1,
                     modifier = Modifier.padding(horizontal = 3.dp))
             }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -162,7 +161,7 @@ internal fun ColorPickerDialog(
                     Box(
                         Modifier
                             .size(32.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(MaterialTheme.shapes.medium)
                             .background(current)
                     )
                     Spacer(Modifier.width(12.dp))

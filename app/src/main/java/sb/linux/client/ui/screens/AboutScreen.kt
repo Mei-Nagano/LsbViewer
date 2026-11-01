@@ -3,7 +3,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -101,7 +100,7 @@ fun AboutScreen(session: Session, nav: NavHostController) {
             Spacer(Modifier.height(spacing.contentGap))
             // 版本号（圆角矩形）
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.secondaryContainer
             ) {
                 Text(

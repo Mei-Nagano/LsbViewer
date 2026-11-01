@@ -4,7 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -99,7 +99,7 @@ internal fun TopicPollView(
                     )
                 }
                 Surface(
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     color = if (essence?.status in setOf("voting", "featured", "pending_approval") || (vote != null && !vote.closed && vote.unavailableReason.isBlank()))
                         MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
                 ) {
@@ -116,7 +116,7 @@ internal fun TopicPollView(
             essence?.takeIf { it.target > 0 || it.progressText.isNotBlank() }?.let { review ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(
-                        Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(50))
+                        Modifier.weight(1f).height(10.dp).clip(CircleShape)
                             .background(if (review.progress < 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHighest)
                     ) {
                         Box(
@@ -188,7 +188,7 @@ internal fun TopicPollView(
                     onClick = { onVote(vote.options.filter { it.value in selectedValues }, reason.trim()) },
                     enabled = !busy && selectedValues.isNotEmpty() && vote.action.isNotBlank() && (!vote.reasonRequired || reason.isNotBlank()),
                     modifier = Modifier.align(Alignment.End),
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
                 ) { Text(if (busy) "提交中…" else vote.submitLabel) }
             }
@@ -197,7 +197,7 @@ internal fun TopicPollView(
                     onClick = { if (loggedIn) onApply(application) else onLogin() },
                     enabled = !busy && (!loggedIn || application.enabled) && application.action.isNotBlank(),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                 ) { Text(if (busy) "提交中…" else if (loggedIn) application.label else "登录后申请加精") }
             }
             if (topUp != null) {

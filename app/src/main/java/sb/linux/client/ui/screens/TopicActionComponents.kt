@@ -3,7 +3,7 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -32,7 +32,7 @@ internal fun PostAction(
 ) {
     Row(
         Modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -69,7 +69,7 @@ internal fun ReplyBar(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1.8f).height(52.dp),
             ) {
@@ -79,7 +79,7 @@ internal fun ReplyBar(
                 ) {
                     Text(
                         if (loggedIn) "说点什么…" else "登录后回复",
-                        Modifier.weight(1f).clip(RoundedCornerShape(50)).clickable(onClick = onReply).padding(horizontal = 10.dp, vertical = 10.dp),
+                        Modifier.weight(1f).clip(CircleShape).clickable(onClick = onReply).padding(horizontal = 10.dp, vertical = 10.dp),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
@@ -87,7 +87,7 @@ internal fun ReplyBar(
                 }
             }
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {
@@ -133,7 +133,7 @@ internal fun LoginPromptCard(count: Int, onLogin: () -> Unit) {
             Box(
                 Modifier
                     .size(52.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                 contentAlignment = Alignment.Center
             ) {
@@ -148,7 +148,7 @@ internal fun LoginPromptCard(count: Int, onLogin: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onLogin, shape = RoundedCornerShape(50)) { Text("立即登录") }
+            Button(onClick = onLogin, shape = CircleShape) { Text("立即登录") }
         }
     }
 }

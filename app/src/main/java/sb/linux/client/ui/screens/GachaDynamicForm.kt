@@ -3,7 +3,7 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -159,7 +159,7 @@ internal fun GachaDynamicForm(
                                     },
                                     enabled = enabled,
                                     singleLine = true,
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = MaterialTheme.shapes.medium,
                                     textStyle = MaterialTheme.typography.titleSmall.copy(
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     ),
@@ -211,7 +211,7 @@ internal fun GachaDynamicForm(
             }
             Button(
                 enabled = enabled && form.enabled && selectedChoiceCount >= form.minSelections,
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
                 onClick = {
                     val pairs = SourceFormProtocol.buildSubmissionPairs(

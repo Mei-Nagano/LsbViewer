@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.ui.components.navigation.PaginationBar
 internal fun LazyListScope.topicReplyListItems(
     state: TopicReplyListState,
@@ -33,7 +34,7 @@ internal fun LazyListScope.topicReplyListItems(
                     Spacer(Modifier.weight(1f))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.clip(RoundedCornerShape(50))
+                        modifier = Modifier.clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(2.dp),
                     ) {
                         listOf("热度" to 0, "正序" to 1, "倒序" to 2).forEach { (label, index) ->
@@ -43,7 +44,7 @@ internal fun LazyListScope.topicReplyListItems(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.clip(RoundedCornerShape(50))
+                                modifier = Modifier.clip(CircleShape)
                                     .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
                                     .clickable { if (!selected) actions.onSortChange(index) }
                                     .padding(horizontal = 10.dp, vertical = 3.dp),
@@ -115,7 +116,7 @@ internal fun LazyListScope.topicReplyListItems(
         if (state.infinite) {
             if ((state.page.page ?: 1) < (state.page.totalPages ?: 1)) {
                 Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
-                    if (state.loadingMore) CircularProgressIndicator(Modifier.size(22.dp))
+                    if (state.loadingMore) AppInlineLoading()
                     else TextButton(onClick = actions.onLoadMore) { Text("加载更多") }
                 }
             }

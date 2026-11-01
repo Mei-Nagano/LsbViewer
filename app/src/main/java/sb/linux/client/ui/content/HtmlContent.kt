@@ -173,7 +173,7 @@ fun HtmlContent(
                                 Modifier
                                     .width(3.dp)
                                     .height(24.dp)
-                                    .clip(RoundedCornerShape(2.dp))
+                                    .clip(MaterialTheme.shapes.extraSmall)
                                     .background(MaterialTheme.colorScheme.primary)
                             )
                             Spacer(Modifier.width(10.dp))

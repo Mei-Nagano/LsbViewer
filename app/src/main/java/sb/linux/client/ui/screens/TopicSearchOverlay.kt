@@ -74,7 +74,7 @@ internal fun TopicSearchOverlay(
         onOpenHit(hits[target])
     }
     Surface(
-        shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp),
+        shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
         tonalElevation = 8.dp,
         shadowElevation = 12.dp,
         modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp),

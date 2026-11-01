@@ -1,7 +1,7 @@
 package sb.linux.client.ui.theme
 
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.unit.dp
 
 /**
@@ -20,7 +20,7 @@ object AppPaginationDefaults {
     val iconSize = 20.dp
 
     /** 胶囊形状（50% 圆角，等价于圆形） */
-    val shape = RoundedCornerShape(50)
+    val shape = CircleShape
 
     /** 胶囊容器上下外边距 */
     val containerPadding = PaddingValues(vertical = 10.dp)

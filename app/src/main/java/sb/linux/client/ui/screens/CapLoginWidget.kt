@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.domain.account.LoginVerification
 import sb.linux.client.platform.webview.WebViewDoh
 import sb.linux.client.common.network.ForumUserAgent
@@ -62,7 +62,7 @@ internal fun CapVerificationWidget(
     val ready = prepared
     if (ready == null) {
         Box(Modifier.fillMaxWidth().height(82.dp), contentAlignment = Alignment.Center) {
-            if (preparing) CircularProgressIndicator()
+            if (preparing) AppInlineLoading()
         }
         return
     }
@@ -121,7 +121,7 @@ internal fun CapVerificationWidget(
                 },
                 modifier = Modifier.fillMaxSize(),
             )
-            if (loading) CircularProgressIndicator()
+            if (loading) AppInlineLoading(size = 32.dp)
         }
     }
 }

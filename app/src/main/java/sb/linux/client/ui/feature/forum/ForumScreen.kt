@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -116,7 +116,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                                         OutlinedButton(
                                             onClick = { viewModel.load(state.page + 1, append = true) },
                                             enabled = !state.loadingMore,
-                                            shape = RoundedCornerShape(50),
+                                            shape = CircleShape,
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 16.dp, vertical = 8.dp)

@@ -1,7 +1,7 @@
 package sb.linux.client.ui.theme
 
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.unit.dp
 
 /**
@@ -22,7 +22,7 @@ object AppStateDefaults {
     val glyphSize = 26.dp
 
     /** 圆形容器形状（50% 圆角，等价于圆形） */
-    val glyphShape = RoundedCornerShape(50)
+    val glyphShape = CircleShape
 
     /** 圆形底色的透明度 */
     const val glyphBackgroundAlpha = 0.6f
@@ -34,5 +34,5 @@ object AppStateDefaults {
     val infoSpacing = 10.dp
 
     /** 附加按钮胶囊形状 */
-    val actionShape = RoundedCornerShape(50)
+    val actionShape = CircleShape
 }
