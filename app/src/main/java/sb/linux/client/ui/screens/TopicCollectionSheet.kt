@@ -46,6 +46,7 @@ import sb.linux.client.common.collection.actionFor
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.Badge
 import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.feature.collection.TopicCollectionPickerViewModel
 import sb.linux.client.ui.feature.collection.TopicCollectionPickerViewModelFactory
@@ -118,9 +119,9 @@ fun TopicCollectionSheet(session: Session, topicPath: String, onDismiss: () -> U
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
+                .padding(bottom = LocalAppSpacing.current.pageVertical),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
         ) {
             Text("收录到淘帖", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             val current = picker

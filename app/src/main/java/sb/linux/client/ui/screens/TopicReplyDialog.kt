@@ -2,6 +2,7 @@ package sb.linux.client.ui.screens
 
 import sb.linux.client.common.content.HtmlTextConversion
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 
 import android.view.WindowManager
@@ -113,7 +114,7 @@ fun ReplyDialog(
                         .imePadding()
                         .navigationBarsPadding()
                         .statusBarsPadding()
-                        .padding(horizontal = 20.dp)
+                        .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
@@ -170,7 +171,7 @@ fun ReplyDialog(
     ) {
         Column(
             Modifier
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
                 .imePadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())

@@ -64,9 +64,9 @@ internal fun DonateSheet(
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
+                .padding(bottom = LocalAppSpacing.current.pageVertical),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             when {
                 loadError != null -> Text(

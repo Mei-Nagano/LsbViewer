@@ -53,7 +53,7 @@ fun ExportDialog(
     var selectedIds by remember { mutableStateOf(posts.map { it.id }.toSet()) }
     ModalBottomSheet(onDismissRequest = { if (busy == null) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), sheetGesturesEnabled = false) {
-        Column(Modifier.fillMaxHeight(0.9f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+        Column(Modifier.fillMaxHeight(0.9f).verticalScroll(rememberScrollState()).padding(horizontal = LocalAppSpacing.current.pageHorizontal)) {
             Row(
                 Modifier.padding(start = 4.dp, top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically

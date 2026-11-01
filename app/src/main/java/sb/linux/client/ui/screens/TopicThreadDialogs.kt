@@ -48,7 +48,7 @@ fun ThreadDialog(
     onJumpFloor: ((Int) -> Unit)? = null,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
+        Column(Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.AutoMirrored.Filled.Chat, null,

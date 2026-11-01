@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.theme.colorSeed
 import sb.linux.client.ui.theme.colorToHsv
 import sb.linux.client.ui.theme.hsvColor
@@ -97,7 +98,7 @@ internal fun ColorPickerDialog(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(Modifier.padding(20.dp)) {
+            Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal)) {
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium,

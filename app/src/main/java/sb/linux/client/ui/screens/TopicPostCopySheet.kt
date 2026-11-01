@@ -67,7 +67,7 @@ fun PostCopySheet(
         return
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal)) {
             Row(
                 Modifier.padding(start = 4.dp, top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically

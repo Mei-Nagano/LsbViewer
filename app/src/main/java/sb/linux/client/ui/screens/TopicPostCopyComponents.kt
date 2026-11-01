@@ -115,7 +115,7 @@ internal fun FreeCopyDialog(
                         Modifier
                             .weight(1f)
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp)
                     ) {
                         Text(
                             title,
