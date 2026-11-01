@@ -123,8 +123,8 @@ internal fun HomeBody(
                                 modifier = Modifier.fillMaxSize(),
                                 // 根导航由外壳 Scaffold 的 bottomBar inset 处理，列表不再叠加固定底栏留白
                                 contentPadding = PaddingValues(
-                                    top = topInset + 8.dp,
-                                    bottom = 8.dp,
+                                    top = topInset + LocalAppSpacing.current.item,
+                                    bottom = LocalAppSpacing.current.pageVertical,
                                 )
                             ) {
                                 if (pendingNewTopics.isNotEmpty()) {
@@ -139,7 +139,7 @@ internal fun HomeBody(
                                             modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp),
                                         ) {
                                             Row(
-                                                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+                                                Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 11.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                             ) {
                                                 Text(

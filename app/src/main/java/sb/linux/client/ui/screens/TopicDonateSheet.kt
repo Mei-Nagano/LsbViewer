@@ -101,7 +101,7 @@ internal fun DonateSheet(
                                 it,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                                modifier = Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 10.dp)
                             )
                         }
                     }

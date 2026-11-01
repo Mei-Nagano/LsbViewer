@@ -137,7 +137,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
                     error != null -> ErrorBox(error!!) { viewModel.load() }
                     else -> LazyColumn(
                         state = userListState,
-                        contentPadding = PaddingValues(vertical = 8.dp)
+                        contentPadding = PaddingValues(vertical = LocalAppSpacing.current.pageVertical)
                     ) {
                         when (tab) {
                             "replies" -> userReplyRows(replies) { topicId -> nav.navigate("topic/$topicId") }

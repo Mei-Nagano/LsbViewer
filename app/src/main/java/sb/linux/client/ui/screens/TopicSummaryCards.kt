@@ -50,7 +50,7 @@ fun AiSummaryCard(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
-            Column(Modifier.padding(14.dp)) {
+            Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         Modifier

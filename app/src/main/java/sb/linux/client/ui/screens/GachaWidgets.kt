@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.gacha.GachaAction
 import sb.linux.client.domain.gacha.GachaPoolRow
 import sb.linux.client.domain.gacha.GachaTitleItem
@@ -126,7 +127,7 @@ internal fun RarityCard(
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
             Column(
-                Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp),
+                Modifier.weight(1f).padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 content = content,
             )
@@ -194,7 +195,7 @@ internal fun GachaTitleRow(
     onGift: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 5.dp)
+        Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 5.dp)
             .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(9.dp),
         verticalAlignment = Alignment.CenterVertically,

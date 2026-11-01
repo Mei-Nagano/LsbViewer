@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -40,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.common.collection.TopicCollectionActionForm
 import sb.linux.client.common.collection.TopicCollectionPicker
 import sb.linux.client.common.collection.TopicCollectionPickerOption
@@ -105,7 +105,7 @@ internal fun SheetActionRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {

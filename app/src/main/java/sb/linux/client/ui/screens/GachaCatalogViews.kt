@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.topic.TitleBadge
 import sb.linux.client.ui.TitleBadgeView
 
@@ -35,7 +36,7 @@ import sb.linux.client.ui.TitleBadgeView
 internal fun GachaNews(news: List<String>) {
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             news.chunked((news.size + 2) / 3).forEachIndexed { row, values ->
@@ -67,7 +68,7 @@ internal fun GachaTitleGroups(titles: List<TitleBadge>) {
                     Row(
                         Modifier.fillMaxWidth()
                             .clickable { expanded = if (open) expanded - rarity else expanded + rarity }
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {

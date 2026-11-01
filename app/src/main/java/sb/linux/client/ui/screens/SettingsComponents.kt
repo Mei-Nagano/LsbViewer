@@ -10,12 +10,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 @Composable
 internal fun GroupLabel(title: String) { sb.linux.client.ui.components.layout.AppGroupLabel(title) }
 
-/** 设置分组：标题与内容直接展示，保留调用参数以兼容各设置页。 */
+/** 设置分组：标题与内容直接展示。 */
 @Composable
 internal fun GroupCard(
     title: String? = null,
-    initiallyExpanded: Boolean = true,
-    icon: ImageVector? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     sb.linux.client.ui.components.layout.AppSection(title = title, content = content)

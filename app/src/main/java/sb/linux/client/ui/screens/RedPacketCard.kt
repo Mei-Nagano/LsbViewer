@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.topic.RedPacketPanel
 
 @Composable
@@ -25,7 +26,7 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
         shape = MaterialTheme.shapes.large,
         color = colors.surfaceContainerLow,
         border = BorderStroke(1.dp, colors.error.copy(alpha = 0.2f)),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 8.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

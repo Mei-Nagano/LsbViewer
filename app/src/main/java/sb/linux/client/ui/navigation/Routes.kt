@@ -3,25 +3,16 @@ package sb.linux.client.ui.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.DrawerState
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.feature.forum.ForumListScreen
 import sb.linux.client.ui.feature.forum.ForumScreen
 import sb.linux.client.ui.feature.search.SearchScreen
@@ -197,20 +188,10 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
     ) { ReportScreen(session, nav) }
 }
 
-/** 平板双栏右栏空态。 */
+/** 平板双栏右栏空态：复用统一的空态版式。 */
 @Composable
 private fun DetailEmptyPane() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("从左侧选择内容查看", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "帖子、用户主页与设置子页将在此展示",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            )
-        }
-    }
+    EmptyBox("从左侧选择内容查看", "帖子、用户主页与设置子页将在此展示")
 }
 
 /** 液态玻璃底栏。 */

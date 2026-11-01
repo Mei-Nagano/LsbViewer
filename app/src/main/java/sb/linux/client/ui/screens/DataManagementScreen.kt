@@ -4,10 +4,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -92,7 +88,7 @@ fun DataManagementScreen(session: Session, nav: NavHostController, automatic: Bo
             ) { Text("清理所选项") }
 
             }
-            if (automatic) GroupCard("退出时自动清理", initiallyExpanded = false, icon = Icons.Filled.Delete) {
+            if (automatic) GroupCard("退出时自动清理") {
                 Text(
                     "正常退出时清理所选项目；系统强制结束进程时，会在下次启动补做。所选历史或 AI 配置会永久删除，请谨慎开启；账号登录不受影响。",
                     style = MaterialTheme.typography.bodySmall,

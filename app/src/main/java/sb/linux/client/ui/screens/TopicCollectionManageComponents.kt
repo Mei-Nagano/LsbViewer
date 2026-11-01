@@ -67,15 +67,16 @@ fun ManageActionList(
     val destructive = actions.filter {
         it.isDestructive() && it != deleteAction && it !in contentRemovals && it !in collaboratorRemovals
     }
+    val spacing = sb.linux.client.ui.theme.LocalAppSpacing.current
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            top = 12.dp,
-            bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+            start = spacing.pageHorizontal,
+            end = spacing.pageHorizontal,
+            top = spacing.contentGap,
+            bottom = spacing.section + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(spacing.contentGap),
     ) {
         item {
             ManageHeader(

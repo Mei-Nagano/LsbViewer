@@ -2,11 +2,6 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -38,7 +33,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
     SettingsPage("阅读与交互", nav) {
 
 
-            GroupCard("列表与分页", icon = Icons.AutoMirrored.Filled.ViewList) {
+            GroupCard("列表与分页") {
                 listOf(Triple("首页无限滚动", "home", homeInf), Triple("板块无限滚动", "forum", forumInf),
                     Triple("评论无限滚动", "topic", topicInf)).forEach { (title, key, enabled) ->
                     SwitchRow(title, "关闭后使用分页", enabled) { value ->
@@ -104,7 +99,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = viewModel::setSidebarShowOnlineUsers
                 )
             }
-            GroupCard("正文与评论", icon = Icons.AutoMirrored.Filled.Chat) {
+            GroupCard("正文与评论") {
                 SwitchRow(
                     "显示打赏弹幕",
                     "在帖子正文与评论区之间滚动展示打赏信息，可在帖子菜单中单独开关",
@@ -130,7 +125,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = viewModel::setSmartDecodeEnabled
                 )
             }
-            GroupCard("帖子交互", initiallyExpanded = false, icon = Icons.Filled.TouchApp) {
+            GroupCard("帖子交互") {
                 // 正文长按已交回系统原生选择菜单（复制/翻译/搜索由系统提供），这里不再有自定义菜单项配置
                 SwitchRow(
                     "对话串联",

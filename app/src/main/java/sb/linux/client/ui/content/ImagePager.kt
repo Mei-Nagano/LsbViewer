@@ -75,7 +75,7 @@ internal fun ImagePager(urls: List<String>, modifier: Modifier = Modifier, onCli
         // 页码指示：当前页/总页数
         Surface(
             shape = MaterialTheme.shapes.medium,
-            color = Color(0x99000000),
+            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
@@ -109,7 +109,7 @@ internal fun ZoomImageViewer(urls: List<String>, initialIndex: Int, onDismiss: (
             Modifier
                 .fillMaxSize()
                 .clipToBounds()
-                .background(Color.Black)
+                .background(MaterialTheme.colorScheme.scrim)
         ) {
             androidx.compose.foundation.pager.HorizontalPager(
                 state = pagerState,
@@ -120,7 +120,7 @@ internal fun ZoomImageViewer(urls: List<String>, initialIndex: Int, onDismiss: (
             // 顶部关闭按钮
             Surface(
                 shape = CircleShape,
-                color = Color(0x66000000),
+                color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(12.dp)
@@ -133,7 +133,7 @@ internal fun ZoomImageViewer(urls: List<String>, initialIndex: Int, onDismiss: (
             if (urls.size > 1) {
                 Surface(
                     shape = MaterialTheme.shapes.medium,
-                    color = Color(0x99000000),
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(16.dp)

@@ -163,7 +163,7 @@ fun SearchScreen(session: Session, nav: NavHostController, entry: NavBackStackEn
                 state.loading -> LoadingBox()
                 pageData == null -> EmptyBox("输入关键词搜索全站")
                 pageData.items.isEmpty() -> EmptyBox("没有找到相关内容")
-                else -> LazyColumn(contentPadding = PaddingValues(vertical = spacing.item)) {
+                else -> LazyColumn(contentPadding = PaddingValues(vertical = spacing.pageVertical)) {
                     items(pageData.items, key = { item -> itemKey(item) }) { item ->
                         when (item) {
                             is SearchResultItem.Topic -> TopicSearchItem(item) { nav.navigate("topic/${item.topicId}") }

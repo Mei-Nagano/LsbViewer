@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.topic.EssenceApplication
 import sb.linux.client.domain.topic.EssenceReview
 import sb.linux.client.domain.topic.TopicPoll
@@ -74,7 +75,7 @@ internal fun TopicPollView(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(
                     Modifier.size(38.dp).clip(MaterialTheme.shapes.medium)

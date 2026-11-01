@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.patterns.user.UserInfoCard
 import sb.linux.client.ui.patterns.user.toUserInfoCardData
@@ -25,15 +26,15 @@ internal fun HomeSidebarHeader(
     if (state.loggedIn) {
         UserInfoCard(
             data = state.toUserInfoCardData(), compact = true,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
             onProfile = { onClose(); onOpenUser(state.userId) },
         )
     } else {
         Surface(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
             shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
-            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("访客", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text("登录后可发帖、回帖与私信", style = MaterialTheme.typography.labelSmall,

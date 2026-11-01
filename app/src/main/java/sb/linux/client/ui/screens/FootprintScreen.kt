@@ -139,7 +139,7 @@ private fun HistoryList(
 ) {
     val today = LocalDate.now()
     val grouped = topics.groupBy { visitedDate(it.visitedAt) }
-    LazyColumn(contentPadding = PaddingValues(vertical = spacing.item)) {
+    LazyColumn(contentPadding = PaddingValues(vertical = spacing.pageVertical)) {
         grouped.forEach { (date, entries) ->
             item(key = "day-$date") {
                 Text(

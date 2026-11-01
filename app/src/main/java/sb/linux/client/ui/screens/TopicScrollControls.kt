@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.common.content.TopicTocHeading
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -129,7 +130,7 @@ internal fun BoxScope.TopicScrollControls(
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 10.dp),
             )
         }
     }

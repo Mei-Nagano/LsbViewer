@@ -105,7 +105,7 @@ internal fun CollectionDetailList(
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal),
                 ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Filled.Bookmarks, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                             Text("专辑说明", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)

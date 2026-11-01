@@ -54,6 +54,7 @@ import sb.linux.client.domain.community.CommentFavorite
 import sb.linux.client.domain.topic.TopicCard
 import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.patterns.topic.TopicCardView
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @Composable
 internal fun TopicFavorites(
@@ -72,7 +73,7 @@ internal fun TopicFavorites(
         EmptyFavorites("无匹配“$query”的收藏")
         return
     }
-    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+    LazyColumn(contentPadding = PaddingValues(vertical = LocalAppSpacing.current.pageVertical)) {
         items(filtered, key = { it.topicId }) { topic ->
             DismissibleFavorite(
                 onDismiss = { onRemove(topic.topicId) },
@@ -107,7 +108,7 @@ internal fun CommentFavorites(
         EmptyFavorites("无匹配“$query”的收藏")
         return
     }
-    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+    LazyColumn(contentPadding = PaddingValues(vertical = LocalAppSpacing.current.pageVertical)) {
         items(filtered, key = { it.replyId }) { comment ->
             DismissibleFavorite(
                 onDismiss = { onRemove(comment.replyId) },

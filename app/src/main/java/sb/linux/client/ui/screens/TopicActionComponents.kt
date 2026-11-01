@@ -1,5 +1,6 @@
 package sb.linux.client.ui.screens
 
+import sb.linux.client.ui.theme.LocalAppSpacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -64,7 +65,7 @@ internal fun ReplyBar(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {

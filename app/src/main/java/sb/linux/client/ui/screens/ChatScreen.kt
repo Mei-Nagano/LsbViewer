@@ -131,7 +131,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
             state.syncError != null && state.messages.isEmpty() -> ErrorBox(state.syncError!!, Modifier.padding(pad)) { viewModel.sync() }
             state.messages.isEmpty() -> EmptyBox(
                 "还没有消息", "在这里发送第一条，或对方发来私信后，往来消息会显示在此",
-                Modifier.padding(pad).padding(24.dp),
+                Modifier.padding(pad).padding(AppStateDefaults.pagePadding),
             )
             else -> LazyColumn(
                 Modifier.padding(pad).fillMaxSize(),

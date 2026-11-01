@@ -100,7 +100,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(vertical = 8.dp)
+                            contentPadding = PaddingValues(vertical = LocalAppSpacing.current.pageVertical)
                         ) {
                             items(filteredTopics, key = { "${it.topicId}-${it.pinned}" }) { t ->
                                 TopicCardView(

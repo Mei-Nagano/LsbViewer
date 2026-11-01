@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.common.collection.TopicCollectionActionForm
 import sb.linux.client.common.collection.TopicCollectionFormField
 import sb.linux.client.common.collection.TopicCollectionOperation
@@ -63,7 +64,7 @@ internal fun ManageActionCard(
         border = BorderStroke(1.dp, borderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Surface(
                     shape = CircleShape,

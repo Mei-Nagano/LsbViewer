@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.session.Session
 import sb.linux.client.common.content.HtmlTextConversion
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -77,7 +78,7 @@ internal fun NewTopicFormContent(
                     color = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "未登录，发布前请先登录",
                             style = MaterialTheme.typography.bodyMedium,

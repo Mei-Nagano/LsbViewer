@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.gacha.GachaAction
 import sb.linux.client.domain.gacha.GachaPoolRow
 import sb.linux.client.domain.gacha.GachaTitleItem
@@ -39,7 +40,7 @@ import sb.linux.client.ui.titleRarityColor
 internal fun GachaPoolRowView(row: GachaPoolRow) {
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+            Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
