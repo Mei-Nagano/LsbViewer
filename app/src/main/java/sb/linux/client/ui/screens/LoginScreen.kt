@@ -142,7 +142,15 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                     state.captchaError?.let { message ->
                         Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         TextButton(onClick = viewModel::loadChallenge) { Text("重新加载验证码") }
-                    } ?: AppInlineLoading(size = 24.dp)
+                    } ?: Row(verticalAlignment = Alignment.CenterVertically) {
+                        AppInlineLoading(size = 18.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "正在加载人机验证…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 

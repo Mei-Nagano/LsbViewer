@@ -3,15 +3,22 @@ package sb.linux.client.ui.screens
 import android.graphics.Color
 import android.net.Uri
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,12 +32,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.delay
 import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.domain.account.LoginVerification
 import sb.linux.client.platform.webview.WebViewDoh
 import sb.linux.client.common.network.ForumUserAgent
 import sb.linux.client.platform.verification.CapNetworkBridge
 import sb.linux.client.platform.verification.CapVerificationGateway
+
+/** 组件页通过它回传真实状态，避免只靠 `lsbcap://` 跳转判断是否加载成功。 */
+private class CapStatusBridge(
+    private val onReady: () -> Unit,
+    private val onToken: (String) -> Unit,
+    private val onError: (String) -> Unit,
+) {
+    @JavascriptInterface fun ready() = onReady()
+
+    @JavascriptInterface fun token(token: String) = onToken(token)
+
+    @JavascriptInterface fun error(message: String) = onError(message)
+
+    companion object {
+        const val NAME = "LsbCapStatus"
+    }
+}
 
 /** 在原生表单中承载源站 CAP 组件，并只向上层返回一次性令牌。 */
 @Composable
@@ -64,20 +89,40 @@ internal fun CapVerificationWidget(
     val ready = prepared
     if (ready == null) {
         Box(Modifier.fillMaxWidth().height(82.dp), contentAlignment = Alignment.Center) {
-            if (preparing) AppInlineLoading()
+            if (preparing) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AppInlineLoading(size = 18.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "正在加载人机验证…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         return
     }
     key(revision, ready) {
+        // 加载中保持提示，直到组件页上报 ready / error；onPageFinished 只代表
+        // HTML 文档结束，组件脚本和网络请求可能还在进行。
         var loading by remember { mutableStateOf(true) }
         var webView by remember { mutableStateOf<WebView?>(null) }
         var networkBridge by remember { mutableStateOf<CapNetworkBridge?>(null) }
+        LaunchedEffect(Unit) {
+            delay(12_000)
+            if (loading) {
+                loading = false
+                latestError("人机验证加载超时，请重试")
+            }
+        }
         DisposableEffect(Unit) {
             onDispose {
                 networkBridge?.close()
                 networkBridge = null
                 webView?.stopLoading()
                 webView?.removeJavascriptInterface(CapNetworkBridge.NAME)
+                webView?.removeJavascriptInterface(CapStatusBridge.NAME)
                 webView?.destroy()
                 webView = null
             }
@@ -101,21 +146,43 @@ internal fun CapVerificationWidget(
                             post { runCatching { evaluateJavascript(script, null) } }
                         }
                         addJavascriptInterface(networkBridge!!, CapNetworkBridge.NAME)
+                        addJavascriptInterface(
+                            CapStatusBridge(
+                                onReady = {
+                                    post {
+                                        loading = false
+                                        latestStatus("请完成人机验证")
+                                    }
+                                },
+                                onToken = { token ->
+                                    post {
+                                        loading = false
+                                        latestToken(token)
+                                        latestStatus("验证完成")
+                                    }
+                                },
+                                onError = { message ->
+                                    post {
+                                        loading = false
+                                        latestError(message.ifBlank { "人机验证加载失败，请重试" })
+                                    }
+                                },
+                            ),
+                            CapStatusBridge.NAME,
+                        )
                         webViewClient = object : WebViewClient() {
                             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                                 handleCallback(request.url, latestToken, latestStatus, latestError)
-
-                            override fun onPageFinished(view: WebView, url: String) {
-                                loading = false
-                                latestStatus("请完成人机验证")
-                            }
 
                             override fun onReceivedError(
                                 view: WebView,
                                 request: WebResourceRequest,
                                 error: WebResourceError,
                             ) {
-                                if (request.isForMainFrame) latestError("验证码页面加载失败，请重试")
+                                if (request.isForMainFrame) {
+                                    loading = false
+                                    latestError("验证码页面加载失败，请重试")
+                                }
                             }
                         }
                         WebViewDoh.loadHtml(this, ready.pageUrl, ready.widgetHtml())
@@ -123,7 +190,20 @@ internal fun CapVerificationWidget(
                 },
                 modifier = Modifier.fillMaxSize(),
             )
-            if (loading) AppInlineLoading(size = 32.dp)
+            if (loading) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    AppInlineLoading(size = 20.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "人机验证加载中…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

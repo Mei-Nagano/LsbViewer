@@ -26,8 +26,10 @@ internal object CapVerificationAssets {
             ?: throw LsbException("验证码服务地址无效")
         // 下载失败不抛错：保留空脚本，让组件页回退到源站脚本地址。
         val script = runCatching {
-            download(client, endpoint, verification.scriptUrl, MAX_SCRIPT_BYTES)
+            val text = download(client, endpoint, verification.scriptUrl, MAX_SCRIPT_BYTES)
                 .toString(Charsets.UTF_8)
+            // CDN 校验页 / 登录页会给 HTTP 200 的 HTML；当成脚本内联只会语法错误。
+            if (text.trimStart().startsWith("<")) "" else text
         }.getOrDefault("")
         val wasmDataUrl = verification.wasmUrl.takeIf(String::isNotBlank)?.let { url ->
             runCatching {
