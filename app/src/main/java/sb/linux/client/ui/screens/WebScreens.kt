@@ -109,6 +109,14 @@ fun WebScreen(
                             request: android.webkit.WebResourceRequest,
                         ): Boolean {
                             val destination = request.url
+                            // 站内明文跳转升级为 HTTPS，保证继续走 DoH 代理而不是系统 DNS。
+                            if (request.isForMainFrame && request.method.equals("GET", ignoreCase = true) &&
+                                destination.scheme.equals("http", ignoreCase = true) &&
+                                Endpoints.isInternal(destination.host)
+                            ) {
+                                WebViewDoh.load(view, destination.buildUpon().scheme("https").build().toString())
+                                return true
+                            }
                             val fromSource = Endpoints.isInternal(android.net.Uri.parse(view.url.orEmpty()).host)
                             if (request.isForMainFrame && request.hasGesture() && fromSource &&
                                 destination.scheme in setOf("http", "https") && !Endpoints.isInternal(destination.host) && linkHandler != null

@@ -9,15 +9,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.DrawerState
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -28,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -37,8 +30,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.theme.LocalAppSizes
-import sb.linux.client.ui.theme.LocalAppSpacing
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -70,12 +61,6 @@ internal fun AppContent(
             (destination.id == AppDestinations.messages.id && rawRoute == "directMessagesRoot")
     }
     val twoItemLayout = destinations.size == 2
-    val showComposeAction = onRoot && rawRoute == AppDestinations.home.route
-
-    val composeAction: @Composable () -> Unit = {
-        val editorNav = if (layout.useTwoPane) detailNav else nav
-        ComposeTopicFab(onClick = { editorNav.navigate(AppDestinations.ACTION_NEW_TOPIC) })
-    }
 
     if (layout.useTwoPane) {
         // 双栏时 rail 切换的是主栏 NavHost；切换根目的地后右栏回到空态。
@@ -105,7 +90,6 @@ internal fun AppContent(
                             destinations = destinations,
                             selectedId = selectedId,
                             onSelect = onNavigateMaster,
-                            header = { if (showComposeAction) Box(Modifier.padding(bottom = 8.dp)) { composeAction() } },
                         )
                     }
                     Box(Modifier.fillMaxHeight().width(layout.masterPaneWidthDp.dp)) {
@@ -114,10 +98,6 @@ internal fun AppContent(
                             startDestination = AppDestinations.home.route,
                             modifier = Modifier.fillMaxSize(),
                         ) { masterRoutes(session, detailNav, homeDrawerState) }
-                        // 两项兼容布局没有 rail，发帖动作落在主栏右下角，避免两处宿主都不渲染
-                        if (showComposeAction && twoItemLayout) {
-                            Box(Modifier.align(Alignment.BottomEnd).padding(LocalAppSpacing.current.pageHorizontal)) { composeAction() }
-                        }
                     }
                     VerticalDivider(Modifier.fillMaxHeight())
                     AppNavHost(
@@ -144,10 +124,6 @@ internal fun AppContent(
                 AppBottomNavigation(destinations, selectedId, onNavigateBottom)
             }
         },
-        floatingActionButton = {
-            // rail 模式下同一个动作放在 rail 上方；两项布局没有 rail，仍用右下 FAB
-            if (showComposeAction && (!layout.useRail || twoItemLayout)) composeAction()
-        },
     ) { pad ->
         Row(Modifier.padding(pad).fillMaxSize()) {
             if (layout.useRail && !twoItemLayout) {
@@ -155,7 +131,6 @@ internal fun AppContent(
                     destinations = destinations,
                     selectedId = selectedId,
                     onSelect = onNavigateBottom,
-                    header = { if (showComposeAction) Box(Modifier.padding(bottom = 8.dp)) { composeAction() } },
                 )
             }
             AppNavHost(
@@ -167,20 +142,6 @@ internal fun AppContent(
                 detailRoutes(session, nav)
             }
         }
-    }
-}
-
-/** 社区发帖动作：FAB 是动作而不是可选中目的地。 */
-@Composable
-private fun ComposeTopicFab(onClick: () -> Unit) {
-    val sizes = LocalAppSizes.current
-    FloatingActionButton(
-        onClick = onClick,
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        modifier = Modifier.width(sizes.fabSize).height(sizes.fabSize),
-    ) {
-        Icon(Icons.Filled.Add, contentDescription = "发帖")
     }
 }
 

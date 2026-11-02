@@ -12,10 +12,16 @@ import sb.linux.client.ui.session.Session
 @Composable
 fun SourcePromotionsScreen(session: Session, nav: NavHostController) {
     val context = LocalContext.current
+    val linkHandler = sb.linux.client.ui.LocalLinkHandler.current
     WebScreen(session, nav, sourceUrl = "/", title = "原站广告",
         onOpenWindow = { url ->
-            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                .onFailure { session.showToast("无法打开广告链接") }
+            // 站内链接必须留在应用内：外部浏览器没有本应用的 DoH，解析会退回系统 DNS。
+            if (linkHandler != null && Endpoints.isInternal(Uri.parse(Endpoints.abs(url)).host)) {
+                linkHandler(url)
+            } else {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Endpoints.abs(url)))) }
+                    .onFailure { session.showToast("无法打开广告链接") }
+            }
         },
         onLoaded = { view, url ->
             if (Endpoints.isInternal(Uri.parse(url).host)) view.evaluateJavascript(PROMOTIONS_LAYOUT, null)
