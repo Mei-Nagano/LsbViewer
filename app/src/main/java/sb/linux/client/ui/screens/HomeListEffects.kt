@@ -27,8 +27,6 @@ internal fun HomeListEffects(
     loading: Boolean,
     loadingMore: Boolean,
     listState: LazyListState,
-    backTopPosition: Pair<Int, Int>?,
-    onBackTopPositionChange: (Pair<Int, Int>?) -> Unit,
     loadCachedHome: () -> List<TopicCard>,
     onLoad: (Int, Boolean, Boolean) -> Unit,
     onLocalPage: (Int) -> Unit,
@@ -95,7 +93,6 @@ internal fun HomeListEffects(
         if (combo != lastCombo || tabIndex != lastTabIndex) {
             lastCombo = combo
             lastTabIndex = tabIndex
-            onBackTopPositionChange(null)
             withFrameNanos { }
             listState.scrollToItem(0)
         }

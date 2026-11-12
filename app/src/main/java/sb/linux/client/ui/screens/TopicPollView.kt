@@ -4,7 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.topic.EssenceApplication
 import sb.linux.client.domain.topic.EssenceReview
 import sb.linux.client.domain.topic.TopicPoll
@@ -47,7 +48,7 @@ internal fun TopicPollView(
         val currentPoll = vote ?: return
         val selected = option.value in selectedValues
         Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = MaterialTheme.shapes.medium,
             color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
             border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
@@ -72,12 +73,12 @@ internal fun TopicPollView(
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp),
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Box(
-                    Modifier.size(38.dp).clip(RoundedCornerShape(12.dp))
+                    Modifier.size(38.dp).clip(MaterialTheme.shapes.medium)
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -99,9 +100,9 @@ internal fun TopicPollView(
                     )
                 }
                 Surface(
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     color = if (essence?.status in setOf("voting", "featured", "pending_approval") || (vote != null && !vote.closed && vote.unavailableReason.isBlank()))
-                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     Text(
                         essence?.statusLabel?.ifBlank { null }
@@ -114,10 +115,10 @@ internal fun TopicPollView(
                 }
             }
             essence?.takeIf { it.target > 0 || it.progressText.isNotBlank() }?.let { review ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                     Box(
-                        Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(50))
-                            .background(if (review.progress < 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHighest)
+                        Modifier.weight(1f).height(10.dp).clip(CircleShape)
+                            .background(if (review.progress < 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
                         Box(
                             Modifier.fillMaxHeight()
@@ -139,8 +140,14 @@ internal fun TopicPollView(
                 }
             }
             essence?.takeIf { it.poolTitle.isNotBlank() || it.poolItems.isNotEmpty() }?.let { review ->
-                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(
+                            horizontal = LocalAppSpacing.current.contentGap,
+                            vertical = LocalAppSpacing.current.item,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Paid, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
                             Spacer(Modifier.width(6.dp))
@@ -154,12 +161,12 @@ internal fun TopicPollView(
             }
             val panelNote = essence?.actionNote.orEmpty().ifBlank { vote?.note.orEmpty() }
             if (panelNote.isNotBlank()) Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Text(
                     panelNote,
-                    Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.contentGap, vertical = LocalAppSpacing.current.item),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -174,7 +181,7 @@ internal fun TopicPollView(
                 label = { Text(if (vote.reasonRequired) "投票理由（必填）" else "投票理由") },
                 supportingText = { Text(vote.reasonHint.ifBlank { "${reason.length}/${vote.reasonMaxLength}" }) },
                 modifier = Modifier.fillMaxWidth(), enabled = !busy && !vote.closed,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
             )
             if (vote != null) when {
                 vote.unavailableReason.isNotBlank() -> Text(
@@ -188,7 +195,7 @@ internal fun TopicPollView(
                     onClick = { onVote(vote.options.filter { it.value in selectedValues }, reason.trim()) },
                     enabled = !busy && selectedValues.isNotEmpty() && vote.action.isNotBlank() && (!vote.reasonRequired || reason.isNotBlank()),
                     modifier = Modifier.align(Alignment.End),
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
                 ) { Text(if (busy) "提交中…" else vote.submitLabel) }
             }
@@ -197,7 +204,7 @@ internal fun TopicPollView(
                     onClick = { if (loggedIn) onApply(application) else onLogin() },
                     enabled = !busy && (!loggedIn || application.enabled) && application.action.isNotBlank(),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                 ) { Text(if (busy) "提交中…" else if (loggedIn) application.label else "登录后申请加精") }
             }
             if (topUp != null) {
@@ -215,7 +222,7 @@ internal fun TopicPollView(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         enabled = !topUpBusy,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = MaterialTheme.shapes.large,
                         modifier = Modifier.weight(1f),
                     )
                     val amount = topUpText.toIntOrNull()

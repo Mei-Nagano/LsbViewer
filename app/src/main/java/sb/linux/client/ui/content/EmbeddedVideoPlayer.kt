@@ -17,8 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +36,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import org.jsoup.nodes.Element
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.platform.webview.WebViewDoh
 import java.net.URI
 import sb.linux.client.ui.LocalLinkHandler
@@ -85,7 +85,7 @@ internal fun EmbeddedVideoPlayer(video: EmbeddedVideo, modifier: Modifier = Modi
             modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
         ) {
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.secondaryContainer,
             ) {
                 Text(
@@ -108,12 +108,12 @@ internal fun EmbeddedVideoPlayer(video: EmbeddedVideo, modifier: Modifier = Modi
             }
         }
         Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(videoAspectRatio)
-                .clip(RoundedCornerShape(10.dp)),
+                .clip(MaterialTheme.shapes.medium),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 AndroidView(
@@ -205,7 +205,7 @@ internal fun EmbeddedVideoPlayer(video: EmbeddedVideo, modifier: Modifier = Modi
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
-                if (loading) CircularProgressIndicator()
+                if (loading) AppInlineLoading(size = 32.dp)
                 if (failed) {
                     TextButton(onClick = {
                         if (linkHandler != null) linkHandler(video.sourceUrl)

@@ -102,7 +102,7 @@ fun FootprintScreen(session: Session, nav: NavHostController) {
                 topics.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) }
             }
             when {
-                topics.isEmpty() -> EmptyBox("暂无浏览历史\n打开帖子后会自动记录，最多保留 200 条")
+                topics.isEmpty() -> EmptyBox("暂无浏览历史", "打开帖子后会自动记录，最多保留 200 条")
                 filtered.isEmpty() -> EmptyBox("无匹配“$query”的记录")
                 else -> HistoryList(filtered, nav, spacing, onRemove = {
                     viewModel.remove(it)
@@ -139,7 +139,7 @@ private fun HistoryList(
 ) {
     val today = LocalDate.now()
     val grouped = topics.groupBy { visitedDate(it.visitedAt) }
-    LazyColumn(contentPadding = PaddingValues(vertical = spacing.item)) {
+    LazyColumn(contentPadding = PaddingValues(vertical = spacing.pageVertical)) {
         grouped.forEach { (date, entries) ->
             item(key = "day-$date") {
                 Text(
@@ -197,7 +197,7 @@ private fun DismissibleHistory(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 5.dp)
+                    .padding(horizontal = spacing.pageHorizontal, vertical = 5.dp)
                     .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.large),
                 contentAlignment = Alignment.CenterEnd,
             ) {

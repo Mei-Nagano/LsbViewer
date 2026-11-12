@@ -1,12 +1,12 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 private val CardCurrencyLabels = listOf("points" to "积分", "wallet" to "烧饼")
 
@@ -29,13 +29,13 @@ internal fun VirtualCardTopicFields(
     cardValues: String,
     onCardValuesChange: (String) -> Unit,
 ) {    Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             Text(
                 "用户用积分或烧饼兑换卡密；编辑帖子时卡密列表只显示未售出的卡。",
@@ -46,7 +46,7 @@ internal fun VirtualCardTopicFields(
                 value = cardName, onValueChange = onCardNameChange,
                 label = { Text("卡片名称") },
                 supportingText = { Text("例如：月卡兑换码、软件激活码") },
-                singleLine = true, shape = RoundedCornerShape(16.dp),
+                singleLine = true, shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             )
             Box {
@@ -62,18 +62,18 @@ internal fun VirtualCardTopicFields(
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item)) {
                 OutlinedTextField(
                     value = cardPrice, onValueChange = onCardPriceChange,
                     label = { Text("兑换价格") },
-                    singleLine = true, shape = RoundedCornerShape(16.dp),
+                    singleLine = true, shape = MaterialTheme.shapes.large,
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedTextField(
                     value = cardLimit, onValueChange = onCardLimitChange,
                     label = { Text("每人限购") },
                     supportingText = { Text("0 为不限制") },
-                    singleLine = true, shape = RoundedCornerShape(16.dp),
+                    singleLine = true, shape = MaterialTheme.shapes.large,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -90,7 +90,7 @@ internal fun VirtualCardTopicFields(
                     onValueChange = onCardAutoReplyContentChange,
                     label = { Text("自动回帖内容") },
                     supportingText = { Text("支持变量 {card_name} {price} {username}") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -98,7 +98,7 @@ internal fun VirtualCardTopicFields(
                 value = cardValues, onValueChange = onCardValuesChange,
                 label = { Text("添加虚拟卡") },
                 supportingText = { Text("每行一张卡，最多 5000 张") },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 120.dp)

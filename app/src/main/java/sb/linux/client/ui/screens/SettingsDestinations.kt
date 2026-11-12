@@ -30,11 +30,14 @@ fun StorageSettingsScreen(session: Session, nav: NavHostController) {
     SettingsPage("存储与备份", nav) {
         GroupLabel("空间占用")
         CacheAnalysisCard(session, 0)
-        SettingMenuRow("立即清理", "选择本次要删除的数据") { nav.navigate("dataManagement") }
-        SettingMenuRow("退出时自动清理", "设置每次退出时清理的项目") { nav.navigate("autoClearSettings") }
+        // 原「立即清理 / 退出时自动清理 / 本地备份 / WebDAV 云备份」三级页直接在此展示
+        DataManagementContent(session, automatic = false, showAnalysis = false)
+        DataManagementContent(session, automatic = true, showAnalysis = false)
         GroupLabel("备份与恢复")
-        SettingMenuRow("本地备份", "选择备份内容 · 导入与导出 JSON") { nav.navigate("transferSettings") }
-        SettingMenuRow("WebDAV 云备份", "服务器配置 · 上传 · 恢复") { nav.navigate("webDavSettings") }
+        GroupLabel("本地备份")
+        TransferSettingsContent(session, cloud = false)
+        GroupLabel("WebDAV 云备份")
+        TransferSettingsContent(session, cloud = true, showItems = false)
     }
 }
 

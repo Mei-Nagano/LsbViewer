@@ -22,7 +22,9 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import sb.linux.client.ui.navigation.AppDestinations
 import sb.linux.client.ui.session.HomeTabState
 import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.topic.TopicCard
@@ -52,8 +54,6 @@ internal fun HomeBody(
     loadingMore: Boolean,
     categoryMotion: Animatable<Float, AnimationVector1D>,
     listState: LazyListState,
-    backTopPosition: Pair<Int, Int>?,
-    onBackTopPositionChange: (Pair<Int, Int>?) -> Unit,
     onLoadPage: (Int, Boolean, Boolean) -> Unit,
     onLocalPage: (Int) -> Unit,
     onRefresh: () -> Unit,
@@ -61,6 +61,24 @@ internal fun HomeBody(
     onSelectCombo: (Int, Int) -> Unit,
     scope: CoroutineScope,
 ) {
+    // 合并悬浮按钮：默认发帖；向下滚动时切换为回到顶部，停止滚动 2 秒后恢复发帖。
+    var backTopMode by remember { mutableStateOf(false) }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            Triple(
+                listState.isScrollInProgress,
+                listState.lastScrolledForward,
+                listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0,
+            )
+        }.collect { (scrolling, forward, scrolled) ->
+            if (scrolling) {
+                if (forward && scrolled) backTopMode = true
+            } else if (backTopMode) {
+                delay(2000)
+                if (!listState.isScrollInProgress) backTopMode = false
+            }
+        }
+    }
             Box(Modifier.fillMaxSize()) {
                 when {
                     loading && current.topics.isEmpty() -> LoadingBox()
@@ -123,8 +141,8 @@ internal fun HomeBody(
                                 modifier = Modifier.fillMaxSize(),
                                 // 根导航由外壳 Scaffold 的 bottomBar inset 处理，列表不再叠加固定底栏留白
                                 contentPadding = PaddingValues(
-                                    top = topInset + 8.dp,
-                                    bottom = 8.dp,
+                                    top = topInset + LocalAppSpacing.current.item,
+                                    bottom = LocalAppSpacing.current.pageVertical,
                                 )
                             ) {
                                 if (pendingNewTopics.isNotEmpty()) {
@@ -134,12 +152,12 @@ internal fun HomeBody(
                                                 current.topics = onAcceptPendingTopics(current.topics)
                                                 scope.launch { listState.animateScrollToItem(0) }
                                             },
-                                            shape = RoundedCornerShape(16.dp),
+                                            shape = MaterialTheme.shapes.large,
                                             color = MaterialTheme.colorScheme.primaryContainer,
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = LocalAppSpacing.current.item),
                                         ) {
                                             Row(
-                                                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+                                                Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = LocalAppSpacing.current.item),
                                                 verticalAlignment = Alignment.CenterVertically,
                                             ) {
                                                 Text(
@@ -172,10 +190,10 @@ internal fun HomeBody(
                                             Box(
                                                 Modifier
                                                     .fillMaxWidth()
-                                                    .padding(12.dp),
+                                                    .padding(LocalAppSpacing.current.contentGap),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                if (loadingMore) CircularProgressIndicator(Modifier.size(22.dp))
+                                                if (loadingMore) AppInlineLoading()
                                                 else Button(onClick = { onLoadPage(current.page + 1, true, false) }) {
                                                     Text("加载更多")
                                                 }
@@ -192,52 +210,42 @@ internal fun HomeBody(
                                 }
                             }
                         }
-                        // 回到顶部按钮：列表滚过前几条后出现（缩放动画，不用 AnimatedVisibility 避免嵌套作用域限制）
-                        val showBackTop by remember {
-                            derivedStateOf { listState.firstVisibleItemIndex > 2 || backTopPosition != null }
-                        }
-                        val backTopScale by animateFloatAsState(
-                            targetValue = if (showBackTop) 1f else 0f,
-                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                            label = "backTop"
-                        )
-                        if (backTopScale > 0.01f) {
-                            SmallFloatingActionButton(
-                                onClick = {
-                                    val saved = backTopPosition
-                                    if (listState.firstVisibleItemIndex <= 1 && saved != null) {
-                                        onBackTopPositionChange(null)
-                                        scope.launch { listState.animateScrollToItem(saved.first, saved.second) }
-                                    } else {
-                                        onBackTopPositionChange(listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset)
-                                        scope.launch { listState.animateScrollToItem(0) }
-                                    }
-                                },
-                                modifier = Modifier
-                                    // 发帖 FAB 固定在右下，回到顶部移到左下避免触区重叠
-                                    .align(Alignment.BottomStart)
-                                    .padding(start = 16.dp, bottom = 24.dp)
-                                    .graphicsLayer {
-                                        scaleX = backTopScale
-                                        scaleY = backTopScale
-                                        alpha = backTopScale
-                                    },
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                            ) {
-                                val canReturn = listState.firstVisibleItemIndex <= 1 && backTopPosition != null
-                                Icon(
-                                    if (canReturn) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp,
-                                    if (canReturn) "回到刚才位置" else "回到顶部",
-                                )
-                            }
-                        }
                         if (session.floatingTopicId > 0L) {
                             sb.linux.client.ui.patterns.topic.PinnedTopicCapsule(session.floatingTopicId, session.floatingTopicTitle) {
                                 nav.navigate("topic/${session.floatingTopicId}")
                             }
                         }
                     }
-    }
-}
+                }
+                // 首页唯一悬浮按钮：发帖与回到顶部共用，图标随滚动状态切换。
+                FloatingActionButton(
+                    onClick = {
+                        if (backTopMode) {
+                            backTopMode = false
+                            scope.launch { listState.animateScrollToItem(0) }
+                        } else {
+                            nav.navigate(AppDestinations.ACTION_NEW_TOPIC) { launchSingleTop = true }
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = LocalAppSpacing.current.pageHorizontal, bottom = 24.dp)
+                        .size(LocalAppSizes.current.fabSize),
+                    containerColor = if (backTopMode) {
+                        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f)
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    },
+                    contentColor = if (backTopMode) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    },
+                ) {
+                    Icon(
+                        if (backTopMode) Icons.Filled.KeyboardArrowUp else Icons.Filled.Add,
+                        contentDescription = if (backTopMode) "回到顶部" else "发帖",
+                    )
+                }
+            }
 }

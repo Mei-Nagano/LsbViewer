@@ -14,7 +14,10 @@ import androidx.compose.ui.unit.sp
  * 数值是本项目的应用表，不是「不可调整的 MD3 原始字表」：
  * - 默认系统 sans-serif 与中文 fallback，不额外下载字体；
  * - 中文为主的整段文字 tracking=0；
- * - 用户字体、应用字号因子与字重增量在此处各应用一次，系统 sp 缩放继续交给 Compose。
+ * - 用户字体与字重增量在此处各应用一次。
+ * - 应用字号因子**不在这里乘**：根部把 fontScale 注入 LocalDensity（Density.fontScale），
+ *   所有 sp（本表、阅读字阶、页面里的固定 sp）统一缩放，系统字号继续叠加，
+ *   避免不同页面各乘一次导致「字体大小控制不统一」。
  */
 private fun baseTypography(): Typography = Typography(
     displayLarge = TextStyle(fontSize = 57.sp, lineHeight = 64.sp, fontWeight = FontWeight.Normal),
@@ -35,19 +38,16 @@ private fun baseTypography(): Typography = Typography(
 )
 
 /** 默认全文字重不额外 +100；只有用户显式选择字重档位时才叠加。 */
-private fun TextStyle.styled(family: FontFamily?, scale: Float, weightDelta: Int) = copy(
+private fun TextStyle.styled(family: FontFamily?, weightDelta: Int) = copy(
     fontFamily = family ?: fontFamily,
-    fontSize = fontSize * scale,
-    lineHeight = lineHeight * scale,
     letterSpacing = 0.sp,
     fontWeight = FontWeight(((fontWeight ?: FontWeight.Normal).weight + weightDelta).coerceAtMost(900)),
 )
 
-internal fun appTypography(fontFamily: FontFamily?, fontScale: Float, weightLevel: Int): Typography {
+internal fun appTypography(fontFamily: FontFamily?, weightLevel: Int): Typography {
     val t = baseTypography()
-    val scale = fontScale.coerceIn(0.85f, 1.30f)
     val delta = weightLevel.coerceIn(0, 2) * 100
-    fun TextStyle.adjusted() = styled(fontFamily, scale, delta)
+    fun TextStyle.adjusted() = styled(fontFamily, delta)
     return t.copy(
         displayLarge = t.displayLarge.adjusted(), displayMedium = t.displayMedium.adjusted(),
         displaySmall = t.displaySmall.adjusted(), headlineLarge = t.headlineLarge.adjusted(),
@@ -64,7 +64,7 @@ internal fun appTypography(fontFamily: FontFamily?, fontScale: Float, weightLeve
  * 阅读专用字阶（DESIGN_SYSTEM D04「阅读专用角色」）。
  *
  * 与设置页的 bodyLarge 分开：正文 18/30，评论 16/26，代码等宽 14/22；
- * 应用字号因子只在这里应用一次，页面不得再乘一次。
+ * 字号因子由根部 LocalDensity 统一缩放，这里只写设计表中的基准 sp。
  */
 @Immutable
 data class AppReadingType(
@@ -77,13 +77,12 @@ data class AppReadingType(
     val comment: TextStyle,
 )
 
-internal fun appReadingType(fontFamily: FontFamily?, fontScale: Float, weightLevel: Int): AppReadingType {
-    val scale = fontScale.coerceIn(0.85f, 1.30f)
+internal fun appReadingType(fontFamily: FontFamily?, weightLevel: Int): AppReadingType {
     val delta = weightLevel.coerceIn(0, 2) * 100
     fun reading(size: Int, line: Int, weight: FontWeight, family: FontFamily? = fontFamily) = TextStyle(
         fontFamily = family,
-        fontSize = (size * scale).sp,
-        lineHeight = (line * scale).sp,
+        fontSize = size.sp,
+        lineHeight = line.sp,
         letterSpacing = 0.sp,
         fontWeight = FontWeight((weight.weight + delta).coerceAtMost(900)),
     )
@@ -99,4 +98,4 @@ internal fun appReadingType(fontFamily: FontFamily?, fontScale: Float, weightLev
 }
 
 /** 无宿主时的回退（预览、独立组合），保持默认字号与系统字体。 */
-val LocalReadingType = staticCompositionLocalOf { appReadingType(null, 1f, 0) }
+val LocalReadingType = staticCompositionLocalOf { appReadingType(null, 0) }

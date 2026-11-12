@@ -15,12 +15,10 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +58,7 @@ import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.components.feedback.ErrorBox
 import sb.linux.client.ui.components.feedback.LoadingBox
 import sb.linux.client.ui.components.feedback.LoginRequiredBox
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /**
  * 淘帖中心：原生解析「我的 / 大家的」专辑列表，专辑详情走 collectionActions 路由。
@@ -102,7 +101,10 @@ fun TopicCollectionsScreen(
         Column(Modifier.padding(pad).fillMaxSize()) {
             // 根内分区使用分段控件，避免与根级顶部 Tab 形成两条同形标签栏
             SingleChoiceSegmentedButtonRow(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(
+                    horizontal = LocalAppSpacing.current.pageHorizontal,
+                    vertical = LocalAppSpacing.current.item,
+                ),
             ) {
                 SegmentedButton(
                     selected = !mine,

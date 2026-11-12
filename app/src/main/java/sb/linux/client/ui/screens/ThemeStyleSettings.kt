@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +16,7 @@ import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.PaletteStyles
 import sb.linux.client.ui.theme.colorSeed
 import sb.linux.client.ui.theme.paletteStyleLabel
+import sb.linux.client.ui.theme.AppMenuDefaults
 
 internal fun LazyListScope.themeStyleSettings(session: Session, dark: Boolean) {
 // ---------- 调色风格（单行横向滑动） ----------
@@ -27,11 +27,11 @@ item {
             "同一主题色在不同调色风格下的观感差异，点按切换",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)
         )
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+            contentPadding = PaddingValues(horizontal = AppMenuDefaults.contentHorizontal, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(PaletteStyles) { style ->
@@ -64,7 +64,6 @@ item {
                 session.preferences.saveTheme(session.themeMode, on, if (on) "default" else session.themeColorKey)
             }
         )
-        HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         SwitchRow(
             "OLED 纯黑",
             "深色模式下使用纯黑背景",
@@ -81,7 +80,7 @@ item {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 8.dp),
+                .padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -114,14 +113,14 @@ item {
             valueRange = -1f..1f,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp)
+                .padding(horizontal = AppMenuDefaults.contentHorizontal)
         )
         // 三档标签：点击直达（左中右三个特殊值的表达），当前档位高亮
         val current = if (dragging) dragValue else session.themeContrast
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 2.dp),
+                .padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             listOf("低" to -1f, "标准" to 0f, "高" to 1f).forEach { (label, value) ->
@@ -133,7 +132,7 @@ item {
                     color = if (active) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .clickable { dragging = false; session.preferences.saveThemeContrast(value) }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
@@ -143,7 +142,7 @@ item {
             "仅对「主题色」派生方案生效，动态取色（跟随系统壁纸）不受此影响",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)
         )
     }
 }

@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,7 +69,6 @@ internal fun SettingsPage(
 @Composable
 internal fun SettingsResetRow(title: String, message: String = "恢复默认设置？", onConfirm: () -> Unit) {
     var show by remember { mutableStateOf(false) }
-    HorizontalDivider()
     TextButton(onClick = { show = true }, modifier = Modifier.fillMaxWidth()) { Text(title) }
     if (show) sb.linux.client.ui.components.feedback.AppConfirmDialog(
         title = title,

@@ -1,7 +1,6 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ViewList
@@ -11,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.patterns.user.UserInfoCard
 import sb.linux.client.ui.patterns.user.toUserInfoCardData
@@ -26,15 +26,15 @@ internal fun HomeSidebarHeader(
     if (state.loggedIn) {
         UserInfoCard(
             data = state.toUserInfoCardData(), compact = true,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
             onProfile = { onClose(); onOpenUser(state.userId) },
         )
     } else {
         Surface(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
             shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
-            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("访客", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text("登录后可发帖、回帖与私信", style = MaterialTheme.typography.labelSmall,
@@ -48,14 +48,20 @@ internal fun HomeSidebarHeader(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(16.dp),
+                    .padding(
+                        horizontal = LocalAppSpacing.current.pageHorizontal,
+                        vertical = LocalAppSpacing.current.contentGap,
+                    ),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerLow
             ) {
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(
+                            horizontal = LocalAppSpacing.current.contentGap,
+                            vertical = LocalAppSpacing.current.item,
+                        ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(

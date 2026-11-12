@@ -53,7 +53,7 @@ fun ExportDialog(
     var selectedIds by remember { mutableStateOf(posts.map { it.id }.toSet()) }
     ModalBottomSheet(onDismissRequest = { if (busy == null) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), sheetGesturesEnabled = false) {
-        Column(Modifier.fillMaxHeight(0.9f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+        Column(Modifier.fillMaxHeight(0.9f).verticalScroll(rememberScrollState()).padding(horizontal = LocalAppSpacing.current.pageHorizontal)) {
             Row(
                 Modifier.padding(start = 4.dp, top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -81,7 +81,7 @@ fun ExportDialog(
                 }
             }
             if (scopeMode == "range") {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                     OutlinedTextField(
                         value = fromFloor, onValueChange = { fromFloor = it.filter(Char::isDigit) },
                         label = { Text("起始楼层") }, singleLine = true, modifier = Modifier.weight(1f),
@@ -96,7 +96,7 @@ fun ExportDialog(
                 Row {
                     TextButton(onClick = { selectedIds = posts.map { it.id }.toSet() }) { Text("全选") }
                     TextButton(onClick = { selectedIds = emptySet() }) { Text("清空") }
-                    Text("已选 ${selectedIds.size} 层", modifier = Modifier.padding(12.dp))
+                    Text("已选 ${selectedIds.size} 层", modifier = Modifier.padding(LocalAppSpacing.current.contentGap))
                 }
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
                     items(posts, key = { it.id }) { post ->
@@ -161,16 +161,16 @@ private fun ExportSheetItem(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.large)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
     ) {
         Box(
             Modifier
                 .size(42.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {

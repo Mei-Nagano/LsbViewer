@@ -1,11 +1,11 @@
 package sb.linux.client.ui.navigation
+
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.common.network.Endpoints
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
@@ -201,7 +201,7 @@ internal fun AppLinkProvider(
             text = {
                 if (linkPreviewLoading) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                        AppInlineLoading()
                         androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
                         Text("正在读取网站信息…")
                     }
@@ -211,7 +211,7 @@ internal fun AppLinkProvider(
                         coil.compose.AsyncImage(
                             model = info?.iconUrl,
                             contentDescription = null,
-                            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(10.dp)),
+                            modifier = Modifier.size(42.dp).clip(MaterialTheme.shapes.medium),
                         )
                         androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
                         androidx.compose.foundation.layout.Column {

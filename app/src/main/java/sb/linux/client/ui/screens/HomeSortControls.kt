@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.HomeTabState
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 @Composable
 internal fun ColumnScope.HomeSortControls(
     session: Session,
@@ -35,7 +36,7 @@ internal fun ColumnScope.HomeSortControls(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp),
                         shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 2.dp,
@@ -54,12 +55,12 @@ internal fun ColumnScope.HomeSortControls(
                                 listOf("全部" to 0, "抽奖" to 1, "发卡" to 2, "红包" to 4, "申精" to 3).forEachIndexed { _, (label, c) ->
                                     val selected = combo == c
                                     Surface(
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = MaterialTheme.shapes.medium,
                                         color = if (selected) MaterialTheme.colorScheme.primaryContainer
                                         else MaterialTheme.colorScheme.surfaceContainerHigh,
                                         modifier = Modifier
                                             .weight(1f)
-                                            .clip(RoundedCornerShape(12.dp))
+                                            .clip(MaterialTheme.shapes.medium)
                                             .clickable {
                                                 onSelectCombo(c, if (listOf(0, 1, 2, 4, 3).indexOf(c) >
                                                     listOf(0, 1, 2, 4, 3).indexOf(session.homeBrowse.homeCombo)) 1 else -1)
@@ -111,12 +112,12 @@ internal fun ColumnScope.HomeSortControls(
                                     SORTS.forEachIndexed { i, (_, label) ->
                                         val selected = tabIndex == i
                                         Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                                            shape = MaterialTheme.shapes.medium,
+                                            color = if (selected) MaterialTheme.colorScheme.primaryContainer
                                             else MaterialTheme.colorScheme.surfaceContainerHigh,
                                             shadowElevation = if (selected) 2.dp else 0.dp,
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(12.dp))
+                                                .clip(MaterialTheme.shapes.medium)
                                                 .clickable {
                                                     session.homeBrowse.homeTabIndex = i; session.homeBrowse.homeCombo = 0
                                                     // 回到顶部由下方 LaunchedEffect(combo, tabIndex) 统一处理
@@ -126,9 +127,12 @@ internal fun ColumnScope.HomeSortControls(
                                                 label,
                                                 style = MaterialTheme.typography.labelLarge,
                                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                                                 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp)
+                                                modifier = Modifier.padding(
+                                                    horizontal = LocalAppSpacing.current.pageHorizontal,
+                                                    vertical = LocalAppSpacing.current.item,
+                                                )
                                             )
                                         }
                                     }

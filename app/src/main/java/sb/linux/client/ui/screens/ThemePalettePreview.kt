@@ -3,7 +3,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -33,8 +32,8 @@ internal fun PaletteStyleSwatch(
     val borderWidth = if (selected) 2.dp else 1.dp
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
-            .border(borderWidth, borderColor, RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.large)
+            .border(borderWidth, borderColor, MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable(onClick = onClick)
     ) {

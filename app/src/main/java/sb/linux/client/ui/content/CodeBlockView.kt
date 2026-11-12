@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.UnfoldLess
@@ -51,7 +50,7 @@ fun CodeBlockView(code: String, highlightQuery: String = "", onSearchPosition: (
         if (highlightQuery.isNotBlank() && code.contains(highlightQuery.trim(), ignoreCase = true)) expanded = true
     }
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = Modifier.padding(vertical = 4.dp)
     ) {

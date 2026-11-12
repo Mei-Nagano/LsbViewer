@@ -3,7 +3,6 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Casino
@@ -30,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.gacha.GachaAction
 import sb.linux.client.domain.gacha.GachaPoolRow
 import sb.linux.client.domain.gacha.GachaTitleItem
@@ -38,11 +38,11 @@ import sb.linux.client.ui.titleRarityColor
 
 @Composable
 internal fun GachaPoolRowView(row: GachaPoolRow) {
-    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+            Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
         ) {
             RarityPill(row.rarity)
             Text(
@@ -65,11 +65,12 @@ private fun GachaCardRow(
     trailing: @Composable RowScope.() -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
+            Modifier.size(36.dp).clip(MaterialTheme.shapes.medium)
                 .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -123,7 +124,7 @@ internal fun GachaSystemCard(
                 if (titles.isEmpty()) {
                     Text(
                         "还没有称号，去下面的称号抽取试试",
-                        Modifier.padding(start = 65.dp, end = 16.dp, bottom = 12.dp),
+                        Modifier.padding(start = 65.dp, end = LocalAppSpacing.current.pageHorizontal, bottom = LocalAppSpacing.current.contentGap),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

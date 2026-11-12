@@ -39,16 +39,16 @@ internal fun CopySheetItem(icon: ImageVector, title: String, subtitle: String, o
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.large)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
     ) {
         Box(
             Modifier
                 .size(42.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {
@@ -115,7 +115,7 @@ internal fun FreeCopyDialog(
                         Modifier
                             .weight(1f)
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp)
                     ) {
                         Text(
                             title,

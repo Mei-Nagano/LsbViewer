@@ -17,13 +17,14 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.theme.colorSeed
 import sb.linux.client.ui.theme.colorToKey
 import sb.linux.client.ui.theme.isCustomColorKey
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ThemeSettingsScreen(session: Session, nav: NavHostController, section: String = "overview") {
+fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
     var showColorPicker by remember { mutableStateOf(false) }
     var showBackgroundPicker by remember { mutableStateOf(false) }
     var pickingRole by remember { mutableStateOf<PreviewRole?>(null) }
@@ -155,35 +156,26 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController, section: Strin
     }
 
     sb.linux.client.ui.components.navigation.AppPageScaffold(
-        title = when (section) { "colors" -> "主题与配色"; "background" -> "页面背景"; "fonts" -> "字体与文字"; "layout" -> "导航与布局"; else -> "外观与布局" },
+        title = "外观与布局",
         onBack = { nav.popBackStack() },
     ) { pad ->
+        val spacing = LocalAppSpacing.current
         LazyColumn(
             modifier = Modifier
                 .padding(pad)
                 .fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
+            verticalArrangement = Arrangement.spacedBy(spacing.contentGap)
         ) {
-
-            if (section == "overview") item {
-                // 实时示例：只展示公共模式，示例内的点击不触发真实收藏/发帖/导航
-                PostCardPreview(currentScheme) { }
-            }
-            if (section == "overview") item {
+            item {
                 Column {
                     GroupLabel("显示模式")
                     DayNightToggle(session.themeMode) { session.preferences.saveTheme(it, session.dynamicColor) }
-                    listOf(Triple("主题与配色", "主题色 · 动态取色 · OLED · 元素颜色", "themeColors"),
-                        Triple("页面背景", "背景色 · 图片 · 表面透明度", "themeBackground"),
-                        Triple("字体与文字", "字体文件 · 大小 · 粗细", "themeFonts"),
-                        Triple("导航与布局", "主导航 · 单双栏 · 评论底栏", "themeLayout")
-                    ).forEach { (title, summary, route) -> SettingMenuRow(title, summary) { nav.navigate(route) } }
-                    SettingsResetRow("重置外观设置") { session.preferences.resetThemeSettings() }
                 }
             }
-            if (section == "colors" || section == "background") themeBackgroundPalette(
-                section = section,
+            // 原三级子页（主题与配色 / 页面背景 / 字体与文字 / 导航与布局）直接在此页展示
+            themeBackgroundPalette(
+                section = "colors",
                 session = session,
                 currentScheme = currentScheme,
                 backgroundImportBusy = backgroundImportBusy,
@@ -193,9 +185,19 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController, section: Strin
                 onPickElement = { pickingElement = it },
                 onOpenThemeColorPicker = { showColorPicker = true },
             )
-            if (section == "colors") themeStyleSettings(session, dark)
-            if (section == "layout") themeLayoutSettings(session)
-            if (section == "fonts") themeFontSettings(
+            themeStyleSettings(session, dark)
+            themeBackgroundPalette(
+                section = "background",
+                session = session,
+                currentScheme = currentScheme,
+                backgroundImportBusy = backgroundImportBusy,
+                onOpenBackgroundPicker = { showBackgroundPicker = true },
+                onSelectBackgroundImage = { backgroundPicker.launch("image/*") },
+                onPickRole = { pickingRole = it },
+                onPickElement = { pickingElement = it },
+                onOpenThemeColorPicker = { showColorPicker = true },
+            )
+            themeFontSettings(
                 session = session,
                 customFontFamily = customFontFamily,
                 onChooseCustomFont = {
@@ -204,6 +206,8 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController, section: Strin
                     )
                 },
             )
+            themeLayoutSettings(session)
+            item { SettingsResetRow("重置外观设置") { session.preferences.resetThemeSettings() } }
         }
     }
 }

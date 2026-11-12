@@ -4,7 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmarks
@@ -28,6 +28,7 @@ import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.components.feedback.ErrorBox
 import sb.linux.client.ui.components.feedback.LoadingBox
 import sb.linux.client.ui.patterns.topic.TopicCardView
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 internal fun TopicCollectionActionForm.toGachaForm() = GachaOperationForm(
     label = label,
@@ -53,27 +54,28 @@ internal fun CollectionDetailList(
     onReload: () -> Unit,
     onPending: (Pair<GachaOperationForm, List<Pair<String, String>>>) -> Unit,
 ) {
+    val spacing = LocalAppSpacing.current
     // 无输入项的表单只是一个按钮（删除、移除等；订阅已提到顶栏），收成一排胶囊置顶；
     // 需要填内容的表单（新建、编辑说明）保留卡片，跟在按钮下方。
     val quickForms = forms.filter { it.fields.isEmpty() }
     val inputForms = forms.filter { it.fields.isNotEmpty() }
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(top = spacing.contentGap, bottom = spacing.section),
+        verticalArrangement = Arrangement.spacedBy(spacing.contentGap),
     ) {
-        if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) }
+        if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal)) }
         // 已有内容时错误降级为条幅，不清空正在看的列表
         error?.let { message ->
             item {
-                sb.linux.client.ui.components.feedback.AppNotice(message, Modifier.padding(horizontal = 14.dp), onAction = onReload)
+                sb.linux.client.ui.components.feedback.AppNotice(message, Modifier.padding(horizontal = spacing.pageHorizontal), onAction = onReload)
             }
         }
         // 管理操作置顶，进页面就能点，不用滚到最下面
         if (quickForms.isNotEmpty()) {
             item {
                 FlowRow(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -81,7 +83,7 @@ internal fun CollectionDetailList(
                         FilledTonalButton(
                             enabled = form.enabled && !submitting && !loading,
                             onClick = { onPending(form to form.hiddenFields) },
-                            shape = RoundedCornerShape(50),
+                            shape = CircleShape,
                             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
                         ) { Text(form.label, style = MaterialTheme.typography.labelLarge, maxLines = 1) }
                     }
@@ -89,7 +91,7 @@ internal fun CollectionDetailList(
             }
         }
         itemsIndexed(inputForms) { _, form ->
-            Box(Modifier.padding(horizontal = 14.dp)) {
+            Box(Modifier.padding(horizontal = spacing.pageHorizontal)) {
                 GachaDynamicForm(form, !submitting && !loading) {
                     onPending(form to it)
                 }
@@ -99,11 +101,11 @@ internal fun CollectionDetailList(
         opPage?.notes.orEmpty().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { notes ->
             item {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal),
                 ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Filled.Bookmarks, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                             Text("专辑说明", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
@@ -119,7 +121,7 @@ internal fun CollectionDetailList(
         if (topics.isNotEmpty()) {
             item {
                 Text("收录内容 · ${topics.size}", style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 18.dp))
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = spacing.pageHorizontal))
             }
             itemsIndexed(topics, key = { _, t -> t.topicId }) { _, topic ->
                 TopicCardView(topic, onClick = { nav.navigate("topic/${topic.topicId}") })
@@ -128,24 +130,24 @@ internal fun CollectionDetailList(
             item {
                 Text("这个专辑还没有收录内容", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp))
+                    modifier = Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.item))
             }
         }
         // 翻页：源站分页链接做成一行胶囊，不再竖排文字按钮
         if (pageLinks.isNotEmpty()) {
             item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     pageLinks.forEach { (label, href) ->
                         val current = href == path
                         Surface(
-                            shape = RoundedCornerShape(50),
-                            color = if (current) MaterialTheme.colorScheme.secondaryContainer
+                            shape = CircleShape,
+                            color = if (current) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).clickable(enabled = !current && !loading) { onPath(href) },
+                            modifier = Modifier.clip(CircleShape).clickable(enabled = !current && !loading) { onPath(href) },
                         ) {
                             Text(label, style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (current) FontWeight.Bold else FontWeight.Medium,
-                                color = if (current) MaterialTheme.colorScheme.onSecondaryContainer
+                                color = if (current) MaterialTheme.colorScheme.onPrimaryContainer
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
                         }

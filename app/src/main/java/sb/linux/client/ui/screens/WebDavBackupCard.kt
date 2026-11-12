@@ -9,6 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.components.feedback.AppInlineLoading
+import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @Composable
 internal fun WebDavBackupCard(
@@ -27,7 +30,7 @@ internal fun WebDavBackupCard(
     onRestore: () -> Unit,
 ) {
     GroupCard {
-        Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
+        Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp)) {
             Text("WebDAV 云备份", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
                 "把上方已勾选的同一批内容备份到坚果云 / Nextcloud 等 WebDAV 网盘。",
@@ -41,7 +44,7 @@ internal fun WebDavBackupCard(
                 label = { Text("服务器地址") },
                 placeholder = { Text("https://dav.example.com/dav") },
                 singleLine = true,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))
@@ -50,7 +53,7 @@ internal fun WebDavBackupCard(
                 onValueChange = onUsernameChange,
                 label = { Text("账号") },
                 singleLine = true,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))
@@ -59,7 +62,7 @@ internal fun WebDavBackupCard(
                 onValueChange = onPasswordChange,
                 label = { Text("密码 / 应用密码") },
                 singleLine = true,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None
                 else PasswordVisualTransformation(),
                 trailingIcon = {
@@ -76,20 +79,20 @@ internal fun WebDavBackupCard(
                 label = { Text("备份目录") },
                 placeholder = { Text("/linuxsb/") },
                 singleLine = true,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Button(
                     onClick = onBackup,
                     enabled = !busy,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.weight(1f),
                 ) {
                     if (busy) {
-                        CircularProgressIndicator(
-                            Modifier.size(14.dp), strokeWidth = 2.dp,
+                        AppInlineLoading(
+                            size = 14.dp,
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                         Spacer(Modifier.width(6.dp))
@@ -99,7 +102,7 @@ internal fun WebDavBackupCard(
                 OutlinedButton(
                     onClick = onRestore,
                     enabled = !busy,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.weight(1f),
                 ) { Text("从 WebDAV 恢复") }
             }

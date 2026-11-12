@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.*
 import androidx.compose.material.icons.Icons
@@ -38,15 +39,18 @@ fun VirtualCardView(vc: VirtualCard, loggedIn: Boolean, onBuy: () -> Unit) {
         else MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = LocalAppSpacing.current.item)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Column(
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(vc.kicker, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
                     Text(vc.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
-                Badge(vc.status, MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+                Badge(vc.status, MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("${vc.priceText}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             if (vc.footText.isNotBlank()) {
@@ -78,7 +82,7 @@ fun VirtualCardView(vc: VirtualCard, loggedIn: Boolean, onBuy: () -> Unit) {
                 Button(
                     onClick = onBuy,
                     enabled = loggedIn,
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (loggedIn) "确认兑换" else "登录后兑换") }
             } else if (!vc.inStock) {

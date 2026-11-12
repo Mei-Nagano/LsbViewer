@@ -1,5 +1,6 @@
 package sb.linux.client.ui.content
 
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -39,7 +40,7 @@ fun MarkdownEditorTools(onInsert: (String, String, String) -> Unit, onUpload: ()
                         IconButton(onClick = {
                             if (tool.label == "上传图片") onUpload() else onInsert(tool.before, tool.after, tool.placeholder)
                         }, enabled = tool.label != "上传图片" || !uploading) {
-                            if (tool.label == "上传图片" && uploading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            if (tool.label == "上传图片" && uploading) AppInlineLoading(size = 20.dp)
                             else Icon(tool.icon, tool.label, Modifier.size(20.dp))
                         }
                     }

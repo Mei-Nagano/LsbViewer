@@ -10,7 +10,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.theme.colorSeed
 import sb.linux.client.ui.theme.colorToHsv
 import sb.linux.client.ui.theme.hsvColor
@@ -37,7 +37,7 @@ private fun HueGradientSlider(hue: Float, onValueChange: (Float) -> Unit, modifi
         modifier
             .fillMaxWidth()
             .height(30.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.large)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -94,11 +94,11 @@ internal fun ColorPickerDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(Modifier.padding(20.dp)) {
+            Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal)) {
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium,
@@ -113,7 +113,7 @@ internal fun ColorPickerDialog(
                     Modifier
                         .fillMaxWidth()
                         .height(160.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(MaterialTheme.shapes.large)
                         .pointerInput(Unit) {
                             awaitEachGesture {
                                 val down = awaitFirstDown()
@@ -154,7 +154,7 @@ internal fun ColorPickerDialog(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(MaterialTheme.shapes.large)
                         .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -162,7 +162,7 @@ internal fun ColorPickerDialog(
                     Box(
                         Modifier
                             .size(32.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(MaterialTheme.shapes.medium)
                             .background(current)
                     )
                     Spacer(Modifier.width(12.dp))
@@ -190,7 +190,7 @@ internal fun ColorPickerDialog(
                     )
                     Spacer(Modifier.height(6.dp))
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         items(presets.size) { i ->
@@ -199,13 +199,13 @@ internal fun ColorPickerDialog(
                             Box(
                                 Modifier
                                     .size(34.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(MaterialTheme.shapes.medium)
                                     .background(c)
                                     .combinedClickable(
                                         onClick = { applyColor(c) },
                                         onLongClick = { onRemovePreset?.invoke(key) }
                                     )
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(

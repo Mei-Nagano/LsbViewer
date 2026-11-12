@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.*
 import androidx.compose.material.icons.filled.*
@@ -26,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.HomeTabState
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.components.navigation.AppTopBar
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -102,7 +104,7 @@ internal fun HomeTopBar(
                                 }
                             }
                             Surface(
-                                shape = RoundedCornerShape(22.dp),
+                                shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 modifier = Modifier
                                     .weight(1f)
@@ -145,9 +147,9 @@ internal fun HomeTopBar(
                             }
                         }
                     } else {
-                        TopAppBar(
+                        AppTopBar(
                             windowInsets = WindowInsets(0, 0, 0, 0),
-                            title = { Text("LINUX SB") },
+                            title = "LINUX SB",
                             navigationIcon = {
                                 // 平板双栏：侧边栏按钮已移到左侧导航栏顶部，顶栏不再重复展示
                                 if (masterNav == null) {

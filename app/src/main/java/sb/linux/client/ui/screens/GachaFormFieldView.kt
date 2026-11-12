@@ -3,7 +3,6 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -25,7 +24,7 @@ internal fun GachaFormFieldView(
 ) {when (field.type) {
     "checkbox" -> Unit
     "radio" -> Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
             .clickable(enabled = enabled) { radioValues[field.name] = field.value },
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -48,7 +47,7 @@ internal fun GachaFormFieldView(
                 else values[index] = option.value
             }
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
                 border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
@@ -76,7 +75,7 @@ internal fun GachaFormFieldView(
         onValueChange = { values[index] = it.take(field.maxLength) },
         modifier = Modifier.fillMaxWidth(),
         enabled = enabled,
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         label = { Text(field.label + if (field.required) " *" else "") },
         placeholder = field.placeholder.takeIf { it.isNotBlank() }?.let { p -> ({ Text(p) }) },
         minLines = if (field.type == "textarea") 3 else 1,

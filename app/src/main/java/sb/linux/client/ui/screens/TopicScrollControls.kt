@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Close
@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.common.content.TopicTocHeading
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -48,7 +49,7 @@ internal fun BoxScope.TopicScrollControls(
         Surface(
             onClick = { onTocOpenChange(true) },
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 3.dp).width(14.dp).height(150.dp),
-            shape = RoundedCornerShape(50),
+            shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f),
         ) {
             Box(Modifier.fillMaxSize().padding(4.dp)) {
@@ -56,7 +57,7 @@ internal fun BoxScope.TopicScrollControls(
                     Modifier.fillMaxWidth()
                         .fillMaxHeight(readingProgress.coerceAtLeast(0.025f))
                         .align(Alignment.TopCenter)
-                        .clip(RoundedCornerShape(50))
+                        .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary)
                 )
             }
@@ -107,7 +108,10 @@ internal fun BoxScope.TopicScrollControls(
                 onReturnPositionChange(listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset)
                 scope.launch { listState.animateScrollToItem(0) }
             },
-            modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
+            modifier = Modifier.padding(
+                end = LocalAppSpacing.current.pageHorizontal,
+                bottom = LocalAppSpacing.current.pageHorizontal,
+            ),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) { Icon(Icons.Filled.KeyboardArrowUp, "回到顶部") }
@@ -120,7 +124,7 @@ internal fun BoxScope.TopicScrollControls(
     ) {
         Surface(
             onClick = onFloorJump,
-            shape = RoundedCornerShape(50),
+            shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
             modifier = Modifier.padding(end = 16.dp, bottom = 76.dp),
         ) {
@@ -129,7 +133,7 @@ internal fun BoxScope.TopicScrollControls(
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 10.dp),
             )
         }
     }
@@ -154,7 +158,7 @@ internal fun BoxScope.TopicScrollControls(
                 containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.95f),
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             ) {
-                Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.padding(horizontal = LocalAppSpacing.current.contentGap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.AutoMirrored.Filled.Chat, null, Modifier.size(15.dp))
                     Text("回到原位置", style = MaterialTheme.typography.labelMedium)
                 }

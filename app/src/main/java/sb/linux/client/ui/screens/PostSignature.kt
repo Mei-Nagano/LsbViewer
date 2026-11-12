@@ -15,7 +15,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import org.jsoup.Jsoup
 import sb.linux.client.common.network.Endpoints
@@ -33,8 +32,8 @@ internal fun PostSignature(html: String) {
     val linkHandler = LocalLinkHandler.current
     val uriHandler = LocalUriHandler.current
     Column {
-    if (visible) ClickableText(text, style = MaterialTheme.typography.bodySmall.copy(
-        color = color, fontSize = 11.sp, lineHeight = 16.sp,
+    if (visible) ClickableText(text, style = MaterialTheme.typography.labelSmall.copy(
+        color = color,
     )) { offset ->
         text.getStringAnnotations("URL", offset, offset).firstOrNull()?.item?.let { raw ->
             val url = Endpoints.abs(raw)

@@ -6,6 +6,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.*
 import androidx.compose.foundation.text.selection.*
@@ -75,7 +76,7 @@ fun PostCard(
             Modifier
                 .fillMaxWidth()
                 .background(if (protectSurface) MaterialTheme.colorScheme.surface else Color.Transparent)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
         ) {
             PostCardContent(
                 post, loggedIn, isOpAuthor,
@@ -115,7 +116,7 @@ fun PostCard(
                 .fillMaxWidth()
                 .background(bg)
                 .combinedClickable(onClick = {}, onLongClick = onCopy)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 10.dp),
         ) {
             PostCardContent(
                 post, loggedIn, isOpAuthor,
@@ -149,7 +150,7 @@ fun PostCard(
 @Composable
 internal fun PillBadge(text: String, fg: Color, bg: Color, modifier: Modifier = Modifier) {
     Surface(
-        shape = RoundedCornerShape(50),
+        shape = CircleShape,
         color = bg.copy(alpha = 0.45f),
         modifier = modifier.heightIn(min = 16.dp)
     ) {

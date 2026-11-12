@@ -101,7 +101,7 @@ private fun LeaderboardList(
     nav: NavHostController,
     spacing: sb.linux.client.ui.theme.AppSpacing,
 ) {
-    LazyColumn(contentPadding = PaddingValues(top = spacing.item, bottom = spacing.item)) {
+    LazyColumn(contentPadding = PaddingValues(top = spacing.pageVertical, bottom = spacing.pageVertical)) {
         if (rows.size >= 3) {
             item(key = "podium") {
                 Row(

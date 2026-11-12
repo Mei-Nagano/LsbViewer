@@ -3,7 +3,6 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -71,7 +70,7 @@ internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Bool
                             when (support) {
                                 true -> MaterialTheme.colorScheme.tertiaryContainer
                                 false -> MaterialTheme.colorScheme.errorContainer
-                                null -> MaterialTheme.colorScheme.surfaceContainerHighest
+                                null -> MaterialTheme.colorScheme.surfaceContainerHigh
                             },
                             Modifier.align(Alignment.CenterVertically),
                         )
@@ -111,7 +110,7 @@ internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Bool
                 Box(
                     Modifier
                         .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .clickable { onFloor(post.floor) },
                     contentAlignment = Alignment.Center,
                 ) {

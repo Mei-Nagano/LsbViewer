@@ -6,7 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmarks
@@ -101,7 +101,7 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
                 FilledTonalButton(
                     enabled = form.enabled && !submitting && !loading,
                     onClick = { pending = form to form.hiddenFields },
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                     // 源站文案是「订阅专辑」，顶栏里已经在专辑页，去掉后缀省出标题的位置
                 ) { Text(form.label.removeSuffix("专辑"), style = MaterialTheme.typography.labelLarge, maxLines = 1) }
@@ -114,7 +114,7 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
                 loading && topics.isEmpty() && forms.isEmpty() -> LoadingBox()
                 error != null && topics.isEmpty() && forms.isEmpty() -> ErrorBox(error!!) { load() }
                 !loading && error == null && topics.isEmpty() && forms.isEmpty() ->
-                    EmptyBox("当前没有内容或可执行操作\n请确认登录状态和专辑权限")
+                    EmptyBox("当前没有内容或可执行操作", "请确认登录状态和专辑权限")
                 else -> CollectionDetailList(
                     nav = nav, opPage = opPage, topics = topics,
                     forms = subscribeForm?.let { topForm -> forms.filterNot { it.action == topForm.action && it.label == topForm.label } } ?: forms,

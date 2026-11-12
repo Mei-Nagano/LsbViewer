@@ -3,7 +3,7 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -79,7 +79,7 @@ internal fun GachaDynamicForm(
         form, values, checked, radioValues, multiValues,
     )
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
             val checkboxIndices = form.fields.indices.filter { form.fields[it].type == "checkbox" }
             if (checkboxIndices.isNotEmpty()) {
                 val groups = checkboxIndices.groupBy { index ->
@@ -118,14 +118,17 @@ internal fun GachaDynamicForm(
                             }
                         }
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.medium,
                             color = if (selectedCount > 0) MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.surfaceContainerHigh,
                             border = if (selectedCount > 0) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(
-                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                Modifier.padding(
+                                    horizontal = LocalAppSpacing.current.contentGap,
+                                    vertical = LocalAppSpacing.current.item,
+                                ),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
@@ -159,7 +162,7 @@ internal fun GachaDynamicForm(
                                     },
                                     enabled = enabled,
                                     singleLine = true,
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = MaterialTheme.shapes.medium,
                                     textStyle = MaterialTheme.typography.titleSmall.copy(
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     ),
@@ -190,13 +193,16 @@ internal fun GachaDynamicForm(
             // 点了按钮没反应又看不到原因，跟「按钮点不了」难以区分。
             validationError?.let {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
                         it,
-                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        Modifier.padding(
+                            horizontal = LocalAppSpacing.current.contentGap,
+                            vertical = LocalAppSpacing.current.item,
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -211,7 +217,7 @@ internal fun GachaDynamicForm(
             }
             Button(
                 enabled = enabled && form.enabled && selectedChoiceCount >= form.minSelections,
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
                 onClick = {
                     val pairs = SourceFormProtocol.buildSubmissionPairs(

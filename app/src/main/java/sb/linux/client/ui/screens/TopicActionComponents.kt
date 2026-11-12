@@ -1,9 +1,10 @@
 package sb.linux.client.ui.screens
 
+import sb.linux.client.ui.theme.LocalAppSpacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -32,7 +33,7 @@ internal fun PostAction(
 ) {
     Row(
         Modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -60,16 +61,17 @@ internal fun ReplyBar(
     onFavorite: () -> Unit,
     onPin: () -> Unit,
 ) {
-    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+    // 底栏容器统一走 surfaceContainer，与聊天输入栏、其它底栏保持同一种层次
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1.8f).height(52.dp),
             ) {
@@ -79,7 +81,7 @@ internal fun ReplyBar(
                 ) {
                     Text(
                         if (loggedIn) "说点什么…" else "登录后回复",
-                        Modifier.weight(1f).clip(RoundedCornerShape(50)).clickable(onClick = onReply).padding(horizontal = 10.dp, vertical = 10.dp),
+                        Modifier.weight(1f).clip(CircleShape).clickable(onClick = onReply).padding(horizontal = 10.dp, vertical = 10.dp),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
@@ -87,7 +89,7 @@ internal fun ReplyBar(
                 }
             }
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {
@@ -108,7 +110,7 @@ internal fun ReplyBar(
 private fun TopicBarAction(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 3.dp),
+        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 3.dp),
     ) {
         val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         Icon(icon, label, Modifier.size(18.dp), tint = color)
@@ -119,36 +121,37 @@ private fun TopicBarAction(icon: ImageVector, label: String, active: Boolean, on
 /** 未登录评论区引导卡 */
 @Composable
 internal fun LoginPromptCard(count: Int, onLogin: () -> Unit) {
+    val spacing = LocalAppSpacing.current
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = spacing.pageHorizontal, vertical = spacing.contentGap)
     ) {
         Column(
-            Modifier.padding(vertical = 24.dp),
+            Modifier.padding(vertical = spacing.section),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 Modifier
                     .size(52.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Filled.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(spacing.contentGap))
             Text("还有 $count 条回复", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(spacing.inline))
             Text(
                 "登录后即可查看全部评论并参与讨论",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onLogin, shape = RoundedCornerShape(50)) { Text("立即登录") }
+            Spacer(Modifier.height(spacing.paragraph))
+            Button(onClick = onLogin, shape = CircleShape) { Text("立即登录") }
         }
     }
 }

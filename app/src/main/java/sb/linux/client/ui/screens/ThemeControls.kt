@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BrightnessAuto
@@ -35,18 +34,18 @@ internal fun DayNightToggle(mode: ThemeModePref, onSelect: (ThemeModePref) -> Un
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items.forEach { (m, icon, label) ->
             val selected = mode == m
-            val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
+            val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
             val fg = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             Row(
                 Modifier
                     .weight(1f)
                     .height(44.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(MaterialTheme.shapes.large)
                     .background(bg)
                     .clickable { onSelect(m) },
                 horizontalArrangement = Arrangement.Center,
@@ -86,8 +85,8 @@ internal fun ColorSwatch(
         Box(
             Modifier
                 .size(44.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .border(borderWidth, borderColor, RoundedCornerShape(16.dp))
+                .clip(MaterialTheme.shapes.large)
+                .border(borderWidth, borderColor, MaterialTheme.shapes.large)
                 .background(color)
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick),
             contentAlignment = Alignment.Center
@@ -148,9 +147,9 @@ internal fun FontSwatch(
         Box(
             Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .border(borderWidth, borderColor, RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .clip(MaterialTheme.shapes.large)
+                .border(borderWidth, borderColor, MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick),
             contentAlignment = Alignment.Center
         ) {

@@ -11,14 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -48,6 +46,7 @@ import sb.linux.client.common.collection.actionFor
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.Badge
 import sb.linux.client.ui.components.feedback.ErrorBox
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.feature.collection.TopicCollectionPickerViewModel
 import sb.linux.client.ui.feature.collection.TopicCollectionPickerViewModelFactory
@@ -120,9 +119,9 @@ fun TopicCollectionSheet(session: Session, topicPath: String, onDismiss: () -> U
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
+                .padding(bottom = LocalAppSpacing.current.pageVertical),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
         ) {
             Text("收录到淘帖", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             val current = picker

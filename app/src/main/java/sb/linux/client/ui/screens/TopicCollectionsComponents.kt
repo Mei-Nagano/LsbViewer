@@ -15,12 +15,10 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +51,7 @@ import kotlinx.coroutines.launch
 import sb.linux.client.common.collection.TopicCollectionSummary
 import sb.linux.client.common.collection.TopicCollectionTab
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.Badge
 import sb.linux.client.ui.components.feedback.EmptyBox
@@ -74,16 +73,17 @@ internal fun CollectionList(
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize(),
     ) {
+        val spacing = LocalAppSpacing.current
         LazyColumn(
             Modifier.fillMaxSize(),
             // 根导航由外壳 Scaffold 的 bottomBar inset 处理，列表不再叠加固定底栏留白
             contentPadding = PaddingValues(
-                start = 14.dp,
-                end = 14.dp,
-                top = 12.dp,
-                bottom = 12.dp,
+                start = spacing.pageHorizontal,
+                end = spacing.pageHorizontal,
+                top = spacing.pageVertical,
+                bottom = spacing.pageVertical,
             ),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
         ) {
             if (loading) item("progress") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             // 已有内容时错误降级为条幅，不清空正在看的列表
@@ -110,10 +110,13 @@ private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit)
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
-            Modifier.padding(start = 14.dp, top = 13.dp, end = 10.dp, bottom = 12.dp),
+            Modifier.padding(
+                horizontal = LocalAppSpacing.current.pageHorizontal,
+                vertical = LocalAppSpacing.current.contentGap,
+            ),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Avatar(summary.avatarUrl, 40)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -167,7 +170,7 @@ private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit)
             if (meta.isNotEmpty()) {
                 FlowRow(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     meta.forEach {

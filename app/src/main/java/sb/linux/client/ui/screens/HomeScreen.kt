@@ -105,7 +105,6 @@ fun HomeScreen(
 
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-    var backTopPosition by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val categoryMotion = remember { Animatable(0f) }
 
     var topBarVisible by remember { mutableStateOf(listState.firstVisibleItemIndex == 0) }
@@ -140,8 +139,6 @@ fun HomeScreen(
         loading = loading,
         loadingMore = loadingMore,
         listState = listState,
-        backTopPosition = backTopPosition,
-        onBackTopPositionChange = { backTopPosition = it },
         loadCachedHome = { pageViewModel.loadCachedHome(session.homeCacheEnabled) },
         onLoad = { page, append, foldNew -> pageViewModel.load(page, append, foldNew) },
         onLocalPage = { pageViewModel.goLocalPage(it, display.filterTopics) },
@@ -168,8 +165,6 @@ fun HomeScreen(
         loadingMore = loadingMore,
         categoryMotion = categoryMotion,
         listState = listState,
-        backTopPosition = backTopPosition,
-        onBackTopPositionChange = { backTopPosition = it },
         onLoadPage = { page, append, foldNew -> pageViewModel.load(page, append, foldNew) },
         onLocalPage = { pageViewModel.goLocalPage(it, display.filterTopics) },
         onRefresh = { actions.refresh() },

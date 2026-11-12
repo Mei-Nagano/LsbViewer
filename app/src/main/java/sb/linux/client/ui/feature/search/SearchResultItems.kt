@@ -83,7 +83,10 @@ internal fun UserSearchItem(item: SearchResultItem.User, onClick: () -> Unit) {
 internal fun SearchPagination(page: Int, hasPrevious: Boolean, hasNext: Boolean, onPage: (Int) -> Unit) {
     if (!hasPrevious && !hasNext) return
     Row(
-        Modifier.fillMaxWidth().padding(12.dp),
+        Modifier.fillMaxWidth().padding(
+            horizontal = LocalAppSpacing.current.pageHorizontal,
+            vertical = LocalAppSpacing.current.contentGap,
+        ),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

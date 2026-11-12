@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -138,7 +137,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
                     error != null -> ErrorBox(error!!) { viewModel.load() }
                     else -> LazyColumn(
                         state = userListState,
-                        contentPadding = PaddingValues(vertical = 8.dp)
+                        contentPadding = PaddingValues(vertical = LocalAppSpacing.current.pageVertical)
                     ) {
                         when (tab) {
                             "replies" -> userReplyRows(replies) { topicId -> nav.navigate("topic/$topicId") }
@@ -183,8 +182,8 @@ fun UserScreen(session: Session, nav: NavHostController) {
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(end = spacing.pageHorizontal, bottom = spacing.section),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                     ) {
                         Icon(Icons.Filled.KeyboardArrowUp, "回到顶部")
                     }

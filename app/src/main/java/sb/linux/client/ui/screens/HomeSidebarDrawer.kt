@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +16,7 @@ import sb.linux.client.domain.community.ForumCount
 import sb.linux.client.domain.community.HomeSidebar
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.patterns.user.UserAvatar
+import sb.linux.client.ui.theme.LocalAppSpacing
 /** 源站首页侧板：用户卡片 / 签到天数 / 版块列表 / 快捷功能 / 每日热帖 / 站点统计 / 最新用户
  *  关闭方式：点击侧边栏以外区域（遮罩）自动关闭（13）；平板双栏下右栏/导航栏区域的
  *  关闭由 MainActivity 中的透明点击层兜底 */
@@ -46,7 +46,7 @@ internal fun HomeSidebarDrawer(
             LazyColumn(
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 12.dp)
+                    .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
             ) {
                 // 快捷功能（无图标，统一圆角矩形背景；按侧板单/双列设置排布）
                 item { DrawerTitle("快捷功能") }
@@ -112,7 +112,7 @@ internal fun HomeSidebarDrawer(
                     item {
                         val stats = remember(sb!!.statsText) { parseSidebarStats(sb!!.statsText) }
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.medium,
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.padding(vertical = 2.dp),
                         ) {
@@ -122,7 +122,10 @@ internal fun HomeSidebarDrawer(
                                     sb!!.statsText,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    modifier = Modifier.padding(
+                                        horizontal = LocalAppSpacing.current.contentGap,
+                                        vertical = LocalAppSpacing.current.item,
+                                    ),
                                 )
                             } else {
                                 SidebarStatsCard(stats)
@@ -136,11 +139,11 @@ internal fun HomeSidebarDrawer(
                     item { DrawerTitle("当前在线${sb!!.onlineUsers.count.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""}") }
                     item {
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.medium,
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.padding(vertical = 2.dp),
                         ) {
-                            Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                            Column(Modifier.padding(horizontal = LocalAppSpacing.current.contentGap, vertical = LocalAppSpacing.current.item)) {
                                 val online = sb!!.onlineUsers
                                 // 头像 + 用户名网格（每行 4 个，点击进入用户主页）
                                 online.items.chunked(4).forEach { row ->
@@ -153,7 +156,7 @@ internal fun HomeSidebarDrawer(
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .clip(MaterialTheme.shapes.medium)
                                                     .clickable { onOpenUser(u.userId) }
                                                     .padding(vertical = 3.dp),
                                             ) {

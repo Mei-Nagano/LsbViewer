@@ -2,6 +2,7 @@ package sb.linux.client.ui.screens
 
 import sb.linux.client.common.content.HtmlTextConversion
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 
 import android.view.WindowManager
@@ -9,7 +10,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -114,7 +114,7 @@ fun ReplyDialog(
                         .imePadding()
                         .navigationBarsPadding()
                         .statusBarsPadding()
-                        .padding(horizontal = 20.dp)
+                        .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
@@ -142,7 +142,7 @@ fun ReplyDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = MaterialTheme.shapes.large
                     )
                     ReplyCaptchaField(
                         session = session,
@@ -171,7 +171,7 @@ fun ReplyDialog(
     ) {
         Column(
             Modifier
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
                 .imePadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
@@ -205,7 +205,7 @@ fun ReplyDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 96.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 trailingIcon = {
                     IconButton(onClick = { expanded = true }) {
                         Icon(

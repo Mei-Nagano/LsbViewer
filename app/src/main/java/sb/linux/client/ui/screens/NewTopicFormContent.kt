@@ -3,7 +3,6 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,6 +13,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.session.Session
 import sb.linux.client.common.content.HtmlTextConversion
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -37,6 +37,7 @@ internal fun NewTopicFormContent(
     onInsert: (String, String, String) -> Unit,
     onUploadImage: () -> Unit,
 ) {
+        val spacing = LocalAppSpacing.current
         if (form.loading) {
             sb.linux.client.ui.components.feedback.LoadingBox()
             return
@@ -44,8 +45,8 @@ internal fun NewTopicFormContent(
         if (fullScreenEditor) {
             Column(
                 Modifier.padding(pad).fillMaxSize().imePadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = spacing.pageHorizontal, vertical = spacing.item),
+                verticalArrangement = Arrangement.spacedBy(spacing.item),
             ) {
                 sb.linux.client.ui.content.MarkdownEditorTools(
                     onInsert = { b, a, p -> onInsert(b, a, p) },
@@ -56,7 +57,7 @@ internal fun NewTopicFormContent(
                     value = TextFieldValue(body, bodySelection),
                     onValueChange = { onBodyChange(it) },
                     label = { Text("内容 (Markdown)") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     textStyle = TextStyle(fontFamily = FontFamily.Monospace),
                 )
@@ -69,16 +70,16 @@ internal fun NewTopicFormContent(
                 .fillMaxSize()
                 .imePadding()
                 .verticalScroll(pageScrollState)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(spacing.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(spacing.contentGap)
         ) {
             if (!session.account.loginState.loggedIn) {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "未登录，发布前请先登录",
                             style = MaterialTheme.typography.bodyMedium,
@@ -94,7 +95,7 @@ internal fun NewTopicFormContent(
 
             // 版块选择
             Box {
-                OutlinedButton(onClick = { form.forumExpanded = true }, shape = RoundedCornerShape(16.dp)) {
+                OutlinedButton(onClick = { form.forumExpanded = true }, shape = MaterialTheme.shapes.large) {
                     Text("版块：${form.forums.firstOrNull { it.id == form.forumId }?.name ?: "选择"}")
                 }
                 DropdownMenu(expanded = form.forumExpanded, onDismissRequest = { form.forumExpanded = false }) {
@@ -161,13 +162,13 @@ internal fun NewTopicFormContent(
             OutlinedTextField(
                 value = form.title, onValueChange = { form.title = it },
                 label = { Text("标题") }, singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             )
 
             if (editId > 0 && form.replyOrderOptions.isNotEmpty()) {
                 Box {
-                    OutlinedButton(onClick = { form.replyOrderMenu = true }, shape = RoundedCornerShape(16.dp)) {
+                    OutlinedButton(onClick = { form.replyOrderMenu = true }, shape = MaterialTheme.shapes.large) {
                         Text("回帖排序：${form.replyOrderOptions.firstOrNull { it.first == form.replyOrder }?.second.orEmpty()}")
                     }
                     DropdownMenu(expanded = form.replyOrderMenu, onDismissRequest = { form.replyOrderMenu = false }) {
@@ -191,7 +192,7 @@ internal fun NewTopicFormContent(
                 // 预览：Markdown → HTML 后用帖子同款渲染器展示（表格/代码块/链接等所见即所得）
                 val previewHtml = remember(body) { HtmlTextConversion.markdownToHtml(body) }
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -202,12 +203,12 @@ internal fun NewTopicFormContent(
                             "暂无内容，退出预览继续编辑",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(LocalAppSpacing.current.pageHorizontal)
                         )
                     } else {
                         sb.linux.client.ui.content.HtmlContent(
                             html = previewHtml,
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(LocalAppSpacing.current.pageHorizontal),
                             mergeImages = false,
                             // 每敲一个键都是全新 HTML，不写共享解析缓存（否则挤掉阅读中的楼层）
                             cacheable = false
@@ -219,7 +220,7 @@ internal fun NewTopicFormContent(
                     value = TextFieldValue(body, bodySelection),
                     onValueChange = { onBodyChange(it) },
                     label = { Text("内容 (Markdown)") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 260.dp)

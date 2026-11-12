@@ -3,7 +3,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -101,7 +100,7 @@ fun AboutScreen(session: Session, nav: NavHostController) {
             Spacer(Modifier.height(spacing.contentGap))
             // 版本号（圆角矩形）
             Surface(
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.secondaryContainer
             ) {
                 Text(
@@ -121,22 +120,14 @@ fun AboutScreen(session: Session, nav: NavHostController) {
             Spacer(Modifier.height(spacing.section))
             // List group
             GroupCard {
-                val rowDivider = @Composable {
-                    HorizontalDivider(Modifier.padding(start = 66.dp, end = 18.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                }
                 SettingMenuRow("开发人员", "Mei-Nagano", Icons.Filled.Person) { openExternal(UpdateProjectLinks.DEVELOPER_URL) }
-                rowDivider()
                 SettingMenuRow("项目地址", "GitHub · ${UpdateProjectLinks.REPO}", Icons.Filled.Code) { openExternal(UpdateProjectLinks.PROJECT_URL) }
-                rowDivider()
                 SettingMenuRow("开源协议", "MIT License", Icons.Filled.Gavel) { openExternal(UpdateProjectLinks.LICENSE_URL) }
-                rowDivider()
                 SettingMenuRow(
                     "检查更新",
                     if (updateState.checking) "正在检查…" else "检查 GitHub 最新版本",
                     Icons.Filled.SystemUpdate,
                 ) { doCheck(false) }
-                rowDivider()
                 SettingMenuRow("意见反馈", "GitHub Issues", Icons.Filled.Feedback) { openExternal("${UpdateProjectLinks.PROJECT_URL}/issues/new") }
             }
             updateState.msg?.let {

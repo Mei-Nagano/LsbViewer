@@ -40,6 +40,7 @@ import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.components.feedback.LoadingBox
 import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.session.Session
+import sb.linux.client.ui.theme.LocalAppSpacing
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,8 +81,8 @@ fun ExportedTopicsScreen(session: Session, nav: NavHostController) {
             val list = files
             when {
                 list == null -> LoadingBox()
-                list.isEmpty() -> EmptyBox("暂无已导出的帖子\n在帖子右上角菜单选择「导出帖子」导出 HTML")
-                else -> LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                list.isEmpty() -> EmptyBox("暂无已导出的帖子", "在帖子右上角菜单选择「导出帖子」导出 HTML")
+                else -> LazyColumn(contentPadding = PaddingValues(vertical = LocalAppSpacing.current.pageVertical)) {
                     items(list, key = { it.absolutePath }) { f ->
                         Row(
                             Modifier.fillMaxWidth().clickable { openFile(f) }

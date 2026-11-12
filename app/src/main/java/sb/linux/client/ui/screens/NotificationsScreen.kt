@@ -85,7 +85,7 @@ internal fun NotificationsSection(
         else -> Column(Modifier.padding(contentPadding).fillMaxSize()) {
             LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = spacing.item),
+                contentPadding = PaddingValues(vertical = spacing.pageVertical),
             ) {
                 // 通知内容可能完全重复：key 必须带 index 防止重复 key 崩溃
                 itemsIndexed(state.items) { _, item ->

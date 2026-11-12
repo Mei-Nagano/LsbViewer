@@ -15,11 +15,11 @@ object AppSummaryDefaults {
     /** 摘要卡片圆角（D05 medium） */
     val cardShape = RoundedCornerShape(12.dp)
 
-    /** 卡片之间的外边距 */
-    val itemPadding = PaddingValues(horizontal = 14.dp, vertical = 5.dp)
+    /** 卡片之间的外边距（与页面左右边距 16dp 对齐） */
+    val itemPadding = PaddingValues(horizontal = 16.dp, vertical = 5.dp)
 
     /** 卡片内容内边距 */
-    val contentPadding = PaddingValues(14.dp)
+    val contentPadding = PaddingValues(16.dp)
 
     /** 标题 / 正文 / 时间之间；标题行内的 8dp 间距走 `AppSpacing.item`，不在这里另立一份 */
     val contentSpacing = 6.dp

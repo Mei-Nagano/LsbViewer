@@ -3,7 +3,7 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Casino
@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.gacha.GachaAction
 import sb.linux.client.domain.gacha.GachaPoolRow
 import sb.linux.client.domain.gacha.GachaTitleItem
@@ -83,11 +84,11 @@ internal fun GachaStatCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(16.dp))
+                Modifier.size(42.dp).clip(MaterialTheme.shapes.large)
                     .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -119,14 +120,14 @@ internal fun RarityCard(
 ) {
     val accent = rarityAccent(rarity)
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier.fillMaxWidth(),
     ) {
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
             Column(
-                Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp),
+                Modifier.weight(1f).padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 content = content,
             )
@@ -138,7 +139,7 @@ internal fun RarityCard(
 @Composable
 internal fun RarityPill(rarity: String) {
     val accent = rarityAccent(rarity)
-    Surface(shape = RoundedCornerShape(6.dp), color = accent.copy(alpha = 0.14f)) {
+    Surface(shape = MaterialTheme.shapes.small, color = accent.copy(alpha = 0.14f)) {
         Text(
             rarity,
             Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
@@ -153,7 +154,7 @@ internal fun RarityPill(rarity: String) {
 /** 计数小胶囊：持有数量、剩余数量等次要数字。 */
 @Composable
 internal fun GachaCountPill(text: String) {
-    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Text(
             text,
             Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
@@ -167,7 +168,7 @@ internal fun GachaCountPill(text: String) {
 /** 已装备标记：主色描边胶囊 + 勾选图标，替代原来的纯文本。 */
 @Composable
 internal fun EquippedPill() {
-    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
         Row(
             Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -194,15 +195,15 @@ internal fun GachaTitleRow(
     onGift: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 5.dp)
+        Modifier.fillMaxWidth().padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 5.dp)
             .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 色条与文字块等高，稀有度靠色条表达，不再额外占一行标签。
         Box(
             Modifier.width(3.dp).fillMaxHeight()
-                .clip(RoundedCornerShape(50)).background(rarityAccent(item.badge.rarity))
+                .clip(CircleShape).background(rarityAccent(item.badge.rarity))
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -220,7 +221,7 @@ internal fun GachaTitleRow(
                 TextButton(
                     enabled = enabled && action.enabled,
                     onClick = { onAction(action) },
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                     modifier = Modifier.heightIn(min = 34.dp),
                 ) { Text(action.label, style = MaterialTheme.typography.labelMedium) }
@@ -228,7 +229,7 @@ internal fun GachaTitleRow(
             TextButton(
                 enabled = enabled && item.count > 0,
                 onClick = onGift,
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                 modifier = Modifier.heightIn(min = 34.dp),
             ) { Text("赠送", style = MaterialTheme.typography.labelMedium) }

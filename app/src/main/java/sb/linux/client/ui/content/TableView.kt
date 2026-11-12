@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -62,7 +62,7 @@ internal fun TableView(
     Column(Modifier.fillMaxWidth()) {
     Box(Modifier.fillMaxWidth().then(if (horizontal) Modifier.horizontalScroll(horizontalState) else Modifier)) {
       Surface(
-          shape = RoundedCornerShape(12.dp),
+          shape = MaterialTheme.shapes.medium,
           color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
           modifier = Modifier.padding(vertical = 4.dp).then(if (horizontal) Modifier.width(tableWidth) else Modifier.fillMaxWidth())
       ) {
@@ -73,7 +73,7 @@ internal fun TableView(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .background(
                             if (isHeaderRow) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                             else Color.Transparent
@@ -144,12 +144,12 @@ internal fun TableView(
             val progress = horizontalState.value.toFloat() / horizontalState.maxValue.toFloat()
             val travelPx = with(LocalDensity.current) { travel.toPx() }.coerceAtLeast(1f)
             Box(
-                Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50))
+                Modifier.fillMaxWidth().height(6.dp).clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceContainerHighest)
             )
             Box(
                 Modifier.offset(x = travel * progress).width(thumbWidth).height(6.dp)
-                    .clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary)
+                    .clip(CircleShape).background(MaterialTheme.colorScheme.primary)
                     .pointerInput(horizontalState.maxValue, travelPx) {
                         detectHorizontalDragGestures { change, dragAmount ->
                             change.consume()

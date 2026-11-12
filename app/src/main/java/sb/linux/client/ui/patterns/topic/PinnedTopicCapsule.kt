@@ -3,7 +3,7 @@ package sb.linux.client.ui.patterns.topic
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.*
@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import kotlin.math.roundToInt
 
 @Composable
@@ -33,7 +34,7 @@ fun PinnedTopicCapsule(id: Long, title: String, onOpen: () -> Unit) {
         val px = if (x.isNaN()) maxX - width / 2 else x.coerceIn(-width / 2, maxX - width / 2)
         val py = if (y.isNaN()) maxY else y.coerceIn(0f, maxY)
         Surface(
-            shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer,
+            shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer,
             shadowElevation = 6.dp,
             modifier = Modifier.offset { IntOffset(px.roundToInt(), py.roundToInt()) }
                 .width(if (expanded) 240.dp else 104.dp).height(48.dp)
@@ -57,7 +58,7 @@ fun PinnedTopicCapsule(id: Long, title: String, onOpen: () -> Unit) {
                     } else onOpen()
                 },
         ) {
-            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.padding(horizontal = LocalAppSpacing.current.contentGap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Filled.PushPin, "钉住的帖子", Modifier.size(20.dp))
                 Text(if (expanded) title else "已钉住", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
             }

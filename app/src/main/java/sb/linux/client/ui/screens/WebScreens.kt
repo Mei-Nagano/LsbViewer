@@ -3,13 +3,11 @@ import sb.linux.client.common.network.Endpoints
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
@@ -48,38 +46,24 @@ fun WebScreen(
     val linkHandler = LocalLinkHandler.current
     val chooseFiles = rememberWebFileChooser()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        title ?: pageTitle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+    AppPageScaffold(
+        title = title ?: pageTitle,
+        onBack = { if (onBack != null) onBack() else nav.popBackStack() },
+        actions = {
+            // 在浏览器打开：调起系统浏览器查看当前页面
+            IconButton(onClick = {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(currentUrl)
+                        )
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { if (onBack != null) onBack() else nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    // 在浏览器打开：调起系统浏览器查看当前页面
-                    IconButton(onClick = {
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse(currentUrl)
-                                )
-                            )
-                        }
-                    }) {
-                        Icon(Icons.Filled.OpenInNew, "在浏览器打开")
-                    }
                 }
-            )
-        }
+            }) {
+                Icon(Icons.Filled.OpenInNew, "在浏览器打开")
+            }
+        },
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
         AndroidView(
@@ -125,6 +109,14 @@ fun WebScreen(
                             request: android.webkit.WebResourceRequest,
                         ): Boolean {
                             val destination = request.url
+                            // 站内明文跳转升级为 HTTPS，保证继续走 DoH 代理而不是系统 DNS。
+                            if (request.isForMainFrame && request.method.equals("GET", ignoreCase = true) &&
+                                destination.scheme.equals("http", ignoreCase = true) &&
+                                Endpoints.isInternal(destination.host)
+                            ) {
+                                WebViewDoh.load(view, destination.buildUpon().scheme("https").build().toString())
+                                return true
+                            }
                             val fromSource = Endpoints.isInternal(android.net.Uri.parse(view.url.orEmpty()).host)
                             if (request.isForMainFrame && request.hasGesture() && fromSource &&
                                 destination.scheme in setOf("http", "https") && !Endpoints.isInternal(destination.host) && linkHandler != null
@@ -155,7 +147,7 @@ fun WebScreen(
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(12.dp),
+                    modifier = Modifier.align(Alignment.TopCenter).padding(LocalAppSpacing.current.contentGap),
                 ) {
                     Row(
                         Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),

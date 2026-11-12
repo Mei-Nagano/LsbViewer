@@ -2,7 +2,6 @@ package sb.linux.client.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -14,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.domain.topic.RedPacketPanel
 
 @Composable
@@ -26,11 +26,17 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
         shape = MaterialTheme.shapes.large,
         color = colors.surfaceContainerLow,
         border = BorderStroke(1.dp, colors.error.copy(alpha = 0.2f)),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(
+            horizontal = LocalAppSpacing.current.pageHorizontal,
+            vertical = LocalAppSpacing.current.item,
+        ),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(shape = RoundedCornerShape(12.dp), color = colors.errorContainer) {
+        Column(
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
+                Surface(shape = MaterialTheme.shapes.medium, color = colors.errorContainer) {
                     Icon(Icons.Default.CardGiftcard, contentDescription = null,
                         tint = colors.onErrorContainer, modifier = Modifier.padding(10.dp).size(22.dp))
                 }
@@ -50,10 +56,14 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
             details.chunked(2).forEach { fields ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     fields.forEach { field ->
-                        Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
+                        Surface(modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium,
                             color = colors.surfaceContainerHigh) {
                             Text(field, style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                                modifier = Modifier.padding(
+                                    horizontal = LocalAppSpacing.current.contentGap,
+                                    vertical = LocalAppSpacing.current.item,
+                                ),
+                            )
                         }
                     }
                     if (fields.size == 1 && details.size > 1) Spacer(Modifier.weight(1f))
@@ -72,7 +82,7 @@ internal fun RedPacketCard(panel: RedPacketPanel, onOpenSource: () -> Unit) {
                 }
             }
             OutlinedButton(onClick = onOpenSource, modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)) {
+                shape = MaterialTheme.shapes.medium) {
                 Text("查看原站红包详情")
             }
         }

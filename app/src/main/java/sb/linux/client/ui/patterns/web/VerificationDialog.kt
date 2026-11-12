@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -32,10 +30,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import sb.linux.client.ui.theme.LocalAppSpacing
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.platform.webview.WebViewDoh
 
 private const val VERIFY_CHALLENGE_JS =
@@ -77,12 +77,12 @@ fun VerificationDialog(
     ) {
         Surface(
             shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(LocalAppSpacing.current.pageHorizontal),
         ) {
-            Column(Modifier.padding(16.dp)) {
+            Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal)) {
                 Text(
                     "安全验证",
                     style = MaterialTheme.typography.titleMedium,
@@ -204,11 +204,7 @@ fun VerificationDialog(
                         modifier = Modifier.fillMaxSize().alpha(if (challengeVisible) 1f else 0f),
                     )
                     if (pageLoading) {
-                        CircularProgressIndicator(
-                            Modifier
-                                .align(Alignment.Center)
-                                .size(28.dp)
-                        )
+                        AppInlineLoading(Modifier.align(Alignment.Center), size = 28.dp)
                     }
                 }
                 Spacer(Modifier.height(6.dp))

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material3.AlertDialog
@@ -24,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.gacha.GachaPullResult
 import sb.linux.client.ui.TitleBadgeView
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 展示完整的单抽、十连抽或百连抽结果。 */
 @Composable
@@ -37,7 +37,7 @@ internal fun GachaPullResultDialog(
         icon = { Icon(Icons.Filled.Casino, null) },
         title = { Text(result.title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
                 Text(
                     "获得 ${result.items.size} 枚称号 · 消耗 $cost 积分",
                     style = MaterialTheme.typography.bodyMedium,
@@ -49,11 +49,14 @@ internal fun GachaPullResultDialog(
                 ) {
                     itemsIndexed(result.items) { index, item ->
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ) {
                             Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                Modifier.fillMaxWidth().padding(
+                                    horizontal = LocalAppSpacing.current.contentGap,
+                                    vertical = LocalAppSpacing.current.item,
+                                ),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {

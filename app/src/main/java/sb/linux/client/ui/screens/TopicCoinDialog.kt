@@ -45,9 +45,9 @@ fun CoinDialog(tiers: List<Int>, onDismiss: () -> Unit, onConfirm: (Int, String)
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
+                .padding(bottom = LocalAppSpacing.current.pageVertical),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
         ) {
             Text("投币", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(
@@ -71,7 +71,7 @@ fun CoinDialog(tiers: List<Int>, onDismiss: () -> Unit, onConfirm: (Int, String)
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("理由（选填）") },
                 placeholder = { Text("例如：内容很有帮助") },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 singleLine = true,
                 supportingText = { Text("${reason.length}/120") }
             )
@@ -79,7 +79,7 @@ fun CoinDialog(tiers: List<Int>, onDismiss: () -> Unit, onConfirm: (Int, String)
                 onClick = { onConfirm(amount, reason.trim()) },
                 enabled = amount in availableTiers,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(16.dp)
+                shape = MaterialTheme.shapes.large
             ) {
                 Text(
                     "投币 $amount 积分",

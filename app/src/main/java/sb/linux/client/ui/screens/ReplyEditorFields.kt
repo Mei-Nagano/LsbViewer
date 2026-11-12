@@ -68,7 +68,7 @@ internal fun ReplyCaptchaField(
             value = answer,
             onValueChange = onAnswerChange,
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             label = { Text("人机验证：${captcha.question}") },
             singleLine = true,
             trailingIcon = if (onRefresh != null) {

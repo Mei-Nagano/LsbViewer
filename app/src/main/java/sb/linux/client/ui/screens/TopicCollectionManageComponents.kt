@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -68,15 +67,16 @@ fun ManageActionList(
     val destructive = actions.filter {
         it.isDestructive() && it != deleteAction && it !in contentRemovals && it !in collaboratorRemovals
     }
+    val spacing = sb.linux.client.ui.theme.LocalAppSpacing.current
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            top = 12.dp,
-            bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+            start = spacing.pageHorizontal,
+            end = spacing.pageHorizontal,
+            top = spacing.contentGap,
+            bottom = spacing.section + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(spacing.contentGap),
     ) {
         item {
             ManageHeader(
@@ -135,7 +135,7 @@ private fun ManageRemovalRow(
     onSubmit: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .65f)),
         modifier = Modifier.fillMaxWidth(),
@@ -179,13 +179,14 @@ private fun ManageHeader(
     enabled: Boolean,
     onDelete: () -> Unit,
 ) {
+    val spacing = sb.linux.client.ui.theme.LocalAppSpacing.current
     Surface(
-        shape = RoundedCornerShape(22.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.primaryContainer,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 15.dp),
+            Modifier.padding(horizontal = spacing.pageHorizontal, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

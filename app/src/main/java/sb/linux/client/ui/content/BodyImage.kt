@@ -1,10 +1,10 @@
 package sb.linux.client.ui.content
 
+import sb.linux.client.ui.components.feedback.AppInlineLoading
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
@@ -67,9 +67,9 @@ internal fun BodyImage(
     Box(
         modifier.fillMaxWidth()
             .then(if (fillContainer) Modifier.fillMaxSize() else Modifier.aspectRatio(ratio.coerceIn(0.02f, 20f)))
-            .clip(RoundedCornerShape(8.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.small)
             .onGloballyPositioned { coordinates ->
                 val position = coordinates.positionInWindow()
                 widthPx = coordinates.size.width
@@ -104,7 +104,7 @@ internal fun BodyImage(
                     if (failed) TextButton(onClick = { failed = false; loading = true; retry++ }) { Text("重新加载") }
                     else Text("点击可打开图片查看器", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (near && loading && !failed) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                if (near && loading && !failed) AppInlineLoading(size = 20.dp)
             }
         }
     }

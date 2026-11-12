@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -109,7 +108,7 @@ internal fun ProfileFormCard(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(LocalAppSpacing.current.pageHorizontal), verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
             if (!(form.title.contains("账号") && form.submitText.contains("退出"))) {
                 Text(
                     form.title,
@@ -221,7 +220,7 @@ internal fun ProfileFormCard(
                             onValueChange = { values[f.name] = it },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text(f.label) },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.large,
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation()
                         )
@@ -241,7 +240,7 @@ internal fun ProfileFormCard(
                     onSubmit(payload, pickedFile, pickedMime) { localBusy = false; pickedFile = null; pickedPreset = null }
                 },
                 enabled = !busy && !localBusy,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (localBusy) "提交中…" else form.submitText) }
         }

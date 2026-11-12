@@ -15,6 +15,6 @@ object AppNoticeDefaults {
     /** 提示条容器圆角（D05 medium） */
     val shape = RoundedCornerShape(12.dp)
 
-    /** 提示条内容内边距：右侧留给操作按钮，故小于左侧 */
-    val contentPadding = PaddingValues(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
+    /** 提示条内容内边距：左侧与页面边距 16dp 对齐，右侧留给操作按钮 */
+    val contentPadding = PaddingValues(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
 }

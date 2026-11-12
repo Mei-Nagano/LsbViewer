@@ -5,9 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -17,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
@@ -54,31 +52,20 @@ fun ForumScreen(session: Session, nav: NavHostController) {
 
     LaunchedEffect(viewModel) { viewModel.load(1) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(state.forumName) },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                }
-            )
-        }
-    ) { pad ->
+    AppPageScaffold(title = state.forumName, onBack = { nav.popBackStack() }) { pad ->
         Column(Modifier.padding(pad)) {
             // 排序 tab：新评论 / 新帖子
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf("comment" to "新评论", "post" to "新帖子").forEach { (key, label) ->
                     val selected = state.sort == key
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                        shape = MaterialTheme.shapes.medium,
+                        color = if (selected) MaterialTheme.colorScheme.primaryContainer
                         else MaterialTheme.colorScheme.surfaceContainerHigh,
                         onClick = {
                             if (state.sort != key) {
@@ -92,7 +79,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                             label,
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier
@@ -113,7 +100,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(vertical = 8.dp)
+                            contentPadding = PaddingValues(vertical = LocalAppSpacing.current.pageVertical)
                         ) {
                             items(filteredTopics, key = { "${it.topicId}-${it.pinned}" }) { t ->
                                 TopicCardView(
@@ -129,7 +116,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                                         OutlinedButton(
                                             onClick = { viewModel.load(state.page + 1, append = true) },
                                             enabled = !state.loadingMore,
-                                            shape = RoundedCornerShape(50),
+                                            shape = CircleShape,
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -154,7 +141,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                         onClick = { scope.launch { listState.animateScrollToItem(0) } },
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 24.dp),
+                            .padding(end = LocalAppSpacing.current.pageHorizontal, bottom = LocalAppSpacing.current.section),
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
                         contentColor = MaterialTheme.colorScheme.onSurface,
                     ) {

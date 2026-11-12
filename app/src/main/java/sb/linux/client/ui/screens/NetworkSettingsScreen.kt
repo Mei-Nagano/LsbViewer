@@ -3,9 +3,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -17,6 +14,8 @@ import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.feature.network.NetworkSettingsViewModel
 import sb.linux.client.ui.feature.network.NetworkSettingsViewModelFactory
+import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,8 +41,8 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
     SettingsPage("网络与链接", nav, onBack = exit) {
             GroupCard {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
                 ) {
                     Text("应用代理", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     Text(
@@ -84,13 +83,8 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
                     Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) { Text("保存代理设置") }
                 }
             }
-            GroupCard {
-                SettingMenuRow(
-                    "DNS over HTTPS",
-                    "启用状态 · 默认与自定义服务器 · VPN 旁路 · 查询测速",
-                    Icons.Filled.Dns,
-                ) { nav.navigate("dohSettings") }
-            }
+            GroupLabel("DNS over HTTPS")
+            DohSettingsContent(session)
             GroupLabel("链接")
             LinkSettingsContent(session)
             SettingsResetRow("重置网络设置", onConfirm = viewModel::reset)

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.profile.ProfileSettingsField
 import sb.linux.client.ui.patterns.user.Avatar
+import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 个人资料摘要卡：只负责展示用户头像和源站返回的优先信息。 */
 @Composable
@@ -37,10 +37,13 @@ internal fun ProfileHeaderCard(avatarUrl: String, username: String, info: List<P
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            Modifier.padding(LocalAppSpacing.current.pageHorizontal),
+            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Avatar(avatarUrl, 64)
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(LocalAppSpacing.current.contentGap))
                 Column {
                     Text(username.ifBlank { "未命名" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
@@ -80,7 +83,7 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(f.label) },
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             minLines = 2,
         )
 
@@ -93,7 +96,7 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
                 readOnly = true,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(f.label) },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 trailingIcon = { TextButton(onClick = { expanded = true }) { Text("选择") } },
             )
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -118,7 +121,7 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(f.label) },
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             singleLine = true,
         )
     }
