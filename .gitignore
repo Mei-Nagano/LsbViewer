@@ -16,6 +16,7 @@ captures/
 # Android build artifacts
 *.apk
 *.apk.*
+*.apk[0-9]
 *.aab
 *.ap_
 *.idsig
