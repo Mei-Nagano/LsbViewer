@@ -1,163 +1,61 @@
 package sb.linux.client.ui.screens
-import sb.linux.client.ui.patterns.settings.SettingsSlider
 
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.theme.colorSeed
-import sb.linux.client.ui.theme.isCustomColorKey
-import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.patterns.settings.SettingsListRow
+import sb.linux.client.ui.patterns.settings.SettingsSliderRow
+import sb.linux.client.ui.patterns.settings.searchingFor
 
 internal fun LazyListScope.themeBackgroundPalette(
-    section: String,
-    session: Session,
-    currentScheme: ColorScheme,
-    backgroundImportBusy: Boolean,
-    onOpenBackgroundPicker: () -> Unit,
-    onSelectBackgroundImage: () -> Unit,
-    onPickRole: (PreviewRole) -> Unit,
-    onPickElement: (String) -> Unit,
-    onOpenThemeColorPicker: () -> Unit,
+    section: String, session: Session, currentScheme: ColorScheme,
+    backgroundImportBusy: Boolean, onOpenBackgroundPicker: () -> Unit,
+    onSelectBackgroundImage: () -> Unit, onPickRole: (PreviewRole) -> Unit,
+    onPickElement: (String) -> Unit, onOpenThemeColorPicker: () -> Unit,
 ) {
-// ---------- 自定义全局背景（20、38） ----------
-if (section == "background") {
-item { GroupLabel("页面背景") }
-item {
-    GroupCard {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("自定义背景色", style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    if (session.themeBackground == null) "当前跟随主题" else "已应用到所有页面底色",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (session.themeBackground != null) {
-                TextButton(onClick = { session.preferences.saveThemeBackground(null) }) { Text("恢复") }
-            }
-            Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(session.themeBackground ?: currentScheme.background)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    .clickable { onOpenBackgroundPicker() },
-            )
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(enabled = !backgroundImportBusy, onClick = { onSelectBackgroundImage() }) {
-                Text(if (backgroundImportBusy) "正在处理图片…" else "选择背景图片")
-            }
-            if (session.backgroundImage.isNotEmpty()) TextButton(onClick = session.preferences::removeBackgroundImage) { Text("移除图片") }
-        }
-        if (session.backgroundImage.isNotEmpty()) {
-            SwitchRow("启用背景图片", "本地保存，随设置备份；不上传图床", checked = session.backgroundImageEnabled,
-                onCheckedChange = session.preferences::saveBackgroundImageEnabled)
-            Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal)) {
-                Text("背景图片不透明度 ${(session.backgroundImageOpacity * 100).toInt()}%")
-                SettingsSlider(value = session.backgroundImageOpacity, onValueChange = session.preferences::saveBackgroundImageOpacity, valueRange = 0.05f..0.65f)
-                Text("卡片、顶栏表面不透明度 ${(session.surfaceOpacity * 100).toInt()}%")
-                SettingsSlider(value = session.surfaceOpacity, onValueChange = session.preferences::saveSurfaceOpacity, valueRange = 0.2f..1f)
+    if (section == "background") {
+        item { GroupLabel("页面背景") }
+        item {
+            GroupCard {
+                SettingsListRow("自定义背景色", if (session.themeBackground == null) "当前跟随主题" else "已应用到所有页面底色",
+                    onClick = onOpenBackgroundPicker, trailing = {
+                        Box(Modifier.size(32.dp).clip(CircleShape).background(session.themeBackground ?: currentScheme.background)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
+                    })
+                if (session.themeBackground != null || searchingFor("恢复背景色")) {
+                    SettingsListRow("恢复背景色", "重新跟随主题底色", enabled = session.themeBackground != null,
+                        onClick = { session.preferences.saveThemeBackground(null) })
+                }
+                SettingsListRow("选择背景图片", if (backgroundImportBusy) "正在处理图片…" else "从设备选择图片并保存到应用内",
+                    enabled = !backgroundImportBusy, onClick = onSelectBackgroundImage)
+                if (session.backgroundImage.isNotEmpty() || searchingFor("移除图片")) {
+                    SettingsListRow("移除图片", "移除已保存的背景图片", enabled = session.backgroundImage.isNotEmpty() && !backgroundImportBusy,
+                        onClick = session.preferences::removeBackgroundImage)
+                }
+                if (session.backgroundImage.isNotEmpty() || searchingFor("启用背景图片", "背景图片不透明度", "卡片、顶栏表面不透明度")) {
+                    SwitchRow("启用背景图片", "使用本地保存的图片，图片可随设置备份", session.backgroundImageEnabled,
+                        onCheckedChange = session.preferences::saveBackgroundImageEnabled)
+                    SettingsSliderRow("背景图片不透明度", session.backgroundImageOpacity, session.preferences::saveBackgroundImageOpacity,
+                        "${(session.backgroundImageOpacity * 100).toInt()}%", valueRange = 0.05f..0.65f)
+                    SettingsSliderRow("卡片、顶栏表面不透明度", session.surfaceOpacity, session.preferences::saveSurfaceOpacity,
+                        "${(session.surfaceOpacity * 100).toInt()}%", valueRange = 0.2f..1f)
+                }
+                SwitchRow("禁止页面染色", "页面、卡片和弹窗保持中性色，按钮与高亮保留强调色；自定义背景色不受影响",
+                    session.keepBackgroundColor, onCheckedChange = session.preferences::saveKeepBackgroundColor)
             }
         }
-        SwitchRow(
-            "禁止页面染色（兼容旧版）",
-            "新默认使用带轻微色调的 MD3 表面；开启后页面底色、普通卡片和弹窗保持中性色，按钮、选中状态、标签和高亮完整保留强调色。手动自定义背景不受影响",
-            checked = session.keepBackgroundColor,
-            onCheckedChange = session.preferences::saveKeepBackgroundColor,
-        )
     }
-}
-
-}
-if (section == "colors") {
-// ---------- 实时预览（上部吸顶，始终可见；下半部分默认折叠 3.5） ----------
-item {
-    PostCardPreview(currentScheme) { key -> onPickElement(key) }
-}
-item {
-    ElementSelectorList(
-        session,
-        currentScheme,
-        onClickRole = { role -> onPickRole(role) },
-        onClickElement = { key -> onPickElement(key) }
-    )
-}
-
-// ---------- 主题色（单行横向滑动） ----------
-item { GroupLabel("主题色") }
-item {
-    GroupCard {
-        Text(
-            "选择起点色由主题引擎生成配色；自定义色可「存为预选」，长按色块可移除",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)
-        )
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = AppMenuDefaults.contentHorizontal, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(sb.linux.client.ui.theme.ThemeColorPresets) { preset ->
-                val selected = session.themeColorKey == preset.key
-                ColorSwatch(
-                    color = preset.lightPrimary,
-                    label = preset.label,
-                    selected = selected,
-                    onClick = {
-                        session.preferences.saveTheme(
-                            session.themeMode,
-                            preset.key == "default" && session.dynamicColor,
-                            preset.key
-                        )
-                    }
-                )
-            }
-            // 用户保存过的自定义主题色预选
-            items(session.themeCustomColors) { key ->
-                val selected = session.themeColorKey == key
-                ColorSwatch(
-                    color = colorSeed(key),
-                    label = "#" + key.removePrefix("custom#").take(4),
-                    selected = selected,
-                    onClick = { session.preferences.saveTheme(session.themeMode, false, key) },
-                    onLongClick = {
-                        session.preferences.removeThemeCustomColor(key)
-                        session.showToast("已移除该自定义主题色")
-                    }
-                )
-            }
-            item {
-                val isCustom = isCustomColorKey(session.themeColorKey)
-                ColorSwatch(
-                    color = if (isCustom) colorSeed(session.themeColorKey) else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    label = "自定义",
-                    selected = isCustom,
-                    custom = true,
-                    onClick = { onOpenThemeColorPicker() }
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
+    if (section == "colors") {
+        item { PostCardPreview(currentScheme, onPickElement) }
+        item { ElementSelectorList(session, currentScheme, onPickRole, onPickElement) }
+        item { GroupLabel("主题色", searchable = false) }
+        item { ThemeColorSelection(session, onOpenThemeColorPicker) }
     }
-}
-
-}
 }

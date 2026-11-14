@@ -27,19 +27,19 @@ internal fun LinkSettingsContent(session: Session) {
             GroupCard {
                 SettingsChoiceRow(
                     title = "外部链接打开方式",
-                    subtitle = "站内楼层与个人主页始终在应用内打开",
+                    subtitle = "选择外链使用应用内网页还是系统浏览器，站内链接使用应用内入口",
                     options = listOf(0 to "应用内打开", 1 to "外部浏览器"),
                     selectedValue = linkMode, onSelect = viewModel::setLinkOpenMode,
                 )
                 SwitchRow(
                     "隐藏外链跳转提示",
-                    "自动访问外部网站，黑名单网址仍显示风险提醒",
+                    "跳过源站的普通外链提示，风险链接仍显示提醒",
                     checked = viewModel.state.settings.hideExternalJumpReminder,
                     onCheckedChange = viewModel::setHideExternalJumpReminder,
                 )
                 SwitchRow(
                     "链接预览卡片",
-                    "首次点击显示网站图标、标题和介绍，再点击卡片或打开按钮访问网站",
+                    "首次点击先显示网站标题和简介，再点击卡片或打开按钮访问",
                     checked = session.linkPreviewEnabled,
                     onCheckedChange = { session.preferences.saveLinkPreviewEnabled(it) },
                 )

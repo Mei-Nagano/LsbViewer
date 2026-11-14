@@ -41,8 +41,8 @@ internal fun TopicPrimaryDialogs(
 ) {
     if (favoriteDialogOpen) {
         sb.linux.client.ui.components.feedback.AppConfirmDialog(
-            title = "取消收藏", message = "确定取消收藏吗？",
-            onDismiss = onFavoriteDialogDismiss, onConfirm = onUnfavorite, confirmText = "确定",
+            title = "文章已收藏", message = "是否取消收藏这篇文章？",
+            onDismiss = onFavoriteDialogDismiss, onConfirm = onUnfavorite, confirmText = "取消收藏", dismissText = "保留收藏",
         )
     }
 

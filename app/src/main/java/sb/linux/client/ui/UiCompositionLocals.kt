@@ -11,6 +11,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 val LocalLinkHandler = staticCompositionLocalOf<((String) -> Unit)?> { null }
 /** 0 = 表格适应屏幕，1 = 保持列宽横向滑动 */
 val LocalTableDisplayMode = staticCompositionLocalOf { 1 }
+val LocalHideTopicTags = staticCompositionLocalOf { false }
+val LocalTopicCardAvatarMetadataRow = staticCompositionLocalOf { false }
 val LocalShowUid = staticCompositionLocalOf { true }
 val LocalSmartDecode = staticCompositionLocalOf { false }
 

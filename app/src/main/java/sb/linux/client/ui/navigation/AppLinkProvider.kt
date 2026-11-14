@@ -55,6 +55,7 @@ internal fun AppLinkProvider(
     var linkPreviewLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val signaturesHidden = remember(session.accountIdentityVersion) { mutableStateOf(false) }
+    val signatureRestoreVersion = remember(session.accountIdentityVersion) { mutableStateOf(0) }
 
     fun openLinkDirect(raw: String) {
         val url = Endpoints.abs(raw)
@@ -69,17 +70,7 @@ internal fun AppLinkProvider(
             }
             val route = sourcePageRoute(url, session.account.loginState.userId)
             if (route != null) {
-                val tid = Regex("^/topic/(\\d+)$").find(path)?.groupValues?.get(1)?.toLongOrNull()
-                val replyId = uri.getQueryParameter("replyid")?.toLongOrNull() ?: 0L
-                if (route.startsWith("topic/") && tid != null && replyId > 0 && uri.getQueryParameter("floor").isNullOrBlank()) {
-                    scope.launch {
-                        val floor = try { session.topicLinkRepository.replyFloor(tid, replyId) }
-                        catch (cancelled: CancellationException) { throw cancelled }
-                        catch (_: Exception) { null }
-                        if (floor == null) session.showToast("无法定位该回复，已打开主题")
-                        linkNav.navigate(route.substringBefore("&floor=") + "&floor=${floor ?: 0}")
-                    }
-                } else (if (route == "forums") masterNav ?: linkNav else linkNav).navigate(route)
+                (if (route == "forums") masterNav ?: linkNav else linkNav).navigate(route)
                 return
             }
             linkNav.navigate("web?url=${android.net.Uri.encode(url)}")
@@ -178,6 +169,7 @@ internal fun AppLinkProvider(
     }
     CompositionLocalProvider(
         sb.linux.client.ui.screens.LocalAllSignaturesHidden provides signaturesHidden,
+        sb.linux.client.ui.screens.LocalSignatureRestoreVersion provides signatureRestoreVersion,
         sb.linux.client.ui.patterns.user.LocalUserBlockChanged provides session::onUserSummaryBlockChanged,
         sb.linux.client.ui.patterns.user.LocalUserSummaryRepository provides session.userSummaryRepository,
         sb.linux.client.ui.patterns.user.LocalAvatarUserLookupRepository provides session.userLookupRepository,

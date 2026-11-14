@@ -16,6 +16,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -30,12 +40,15 @@ import sb.linux.client.common.ui.SessionUiInvalidation
 import sb.linux.client.ui.content.clearBodyImageLayoutCache
 import sb.linux.client.ui.patterns.topic.LocalCardColorOverrides
 import sb.linux.client.ui.LocalLinkHandler
+import sb.linux.client.ui.LocalHideTopicTags
+import sb.linux.client.ui.LocalTopicCardAvatarMetadataRow
 import sb.linux.client.ui.LocalShowUid
 import sb.linux.client.ui.LocalSmartDecode
 import sb.linux.client.ui.LocalTableDisplayMode
 import sb.linux.client.ui.patterns.web.VerificationDialog
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 fun AppRoot(session: Session) {
     SideEffect {
         session.uiInvalidation = SessionUiInvalidation(::clearBodyImageLayoutCache)
@@ -127,40 +140,28 @@ fun AppRoot(session: Session) {
     LaunchedEffect(Unit) {
         if (!updateViewModel.beginAutomaticCheck(System.currentTimeMillis())) return@LaunchedEffect
         updateViewModel.loadLatest { result ->
-            val rel = result.getOrNull() ?: return@loadLatest
+            val rel = result.getOrNull()
             val cur = runCatching {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName
             }.getOrNull() ?: ""
-            if (isNewerVersion(rel.tag, cur)) updateTip = rel
+            updateTip = updateViewModel.automaticPrompt(rel, cur)
         }
     }
     updateTip?.let { rel ->
-        val askNever = updateViewModel.isFirstRunCheckMode()
-        AlertDialog(
-            onDismissRequest = { updateTip = null },
-            title = { Text("发现新版本") },
-            text = { Text("${rel.name} 已发布，是否前往下载？" + if (!askNever) "\n\n（自动检查当前为「按间隔」。可前往 设置 → 常规设置 → 检查更新时机 调整）" else "") },
-            confirmButton = {
-                TextButton(onClick = {
-                    updateTip = null
-                    runCatching {
-                        context.startActivity(
-                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(rel.url))
-                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
-                }) { Text("前往下载") }
+        sb.linux.client.ui.AppUpdatePromptDialog(
+            releaseName = rel.name, releaseVersion = rel.tag,
+            currentVersion = sb.linux.client.BuildConfig.VERSION_NAME, notes = rel.notes,
+            onDismiss = { updateTip = null },
+            onSkipVersion = { updateViewModel.skipVersion(rel.tag); updateTip = null },
+            onNeverPrompt = {
+                updateViewModel.disableAutomaticChecks(); updateTip = null
+                session.showToast("已设置为不再提示更新，可在版本更新设置中恢复")
             },
-            dismissButton = {
-                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (askNever) {
-                        TextButton(onClick = {
-                            updateViewModel.disableAutomaticChecks()
-                            updateTip = null
-                            session.showToast("已设置为不再提示更新")
-                        }) { Text("不再提示") }
-                    }
-                    TextButton(onClick = { updateTip = null }) { Text("取消") }
+            onDownload = {
+                updateTip = null
+                runCatching {
+                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse(rel.url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                 }
             },
         )
@@ -169,11 +170,19 @@ fun AppRoot(session: Session) {
     CompositionLocalProvider(
         LocalCardColorOverrides provides session.cardColors,
         LocalTableDisplayMode provides session.tableDisplayMode,
+        LocalHideTopicTags provides session.hideTopicTags,
+        LocalTopicCardAvatarMetadataRow provides session.topicCardAvatarMetadataRow,
         LocalShowUid provides session.showUid,
         LocalSmartDecode provides session.smartDecodeEnabled,
         LocalMasterNav provides (if (layout.useTwoPane) masterNav else null),
+        LocalSourceSidebarInRail provides (layout.useRail && destinations.size != 2),
     ) {
         AppLinkProvider(session, linkNav) {
+            val safeTop = if (session.hideStatusBar && layout.widthDp < 600) {
+                Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility
+                    .union(WindowInsets.displayCutout).only(WindowInsetsSides.Top))
+            } else Modifier
+            Box(Modifier.fillMaxSize().then(safeTop)) {
             AppContent(
                 session = session,
                 nav = nav,
@@ -189,6 +198,7 @@ fun AppRoot(session: Session) {
                 onNavigateBottom = bottomNavigation::submit,
                 onNavigateMaster = masterNavigation::submit,
             )
+            }
         }
     }
 }

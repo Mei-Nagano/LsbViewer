@@ -38,6 +38,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import org.jsoup.nodes.Element
 import sb.linux.client.ui.components.feedback.AppInlineLoading
 import sb.linux.client.platform.webview.WebViewDoh
+import sb.linux.client.platform.webview.LinkWindowClient
+import sb.linux.client.ui.screens.rememberSourceWebWindows
+import sb.linux.client.ui.screens.rememberWebFileChooser
 import java.net.URI
 import sb.linux.client.ui.LocalLinkHandler
 
@@ -46,6 +49,8 @@ import sb.linux.client.ui.LocalLinkHandler
 internal fun EmbeddedVideoPlayer(video: EmbeddedVideo, modifier: Modifier = Modifier) {
     val linkHandler = LocalLinkHandler.current
     val uriHandler = LocalUriHandler.current
+    val windows = rememberSourceWebWindows()
+    val chooseFiles = rememberWebFileChooser()
     var loading by remember(video.playerUrl) { mutableStateOf(true) }
     var failed by remember(video.playerUrl) { mutableStateOf(false) }
     var videoAspectRatio by remember(video.playerUrl) {
@@ -68,6 +73,7 @@ internal fun EmbeddedVideoPlayer(video: EmbeddedVideo, modifier: Modifier = Modi
                 runCatching { it.callback.onCustomViewHidden() }
             }
             webView?.let { view ->
+                windows.close(view)
                 view.stopLoading()
                 view.destroy()
             }
@@ -122,6 +128,8 @@ internal fun EmbeddedVideoPlayer(video: EmbeddedVideo, modifier: Modifier = Modi
                             webView = this
                             setBackgroundColor(Color.BLACK)
                             settings.javaScriptEnabled = true
+                            settings.javaScriptCanOpenWindowsAutomatically = true
+                            settings.setSupportMultipleWindows(true)
                             settings.domStorageEnabled = true
                             settings.cacheMode = WebSettings.LOAD_DEFAULT
                             settings.mediaPlaybackRequiresUserGesture = true
@@ -134,7 +142,9 @@ internal fun EmbeddedVideoPlayer(video: EmbeddedVideo, modifier: Modifier = Modi
                             }
                             CookieManager.getInstance().setAcceptCookie(true)
                             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                            webChromeClient = object : WebChromeClient() {
+                            webChromeClient = object : LinkWindowClient(windows::show, windows::close,
+                                showJsDialog = windows::showJsDialog,
+                                chooseFiles = chooseFiles, onTitle = windows::title) {
                                 override fun onShowCustomView(
                                     view: android.view.View,
                                     callback: CustomViewCallback,
@@ -220,4 +230,5 @@ internal fun EmbeddedVideoPlayer(video: EmbeddedVideo, modifier: Modifier = Modi
     fullscreen?.let { session ->
         FullscreenVideoDialog(session, onDismiss = closeFullscreen)
     }
+    windows.Content()
 }

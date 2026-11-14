@@ -11,5 +11,5 @@ interface TopicPageRepository {
 }
 
 interface TopicFloorPageRepository {
-    suspend fun load(topicId: Long, floor: Int): TopicFloorPage
+    suspend fun load(topicId: Long, floor: Int, replyId: Long = 0): TopicFloorPage
 }

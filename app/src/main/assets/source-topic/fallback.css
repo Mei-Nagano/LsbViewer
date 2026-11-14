@@ -1,0 +1,29 @@
+/* 网络样式不可用时的基础排版；源站 index.css / plugins.css 在其后覆盖。 */
+:root{--text:#202124;--text-muted:#667085;--panel:#fff;--bg:#f6f7f8;--line:#ddd;--brand:#36683b;--brand-hover:#36683b;--font-size-md:15px;--font-size-sm:13px;--font-size-xs:12px;--font-mono:monospace;--radius-sm:6px}
+html[data-color-scheme-dark-mode-theme="dark"]{--text:#e2e5ed;--text-muted:#9399ab;--panel:#171b27;--bg:#0f121a;--line:#262b3b;--brand:#586779;--brand-hover:#6b7c90}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",Arial,sans-serif}
+.post-entry{display:grid;grid-template-columns:36px minmax(0,1fr);grid-template-areas:"avatar body" "content content";column-gap:10px;align-items:start}
+.post-avatar{grid-area:avatar;width:36px;height:36px}.avatar-img{width:100%;height:100%;object-fit:cover;border-radius:4px}
+.post-body{grid-area:body;min-width:0}.post-info,.post-meta{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.post-meta{font-size:12px;color:var(--text-muted)}
+.post-content{grid-area:content;width:100%;font-size:15px;line-height:1.75;word-break:break-word;overflow-wrap:anywhere}
+.post-content p{margin:0 0 8px}.post-content p:last-child{margin-bottom:0}
+.nb-editor-post-content,.post-readability-content{line-height:1.85}.nb-editor-post-content p,.post-readability-content p{margin:0 0 14px}
+.nb-editor-post-content h1,.post-readability-content h1{font-size:1.6em}.nb-editor-post-content h2,.post-readability-content h2{font-size:1.35em}
+.post-content blockquote{margin:12px 0;padding:2px 0 2px 14px;border-left:3px solid var(--brand);color:var(--text-muted)}
+.post-content img{display:block;max-width:100%;height:auto;border-radius:6px}.post-content a{color:var(--brand-hover)}
+.post-content pre{overflow:auto;padding:14px 16px;background:var(--bg);border-radius:6px}.post-content code{font-family:monospace}
+.post-content table{border-collapse:collapse}.post-content th,.post-content td{padding:7px 9px;border:1px solid var(--line)}
+.post-signature-content{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px;line-height:1.6;color:var(--text-muted)}
+.nb-editor-blank-spacer,.post-readability-spacer{height:.75em;min-height:.75em}
+
+/* 源站红包奖励展示规则；在线 plugins.css 在其后覆盖。 */
+:root{--danger:#d94b4b;--danger-soft:#fff3f3;--warning:#c2410c;--warning-soft:#fff7ed;--focus-ring:rgba(46,204,113,.3);--transition-fast:.15s}
+.post-ops{display:flex;align-items:center;justify-content:flex-end;justify-self:end;flex:0 0 auto;flex-wrap:nowrap;max-width:100%;gap:1px;white-space:nowrap}
+.red-packet-reply-reward{position:relative;display:inline-flex;align-items:center;gap:5px;height:28px;margin:0 4px 0 0;padding:0 10px 0 7px;border:1px solid color-mix(in srgb,var(--danger) 28%,transparent);border-radius:999px;background:color-mix(in srgb,var(--danger-soft) 54%,var(--panel));color:var(--danger);font-size:var(--font-size-md);font-weight:700;line-height:1;cursor:help;outline:0}
+.red-packet-reply-reward:focus-visible{box-shadow:0 0 0 3px var(--focus-ring)}
+.red-packet-reply-gift{display:inline-flex;width:23px;height:23px;align-items:center;justify-content:center;border-radius:50%;background:var(--warning-soft);color:var(--warning)}
+.red-packet-reply-gift svg{width:16px;height:16px}
+.red-packet-reply-points{white-space:nowrap}
+.red-packet-reply-tooltip{position:absolute;left:50%;bottom:calc(100% + 12px);z-index:20;width:max-content;max-width:min(300px,calc(100vw - 32px));padding:10px 14px;border-radius:14px;background:#111827;color:#fff;font-size:var(--font-size-sm);font-weight:500;line-height:1.4;white-space:normal;box-shadow:0 10px 25px rgba(15,23,42,.2);opacity:0;pointer-events:none;transform:translate(-50%,5px);transition:opacity var(--transition-fast),transform var(--transition-fast)}
+.red-packet-reply-tooltip:after{content:"";position:absolute;left:50%;top:100%;width:10px;height:10px;background:#111827;transform:translate(-50%,-5px) rotate(45deg)}
+.red-packet-reply-reward:hover .red-packet-reply-tooltip,.red-packet-reply-reward:focus .red-packet-reply-tooltip,.red-packet-reply-reward:focus-within .red-packet-reply-tooltip{opacity:1;transform:translate(-50%,0)}

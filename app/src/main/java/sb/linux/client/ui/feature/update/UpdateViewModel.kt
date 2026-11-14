@@ -16,6 +16,7 @@ class UpdateViewModel(
     fun beginAutomaticCheck(now: Long): Boolean {
         val current = settings.current()
         if (current.updateCheckMode == 2) return false
+        if (UpdatePromptPolicy.debugPreview) return true
         val due = current.updateCheckMode == 0 ||
             now - current.lastUpdateCheck > current.updateCheckIntervalHours * 3600_000L
         if (due) settings.markUpdateCheck(now)
@@ -27,8 +28,14 @@ class UpdateViewModel(
     fun isFirstRunCheckMode(): Boolean = settings.current().updateCheckMode == 0
 
     fun disableAutomaticChecks() = settings.setUpdateCheckMode(2)
+    fun skipVersion(version: String) = settings.skipUpdateVersion(version)
+    fun automaticPrompt(release: UpdateInfo?, current: String): UpdateInfo? =
+        UpdatePromptPolicy.available(release, current)?.takeUnless { it.tag == settings.current().skippedUpdateVersion }
+    fun manualPrompt(release: UpdateInfo?, current: String): UpdateInfo? = UpdatePromptPolicy.available(release, current)
 
     fun loadLatest(onComplete: (Result<UpdateInfo?>) -> Unit) {
+        // 预览无需等网络；Release 仍从真实更新仓库读取。
+        if (UpdatePromptPolicy.debugPreview) { onComplete(Result.success(null)); return }
         viewModelScope.launch {
             try {
                 onComplete(Result.success(repository.latestRelease()))

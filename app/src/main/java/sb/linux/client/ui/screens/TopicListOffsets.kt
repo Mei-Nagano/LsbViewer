@@ -12,4 +12,4 @@ internal fun topicLeadingItemCount(page: TopicPageData?, hasMainPost: Boolean, h
             page.essenceApplication != null || page.resourceVote != null || page.footerPanels.isNotEmpty())) 1 else 0) +
         (if (hasDanmaku) 1 else 0)
 
-internal fun topicMainItemIndex(page: TopicPageData?): Int = 1 + if (page?.redPacket != null) 1 else 0
+internal fun topicMainItemIndex(page: TopicPageData?): Int = 1

@@ -114,7 +114,7 @@ internal class TopicInteractionDataSource(
     override suspend fun loadPollView(topicId: Long, url: String): TopicPoll {
         val absolute = sb.linux.client.common.network.Endpoints.abs(url)
         val uri = java.net.URI(absolute)
-        check(uri.host == "linux.sb" && uri.path == "/topic/$topicId") { "投票链接无效" }
+        check(sb.linux.client.common.network.Endpoints.isForumHost(uri.host) && uri.path == "/topic/$topicId") { "投票链接无效" }
         val response = client.get(absolute)
         val document = org.jsoup.Jsoup.parse(response.html)
         return sb.linux.client.data.TopicPollParser.parse(document, null, null)
@@ -162,7 +162,7 @@ internal class TopicInteractionDataSource(
         val allowed = listOf(source.action) + source.buttons.filter { it.enabled }.map { it.action }.filter(String::isNotBlank)
         check(form.id == source.id && form.action in allowed) { "移动表单已失效，请刷新帖子" }
         val url = java.net.URI(sb.linux.client.common.network.Endpoints.abs(form.action))
-        check(url.scheme == "https" && url.host in setOf("linux.sb", "www.linux.sb")) { "移动链接无效" }
+        check(url.scheme == "https" && sb.linux.client.common.network.Endpoints.isForumHost(url.host)) { "移动链接无效" }
         val pairs = fields.filter { it.first != "_csrf" } + ("_csrf" to page.csrf.ifBlank { client.csrf() })
         val response = client.postFormPairs(url.toString(), pairs)
         val validationError = org.jsoup.Jsoup.parse(response.html)

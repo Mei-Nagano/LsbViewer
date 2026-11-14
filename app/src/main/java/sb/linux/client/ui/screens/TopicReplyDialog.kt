@@ -214,6 +214,7 @@ fun ReplyDialog(
     }
     ModalBottomSheet(
         onDismissRequest = { if (!busy) onDismiss() },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         contentWindowInsets = {
             androidx.compose.foundation.layout.WindowInsets.ime
                 .union(androidx.compose.foundation.layout.WindowInsets.navigationBars)
@@ -222,8 +223,6 @@ fun ReplyDialog(
         Column(
             Modifier
                 .padding(horizontal = LocalAppSpacing.current.pageHorizontal)
-                .imePadding()
-                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

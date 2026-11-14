@@ -22,12 +22,16 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import sb.linux.client.ui.patterns.settings.SettingsCheckRow
+import sb.linux.client.ui.patterns.settings.SettingsListRow
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
 import sb.linux.client.ui.patterns.settings.SettingsCard
 import sb.linux.client.ui.patterns.settings.settingsItemShape
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.LsbApp
 import java.io.File
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
 
 internal fun fmtBytes(b: Long): String = when {
     b >= 1024 * 1024 -> "%.1f MB".format(b / 1024f / 1024f)
@@ -77,8 +81,8 @@ internal fun CacheAnalysisCard(session: Session, refreshKey: Int = 0) {
             val total = items.sumOf { it.bytes }
             val selectedBytes = items.filter { it.key in selected }.sumOf { it.bytes }
             val palette = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.secondary)
-            Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
-                SettingsCard(shape = settingsItemShape(0, items.size + 2)) {
+            GroupCard {
+                SettingsCard(Modifier.settingsSearchAnchor("空间占用")) {
                     Column(Modifier.padding(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("图片缓存", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -93,45 +97,21 @@ internal fun CacheAnalysisCard(session: Session, refreshKey: Int = 0) {
                         }
                     }
                 }
-                items.forEachIndexed { index, item ->
-                    SettingsCard(shape = settingsItemShape(index + 1, items.size + 2)) {
-                        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp)
-                            .toggleable(item.key in selected, enabled = item.bytes > 0 && !clearing, role = Role.Checkbox) {
-                                selected = if (it) selected + item.key else selected - item.key
-                            }.padding(horizontal = spacing.item), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                                Icon(if (item.key in selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                                    null, Modifier.size(24.dp), tint = if (item.bytes > 0 && !clearing) palette[index]
-                                        else MaterialTheme.colorScheme.outline)
-                            }
-                            Text(item.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge,
-                                color = if (item.bytes > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (item.bytes > 0 && total > 0) Text(if (item.bytes * 100 / total == 0L) "<1%" else "${item.bytes * 100 / total}%",
-                                style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = spacing.item))
-                            Text(if (item.bytes == 0L) "无缓存" else fmtBytes(item.bytes), style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
+                items.forEach { item ->
+                    SettingsCheckRow(item.name, checked = item.key in selected,
+                        subtitle = if (item.bytes == 0L) "无缓存" else "${fmtBytes(item.bytes)} · ${if (item.bytes * 100 / total == 0L) "<1" else (item.bytes * 100 / total).toString()}%",
+                        enabled = item.bytes > 0 && !clearing,
+                        onCheckedChange = { selected = if (it) selected + item.key else selected - item.key })
                 }
-                SettingsCard(shape = settingsItemShape(items.size + 1, items.size + 2)) {
-                    Button(onClick = { pending = selected }, enabled = selected.isNotEmpty() && !clearing,
-                        modifier = Modifier.fillMaxWidth().padding(spacing.pageHorizontal)) {
-                        Text(if (clearing) "清理中…" else "清理所选 (${fmtBytes(selectedBytes)})")
-                    }
-                }
+                SettingsActionRow("清理所选图片缓存", { pending = selected }, enabled = selected.isNotEmpty() && !clearing,
+                    subtitle = if (clearing) "清理中…" else "已选择 ${fmtBytes(selectedBytes)}")
             }
-            Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
-                otherUsage.forEachIndexed { index, item ->
-                    SettingsCard(shape = settingsItemShape(index, otherUsage.size)) {
-                        ListItem(headlineContent = { Text(item.name) },
-                            supportingContent = { Text(if (item.bytes > 0) fmtBytes(item.bytes) else "无缓存") },
-                            leadingContent = { Icon(when (item.key) {
-                                "home" -> Icons.Filled.Home
-                                "topic" -> Icons.Filled.Visibility
-                                else -> Icons.Filled.AutoAwesome
-                            }, null) },
-                            trailingContent = { TextButton(onClick = { pending = setOf(item.key) }, enabled = item.bytes > 0 && !clearing) { Text("清除") } },
-                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow))
-                    }
+            GroupCard {
+                otherUsage.forEach { item ->
+                    SettingsListRow(item.name, if (item.bytes > 0) fmtBytes(item.bytes) else "无缓存",
+                        enabled = item.bytes > 0 && !clearing, onClick = { pending = setOf(item.key) }, trailing = {
+                            Text("清除", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        })
                 }
             }
         }

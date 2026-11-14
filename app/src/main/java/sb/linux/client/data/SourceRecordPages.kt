@@ -6,7 +6,8 @@ import sb.linux.client.common.network.Endpoints
 
 /** 只跟随源站提供的同用户、同标签分页；相同内容的不同记录不去重。 */
 internal class SourceRecordPages(private val client: LsbClient, private val identity: () -> Long) {
-    suspend fun load(userId: Long, tab: String): List<LsbClient.Resp> {
+    suspend fun load(userId: Long, tab: String,
+        onPage: suspend (LsbClient.Resp, Int, Int) -> Boolean = { _, _, _ -> true }): List<LsbClient.Resp> {
         require(userId > 0 && tab in setOf("points_rewards", "notifications"))
         val version = identity()
         val path = "/user/$userId"
@@ -17,6 +18,7 @@ internal class SourceRecordPages(private val client: LsbClient, private val iden
             check(visited.size < 1000) { "积分或通知历史过长，暂时无法完整读取" }
             val next = pending.entries.first()
             val page = next.key
+            check(page == visited.size + 1) { "源站记录分页不连续，请重试" }
             val url = next.value
             pending.remove(page)
             if (!visited.add(page)) continue
@@ -41,6 +43,9 @@ internal class SourceRecordPages(private val client: LsbClient, private val iden
                 if (uri.scheme == "https" && Endpoints.isInternal(uri.host) && uri.path.trimEnd('/') == path &&
                     fields["tab"] == tab && number > 0 && number !in visited) pending[number] = uri.toString()
             }
+            val totalPages = maxOf(TopicListParser.parsePagination(doc).second, page, pending.keys.maxOrNull() ?: page)
+            if (!onPage(response, page, totalPages)) break
+            check(pending.isNotEmpty() || page >= totalPages) { "源站记录分页缺失，请重试" }
         }
         return responses
     }

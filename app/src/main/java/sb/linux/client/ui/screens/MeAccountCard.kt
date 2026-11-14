@@ -1,6 +1,7 @@
 package sb.linux.client.ui.screens
 
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
 import sb.linux.client.domain.account.LoginState
 import sb.linux.client.ui.patterns.user.UserInfoCard
 import sb.linux.client.ui.patterns.user.toUserInfoCardData
@@ -9,5 +10,6 @@ import sb.linux.client.ui.patterns.user.toUserInfoCardData
 @Composable
 internal fun MeAccountCard(account: LoginState, onOpenProfile: () -> Unit) {
     val name = if (account.loggedIn) account.username.ifBlank { "已登录" } else "点击登录"
-    UserInfoCard(account.toUserInfoCardData().copy(username = name), onProfile = onOpenProfile)
+    UserInfoCard(account.toUserInfoCardData().copy(username = name), onProfile = onOpenProfile,
+        emphasisWeight = MaterialTheme.typography.bodyLarge.fontWeight)
 }

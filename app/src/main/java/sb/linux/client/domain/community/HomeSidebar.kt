@@ -8,6 +8,7 @@ data class HomeSidebar(
     val onlineUsers: OnlineUsers = OnlineUsers(),
     val announcements: List<SidebarAnnouncement> = emptyList(),
     val dailyStars: List<DailyStar> = emptyList(),
+    val hotTopicPeriods: List<HotTopicPeriod> = emptyList(),
 )
 
 data class SidebarAnnouncement(val title: String, val url: String)
@@ -25,5 +26,7 @@ data class OnlineUser(val userId: Long, val username: String, val avatarUrl: Str
 data class ForumCount(val id: Long, val name: String, val count: String, val color: String = "")
 
 data class HotTopic(val topicId: Long, val title: String, val meta: String)
+
+data class HotTopicPeriod(val id: String, val label: String, val topics: List<HotTopic>)
 
 data class NewUser(val userId: Long, val username: String, val avatarUrl: String = "")

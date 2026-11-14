@@ -27,6 +27,7 @@ class UserPageViewModel(
         loading = repository.cached(userId, initialTab) == null))
     val uiState = mutableState.asStateFlow()
     private var requestVersion = 0
+    private var requestJob: kotlinx.coroutines.Job? = null
 
     fun selectTab(tab: String) {
         if (mutableState.value.tab == tab) return
@@ -37,17 +38,21 @@ class UserPageViewModel(
 
     fun load(forceRefresh: Boolean = true) {
         val version = ++requestVersion
+        requestJob?.cancel()
         val tab = mutableState.value.tab
-        mutableState.update { it.copy(loading = true, error = null) }
-        viewModelScope.launch {
+        mutableState.update { it.copy(loading = true, error = null,
+            content = it.content?.copy(loadedPages = 0)) }
+        requestJob = viewModelScope.launch {
             try {
-                val content = repository.load(userId, tab, forceRefresh)
-                if (version == requestVersion) {
-                    mutableState.update { current ->
-                        val profile = content.profile ?: current.content?.profile
-                        current.copy(content = content.copy(profile = profile), loading = false)
+                repository.loadIncrementally(userId, tab, forceRefresh).collect { content ->
+                    if (version == requestVersion) {
+                        mutableState.update { current ->
+                            val profile = content.profile ?: current.content?.profile
+                            current.copy(content = content.copy(profile = profile))
+                        }
                     }
                 }
+                if (version == requestVersion) mutableState.update { it.copy(loading = false) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 if (version == requestVersion) mutableState.update {

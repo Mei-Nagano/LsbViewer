@@ -17,6 +17,8 @@ data class BrowseSettings(
     val tableDisplayMode: Int,
     val showUid: Boolean,
     val smartDecodeEnabled: Boolean,
+    val topicCardAvatarMetadataRow: Boolean = false,
+    val hideTopicTags: Boolean = false,
 )
 
 interface BrowseSettingsRepository {
@@ -32,6 +34,8 @@ interface BrowseSettingsRepository {
     fun saveSidebarShowOnlineUsers(value: Boolean)
     fun saveDanmaku(value: Boolean)
     fun saveTableDisplayMode(value: Int)
+    fun saveHideTopicTags(value: Boolean)
+    fun saveTopicCardAvatarMetadataRow(value: Boolean)
     fun saveShowUid(value: Boolean)
     fun saveSmartDecodeEnabled(value: Boolean)
     fun saveThreadDialogEnabled(value: Boolean)

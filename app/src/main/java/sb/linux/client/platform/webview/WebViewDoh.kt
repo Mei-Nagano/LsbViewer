@@ -79,6 +79,7 @@ object WebViewDoh {
     private suspend fun prepareLocked(): Boolean {
         val ctx = context ?: return true
         val repository = networkRepository ?: return false
+        repository.awaitReady()
         val policy = repository.currentPolicy()
         val proxyUrl = policy.proxyUrl
         val active = policy.dohActive

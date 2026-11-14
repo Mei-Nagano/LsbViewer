@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.theme.LocalAppSizes
@@ -82,7 +81,7 @@ private fun SettingsCategoryPage(categories: List<SettingsCategory>, onSelect: (
                         ) {
                             Icon(category.icon, null, Modifier.size(sizes.icon), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(category.label, style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                                fontWeight = MaterialTheme.typography.bodyLarge.fontWeight, textAlign = TextAlign.Center)
                         }
                     }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }

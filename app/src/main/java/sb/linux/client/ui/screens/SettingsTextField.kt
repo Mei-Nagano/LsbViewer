@@ -4,14 +4,18 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.VisualTransformation
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
+import sb.linux.client.ui.patterns.settings.settingsRowIcon
 
-/** 设置表单统一使用完整圆角的 tonal 输入面，与菜单卡片共用主题形状。 */
+/** 输入在设置卡片内直接编辑，标签、说明、验证及密码转换沿用调用方。 */
 @Composable
 internal fun SettingsTextField(
     value: String, onValueChange: (String) -> Unit,
@@ -27,16 +31,32 @@ internal fun SettingsTextField(
     singleLine: Boolean = false, maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     minLines: Int = 1, interactionSource: MutableInteractionSource? = null,
     shape: Shape = MaterialTheme.shapes.large,
+    searchLabel: String = "",
+    description: String = "",
 ) {
-    TextField(value, onValueChange, modifier, enabled, readOnly, textStyle,
-        label, placeholder, leadingIcon, trailingIcon, prefix, suffix, supportingText,
-        isError, visualTransformation, keyboardOptions, keyboardActions, singleLine,
-        maxLines, minLines, interactionSource, shape,
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-        ),
-    )
+    val input: @Composable () -> Unit = {
+        TextField(value, onValueChange,
+            modifier = if (searchLabel.isBlank()) modifier else Modifier.fillMaxWidth()
+                .padding(horizontal = sb.linux.client.ui.theme.LocalAppSpacing.current.pageHorizontal).padding(bottom = 12.dp),
+            enabled = enabled, readOnly = readOnly, textStyle = textStyle,
+            label = if (searchLabel.isBlank()) label else null, placeholder = placeholder,
+            leadingIcon = leadingIcon, trailingIcon = trailingIcon,
+            prefix = prefix, suffix = suffix, supportingText = supportingText, isError = isError,
+            visualTransformation = visualTransformation, keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
+            singleLine = singleLine, maxLines = maxLines, minLines = minLines, interactionSource = interactionSource, shape = shape,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = if (searchLabel.isBlank()) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+                unfocusedContainerColor = if (searchLabel.isBlank()) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+                disabledContainerColor = if (searchLabel.isBlank()) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+                focusedIndicatorColor = if (searchLabel.isBlank()) Color.Transparent else MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = if (searchLabel.isBlank()) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                disabledIndicatorColor = Color.Transparent,
+            ))
+    }
+    if (searchLabel.isBlank()) input()
+    else sb.linux.client.ui.patterns.settings.SettingsCard(modifier.settingsSearchAnchor(searchLabel)) {
+        sb.linux.client.ui.components.layout.AppMenuRow(searchLabel, description, settingsRowIcon(searchLabel),
+            enabled = enabled, prominent = true, searchable = false, trailing = {})
+        input()
+    }
 }

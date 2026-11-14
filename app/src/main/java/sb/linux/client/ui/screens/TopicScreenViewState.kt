@@ -17,6 +17,7 @@ import sb.linux.client.ui.common.content.extractTopicTocHeadings
 import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.topic.TopicPageData
 import sb.linux.client.domain.topic.PostEntry
+import sb.linux.client.ui.theme.LocalAppSizes
 
 internal data class TopicScreenViewState(
     val page: TopicPageData?,
@@ -49,7 +50,8 @@ internal fun rememberTopicScreenViewState(
 ): TopicScreenViewState {
     val page = paging.page.value
     val density = LocalDensity.current
-    val topBarPx = with(density) { 64.dp.toPx() }
+    val topBarHeight = LocalAppSizes.current.topBarHeight
+    val topBarPx = with(density) { topBarHeight.toPx() }
     val idToFloor = remember(page) { page?.posts.orEmpty().associate { it.id to it.floor } }
     val latestIdToFloor by rememberUpdatedState(idToFloor)
     DisposableEffect(topicId) {
@@ -58,18 +60,22 @@ internal fun rememberTopicScreenViewState(
             val key = first?.key as? String
             val replyId = key?.removePrefix("r-")?.toLongOrNull()
             val mainId = key?.removePrefix("main-")?.toLongOrNull()
+            val sourcePostId = if (key == "source-content") ui.sourceGeometry.posts.entries
+                .sortedBy { it.value.top }.firstOrNull { ui.sourceGeometry.topInRoot + it.value.top + it.value.height > ui.contentTopInRoot + topBarPx }?.key else null
             pageCoordinator.saveReadingPosition(
-                floor = replyId?.let { latestIdToFloor[it] } ?: 0,
+                floor = (sourcePostId ?: replyId)?.let { latestIdToFloor[it] } ?: 0,
                 listIndex = listState.firstVisibleItemIndex,
                 scrollOffset = listState.firstVisibleItemScrollOffset,
                 // 帖子标识用于版本化锚点；取不到时只写旧四段记录
-                postId = replyId ?: mainId ?: 0L,
+                postId = sourcePostId ?: replyId ?: mainId ?: 0L,
             )
         }
     }
     val currentFloor by remember(idToFloor) {
         derivedStateOf {
-            listState.layoutInfo.visibleItemsInfo
+            ui.sourceGeometry.posts.entries.sortedBy { it.value.top }
+                .firstOrNull { ui.sourceGeometry.topInRoot + it.value.top + it.value.height > ui.contentTopInRoot + topBarPx }
+                ?.key?.let { idToFloor[it] } ?: listState.layoutInfo.visibleItemsInfo
                 .firstOrNull { (it.key as? String)?.startsWith("r-") == true }
                 ?.let { info -> (info.key as String).removePrefix("r-").toLongOrNull()?.let { idToFloor[it] } }
                 ?: 0
@@ -102,20 +108,26 @@ internal fun rememberTopicScreenViewState(
             )
         }
     }
-    val bodyVisible by remember {
+    val readingViewport by remember(listState, ui, mainPost?.id, topBarPx) {
         derivedStateOf {
-            listState.layoutInfo.visibleItemsInfo.any { (it.key as? String)?.startsWith("main-") == true } &&
-                ui.bodyHeight > 0 && ui.bodyTop + ui.bodyHeight > ui.contentTopInRoot + topBarPx &&
-                ui.bodyTop < ui.contentTopInRoot + listState.layoutInfo.viewportEndOffset
+            val layout = listState.layoutInfo
+            val source = layout.visibleItemsInfo.firstOrNull { it.key == "source-content" }
+            val body = mainPost?.id?.let { ui.sourceGeometry.posts[it] }
+            if (source == null || body == null || body.readingHeight <= 0f) false to 0f
+            else {
+                val viewportTop = layout.viewportStartOffset + if (ui.topicSearchOpen) 0f else topBarPx
+                val viewportBottom = layout.viewportEndOffset.toFloat()
+                val bodyTop = source.offset + body.body
+                val bodyBottom = bodyTop + body.readingHeight
+                val viewportHeight = (viewportBottom - viewportTop).coerceAtLeast(1f)
+                val progress = if (body.readingHeight > viewportHeight)
+                    ((viewportTop - bodyTop) / (body.readingHeight - viewportHeight)).coerceIn(0f, 1f)
+                else ((viewportBottom - bodyTop) / body.readingHeight).coerceIn(0f, 1f)
+                (bodyBottom > viewportTop && bodyTop < viewportBottom) to progress
+            }
         }
     }
-    val readingProgress by remember {
-        derivedStateOf {
-            val viewportHeight = (listState.layoutInfo.viewportEndOffset - topBarPx).coerceAtLeast(1f)
-            ((ui.contentTopInRoot + topBarPx - ui.bodyTop) /
-                (ui.bodyHeight - viewportHeight).coerceAtLeast(1f)).coerceIn(0f, 1f)
-        }
-    }
+    val (bodyVisible, readingProgress) = readingViewport
     val showTitleInTopBar by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex > 0 || ui.titleBottomInRoot - ui.contentTopInRoot <= topBarPx

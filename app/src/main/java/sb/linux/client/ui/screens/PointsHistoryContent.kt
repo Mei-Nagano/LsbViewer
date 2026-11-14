@@ -22,8 +22,8 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlin.math.abs
 
-internal fun LazyListScope.pointsHistoryRows(rows: List<PointRow>, balance: String) {
-    item { PointsHistoryChart(rows, balance) }
+internal fun LazyListScope.pointsHistoryRows(rows: List<PointRow>, balance: String, visualize: Boolean = true) {
+    if (visualize) item { PointsHistoryChart(rows, balance) }
     itemsIndexed(rows, key = { index, row -> "${row.timeText}-${row.reason}-$index" }) { index, row ->
         val open = LocalLinkHandler.current
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -43,7 +43,7 @@ internal fun LazyListScope.pointsHistoryRows(rows: List<PointRow>, balance: Stri
 private fun PointsHistoryChart(rows: List<PointRow>, balance: String) {
     val spacing = LocalAppSpacing.current
     var period by remember { mutableIntStateOf(0) }
-    var selectedDay by remember(rows, period) { mutableStateOf<String?>(null) }
+    var selectedDay by remember(period) { mutableStateOf<String?>(null) }
     var allReasons by remember(period) { mutableStateOf(false) }
     val filtered = remember(rows, period) {
         if (period == 0) rows else {
@@ -74,7 +74,7 @@ private fun PointsHistoryChart(rows: List<PointRow>, balance: String) {
                     PointMetric("支出", expense, Modifier.weight(1f))
                     PointMetric("净变化", income - expense, Modifier.weight(1f))
                 }
-                Text("源站可读取的全部明细 ${rows.size} 条 · 当前范围 ${filtered.size} 条",
+                Text("已加载明细 ${rows.size} 条 · 当前范围 ${filtered.size} 条",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (filtered.isEmpty()) Text("此范围暂无积分记录", style = MaterialTheme.typography.bodyMedium)
                 else {

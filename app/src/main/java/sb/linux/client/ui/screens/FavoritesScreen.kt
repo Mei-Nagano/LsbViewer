@@ -6,6 +6,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,6 +34,7 @@ import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 本地帖子与评论收藏，进入页面时与源站收藏做一次合并。 */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun FavoritesScreen(session: Session, nav: NavHostController) {
     val factory = remember(session.favoritesRepository) {
         FavoritesViewModelFactory(session.favoritesRepository)
@@ -64,26 +70,20 @@ fun FavoritesScreen(session: Session, nav: NavHostController) {
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            TabRow(
-                selectedTabIndex = tab,
-                containerColor = MaterialTheme.colorScheme.surface,
-            ) {
-                Tab(
-                    selected = tab == 0,
-                    onClick = { tab = 0; query = "" },
-                    text = { Text("帖子${if (topics.isNotEmpty()) " (${topics.size})" else ""}") },
-                )
-                Tab(
-                    selected = tab == 1,
-                    onClick = { tab = 1; query = "" },
-                    text = { Text("评论${if (comments.isNotEmpty()) " (${comments.size})" else ""}") },
-                )
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal, vertical = spacing.item)) {
+                listOf("帖子" to topics.size, "评论" to comments.size).forEachIndexed { index, (label, count) ->
+                    SegmentedButton(selected = tab == index, onClick = { tab = index; query = "" },
+                        shape = SegmentedButtonDefaults.itemShape(index, 2)) {
+                        Text("$label${if (count > 0) " ($count)" else ""}")
+                    }
+                }
             }
             if (!currentEmpty) {
                 LocalFilterField(
                     value = query,
                     onValueChange = { query = it },
                     placeholder = if (tab == 0) "搜索收藏帖子" else "搜索收藏评论",
+                    tonal = true,
                     modifier = Modifier.padding(
                         start = spacing.pageHorizontal,
                         end = spacing.pageHorizontal,

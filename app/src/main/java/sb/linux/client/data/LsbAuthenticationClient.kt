@@ -128,10 +128,10 @@ internal class LsbAuthenticationClient(
     }
 
     /**
-     * 登录态判定：优先查 Cookie Jar 内存视图（会话 Cookie 形式的登录也能识别），
-     * 再回落到持久化记录的前缀匹配。
+     * 登录态来自可信源站域名的有效 Cookie，兼容备用入口转发到主域名的情况。
      */
     fun hasAuthCookie(): Boolean {
-        val set = prefs.getStringSet("cookies", emptySet()) ?: emptySet()
-        return cookieJar.value("bbs_auth") != null || set.any { it.startsWith("bbs_auth\u0001") }
+        return sb.linux.client.common.network.Endpoints.sourceHosts.any {
+            cookieJar.value("bbs_auth", "https://$it/") != null
+        }
     }}

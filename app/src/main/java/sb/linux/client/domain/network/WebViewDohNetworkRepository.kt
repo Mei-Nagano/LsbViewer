@@ -14,6 +14,7 @@ interface WebViewDohTunnel : Closeable {
 }
 
 interface WebViewDohNetworkRepository {
+    suspend fun awaitReady()
     fun currentPolicy(): WebViewDohPolicy
     fun openTunnel(): WebViewDohTunnel
 }

@@ -28,6 +28,11 @@ internal fun NativeAccountScreen(
     session: Session, nav: NavHostController, title: String, path: String,
     onChanged: () -> Unit = {},
 ) {
+    if (android.net.Uri.parse(path).path.orEmpty().startsWith("/gacha")) {
+        WebScreen(session, nav, sourceUrl = path,
+            initialContentSelector = ".gacha-profile-page, .gacha-center-page, main")
+        return
+    }
     val account = session.account.loginState
     AccountPageGate(account.loggedIn && account.userId > 0, title, "登录后管理$title", nav, settingsStyle = true) {
         val version = session.accountIdentityVersion
@@ -45,7 +50,7 @@ internal fun NativeAccountScreen(
         SettingsPage(title, nav, onBack = exit, headerActions = {
             sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = {
                 if (dirty) pendingLink = state.page?.url ?: path else vm.load(state.page?.url ?: path)
-            }, enabled = !state.busy && !state.loading)
+            }, enabled = !state.busy, loading = state.loading)
         }) {
             when {
                 state.loading -> LoadingBox(Modifier.fillMaxWidth().height(240.dp))
@@ -82,10 +87,10 @@ internal fun NativeAccountScreen(
 
 internal fun isAccountManagementLink(url: String): Boolean {
     val uri = android.net.Uri.parse(url)
-    if (uri.host != "linux.sb") return false
+    if (!sb.linux.client.common.network.Endpoints.isForumHost(uri.host)) return false
     val path = uri.path.orEmpty()
     return path in setOf("/community_wallet", "/user_privacy", "/user_block", "/promotions", "/invite_center") ||
-        path.startsWith("/gacha") || path.startsWith("/community_activity/") ||
+        path.startsWith("/community_activity/") ||
         (path.startsWith("/user/") && uri.getQueryParameter("tab") == "attachments") ||
         (path == "/index.php" && (uri.getQueryParameter("a") == "user_block" ||
             (uri.getQueryParameter("sort") == "following" && uri.getQueryParameter("follow_view") in setOf("following", "followers"))))

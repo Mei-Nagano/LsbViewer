@@ -57,48 +57,11 @@ internal fun TopicScreenPostList(
             onRefresh = { actions.load(page.page, force = true) },
             onTitleBottomInRoot = { ui.titleBottomInRoot = it },
         )
-        page.redPacket?.let { panel ->
-            item(key = "red-packet") { RedPacketCard(panel) }
-        }
-        mainPost?.let { main ->
-            item(key = "main-${main.id}") {
-                PostCard(
-                    post = main,
-                    loggedIn = session.account.loginState.loggedIn,
-                    isOpAuthor = main.authorName == page.posts.firstOrNull()?.authorName,
-                    isMainPost = true,
-                    onUser = { nav.navigate("user/${main.authorId}") },
-                    onQuote = { ui.quoteText = "@${main.authorName} "; ui.showReply = true },
-                    onLike = { actions.react(main, 0) },
-                    onCoin = { ui.coinTarget = main },
-                    onReport = { nav.navigate("report/${main.likeCoinType.ifBlank { "topic" }}/${main.id}") },
-                    onFloor = { actions.jumpToFloor(it, view.sortedPosts) },
-                    onThread = { actions.openThread(main) },
-                    threadEnabled = view.threadEnabled,
-                    threadReplyCount = reply.threadReplyCount[main.floor] ?: 0,
-                    onCopy = { ui.copyPost = main },
-                    onHeadingPosition = { index, y -> ui.headingPositions[index] = y },
-                    onBodyLayout = { top, height -> ui.bodyTop = top; ui.bodyHeight = height },
-                    onSearchPosition = { y -> ui.searchPositions[main.id] = ui.topicSearchQuery to y },
-                    searchHighlight = ui.topicSearchQuery.takeIf { ui.topicSearchOpen }.orEmpty(),
-                    onDonate = if (page.donateUrl != null && session.account.loginState.loggedIn) {
-                        { ui.showDonate = true }
-                    } else null,
-                    onEditUser = { nav.navigate("user/$it") },
-                )
-            }
-        }
-        page.treasurePool?.let { panel -> item(key = "treasure-pool") { TreasurePoolCard(panel) } }
-        if (page.poll != null || page.essenceReview != null || page.essenceApplication != null || page.resourceVote != null || page.footerPanels.isNotEmpty()) {
-            item(key = "topic-interactive-panels") {
-                TopicInteractivePanels(page, session, actions, ui, onLogin = { nav.navigate("login") },
-                    onRefresh = { actions.load(page.page, force = true) })
-            }
-        }
-        if (ui.danmakuLocalOn && ui.danmaku.isNotEmpty()) {
-            item(key = "danmaku") { DanmakuBar(ui.danmaku) }
+        item(key = "source-content") {
+            SourceTopicContent(page, session, nav, listState, view, ui, actions)
         }
         topicReplyListItems(
+            renderPosts = false,
             state = TopicReplyListState(
                 page = page,
                 replies = reply.replies,

@@ -27,6 +27,10 @@ import sb.linux.client.ui.common.content.TopicTocHeading
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 @Composable
 internal fun BoxScope.TopicScrollControls(
     headings: List<TopicTocHeading>,
@@ -44,18 +48,23 @@ internal fun BoxScope.TopicScrollControls(
     onReturnPositionChange: (Pair<Int, Int>?) -> Unit,
     currentFloor: Int,
     onFloorJump: () -> Unit,
+    onHeading: ((Int) -> Unit)? = null,
 ) {
-    if (headings.isNotEmpty() && bodyVisible) {
+    if (bodyVisible && headings.isNotEmpty()) {
         Surface(
-            onClick = { onTocOpenChange(true) },
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 3.dp).width(14.dp).height(150.dp),
+            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 3.dp).width(14.dp).height(150.dp)
+                .then(if (headings.isNotEmpty()) Modifier.clickable(onClickLabel = "打开文章目录") { onTocOpenChange(true) } else Modifier)
+                .semantics {
+                    contentDescription = "正文阅读进度"
+                    progressBarRangeInfo = ProgressBarRangeInfo(readingProgress.coerceIn(0f, 1f), 0f..1f)
+                },
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f),
         ) {
             Box(Modifier.fillMaxSize().padding(4.dp)) {
                 Box(
                     Modifier.fillMaxWidth()
-                        .fillMaxHeight(readingProgress.coerceAtLeast(0.025f))
+                        .fillMaxHeight(readingProgress.coerceIn(0.025f, 1f))
                         .align(Alignment.TopCenter)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary)
@@ -83,6 +92,7 @@ internal fun BoxScope.TopicScrollControls(
                             fontWeight = if (heading.level <= 2) FontWeight.SemiBold else FontWeight.Normal,
                             modifier = Modifier.fillMaxWidth().clickable {
                                 onTocOpenChange(false)
+                                if (onHeading != null) onHeading(index) else
                                 scope.launch {
                                     listState.scrollToItem(1)
                                     withFrameNanos { }
@@ -100,7 +110,7 @@ internal fun BoxScope.TopicScrollControls(
         )
     }
     val showBackTop by remember(listState) {
-        derivedStateOf { listState.firstVisibleItemIndex > 1 }
+        derivedStateOf { listState.firstVisibleItemIndex > 1 || listState.firstVisibleItemScrollOffset > 400 }
     }
     AnimatedVisibility(visible = showBackTop, modifier = Modifier.align(Alignment.BottomEnd), enter = scaleIn(), exit = scaleOut()) {
         SmallFloatingActionButton(

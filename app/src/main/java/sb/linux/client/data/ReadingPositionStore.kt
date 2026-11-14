@@ -29,7 +29,7 @@ internal class ReadingPositionStore(context: Context) : TopicReadingPositionRepo
         // 只有拿得到楼层/帖子标识时才写锚点，避免把无意义的 0 变成“可恢复位置”。
         if (postId > 0 || floor > 0) {
             editor.putString(anchorKey(topicId), "$floor,$postId,$listIndex,$scrollOffset,$now")
-        }
+        } else editor.remove(anchorKey(topicId))
         editor.apply()
     }
 

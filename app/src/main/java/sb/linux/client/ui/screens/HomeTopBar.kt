@@ -49,6 +49,7 @@ internal fun HomeTopBar(
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
     homeInfinite: Boolean,
+    loading: Boolean,
     listState: LazyListState,
     scope: CoroutineScope,
     searchFocus: FocusRequester,
@@ -153,7 +154,7 @@ internal fun HomeTopBar(
                             title = "LINUX SB",
                             titleContent = { HomeSortSelector(session, onSelectCombo) { nav.navigate("login") } },
                             primaryPage = true,
-                            navigationIcon = if (masterNav == null) {
+                            navigationIcon = if (!sb.linux.client.ui.navigation.LocalSourceSidebarInRail.current) {
                                 { IconButton(onClick = onOpenDrawer) { Icon(Icons.Filled.Menu, "打开侧栏") } }
                             } else null,
                             actions = {
@@ -179,7 +180,7 @@ internal fun HomeTopBar(
                                 IconButton(onClick = { onSearchActiveChange(true) }) {
                                     Icon(Icons.Filled.Search, "搜索")
                                 }
-                                sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = onRefresh)
+                                sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = onRefresh, loading = loading)
                                 // 三点菜单保留其他页面操作。
                                 Box {
                                     IconButton(onClick = { onMenuOpenChange(true) }) {

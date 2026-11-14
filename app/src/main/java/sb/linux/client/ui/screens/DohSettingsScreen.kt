@@ -1,4 +1,7 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
+import sb.linux.client.ui.patterns.settings.searchingFor
 import sb.linux.client.ui.session.Session
 
 import androidx.compose.foundation.layout.*
@@ -36,6 +39,10 @@ internal fun DohSettingsContent(session: Session) {
     }
     var editing by remember { mutableStateOf<DohServer?>(null) }
     var deleting by remember { mutableStateOf<DohServer?>(null) }
+    val searchEditor = searchingFor("名称", "HTTPS 地址", "备注（可选）")
+    LaunchedEffect(searchEditor) {
+        if (searchEditor) editing = DohServer(java.util.UUID.randomUUID().toString(), "", "")
+    }
     fun test(items: List<DohServer>) = dohViewModel.test(items)
     fun addCustomServer() {
         editing = DohServer(java.util.UUID.randomUUID().toString(), "", "")
@@ -68,8 +75,8 @@ internal fun DohSettingsContent(session: Session) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
         // 与应用设置共用 GroupCard/SwitchRow，避免这一页的开关和别处长得不一样
         GroupCard {
-            SwitchRow("启用 DoH", "使用选中的服务器加密解析域名", configuration.enabled, onCheckedChange = dohViewModel::setEnabled)
-            SwitchRow("对应用内打开的网站生效", "关闭后外部网站使用系统 DNS；源站页面仍使用已启用的 DoH", configuration.forWebsites,
+            SwitchRow("启用 DoH", "使用 HTTPS 加密域名解析；应用代理生效时自动暂停", configuration.enabled, onCheckedChange = dohViewModel::setEnabled)
+            SwitchRow("对应用内打开的网站生效", "将 DoH 同时用于应用内浏览的外部网站；关闭后仅源站使用", configuration.forWebsites,
                 onCheckedChange = dohViewModel::setForWebsites)
             Text(
                 "当前选择：${servers.find { it.url == selectedUrl }?.name ?: selectedUrl}",
@@ -77,28 +84,16 @@ internal fun DohSettingsContent(session: Session) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = spacing.contentGap, end = spacing.contentGap, bottom = spacing.item),
             )
-            SwitchRow("VPN 开启时自动停用", "保留 DoH 配置，VPN 结束后恢复；测速也遵守此规则", configuration.bypassVpn, onCheckedChange = dohViewModel::setBypassVpn)
-            SwitchRow("无 VPN 时自动优化", "自动启用 DoH，并在后台静默选择最快可用服务器", configuration.autoWithoutVpn, onCheckedChange = dohViewModel::setAutoWithoutVpn)
+            SwitchRow("VPN 开启时自动停用", "检测到 VPN 时暂停 DoH 和测速，VPN 关闭后恢复", configuration.bypassVpn, onCheckedChange = dohViewModel::setBypassVpn)
+            SwitchRow("无 VPN 时自动优化", "无 VPN 且无应用代理时，自动启用 DoH 并选择最快可用服务器", configuration.autoWithoutVpn, onCheckedChange = dohViewModel::setAutoWithoutVpn)
         }
-        Text("并发测速：每台查询一次 linux.sb，单项最多约 5 秒，全部服务器统一参与测速。耗时包含 HTTPS 建连；测速不回退系统 DNS，不代表网页或下载速度，也不会切换所选服务器。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("测速会同时查询各服务器的域名解析耗时，单项最多约 5 秒；结果不代表下载速度，也不会切换当前服务器。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         GroupCard {
             SettingsChoiceRow("DoH 服务器", servers.map { it.url to it.name }, selectedUrl, dohViewModel::selectServer)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing.item)) {
-            OutlinedButton(onClick = { addCustomServer() }, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("添加自定义服务器")
-            }
-            OutlinedButton(
-                enabled = servers.any { it.id !in benchmarkState.testingIds },
-                onClick = { test(servers) },
-                modifier = Modifier.weight(1f),
-            ) { Text("测速全部服务器") }
-        }
-        if (benchmarkState.testingIds.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = dohViewModel::cancelAll) { Text("取消全部") }
+            SettingsActionRow("添加自定义服务器", { addCustomServer() }, subtitle = "填写名称、HTTPS 地址与备注")
+            SettingsActionRow("测速全部服务器", { test(servers) }, enabled = servers.any { it.id !in benchmarkState.testingIds })
+            if (benchmarkState.testingIds.isNotEmpty() || searchingFor("取消全部测速")) {
+                SettingsActionRow("取消全部测速", dohViewModel::cancelAll, enabled = benchmarkState.testingIds.isNotEmpty())
             }
         }
         if (servers.isEmpty()) {
@@ -109,8 +104,8 @@ internal fun DohSettingsContent(session: Session) {
                 modifier = Modifier.padding(vertical = spacing.item),
             )
         }
-        Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
-            servers.forEachIndexed { index, server ->
+        GroupCard {
+            servers.forEach { server ->
                 key(server.id) {
                     DohServerRow(
                         server = server,
@@ -118,7 +113,6 @@ internal fun DohSettingsContent(session: Session) {
                         testing = server.id in benchmarkState.testingIds,
                         running = server.id in benchmarkState.runningIds,
                         result = benchmarkState.results[server.id],
-                        shape = settingsItemShape(index, servers.size),
                         onSelect = { dohViewModel.selectServer(server.url) },
                         onTest = { test(listOf(server)) },
                         onCancel = { dohViewModel.cancel(server.id) },
@@ -128,7 +122,7 @@ internal fun DohSettingsContent(session: Session) {
                 }
             }
         }
-        Text("DoH 启用时源站及其子域名使用加密 DNS，外部网站遵循上方开关。外部浏览器不受影响。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("DoH 开启且未被代理或 VPN 暂停时，主站、备用域名及源站子域名使用加密解析。外部浏览器使用自身网络设置。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -144,11 +138,11 @@ private fun DohEditor(
     var note by remember(server.id) { mutableStateOf(server.note) }
     val valid = name.isNotBlank() && isValidEndpoint(url)
     AlertDialog(onDismissRequest = onDismiss, title = { Text(if (server.url.isEmpty()) "添加 DoH 服务器" else "编辑 DoH 服务器") },
-        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingsTextField(name, { name = it.take(80) }, label = { Text("名称") }, singleLine = true, modifier = Modifier.fillMaxWidth(), supportingText = { Text("${name.length}/80") })
-            SettingsTextField(url, { url = it.trim() }, label = { Text("HTTPS 地址") }, readOnly = server.builtIn, modifier = Modifier.fillMaxWidth(),
+        text = { GroupCard(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            SettingsTextField(name, { name = it.take(80) }, label = { Text("名称") }, searchLabel = "名称", singleLine = true, modifier = Modifier.fillMaxWidth(), supportingText = { Text("${name.length}/80") })
+            SettingsTextField(url, { url = it.trim() }, label = { Text("HTTPS 地址") }, searchLabel = "HTTPS 地址", readOnly = server.builtIn, modifier = Modifier.fillMaxWidth(),
                 isError = url.isNotBlank() && !isValidEndpoint(url), supportingText = { Text(if (server.builtIn) "默认地址固定；可编辑名称和备注" else "须为 HTTPS，不允许用户名、密码或 # 片段") })
-            SettingsTextField(note, { note = it.take(500) }, label = { Text("备注（可选）") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, supportingText = { Text("${note.length}/500") })
+            SettingsTextField(note, { note = it.take(500) }, label = { Text("备注（可选）") }, searchLabel = "备注（可选）", modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, supportingText = { Text("${note.length}/500") })
         } },
         confirmButton = { TextButton(enabled = valid, onClick = { onSave(server.copy(name = name.trim(), url = url.trim(), note = note.trim())) }) { Text("保存") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } })

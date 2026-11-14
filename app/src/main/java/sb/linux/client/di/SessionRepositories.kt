@@ -217,7 +217,7 @@ internal class SessionRepositories(
         TopicPageDataSource(client, session.topicPageCacheRepository)
     }
     internal val topicFloorPageLoader by lazy {
-        TopicFloorPageLoader(client, topicPageDataSource)
+        TopicFloorPageLoader(client)
     }
     internal val topicPageRepository: TopicPageRepository get() = topicPageDataSource
     internal val topicFloorPageRepository: TopicFloorPageRepository get() = topicFloorPageLoader

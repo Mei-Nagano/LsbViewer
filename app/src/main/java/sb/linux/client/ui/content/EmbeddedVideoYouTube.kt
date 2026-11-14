@@ -11,7 +11,7 @@ internal val YOUTUBE_PLAYER_HOSTS = setOf(
     "www.youtube-nocookie.com",
 )
 internal val YOUTUBE_VIDEO_ID = Regex("[A-Za-z0-9_-]{6,32}")
-internal const val YOUTUBE_EMBED_BASE_URL = "${Endpoints.BASE}/"
+internal val YOUTUBE_EMBED_BASE_URL: String get() = "${Endpoints.BASE}/"
 
 /** 保留设备与 Chromium 版本，只移除系统 WebView 专属标记。 */
 internal fun browserCompatibleUserAgent(userAgent: String): String = userAgent

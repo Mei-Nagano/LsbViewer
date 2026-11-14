@@ -36,6 +36,9 @@ data class PostEntry(
     val essenceVoteSupport: Boolean? = null,
     val sourceActions: List<sb.linux.client.domain.account.AccountForm> = emptyList(),
     val pinned: Boolean = false,
+    /** 源站作者栏 DOM；阅读 WebView 复用其称号、组别和布局，其他页面仍使用语义字段。 */
+    val authorHtml: String = "",
+    val blockedPlaceholderHtml: String = "",
 )
 
 data class TopicPageData(
@@ -67,6 +70,7 @@ data class TopicPageData(
     val forumMove: TopicForumMove? = null,
     val styledTags: List<SourceTopicTag> = emptyList(),
     val footerPanels: List<sb.linux.client.domain.account.AccountNode.Link> = emptyList(),
+    val contentStyles: List<String> = emptyList(),
 )
 
 data class TopicForumMove(val note: String, val form: sb.linux.client.domain.account.AccountForm? = null,

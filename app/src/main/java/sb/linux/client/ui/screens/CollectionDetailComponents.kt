@@ -124,7 +124,7 @@ internal fun CollectionDetailList(
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = spacing.pageHorizontal))
             }
             itemsIndexed(topics, key = { _, t -> t.topicId }) { _, topic ->
-                TopicCardView(topic, onClick = { nav.navigate("topic/${topic.topicId}") })
+                TopicCardView(topic, onClick = { nav.navigate("topic/${topic.topicId}?p=1") })
             }
         } else if (!loading && error == null) {
             item {

@@ -152,6 +152,7 @@ internal object TopicPageParser {
                 contentHtml = if (block.blocked) "" else contentEl?.html().orEmpty(),
                 userBlocked = block.blocked,
                 blockedPlaceholder = block.placeholder,
+                blockedPlaceholderHtml = block.html,
                 editInfo = editInfo,
                 editUserId = editUserId,
                 editUserName = editUserName,
@@ -159,7 +160,8 @@ internal object TopicPageParser {
                 // 必须过滤本楼楼层号：源站每楼自带 <a class="post-floor" href="?floor=N">#N</a> 徽标，
                 // 不过滤会导致每条评论都出现"查看对话"按钮且指向自己
                 referencedFloors = SourceHtmlSupport.floorRefs(li.html()).filter { it > 0 && it != floorNum }.distinct(),
-                likeCount = likeBtn?.selectFirst(".donate-reaction-count")?.text()?.filter { it.isDigit() }?.toIntOrNull() ?: 0,
+                likeCount = (likeBtn?.selectFirst(".donate-reaction-count")
+                    ?: li.selectFirst(".donate-topic-reaction-count"))?.text()?.filter { it.isDigit() }?.toIntOrNull() ?: 0,
                 liked = likeBtn?.attr("data-liked") == "1",
                 coined = likeBtn?.attr("data-coined") == "1",
                 likeCoinType = "", // 举报类型由调用方按楼层默认（主楼 topic / 回复 reply）
@@ -178,6 +180,7 @@ internal object TopicPageParser {
                 sourceActions = li.select("form.reply-pin-action-form,form[action*=red_packet]")
                     .filter { it.closest("li.post-entry") == li }.map { AccountManagementParser.parseForm(it, Endpoints.abs("/topic/$fallbackId")) },
                 pinned = li.hasAttr("data-reply-pin") || li.selectFirst(".reply-pin-badge") != null,
+                authorHtml = if (block.blocked) "" else SourceTopicMarkup.author(li),
             )
         }.filter { it.id > 0 }.groupBy { it.id }.values.map { copies -> copies.first().copy(pinned = copies.any { it.pinned }) }
         val favForm = d.selectFirst("form.topic-favorites-action")
@@ -249,6 +252,7 @@ internal object TopicPageParser {
             treasurePool = treasurePool,
             resourceVote = resourceVote,
             forumMove = forumMove,
+            contentStyles = SourceTopicMarkup.styles(d),
         )
     }
 

@@ -74,7 +74,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
             }
         },
         actions = {
-            sb.linux.client.ui.components.navigation.AppRefreshButton(enabled = !state.loading && !state.sending, onClick = viewModel::sync, description = "同步私信")
+            sb.linux.client.ui.components.navigation.AppRefreshButton(enabled = !state.sending, loading = state.loading, onClick = viewModel::sync, description = "同步私信")
         },
         bottomBar = {
             // 输入工具区用色调表面，不再叠 6dp 阴影

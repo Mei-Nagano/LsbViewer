@@ -106,7 +106,7 @@ fun CollectionDetailScreen(session: Session, nav: NavHostController) {
                     // 源站文案是「订阅专辑」，顶栏里已经在专辑页，去掉后缀省出标题的位置
                 ) { Text(form.label.removeSuffix("专辑"), style = MaterialTheme.typography.labelLarge, maxLines = 1) }
             }
-            sb.linux.client.ui.components.navigation.AppRefreshButton(enabled = !loading, onClick = { load() })
+            sb.linux.client.ui.components.navigation.AppRefreshButton(loading = loading, onClick = { load() })
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {

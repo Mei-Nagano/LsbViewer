@@ -171,6 +171,7 @@ class LsbClient(
 
     @Volatile
     private var csrfCache: String? = null
+    @Volatile private var csrfDomain: String = sb.linux.client.common.network.Endpoints.HOST
 
     /**
      * 丢弃已缓存的 CSRF 令牌。令牌与会话 Cookie 绑定，登录/登出/会话过期后旧令牌
@@ -187,6 +188,7 @@ class LsbClient(
      * 拦成挑战页时不会再抛「无法获取 CSRF 令牌」把回复整个卡死。
      */
     private fun sniffCsrf(html: String) {
+        resetCsrfOnDomainChange()
         // 先做廉价字符串判断：帖子页 HTML 很大，没有令牌就不必上正则/Jsoup
         if (html.length < 16 || !html.contains("_csrf")) return
         extractCsrf(html)?.let { csrfCache = it }
@@ -220,6 +222,7 @@ class LsbClient(
      * 而不是直接失败。
      */
     suspend fun csrf(forceRefresh: Boolean = false): String {
+        resetCsrfOnDomainChange()
         if (!forceRefresh && csrfCache != null) return csrfCache!!
         for (path in listOf("/", "/profile")) {
             val html = runCatching { get(path).html }.getOrNull() ?: continue
@@ -227,6 +230,11 @@ class LsbClient(
         }
         // 兜底：本轮取不到，但之前 sniff 到过就继续用旧令牌（多半仍在同一会话内有效）
         return csrfCache ?: throw LsbException("无法获取 CSRF 令牌")
+    }
+
+    private fun resetCsrfOnDomainChange() {
+        val host = sb.linux.client.common.network.Endpoints.HOST
+        if (csrfDomain != host) { csrfCache = null; csrfDomain = host }
     }
 
     // ---------------- 登录 ----------------

@@ -3,15 +3,19 @@ package sb.linux.client.ui.screens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.*
 import sb.linux.client.ui.theme.*
@@ -43,8 +47,8 @@ internal fun TopicScreenBodyContent(
             .onGloballyPositioned { ui.contentTopInRoot = it.boundsInRoot().top },
     ) {
         when {
-            paging.loading.value -> LoadingBox()
-            paging.error.value != null -> ErrorBox(paging.error.value!!) { actions.load(initialPage) }
+            paging.loading.value && view.page == null -> LoadingBox()
+            paging.error.value != null && view.page == null -> ErrorBox(paging.error.value!!) { actions.load(initialPage) }
             view.page == null -> EmptyBox()
             else -> TopicScreenPostList(
                 page = view.page,
@@ -58,6 +62,8 @@ internal fun TopicScreenBodyContent(
                 actions = actions,
             )
         }
+        if (paging.loading.value && view.page != null) LinearProgressIndicator(
+            Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 56.dp))
         TopicScrollControls(
             headings = view.tocHeadings,
             bodyVisible = view.bodyVisible,
@@ -74,6 +80,9 @@ internal fun TopicScreenBodyContent(
             onReturnPositionChange = { ui.returnPos = it },
             currentFloor = view.currentFloor,
             onFloorJump = { ui.showFloorDialog = true },
+            onHeading = { index -> ui.sourceGeometry.headings[index]?.let { y ->
+                scope.launch { listState.animateScrollToItem(topicMainItemIndex(view.page), (y - 8f).toInt().coerceAtLeast(0)) }
+            } },
         )
     }
 }

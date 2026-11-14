@@ -69,7 +69,7 @@ fun TopicCollectionsScreen(
         // 作为根目的地嵌在宿主里时没有可返回的上一页；此时外壳不渲染返回图标
         onBack = if (showBack) ({ nav.popBackStack() }) else null,
         actions = {
-            sb.linux.client.ui.components.navigation.AppRefreshButton(enabled = !loading, onClick = { viewModel.load(userId, loggedIn) })
+            sb.linux.client.ui.components.navigation.AppRefreshButton(loading = loading, onClick = { viewModel.load(userId, loggedIn) })
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {

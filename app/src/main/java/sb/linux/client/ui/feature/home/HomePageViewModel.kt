@@ -66,10 +66,10 @@ class HomePageViewModel(
 
     fun load(page: Int, append: Boolean = false, foldNew: Boolean = false) {
         val generation = current.generation
+        mutableState.update {
+            it.copy(loading = !append, loadingMore = append, error = null)
+        }
         viewModelScope.launch {
-            mutableState.update {
-                it.copy(loading = !append, loadingMore = append, error = null)
-            }
             try {
                 val loaded = loadPage(page)
                 if (generation != current.generation) return@launch
@@ -154,7 +154,8 @@ class HomePageViewModel(
         val old = mutableState.value.sidebar
         val merged = if (old == null) parsed else old.copy(
             forums = parsed.forums.ifEmpty { old.forums },
-            hotTopics = parsed.hotTopics.ifEmpty { old.hotTopics },
+            hotTopics = if (parsed.hotTopicPeriods.isNotEmpty()) parsed.hotTopics else parsed.hotTopics.ifEmpty { old.hotTopics },
+            hotTopicPeriods = parsed.hotTopicPeriods.ifEmpty { old.hotTopicPeriods },
             statsText = parsed.statsText.ifBlank { old.statsText },
             newUsers = parsed.newUsers.ifEmpty { old.newUsers },
             announcements = parsed.announcements.ifEmpty { old.announcements },

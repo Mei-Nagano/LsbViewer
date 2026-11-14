@@ -7,16 +7,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.util.onColorFor
 
 @Composable
 internal fun TopicTagCapsule(label: String, color: Color = MaterialTheme.colorScheme.primaryContainer,
-    modifier: Modifier = Modifier, fill: Boolean = false) {
+    modifier: Modifier = Modifier, fill: Boolean = false,
+    textStyle: TextStyle = MaterialTheme.typography.labelSmall) {
     Surface(shape = CircleShape, color = color, modifier = modifier) {
         Box(Modifier.then(if (fill) Modifier.fillMaxSize() else Modifier)
             .padding(horizontal = 6.dp, vertical = 2.dp), contentAlignment = Alignment.Center) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = onColorFor(color), softWrap = true)
+            Text(label, style = textStyle, color = onColorFor(color), softWrap = true)
         }
     }
 }

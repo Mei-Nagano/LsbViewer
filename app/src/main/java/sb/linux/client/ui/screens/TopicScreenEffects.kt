@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import sb.linux.client.domain.topic.PostEntry
 import sb.linux.client.ui.session.Session
 
@@ -18,6 +17,8 @@ internal fun TopicScreenEffects(
     topicId: Long,
     initialPage: Int,
     initialFloor: Int,
+    initialReplyId: Long,
+    restoreReading: Boolean,
     paging: TopicPagingState,
     ui: TopicScreenUiState,
     actions: TopicScreenActions,
@@ -71,6 +72,7 @@ internal fun TopicScreenEffects(
         onHighlight = { ui.highlightPostId = it },
         onPendingPostChange = { ui.pendingSearchPost = it },
         onRestoreOffsetConsumed = { ui.pendingRestoreOffset = null },
+        sourceGeometry = ui.sourceGeometry,
     )
     TopicHighlightExpiryEffect(ui.highlightPostId) { ui.highlightPostId = null }
     TopicSearchAutoSelectEffect(
@@ -79,42 +81,12 @@ internal fun TopicScreenEffects(
         firstHit = searchHits.firstOrNull()?.post,
         onSelect = { ui.pendingSearchPost = it },
     )
-    LaunchedEffect(paging.loading.value, paging.page.value) {
-        val page = paging.page.value
-        if (!ui.floorJumped && !paging.loading.value && page != null && initialFloor > 0) {
-            ui.floorJumped = true
-            if (page.posts.any { it.floor == initialFloor }) actions.jumpToFloor(initialFloor, sortedPosts)
-            else actions.jumpFloor(initialFloor)
-        }
-    }
-    LaunchedEffect(paging.loading.value, paging.page.value, initialFloor) {
-        if (ui.readingPositionRestored || paging.loading.value || paging.page.value == null) return@LaunchedEffect
-        ui.readingPositionRestored = true
-        // 楼层深链由上面的效果处理，不能被阅读位置覆盖
-        if (initialFloor > 0) return@LaunchedEffect
-        val anchor = actions.readingAnchor()
-        val page = paging.page.value ?: return@LaunchedEffect
-        withFrameNanos { }
-        if (anchor != null && anchor.floor > 0 && page.posts.any { it.floor == anchor.floor }) {
-            // 新版按楼层恢复：行高与列宽改变后不再依赖旧像素 offset
-            actions.jumpToFloor(anchor.floor, sortedPosts)
-            // 恢复不是“跳到楼层后返回”，不留下返回位置提示
-            ui.returnPos = null
-        } else {
-            // 没有锚点（旧记录）或楼层不在当前页时，按旧四段记录回退到该列表位置
-            val fallback = anchor?.let { it.listIndex to it.scrollOffset }
-                ?: actions.readingPosition()?.let { it.listIndex to it.scrollOffset }
-            if (fallback != null && fallback.first > 0) {
-                runCatching {
-                    listState.scrollToItem(fallback.first, fallback.second.coerceAtLeast(0))
-                }
-            }
-        }
-    }
     TopicInitialLoadEffect(
-        session = session,
         topicId = topicId,
         initialPage = initialPage,
+        initialFloor = initialFloor,
+        initialReplyId = initialReplyId,
+        restoreReading = restoreReading,
         paging = paging,
         ui = ui,
         actions = actions,
@@ -123,7 +95,7 @@ internal fun TopicScreenEffects(
     LaunchedEffect(session.account.loginState.loggedIn) {
         if (session.account.loginState.loggedIn != lastLoggedIn) {
             lastLoggedIn = session.account.loginState.loggedIn
-            actions.load(initialPage)
+            actions.load(paging.page.value?.page ?: initialPage)
             actions.loadDanmaku()
         }
     }
@@ -138,11 +110,11 @@ internal fun TopicScreenEffects(
     }
     LaunchedEffect(
         listLast, paging.page.value?.posts?.size, paging.page.value?.page, paging.page.value?.totalPages,
-        paging.loadingMore.value, paging.loading.value,
+        paging.loadingMore.value, paging.loading.value, ui.sourceGeometry.ready,
     ) {
         val page = paging.page.value
         val totalItems = listState.layoutInfo.totalItemsCount
-        if (topicInfinite && page != null && listLast >= totalItems - 3 && page.posts.isNotEmpty() &&
+        if (topicInfinite && page != null && ui.sourceGeometry.ready && listLast >= totalItems - 2 && page.posts.isNotEmpty() &&
             page.page < page.totalPages && !paging.loadingMore.value && !paging.loading.value
         ) actions.load(page.page + 1, append = true)
     }
@@ -150,21 +122,43 @@ internal fun TopicScreenEffects(
 
 @Composable
 private fun TopicInitialLoadEffect(
-    session: Session,
     topicId: Long,
     initialPage: Int,
+    initialFloor: Int,
+    initialReplyId: Long,
+    restoreReading: Boolean,
     paging: TopicPagingState,
     ui: TopicScreenUiState,
     actions: TopicScreenActions,
 ) {
     LaunchedEffect(topicId) {
-        val rebuilt = if (paging.loadedMaxPage.value > 1) {
-            actions.restoreCachedPages(paging.loadedMaxPage.value)
-        } else null
-        if (rebuilt != null) {
-            paging.loading.value = false
-            paging.page.value = rebuilt
-        } else actions.load(initialPage)
+        // 同一返回栈条目保留当前页；新入口才选择页码和阅读锚点。
+        if (paging.page.value == null) {
+            val rebuilt = if (paging.loadedMaxPage.value > 1) {
+                actions.restoreCachedPages(paging.loadedMaxPage.value)
+            } else null
+            if (rebuilt != null) {
+                paging.page.value = rebuilt
+                paging.loading.value = false
+            } else {
+                val anchor = if (restoreReading) actions.readingAnchor() else null
+                val floor = if (restoreReading) anchor?.floor ?: actions.readingPosition()?.floor ?: 0 else initialFloor
+                when {
+                    initialReplyId > 0 -> actions.jumpReply(initialReplyId)
+                    anchor != null && anchor.floor > 0 && anchor.postId > 0 -> actions.jumpReply(anchor.postId)
+                    floor > 0 -> actions.jumpFloor(floor)
+                    else -> actions.load(initialPage)
+                }
+            }
+            if (rebuilt != null && restoreReading) {
+                val anchor = actions.readingAnchor()
+                val target = rebuilt.posts.firstOrNull {
+                    if (anchor != null && anchor.postId > 0) it.id == anchor.postId
+                    else it.floor == (anchor?.floor ?: actions.readingPosition()?.floor) && it.floor > 0
+                }
+                if (target != null) ui.pendingSearchPost = target
+            }
+        }
         actions.loadDanmaku()
     }
 }

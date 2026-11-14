@@ -11,9 +11,14 @@ data class UserPageContent(
     val replies: List<ReplyItem> = emptyList(),
     val points: List<PointRow> = emptyList(),
     val notifications: List<NotificationItem> = emptyList(),
+    val loadedPages: Int = 0,
+    val totalPages: Int = 0,
+    val complete: Boolean = true,
 )
 
 interface UserPageRepository {
     suspend fun load(userId: Long, tab: String, forceRefresh: Boolean = false): UserPageContent
     fun cached(userId: Long, tab: String): UserPageContent? = null
+    fun loadIncrementally(userId: Long, tab: String, forceRefresh: Boolean = false): kotlinx.coroutines.flow.Flow<UserPageContent> =
+        kotlinx.coroutines.flow.flow { emit(load(userId, tab, forceRefresh)) }
 }

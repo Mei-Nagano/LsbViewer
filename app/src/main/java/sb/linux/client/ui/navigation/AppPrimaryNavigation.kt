@@ -1,6 +1,7 @@
 package sb.linux.client.ui.navigation
 
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -15,9 +16,12 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import sb.linux.client.ui.theme.LocalAppSizes
 import sb.linux.client.ui.theme.LocalAppSpacing
+
+internal val LocalSourceSidebarInRail = staticCompositionLocalOf { false }
 
 /**
  * 主目的地导航（DESIGN_SYSTEM D06 `AppPrimaryNavigation`）。
@@ -64,7 +68,10 @@ internal fun AppNavigationRail(
         modifier = Modifier.fillMaxHeight().width(sizes.railWidth),
         header = header,
     ) {
-        destinations.forEach { destination ->
+        // 宽窗账号入口固定在侧栏底部，其余目的地保留用户顺序。
+        (destinations.filterNot { it.id == AppDestinations.me.id } +
+            destinations.filter { it.id == AppDestinations.me.id }).forEach { destination ->
+            if (destination.id == AppDestinations.me.id) Spacer(Modifier.weight(1f))
             val selected = destination.id == selectedId
             NavigationRailItem(
                 selected = selected,

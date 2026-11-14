@@ -11,6 +11,7 @@ internal class TopicPagingState(savedState: SavedStateHandle) {
     val loading = mutableStateOf(true)
     val loadingMore = mutableStateOf(false)
     val error = mutableStateOf<String?>(null)
+    val loadedStartPage: MutableState<Int> = SavedMutableState(savedState, "loadedStartPage", 1)
     val loadedMaxPage: MutableState<Int> = SavedMutableState(savedState, "loadedMaxPage", 1)
     val localReplyPage: MutableState<Int> = SavedMutableState(savedState, "localReplyPage", 1)
     val reverseStalledAtPage = mutableIntStateOf(0)

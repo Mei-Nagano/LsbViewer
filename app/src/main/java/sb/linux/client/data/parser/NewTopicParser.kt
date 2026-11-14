@@ -9,14 +9,14 @@ import sb.linux.client.domain.topic.CardInit
 
 /** 从 /topic_edit 页面解析可选版块。 */
 internal fun parseForums(html: String): List<ForumOption> {
-    val document = Jsoup.parse(html, "https://linux.sb")
+    val document = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE)
     return document.select("form select[name=forum_id] option")
         .map { ForumOption(it.attr("value"), it.text()) }
 }
 
 /** 解析标题/正文/隐藏 id（编辑模式回填）。 */
 internal fun parseEditValues(html: String): Triple<String, String, String> {
-    val document = Jsoup.parse(html, "https://linux.sb")
+    val document = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE)
     val form = document.selectFirst("form:has(input[name=title])") ?: return Triple("", "", "0")
     return Triple(
         form.selectFirst("input[name=title]")?.attr("value") ?: "",
@@ -27,7 +27,7 @@ internal fun parseEditValues(html: String): Triple<String, String, String> {
 
 /** 保留源站付费编辑确认文案及对应的一次性报价字段。 */
 internal fun parseSourceEditMeta(html: String): SourceEditMeta {
-    val document = Jsoup.parse(html, "https://linux.sb")
+    val document = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE)
     val form = document.selectFirst("form:has(input[name=title])") ?: return SourceEditMeta()
     val hidden = form.select("input[type=hidden][name]")
         .filter { it.attr("name").startsWith("sb_limit_edit_time_") }
@@ -41,13 +41,13 @@ internal fun parseSourceEditMeta(html: String): SourceEditMeta {
 }
 
 internal fun parseSelectedForumId(html: String): String {
-    val document = Jsoup.parse(html, "https://linux.sb")
+    val document = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE)
     return document.selectFirst("form select[name=forum_id] option[selected]")?.attr("value").orEmpty()
 }
 
 /** 编辑页源站回帖排序选项；新建页不存在该控件。 */
 internal fun parseReplyOrderOptions(html: String): Pair<String, List<Pair<String, String>>> {
-    val select = Jsoup.parse(html, "https://linux.sb").selectFirst("form select[name=reply_order]")
+    val select = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE).selectFirst("form select[name=reply_order]")
         ?: return "" to emptyList()
     val options = select.select("option").map { it.attr("value") to it.text().trim() }
     val selected = select.selectFirst("option[selected]")?.attr("value") ?: options.firstOrNull()?.first.orEmpty()
@@ -56,14 +56,14 @@ internal fun parseReplyOrderOptions(html: String): Pair<String, List<Pair<String
 
 /** 解析已选帖子类型（编辑抽奖帖/发卡帖时 radio 带 checked）。 */
 internal fun parseSpecialType(html: String): String {
-    val document = Jsoup.parse(html, "https://linux.sb")
+    val document = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE)
     val radio = document.selectFirst("input[name=topic_special_type][checked]") ?: return ""
     return radio.attr("value")
 }
 
 /** 解析发帖公告：源站编辑页的发布警告（抽奖/发卡面板内），普通帖无则返回空。 */
 internal fun parseAnnouncement(html: String): String {
-    val document = Jsoup.parse(html, "https://linux.sb")
+    val document = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE)
     val warning = document.selectFirst(".community-lottery-publish-warning, .virtual-card-publish-warning")
         ?.text()?.trim()?.replace(Regex("\\s+"), " ")
     val rule = document.selectFirst(".community-lottery-rule-note")?.text()?.trim()
@@ -72,7 +72,7 @@ internal fun parseAnnouncement(html: String): String {
 
 /** 解析抽奖面板初始值（编辑模式回填）。 */
 internal fun parseLotteryInit(html: String): LotteryInit {
-    val document = Jsoup.parse(html, "https://linux.sb")
+    val document = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE)
     val form = document.selectFirst("form:has(input[name=title])")
     fun value(name: String) = form?.selectFirst("[name=$name]")?.attr("value") ?: ""
     val drawAt = value("lottery_draw_at")
@@ -97,7 +97,7 @@ internal fun parseLotteryInit(html: String): LotteryInit {
 
 /** 解析发卡面板初始值（编辑模式回填）。 */
 internal fun parseCardInit(html: String): CardInit {
-    val document = Jsoup.parse(html, "https://linux.sb")
+    val document = Jsoup.parse(html, sb.linux.client.common.network.Endpoints.BASE)
     val form = document.selectFirst("form:has(input[name=title])")
     fun value(name: String) = form?.selectFirst("[name=$name]")?.attr("value") ?: ""
     return CardInit(

@@ -67,7 +67,7 @@ internal class LsbVerificationCoordinator(
         var html = challengeHtml
         for (attempt in 0 until 3) {
             val nonce = uamNonce(html)
-            val cookie = cookieJar.value("fl_ua_p")
+            val cookie = cookieJar.value("fl_ua_p", url)
                 ?: throw LsbException("验证恢复失败：缺少 userAgent Cookie")
             val sum = uamSum(cookie, nonce)
             val req = Request.Builder().url(url)

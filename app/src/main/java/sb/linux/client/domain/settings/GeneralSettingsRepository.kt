@@ -13,9 +13,13 @@ data class GeneralSettings(
     val bottomBarItems: List<String>,
     val replyBarStyle: Int,
     val hideExternalJumpReminder: Boolean = false,
+    val hideStatusBar: Boolean = false,
+    val skippedUpdateVersion: String = "",
+    val sourceDomain: String = "linux.sb",
 )
 
 interface GeneralSettingsRepository {
+    fun setSourceDomain(host: String)
     fun current(): GeneralSettings
     fun setLinkOpenMode(mode: Int)
     fun setUpdateCheckMode(mode: Int)
@@ -23,6 +27,8 @@ interface GeneralSettingsRepository {
     fun markUpdateCheck(atMillis: Long)
     fun setLinkPreviewEnabled(enabled: Boolean)
     fun setHideExternalJumpReminder(enabled: Boolean)
+    fun setHideStatusBar(enabled: Boolean)
+    fun skipUpdateVersion(version: String)
     fun setTabletMode(enabled: Boolean)
     fun setBottomBarStyle(style: Int)
     fun setBottomBarItems(items: List<String>)

@@ -36,7 +36,7 @@ internal class TopicPageCoordinator(
     private val threadLoader = sb.linux.client.domain.topic.TopicThreadLoader(source)
 
     fun restoreCachedPages(maxPage: Int): TopicPageData? = runCatching {
-        val pages = (1..maxPage).map { pageCache.get(topicId, it) ?: return null }
+        val pages = (state.loadedStartPage.value..maxPage).map { pageCache.get(topicId, it) ?: return null }
         pages.drop(1).fold(pages.first()) { combined, page ->
             combined.copy(
                 posts = (combined.posts + page.posts).distinctBy { it.id },
@@ -60,12 +60,19 @@ internal class TopicPageCoordinator(
     /** 版本化锚点：只在旧四段记录仍有效时返回，页面据此优先按楼层恢复。 */
     fun readingAnchor(): TopicReadingAnchor? = readingPositions.getAnchor(topicId)
 
-    /** 旧四段记录（楼层/列表下标/像素偏移）；无锚点时作为可解释的回退。 */
+    /** 无版本化锚点时只使用旧记录中的楼层，不跨页复用列表像素。 */
     fun readingPosition(): sb.linux.client.domain.topic.TopicReadingPosition? =
         readingPositions.get(topicId)
 
-    fun loadFloor(floor: Int, onComplete: (Result<TopicFloorPage>) -> Unit) =
-        runRequest({ floorPages.load(topicId, floor) }, onComplete)
+    fun loadFloor(floor: Int, replyId: Long = 0, onComplete: (Result<TopicFloorPage>) -> Unit) =
+        runRequest({
+            floorPages.load(topicId, floor, replyId).also { loaded ->
+                pageCache.save(topicId, loaded.pageNumber, loaded.page)
+                recordTopicVisit(loaded.page)
+                redemptions.record(topicId, loaded.page.title, loaded.page.virtualCard)
+                loaded.page.viewsText.toIntOrNull()?.let { topicViews.save(topicId, it) }
+            }
+        }, onComplete)
 
     fun loadThread(
         startPost: PostEntry,
@@ -74,12 +81,12 @@ internal class TopicPageCoordinator(
     ) = runRequest({ threadLoader.load(topicId, startPost, availablePages) }, onComplete)
 
     fun load(page: Int, append: Boolean = false, force: Boolean = false) {
+        if (append) state.loadingMore.value = true
+        else {
+            state.loading.value = true
+            state.error.value = null
+        }
         viewModelScope.launch {
-            if (append) state.loadingMore.value = true
-            else {
-                state.loading.value = true
-                state.error.value = null
-            }
             try {
                 if (force) pageCache.clearTopic(topicId)
                 val loaded = source.load(topicId, page)
@@ -107,14 +114,16 @@ internal class TopicPageCoordinator(
                     maxOf(state.loadedMaxPage.value, loaded.page.coerceAtLeast(1))
                 } else loaded.page.coerceAtLeast(1)
                 if (!append) {
+                    state.loadedStartPage.value = loaded.page.coerceAtLeast(1)
                     state.localReplyPage.value = 1
                     state.reverseStalledAtPage.value = 0
+                    state.allSearchPagesLoaded.value = false
                 }
                 if (!append) loaded.viewsText.toIntOrNull()?.let { topicViews.save(topicId, it) }
-                if (!append && page == 1) recordTopicVisit(loaded)
+                if (!append) recordTopicVisit(loaded)
             } catch (error: Exception) {
-                if (!append) state.error.value = error.message
-                else showToast(error.message ?: "加载失败")
+                if (!append) state.error.value = error.message ?: "加载失败"
+                if (append || state.page.value != null) showToast(error.message ?: "加载失败")
             } finally {
                 state.loading.value = false
                 state.loadingMore.value = false
@@ -187,6 +196,7 @@ internal class TopicPageCoordinator(
                     state.loadedMaxPage.value = maxOf(state.loadedMaxPage.value, page)
                     page++
                 }
+                state.loadedStartPage.value = 1
                 state.allSearchPagesLoaded.value = true
             } catch (error: Exception) {
                 showToast(error.message ?: "加载失败，可重试搜索全帖")

@@ -56,7 +56,7 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
             TextButton(onClick = viewModel::markRead, enabled = state.items.isNotEmpty() && anyUnread) {
                 Text("标记已读")
             }
-            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = viewModel::load, enabled = !state.loading)
+            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = viewModel::load, loading = state.loading)
         },
     ) { pad ->
         NotificationsSection(session, nav, pad, state, onRetry = viewModel::load)

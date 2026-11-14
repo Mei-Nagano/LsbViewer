@@ -70,6 +70,14 @@ internal class AppSettingsBrowseStore(private val prefs: SharedPreferences) {
         get() = prefs.getBoolean("show_uid", true)
         set(v) = prefs.edit().putBoolean("show_uid", v).apply()
 
+    var hideTopicTags: Boolean
+        get() = prefs.getBoolean("hide_topic_tags", false)
+        set(v) = prefs.edit().putBoolean("hide_topic_tags", v).apply()
+
+    var topicCardAvatarMetadataRow: Boolean
+        get() = prefs.getBoolean("topic_card_avatar_metadata_row", false)
+        set(v) = prefs.edit().putBoolean("topic_card_avatar_metadata_row", v).apply()
+
     var smartDecodeEnabled: Boolean
         get() = prefs.getBoolean("smart_decode_enabled", false)
         set(v) = prefs.edit().putBoolean("smart_decode_enabled", v).apply()

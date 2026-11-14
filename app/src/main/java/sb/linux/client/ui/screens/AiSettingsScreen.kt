@@ -1,4 +1,6 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -93,41 +95,33 @@ internal fun AiSettingsDetailScreen(session: Session, nav: NavHostController, se
 
 
             if (section == "configuration") GroupCard("配置方案") {
-                Column(
-                    Modifier.fillMaxWidth().padding(sb.linux.client.ui.theme.LocalAppSpacing.current.pageHorizontal),
-                    verticalArrangement = Arrangement.spacedBy(sb.linux.client.ui.theme.LocalAppSpacing.current.contentGap),
-                ) {
-                    SettingsTextField(
-                        value = state.presetName, onValueChange = settingsViewModel::setPresetName,
-                        label = { Text("方案名称") }, singleLine = true,
-                        shape = MaterialTheme.shapes.large,
-                        trailingIcon = {
-                            Box {
-                                IconButton(onClick = { presetMenu = true }) { Icon(Icons.Filled.ArrowDropDown, "选择已保存方案") }
-                                SettingsChoiceMenu(
-                                    expanded = presetMenu, onDismiss = { presetMenu = false },
-                                    options = aiPresets.map { it.name to it.name }, selectedValue = state.presetName,
-                                    trailingContent = { name ->
-                                        IconButton(onClick = { settingsViewModel.removePreset(name) }) {
-                                            Icon(Icons.Filled.Delete, "删除方案")
-                                        }
-                                    },
-                                    onSelect = { name ->
-                                        settingsViewModel.applyPreset(name)
-                                        presetMenu = false
-                                        session.showToast("已切换到「$name」")
-                                    },
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    FilledTonalButton(
-                        onClick = settingsViewModel::savePreset,
-                        enabled = state.presetName.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("保存当前配置为方案") }
-                }
+                SettingsTextField(
+                    value = state.presetName, onValueChange = settingsViewModel::setPresetName,
+                    label = { Text("方案名称") }, searchLabel = "方案名称", singleLine = true,
+                    description = "命名当前配置，或选择已保存的方案",
+                    shape = MaterialTheme.shapes.large,
+                    trailingIcon = {
+                        Box {
+                            IconButton(onClick = { presetMenu = true }) { Icon(Icons.Filled.ArrowDropDown, "选择已保存方案") }
+                            SettingsChoiceMenu(
+                                expanded = presetMenu, onDismiss = { presetMenu = false },
+                                options = aiPresets.map { it.name to it.name }, selectedValue = state.presetName,
+                                trailingContent = { name ->
+                                    IconButton(onClick = { settingsViewModel.removePreset(name) }) {
+                                        Icon(Icons.Filled.Delete, "删除方案")
+                                    }
+                                },
+                                onSelect = { name ->
+                                    settingsViewModel.applyPreset(name)
+                                    presetMenu = false
+                                    session.showToast("已切换到「$name」")
+                                },
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SettingsActionRow("保存当前配置为方案", settingsViewModel::savePreset, enabled = state.presetName.isNotBlank())
 
             }
 
@@ -200,7 +194,7 @@ internal fun AiSettingsDetailScreen(session: Session, nav: NavHostController, se
                 configuration = true,
             )
             if (section == "history") {
-            SwitchRow("只显示已收藏的总结", "开启后，历史列表仅显示手动收藏的总结；关闭可查看全部记录", checked = favoriteOnly, onCheckedChange = { favoriteOnly = it })
+            SwitchRow("只显示已收藏的总结", "仅显示已收藏的总结，关闭后查看全部历史记录", checked = favoriteOnly, onCheckedChange = { favoriteOnly = it })
             if (summaryHistory.isEmpty()) Text(
                 "暂无总结记录",
                 style = MaterialTheme.typography.bodySmall,

@@ -16,6 +16,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import sb.linux.client.ui.session.Session
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * 应用外壳（P01）：窗口策略、根导航、pane 宿主与全局 SnackbarHost。
@@ -61,6 +66,16 @@ internal fun AppContent(
             (destination.id == AppDestinations.messages.id && rawRoute == "directMessagesRoot")
     }
     val twoItemLayout = destinations.size == 2
+    val openSourceSidebar = {
+        scope.launch {
+            val targetNav = if (layout.useTwoPane) masterNav else nav
+            if (targetNav.currentDestination?.route != AppDestinations.home.route) {
+                targetNav.navigate(AppDestinations.home.route) { launchSingleTop = true }
+            }
+            if (homeDrawerState.isOpen) homeDrawerState.close() else homeDrawerState.open()
+        }
+        Unit
+    }
 
     if (layout.useTwoPane) {
         // 双栏时 rail 切换的是主栏 NavHost；切换根目的地后右栏回到空态。
@@ -90,6 +105,7 @@ internal fun AppContent(
                             destinations = destinations,
                             selectedId = selectedId,
                             onSelect = onNavigateMaster,
+                            header = { IconButton(onClick = openSourceSidebar) { Icon(Icons.Filled.Menu, "打开源站侧栏") } },
                         )
                     }
                     Box(Modifier.fillMaxHeight().width(layout.masterPaneWidthDp.dp)) {
@@ -131,6 +147,7 @@ internal fun AppContent(
                     destinations = destinations,
                     selectedId = selectedId,
                     onSelect = onNavigateBottom,
+                    header = { IconButton(onClick = openSourceSidebar) { Icon(Icons.Filled.Menu, "打开源站侧栏") } },
                 )
             }
             AppNavHost(

@@ -1,5 +1,6 @@
 package sb.linux.client.ui.screens
 
+import sb.linux.client.ui.patterns.settings.settingsRowIcon
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -67,7 +68,7 @@ fun MeScreen(session: Session, nav: NavHostController) {
                 MeAccountCard(account) {
                     nav.navigate(if (account.loggedIn && account.userId > 0) "user/${account.userId}" else "login")
                 }
-                Spacer(Modifier.height(spacing.section))
+                Spacer(Modifier.height(spacing.contentGap))
                 SettingsCategoryGrid(meAccountCategories(account.userId)) {
                     if (!account.loggedIn || account.userId <= 0) nav.navigate("login")
                     else if (it.route == "logout") showLogout = true
@@ -76,13 +77,14 @@ fun MeScreen(session: Session, nav: NavHostController) {
                 Spacer(Modifier.height(spacing.contentGap))
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
                     val actions = listOf(
-                        Triple("我的内容", Icons.Filled.CollectionsBookmark, { nav.navigate("myContent") }),
-                        Triple("原站广告", Icons.Filled.Campaign, { nav.navigate("sourcePromotions") }),
-                        Triple("应用设置", Icons.Filled.Settings, { openMasterTab("appSettings") }),
-                        Triple("关于", Icons.Filled.Info, { nav.navigate("about") }),
+                        Triple("我的内容", settingsRowIcon("我的内容"), { nav.navigate("myContent") }),
+                        Triple("原站广告", settingsRowIcon("原站广告"), { nav.navigate("sourcePromotions") }),
+                        Triple("应用设置", settingsRowIcon("应用设置"), { openMasterTab("appSettings") }),
+                        Triple("关于", settingsRowIcon("关于"), { nav.navigate("about") }),
                     )
                     actions.forEachIndexed { index, (title, icon, onClick) ->
                         SettingMenuRow(title, "", icon, showChevron = false,
+                            titleWeight = MaterialTheme.typography.bodyLarge.fontWeight,
                             shape = settingsItemShape(index, actions.size), onClick = onClick)
                     }
                 }
@@ -94,7 +96,10 @@ fun MeScreen(session: Session, nav: NavHostController) {
                     modifier = Modifier.padding(vertical = spacing.section))
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
                     results.forEachIndexed { index, entry ->
-                        SettingMenuRow(entry.title, entry.category, shape = settingsItemShape(index, results.size)) { nav.navigate(entry.route) }
+                        SettingMenuRow(entry.title, entry.category, shape = settingsItemShape(index, results.size),
+                            titleWeight = MaterialTheme.typography.bodyLarge.fontWeight) {
+                            sb.linux.client.ui.feature.settings.openSettingsSearchResult(nav, entry)
+                        }
                     }
                 }
             }
@@ -118,20 +123,20 @@ fun MeScreen(session: Session, nav: NavHostController) {
 }
 
 internal fun meAccountCategories(userId: Long) = listOf(
-    SettingsCategory("主题", "查看我发布的主题", "user/$userId?tab=topics", Icons.AutoMirrored.Filled.Article),
-    SettingsCategory("回复", "查看我发布的回复", "user/$userId?tab=replies", Icons.Filled.Forum),
-    SettingsCategory("私信", "查看我的私信", "directMessages", Icons.Filled.Mail),
-    SettingsCategory("通知", "查看我的通知", "notifications", Icons.Filled.Notifications),
-    SettingsCategory("隐私", "管理我的隐私", "userPrivacy", Icons.Filled.Lock),
-    SettingsCategory("收藏", "打开我的收藏", "favorites", Icons.Filled.Bookmark),
-    SettingsCategory("淘贴", "打开我的淘贴", "topicCollections?tab=mine", Icons.Filled.CollectionsBookmark),
-    SettingsCategory("签名", "管理个人签名", "personalSignature", Icons.Filled.EditNote),
-    SettingsCategory("活跃度", "查看个人社区活跃度", "communityActivity", Icons.Filled.Insights),
-    SettingsCategory("附件", "管理我的附件", "attachments", Icons.Filled.AttachFile),
-    SettingsCategory("资料", "在应用内打开个人资料", "settings", Icons.Filled.AccountCircle),
-    SettingsCategory("邀请", "打开邀请中心", "inviteCenter", Icons.Filled.PersonAdd),
-    SettingsCategory("烧饼", "打开我的烧饼", "communityWallet", Icons.Filled.AccountBalanceWallet),
-    SettingsCategory("称号", "打开我的称号", "gachaProfile", Icons.Filled.MilitaryTech),
-    SettingsCategory("广告", "打开我的广告", "myPromotions", Icons.Filled.Campaign),
+    SettingsCategory("主题", "查看我发布的主题", "user/$userId?tab=topics", settingsRowIcon("主题")),
+    SettingsCategory("回复", "查看我发布的回复", "user/$userId?tab=replies", settingsRowIcon("回复")),
+    SettingsCategory("私信", "查看我的私信", "directMessages", settingsRowIcon("私信")),
+    SettingsCategory("通知", "查看我的通知", "notifications", settingsRowIcon("通知")),
+    SettingsCategory("隐私", "管理我的隐私", "userPrivacy", settingsRowIcon("隐私")),
+    SettingsCategory("收藏", "打开我的收藏", "favorites", settingsRowIcon("收藏")),
+    SettingsCategory("淘贴", "打开我的淘贴", "topicCollections?tab=mine", settingsRowIcon("淘贴")),
+    SettingsCategory("签名", "管理个人签名", "personalSignature", settingsRowIcon("签名")),
+    SettingsCategory("活跃度", "查看个人社区活跃度", "communityActivity", settingsRowIcon("活跃度")),
+    SettingsCategory("附件", "管理我的附件", "attachments", settingsRowIcon("附件")),
+    SettingsCategory("资料", "在应用内打开个人资料", "settings", settingsRowIcon("资料")),
+    SettingsCategory("邀请", "打开邀请中心", "inviteCenter", settingsRowIcon("邀请")),
+    SettingsCategory("烧饼", "打开我的烧饼", "communityWallet", settingsRowIcon("烧饼")),
+    SettingsCategory("称号", "打开我的称号", "gachaProfile", settingsRowIcon("称号")),
+    SettingsCategory("广告", "打开我的广告", "myPromotions", settingsRowIcon("广告")),
     SettingsCategory("退出", "确认退出登录", "logout", Icons.AutoMirrored.Filled.Logout),
 )

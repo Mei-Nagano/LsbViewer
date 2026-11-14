@@ -23,18 +23,22 @@ internal class SessionCookieJar(private val prefs: SharedPreferences) : CookieJa
             if (parts.size != 5) continue
             val expiresAt = parts[4].toLongOrNull() ?: continue
             if (expiresAt <= System.currentTimeMillis()) continue
-            map[parts[0]] = Cookie.Builder()
+            val cookie = Cookie.Builder()
                 .name(parts[0]).value(parts[1])
                 .domain(parts[2]).path(parts[3])
                 .expiresAt(expiresAt)
                 .build()
+            map[key(cookie)] = cookie
         }
         return map
     }
 
     internal fun store(): MutableMap<String, Cookie> = synchronized(this) { LinkedHashMap(memory) }
 
-    internal fun value(name: String): String? = synchronized(this) { memory[name]?.value }
+    private fun key(cookie: Cookie) = "${cookie.domain}|${cookie.path}|${cookie.name}"
+
+    internal fun value(name: String, url: String = sb.linux.client.common.network.Endpoints.BASE): String? =
+        loadForRequest(url.toHttpUrl()).firstOrNull { it.name == name }?.value
 
     internal fun saveRawCookies(url: String, cookieHeader: String) = synchronized(this) {
         val httpUrl = url.toHttpUrl()
@@ -44,11 +48,12 @@ internal class SessionCookieJar(private val prefs: SharedPreferences) : CookieJa
             val name = pair.substring(0, eq).trim()
             val value = pair.substring(eq + 1).trim()
             if (name.isBlank()) continue
-            memory[name] = Cookie.Builder()
+            val cookie = Cookie.Builder()
                 .name(name).value(value)
                 .domain(httpUrl.host).path("/")
                 .expiresAt(System.currentTimeMillis() + 6 * 60 * 60 * 1000)
                 .build()
+            memory[key(cookie)] = cookie
         }
         persist()
     }
@@ -68,7 +73,7 @@ internal class SessionCookieJar(private val prefs: SharedPreferences) : CookieJa
     }
 
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) = synchronized(this) {
-        for (cookie in cookies) memory[cookie.name] = cookie
+        for (cookie in cookies) memory[key(cookie)] = cookie
         persist()
     }
 

@@ -37,20 +37,21 @@ internal fun SettingsScaffold(content: @Composable BoxScope.() -> Unit) {
     }
 }
 
-/** 主页使用同行标题和操作；详情使用独立圆形返回按钮与大标题。 */
+/** 滚动大标题；紧凑模式不额外预留顶栏高度与分组间距。 */
 @Composable
 internal fun SettingsHeader(
     title: String,
     onBack: (() -> Unit)? = null,
     compact: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val spacing = LocalAppSpacing.current
     val sizes = LocalAppSizes.current
-    Column(Modifier.fillMaxWidth().padding(top = spacing.item, bottom = spacing.section)) {
+    Column(modifier.fillMaxWidth().padding(top = spacing.item, bottom = if (compact) 0.dp else spacing.section)) {
         if (compact) {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = sizes.topBarHeight),
+                Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AppPageTitle(title, Modifier.weight(1f))
@@ -75,14 +76,16 @@ internal fun SettingsHeader(
 /** 固定操作栏在滚动内容之外，页面大标题仍随内容滚动。 */
 @Composable
 internal fun SettingsTopBar(title: String, onBack: (() -> Unit)? = null,
-    actions: @Composable RowScope.() -> Unit = {}) {
+    actions: @Composable RowScope.() -> Unit = {}, showTitle: Boolean = true) {
     Surface(color = MaterialTheme.colorScheme.surface) {
         Row(Modifier.fillMaxWidth().heightIn(min = LocalAppSizes.current.topBarHeight),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item)) {
             onBack?.let { AppBackButton(it) }
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Box(Modifier.weight(1f)) {
+                if (showTitle) Text(title, style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
             actions()
         }
     }
@@ -91,21 +94,25 @@ internal fun SettingsTopBar(title: String, onBack: (() -> Unit)? = null,
 @Composable
 internal fun SettingsCard(
     modifier: Modifier = Modifier,
-    shape: Shape = MaterialTheme.shapes.extraLarge,
+    shape: Shape = settingsCardShape(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(SettingsItemData),
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) { Column(Modifier.fillMaxWidth(), content = content) }
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalSettingsGrouped provides false) {
+            Column(Modifier.fillMaxWidth(), content = content)
+        }
+    }
 }
 
 /** 连续条目仅首尾使用大圆角，中间使用较小圆角，形成一个完整的设置分组。 */
 @Composable
 internal fun settingsItemShape(index: Int, count: Int): Shape {
     val outer = MaterialTheme.shapes.extraLarge
-    val inner = MaterialTheme.shapes.medium
+    val inner = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
     return outer.copy(
         topStart = if (index == 0) outer.topStart else inner.topStart,
         topEnd = if (index == 0) outer.topEnd else inner.topEnd,

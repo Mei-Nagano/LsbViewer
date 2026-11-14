@@ -66,6 +66,8 @@ class BrowseSettingsViewModel(
     fun setSidebarShowOnlineUsers(value: Boolean) = update(repository::saveSidebarShowOnlineUsers, value)
     fun setDanmaku(value: Boolean) = update(repository::saveDanmaku, value)
     fun setTableDisplayMode(value: Int) = update(repository::saveTableDisplayMode, value)
+    fun setHideTopicTags(value: Boolean) = update(repository::saveHideTopicTags, value)
+    fun setTopicCardAvatarMetadataRow(value: Boolean) = update(repository::saveTopicCardAvatarMetadataRow, value)
     fun setShowUid(value: Boolean) = update(repository::saveShowUid, value)
     fun setSmartDecodeEnabled(value: Boolean) = update(repository::saveSmartDecodeEnabled, value)
     fun setThreadDialogEnabled(value: Boolean) = update(repository::saveThreadDialogEnabled, value)

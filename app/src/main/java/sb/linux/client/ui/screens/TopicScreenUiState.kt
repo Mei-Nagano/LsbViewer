@@ -50,8 +50,6 @@ internal class TopicScreenUiState(
     var highlightPostId by mutableStateOf<Long?>(null)
     var returnPos by mutableStateOf<Pair<Int, Int>?>(null)
     var pendingRestoreOffset by mutableStateOf<Int?>(null)
-    var readingPositionRestored by mutableStateOf(false)
-    var floorJumped by mutableStateOf(false)
     var titleBottomInRoot by mutableFloatStateOf(Float.MAX_VALUE)
     var contentTopInRoot by mutableFloatStateOf(0f)
     var isFav by mutableStateOf(false)
@@ -65,4 +63,7 @@ internal class TopicScreenUiState(
     var bodyHeight by mutableFloatStateOf(0f)
     var collapsedReplyIds by mutableStateOf(emptySet<Long>())
     var replyModeTick by mutableIntStateOf(0)
+    val sourceGeometry = SourceTopicGeometry()
+    var sourceHiddenSignatures by mutableStateOf(emptySet<Long>())
+    var sourceSignatureRestoreVersion = 0
 }

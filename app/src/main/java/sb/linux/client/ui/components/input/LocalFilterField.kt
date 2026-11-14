@@ -10,6 +10,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -25,6 +27,7 @@ internal fun LocalFilterField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
+    tonal: Boolean = false,
 ) {
     OutlinedTextField(
         value = value,
@@ -44,5 +47,10 @@ internal fun LocalFilterField(
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(),
         modifier = modifier.fillMaxWidth(),
+        colors = if (tonal) OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent,
+        ) else OutlinedTextFieldDefaults.colors(),
     )
 }

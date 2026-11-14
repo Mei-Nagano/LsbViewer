@@ -2,6 +2,7 @@ package sb.linux.client.data
 import sb.linux.client.domain.community.ForumCount
 import sb.linux.client.domain.community.HomeSidebar
 import sb.linux.client.domain.community.HotTopic
+import sb.linux.client.domain.community.HotTopicPeriod
 import sb.linux.client.domain.community.NewUser
 import sb.linux.client.domain.community.OnlineUser
 import sb.linux.client.domain.community.OnlineUsers
@@ -42,15 +43,15 @@ object HomeSidebarHtmlParser {
             )
         }.distinctBy { it.heading }
 
-        // 每日热帖
-        val hot = aside.select(".daily-hot-topics-list a[href^=/topic/]").mapNotNull { a ->
-            val tid = SourceHtmlSupport.idFrom(a.attr("href"))
-            if (tid <= 0) null else HotTopic(
-                topicId = tid,
-                title = a.selectFirst(".daily-hot-topics-title")?.text() ?: a.text().trim(),
-                meta = a.selectFirst(".daily-hot-topics-count")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: "",
-            )
-        }.distinctBy { it.topicId }
+        // 三个榜单均由首页 HTML 提供；在各自面板内去重，不能跨时间段合并。
+        val hotTabs = aside.select(".daily-hot-topics-tabs a[href]").associate {
+            it.attr("href").removePrefix("#") to it.text().trim()
+        }
+        val hotPeriods = aside.select("[data-daily-hot-topics-panel]").map { panel ->
+            HotTopicPeriod(panel.attr("data-daily-hot-topics-panel"),
+                hotTabs.getValue(panel.id()), parseHotTopics(panel))
+        }
+        val hot = hotPeriods.firstOrNull()?.topics ?: parseHotTopics(aside)
 
         // 站点统计
         val stats = aside.selectFirst(".stats-sub")?.text()?.replace(Regex("""\s+"""), " ")?.trim() ?: ""
@@ -112,7 +113,15 @@ object HomeSidebarHtmlParser {
             onlineUsers = onlineUsers,
             announcements = announcements,
             dailyStars = stars,
+            hotTopicPeriods = hotPeriods,
         )
     }
 
+    private fun parseHotTopics(root: org.jsoup.nodes.Element): List<HotTopic> =
+        root.select(".daily-hot-topics-list a[href^=/topic/]").mapNotNull { a ->
+            val tid = SourceHtmlSupport.idFrom(a.attr("href"))
+            if (tid <= 0) null else HotTopic(tid,
+                a.selectFirst(".daily-hot-topics-title")?.text() ?: a.text().trim(),
+                a.selectFirst(".daily-hot-topics-count")?.text()?.replace(Regex("""\s+"""), " ")?.trim().orEmpty())
+        }.distinctBy { it.topicId }
 }

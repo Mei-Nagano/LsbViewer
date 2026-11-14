@@ -18,7 +18,9 @@ internal fun LicensesScreen(nav: NavHostController) {
     val context = LocalContext.current
     val license = remember(context) {
         context.assets.open("LICENSE.txt").bufferedReader().use { it.readText() } +
-            "\n\nKaTeX 0.19.0\n\n" + context.assets.open("katex/LICENSE").bufferedReader().use { it.readText() }
+            "\n\nKaTeX 0.19.0\n\n" + context.assets.open("katex/LICENSE").bufferedReader().use { it.readText() } +
+            "\n\nHighlight.js 11.10.0\n\n" + context.assets.open("source-topic/highlight-LICENSE").bufferedReader().use { it.readText() } +
+            "\n\n" + context.assets.open("licenses/material-symbols.txt").bufferedReader().use { it.readText() }
     }
     SettingsPage("开源协议", nav) {
         Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerLow) {

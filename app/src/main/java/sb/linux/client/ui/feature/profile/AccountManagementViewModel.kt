@@ -31,8 +31,8 @@ internal class AccountManagementViewModel(
     fun load(url: String) {
         if (state.busy) return
         job?.cancel()
+        state = state.copy(loading = true, error = null)
         job = viewModelScope.launch {
-            state = state.copy(loading = true, error = null)
             try {
                 val page = repository.load(url)
                 if (identity() == owner) state = AccountManagementState(page, loading = false, revision = state.revision + 1)

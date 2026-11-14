@@ -33,7 +33,7 @@ internal fun LotteryPrizesScreen(session: Session, nav: NavHostController) {
     val clipboard = LocalClipboardManager.current
     val openLink = LocalLinkHandler.current
     AppPageScaffold("抽奖奖品记录", onBack = { nav.popBackStack() }, actions = {
-        sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = { model.load() }, enabled = owner > 0 && !state.loading)
+        sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = { model.load() }, enabled = owner > 0, loading = state.loading)
     }) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             when {

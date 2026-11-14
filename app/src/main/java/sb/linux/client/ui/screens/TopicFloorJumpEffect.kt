@@ -40,8 +40,10 @@ internal fun TopicFloorJumpEffect(
     onHighlight: (Long?) -> Unit,
     onPendingPostChange: (PostEntry?) -> Unit,
     onRestoreOffsetConsumed: () -> Unit,
+    sourceGeometry: SourceTopicGeometry? = null,
 ) {
-    LaunchedEffect(pendingPost, flatTree, localPage, collapsedIds, sortedPosts) {
+    val sourcePosition = sourceGeometry?.posts?.get(pendingPost?.id)
+    LaunchedEffect(pendingPost, flatTree, localPage, collapsedIds, sortedPosts, sourcePosition, sourceGeometry?.ready, sourceGeometry?.query) {
         val target = pendingPost ?: return@LaunchedEffect
         val isMain = target.id == mainPost?.id
         if (!isMain && hasTree) {
@@ -77,6 +79,17 @@ internal fun TopicFloorJumpEffect(
         val visible = if (hasTree) flatTree.map { it.first } else pagedReplies
         val replyIndex = visible.indexOfFirst { it.id == target.id }
         if (!isMain && replyIndex < 0) {
+            onPendingPostChange(null)
+            return@LaunchedEffect
+        }
+        if (sourceGeometry != null) {
+            val position = sourcePosition ?: return@LaunchedEffect
+            if (!sourceGeometry.ready || searchOpen && sourceGeometry.query != searchQuery) return@LaunchedEffect
+            withFrameNanos { }
+            onHighlight(target.id)
+            val targetTop = if (searchOpen && searchQuery.isNotBlank()) position.match ?: position.top else position.top
+            listState.animateScrollToItem(topicMainItemIndex(page), (targetTop - 12f).toInt().coerceAtLeast(0))
+            onRestoreOffsetConsumed()
             onPendingPostChange(null)
             return@LaunchedEffect
         }

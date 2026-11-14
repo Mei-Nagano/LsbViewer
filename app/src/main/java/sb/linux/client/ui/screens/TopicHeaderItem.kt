@@ -69,9 +69,6 @@ item(key = "header") {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             )
-                            if (d.styledTags.isNotEmpty()) FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                d.styledTags.forEach { sb.linux.client.ui.patterns.topic.SourceTopicTagView(it) }
-                            }
                             // AI 总结：开启总开关后显示入口，默认等用户点按钮才请求
                             if (aiSettings.enabled) {
                                 AiSummaryCard(

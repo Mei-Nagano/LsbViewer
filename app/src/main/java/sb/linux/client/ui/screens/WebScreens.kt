@@ -14,6 +14,7 @@ import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
 import sb.linux.client.platform.webview.WebViewDoh
 import sb.linux.client.platform.webview.LinkWindowClient
+import sb.linux.client.platform.webview.WebViewWindowHost
 import sb.linux.client.ui.*
 import sb.linux.client.ui.theme.*
 import sb.linux.client.ui.content.*
@@ -32,37 +33,52 @@ fun WebScreen(
     session: Session, nav: NavHostController, sourceUrl: String? = null, title: String? = null,
     onBack: (() -> Unit)? = null,
     onLoaded: ((android.webkit.WebView, String) -> Unit)? = null,
-    onOpenWindow: ((String) -> Unit)? = null,
     settingsStyle: Boolean = false,
-    routeInternalLinks: Boolean = true,
+    initialContentSelector: String? = null,
 ) {
     val entry = nav.currentBackStackEntry ?: return
     val rawUrl = sourceUrl ?: entry.arguments?.getString("url").orEmpty()
     val url = sb.linux.client.common.network.Endpoints.abs(rawUrl)
+    val initialPath = android.net.Uri.parse(url).path
     var pageTitle by remember { mutableStateOf(url) }
     // WebView 内页面可能发生跳转，记录当前实际地址供「在浏览器打开」使用
     var currentUrl by remember { mutableStateOf(url) }
+    var canGoBack by remember { mutableStateOf(false) }
     // 加载进度与主文档错误：只影响应用侧外壳，不改写源站 DOM
     var loading by remember { mutableStateOf(true) }
+    var loadProgress by remember { mutableIntStateOf(0) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<android.webkit.WebView?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
-    val linkHandler = LocalLinkHandler.current
     val chooseFiles = rememberWebFileChooser()
+    val windows = rememberSourceWebWindows()
+    var initialLoadFinished by remember(url) { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = canGoBack) { webView?.goBack() }
 
     WebPageScaffold(
         title = title ?: pageTitle,
         settingsStyle = settingsStyle,
-        onBack = { if (onBack != null) onBack() else nav.popBackStack() },
+        onBack = {
+            if (windows.back()) Unit
+            else if (webView?.canGoBack() == true) webView?.goBack()
+            else if (onBack != null) onBack()
+            else nav.popBackStack()
+        },
         actions = {
-            AppRefreshButton(onClick = { webView?.let { WebViewDoh.load(it, currentUrl) } }, enabled = !loading)
+            windows.WindowMenu()
+            AppRefreshButton(onClick = {
+                (windows.activeWebView ?: webView)?.let {
+                    if (it === webView) { loading = true; loadProgress = 0; loadError = null }
+                    it.reload()
+                }
+            }, enabled = webView != null, loading = windows.activeWebView == null && loading)
             // 在浏览器打开：调起系统浏览器查看当前页面
             IconButton(onClick = {
                 runCatching {
                     context.startActivity(
                         android.content.Intent(
                             android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse(currentUrl)
+                            android.net.Uri.parse(windows.activeWebView?.url ?: currentUrl)
                         )
                     )
                 }
@@ -74,29 +90,43 @@ fun WebScreen(
         Box(Modifier.padding(pad).fillMaxSize()) {
         AndroidView(
             factory = { ctx ->
-                android.webkit.WebView(ctx).apply {
+                val primary = android.webkit.WebView(ctx).apply {
                     settings.javaScriptEnabled = true
+                    settings.javaScriptCanOpenWindowsAutomatically = true
                     settings.domStorageEnabled = true
                     settings.userAgentString = sb.linux.client.common.network.ForumUserAgent.DEFAULT
                     settings.setSupportMultipleWindows(true)
-                    webChromeClient = LinkWindowClient(openLink = { target ->
-                        if (onOpenWindow != null) onOpenWindow(target)
-                        else if (linkHandler != null) linkHandler(target)
-                        else nav.navigate("web?url=${android.net.Uri.encode(target)}")
-                    }, chooseFiles = chooseFiles, onProgress = { progress ->
+                    val chrome = LinkWindowClient(showWindow = windows::show, closeWindow = windows::close,
+                        showJsDialog = windows::showJsDialog,
+                        chooseFiles = chooseFiles, onProgress = { progress ->
+                        loadProgress = progress
                         loading = progress < 100
-                    })
+                    }, onTitle = windows::title, useNativeJsDialogs = true)
+                    webChromeClient = chrome
                     // 注入已保存的登录会话，私信等需要登录的页面在应用内即可直接看到（避免跳登录拦截）
                     session.accountAuthenticationRepository.exportWebCookies()
                     webViewClient = object : android.webkit.WebViewClient() {
                         override fun onPageStarted(view: android.webkit.WebView, url: String, favicon: android.graphics.Bitmap?) {
                             loading = true
+                            loadProgress = 0
                             loadError = null
                         }
 
                         override fun onPageFinished(view: android.webkit.WebView, url: String) {
                             loading = false
                             onLoaded?.invoke(view, url)
+                            val firstLoad = !initialLoadFinished
+                            initialLoadFinished = true
+                            if (firstLoad && initialContentSelector != null &&
+                                Endpoints.isInternal(android.net.Uri.parse(url).host) &&
+                                android.net.Uri.parse(url).path?.trimEnd('/') == initialPath?.trimEnd('/')) {
+                                view.evaluateJavascript("""(function(){
+                                    var selectors=${org.json.JSONObject.quote(initialContentSelector)}.split(',');
+                                    var target=selectors.map(function(s){return document.querySelector(s.trim())}).find(Boolean);
+                                    if(!target)return false;
+                                    target.scrollIntoView({block:'start'});return true;
+                                })()""", null)
+                            }
                         }
 
                         override fun onReceivedError(
@@ -115,12 +145,6 @@ fun WebScreen(
                             request: android.webkit.WebResourceRequest,
                         ): Boolean {
                             val destination = request.url
-                            if (routeInternalLinks && request.isForMainFrame && request.method.equals("GET", ignoreCase = true) &&
-                                Endpoints.isInternal(destination.host) && linkHandler != null &&
-                                sb.linux.client.ui.navigation.sourcePageRoute(destination.toString(), session.account.loginState.userId) != null) {
-                                linkHandler(destination.toString())
-                                return true
-                            }
                             // 站内明文跳转升级为 HTTPS，保证继续走 DoH 代理而不是系统 DNS。
                             if (request.isForMainFrame && request.method.equals("GET", ignoreCase = true) &&
                                 destination.scheme.equals("http", ignoreCase = true) &&
@@ -129,19 +153,7 @@ fun WebScreen(
                                 WebViewDoh.load(view, destination.buildUpon().scheme("https").build().toString())
                                 return true
                             }
-                            val fromSource = Endpoints.isInternal(android.net.Uri.parse(view.url.orEmpty()).host)
-                            if (request.isForMainFrame && request.hasGesture() && fromSource &&
-                                Endpoints.isInternal(destination.host) && destination.path?.trimEnd('/') == "/jump" &&
-                                linkHandler != null) {
-                                linkHandler(destination.toString())
-                                return true
-                            }
-                            if (request.isForMainFrame && request.hasGesture() && fromSource &&
-                                destination.scheme in setOf("http", "https") && !Endpoints.isInternal(destination.host) && linkHandler != null
-                            ) {
-                                linkHandler(destination.toString())
-                                return true
-                            }
+                            // 网页自身导航留在浏览器中，避免原生路由打断脚本及待显示弹窗。
                             return false
                         }
                         override fun doUpdateVisitedHistory(
@@ -151,15 +163,26 @@ fun WebScreen(
                         ) {
                             pageTitle = view?.title?.takeIf { it.isNotBlank() } ?: u ?: url
                             currentUrl = u ?: url
+                            canGoBack = view?.canGoBack() == true
                         }
                     }
                     WebViewDoh.load(this, url)
                 }.also { webView = it }
+                WebViewWindowHost(ctx).apply { show(listOf(primary), primary) }
             },
-            modifier = Modifier.fillMaxSize(),
+            update = { windows.updateHost(it, webView) },
+            modifier = Modifier.fillMaxSize().padding(top = if (windows.activeWebView != null) 56.dp else 0.dp),
+            onRelease = { host ->
+                host.removeAllViews()
+                webView?.let { windows.close(it); it.stopLoading(); it.destroy() }
+                webView = null
+            },
         )
             if (loading) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
+                if (loadProgress > 0) LinearProgressIndicator(
+                    progress = { loadProgress / 100f },
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
+                else LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
             loadError?.let { message ->
                 Surface(
@@ -177,10 +200,11 @@ fun WebScreen(
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(onClick = { loadError = null; webView?.reload() }) { Text("重试") }
+                        TextButton(onClick = { loading = true; loadProgress = 0; loadError = null; webView?.reload() }) { Text("重试") }
                     }
                 }
             }
+            windows.InlineControls()
         }
     }
 }

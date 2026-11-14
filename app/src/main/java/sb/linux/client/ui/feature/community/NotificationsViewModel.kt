@@ -30,8 +30,8 @@ class NotificationsViewModel(
     fun loadCached() = request(forceRefresh = false)
 
     private fun request(forceRefresh: Boolean) {
+        mutableState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            mutableState.update { it.copy(loading = true, error = null) }
             try {
                 val items = repository.loadNotifications(userId, forceRefresh)
                 mutableState.update { it.copy(items = items, loading = false, loaded = true) }

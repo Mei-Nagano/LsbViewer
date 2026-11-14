@@ -105,7 +105,7 @@ fun ForumScreen(session: Session, nav: NavHostController) {
                             items(filteredTopics, key = { "${it.topicId}-${it.pinned}" }) { t ->
                                 TopicCardView(
                                     t,
-                                    onClick = { nav.navigate("topic/${t.topicId}") },
+                                    onClick = { nav.navigate("topic/${t.topicId}?p=1") },
                                     onForumClick = { /* 同板块 */ }
                                 )
                             }

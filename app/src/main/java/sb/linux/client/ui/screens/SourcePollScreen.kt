@@ -25,7 +25,7 @@ internal fun SourcePollScreen(session: Session, nav: NavHostController, url: Str
         finally { loading = false }
     }
     SettingsPage("投票结果", nav, headerActions = {
-        sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = { revision++ }, enabled = !loading)
+        sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = { if (!loading) { loading = true; revision++ } }, loading = loading)
     }) {
         when {
             loading -> LoadingBox()

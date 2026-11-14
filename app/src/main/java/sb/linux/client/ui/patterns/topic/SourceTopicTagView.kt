@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.topic.SourceTopicTag
 import sb.linux.client.domain.topic.TitleBadge
@@ -18,7 +19,8 @@ import sb.linux.client.ui.theme.sourceTitleColor
 
 /** plugins.css 的标签语义与日夜变量；不把源站状态重新染成应用主题色。 */
 @Composable
-internal fun SourceTopicTagView(tag: SourceTopicTag, modifier: Modifier = Modifier) {
+internal fun SourceTopicTagView(tag: SourceTopicTag, modifier: Modifier = Modifier,
+    textStyle: TextStyle = MaterialTheme.typography.labelSmall) {
     val classes = tag.classes.split(' ').toSet()
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val role = when {
@@ -58,9 +60,9 @@ internal fun SourceTopicTagView(tag: SourceTopicTag, modifier: Modifier = Modifi
     foreground = inlineColor("color", foreground)
     background = inlineColor("background", inlineColor("background-color", background))
     if ("virtual-card-list-price" in classes) {
-        Text(tag.label, modifier, color = foreground, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+        Text(tag.label, modifier, color = foreground, style = textStyle, fontWeight = FontWeight.SemiBold)
     } else Surface(modifier = modifier, shape = if ("hot-discussions-badge" in classes) RoundedCornerShape(6.dp) else CircleShape, color = background) {
         Text(tag.label, Modifier.padding(horizontal = 7.dp, vertical = 2.dp), color = foreground,
-            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            style = textStyle, fontWeight = FontWeight.Bold)
     }
 }

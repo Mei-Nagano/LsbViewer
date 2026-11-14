@@ -14,13 +14,10 @@ android {
         minSdk = 26
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // 版本号：CI 构建时由工作流通过 -PappVersionName / -PappVersionCode 覆盖
-        // （标签触发取标签名；手动触发取下方默认值）。versionCode 采用
-        // major*10000+minor*100+patch 编码（1.0.7 → 10007），随版本名单调递增。
-        // 发布成功后工作流会把下一开发版本（patch+1）写回下面两行的默认值。
-        // 注意：行尾的数字/字符串字面量被 release.yml 的 sed 匹配，勿加行尾注释
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toInt() ?: 10071
-        versionName = (project.findProperty("appVersionName") as String?) ?: "1.0.71"
+        // 发版前手动维护版本号；CI 读取这两行，不覆盖或自动写回。
+        // versionCode 沿用 major*10000+minor*100+patch 编码（1.1.0 → 10100）。
+        versionCode = 10100
+        versionName = "1.1.0"
     }
 
     // 4.1 CI 构建 armv8a / armv7a / 通用版三个 APK
@@ -69,6 +66,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // JNA AAR 附带 mips/mips64/armeabi 等已废弃 ABI 的 libjnidispatch.so，

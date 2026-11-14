@@ -6,8 +6,8 @@ import sb.linux.client.common.network.Endpoints
 /** 明确映射已实现的页面；未知源站路径保留完整 URL，由站内网页承载。 */
 internal fun sourcePageRoute(url: String, accountId: Long): String? {
     val uri = Uri.parse(Endpoints.abs(url))
-    if (uri.host?.lowercase() !in setOf("linux.sb", "www.linux.sb")) return null
-    val nativeUrl = uri.buildUpon().scheme("https").authority("linux.sb").build().toString()
+    if (!Endpoints.isForumHost(uri.host)) return null
+    val nativeUrl = uri.buildUpon().scheme("https").authority(Endpoints.HOST).build().toString()
     val path = uri.path.orEmpty().trimEnd('/').ifBlank { "/" }
     fun query(name: String, default: String = "") = uri.getQueryParameter(name) ?: default
     fun encoded(value: String) = Uri.encode(value)
@@ -59,9 +59,10 @@ internal fun sourcePageRoute(url: String, accountId: Long): String? {
     Regex("^/user/(\\d+)$").find(path)?.let { return userRoute(it.groupValues[1].toLong(), query("tab", "topics"), nativeUrl, accountId) }
     Regex("^/topic/(\\d+)$").find(path)?.let {
         if (query("poll_view").isNotBlank()) return "pollPage?url=${encoded(nativeUrl)}"
-        val page = query("p", "1").toIntOrNull()?.coerceAtLeast(1) ?: 1
+        val page = query("p").toIntOrNull()?.coerceAtLeast(1) ?: 0
         val floor = query("floor", "0").toIntOrNull()?.coerceAtLeast(0) ?: 0
-        return "topic/${it.groupValues[1]}?p=$page&floor=$floor"
+        val replyId = query("replyid", "0").toLongOrNull()?.coerceAtLeast(0) ?: 0
+        return "topic/${it.groupValues[1]}?p=$page&floor=$floor&replyid=$replyId"
     }
     return null
 }
@@ -69,7 +70,7 @@ internal fun sourcePageRoute(url: String, accountId: Long): String? {
 /** 主列表的 URL 参数仍作用于原生列表，双栏时交给主导航。 */
 internal fun sourceHomeSelection(url: String): Pair<Int, Int>? {
     val uri = Uri.parse(Endpoints.abs(url))
-    if (uri.host?.lowercase() !in setOf("linux.sb", "www.linux.sb")) return null
+    if (!Endpoints.isForumHost(uri.host)) return null
     val path = uri.path.orEmpty().trimEnd('/').ifBlank { "/" }
     if (path !in setOf("/", "/index.php", "/topic_featured", "/hot_discussions", "/unread_topic_notice_footprint", "/topic_essence_review_list") ||
         !uri.getQueryParameter("a").isNullOrBlank() || uri.getQueryParameter("follow_view") in setOf("topics", "following", "followers") ||

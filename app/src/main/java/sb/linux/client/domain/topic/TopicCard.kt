@@ -27,4 +27,5 @@ data class TopicCard(
     /** 本地浏览时间（毫秒），仅浏览历史使用；0 表示未记录。 */
     val visitedAt: Long = 0L,
     val lastReplierId: Long = 0L,
+    val sourceUrl: String = "",
 )

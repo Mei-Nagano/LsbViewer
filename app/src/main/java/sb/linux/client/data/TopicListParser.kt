@@ -31,6 +31,7 @@ object TopicListParser {
             val authorId = SourceHtmlSupport.idFrom(userLink?.attr("href"))
             TopicCard(
                 topicId = topicId,
+                sourceUrl = titleA.attr("href"),
                 title = titleA.text(),
                 authorId = authorId,
                 authorName = SourceHtmlSupport.textWithoutGachaTitle(userLink),
@@ -45,7 +46,9 @@ object TopicListParser {
                 unread = li.classNames().any { it.contains("unread", ignoreCase = true) },
                 titleColor = Regex("""(?i)color\s*:\s*(#[0-9a-fA-F]{3,8})""").find(titleA.attr("style"))?.groupValues?.get(1) ?: "",
                 avatarUrl = SourceHtmlSupport.absUrl(SourceHtmlSupport.avatarOf(li)),
-                pages = li.select(".topic-pages a").mapNotNull { it.text().toIntOrNull() },
+                pages = li.select(".topic-pages a").mapNotNull {
+                    Regex("""[?&]p=(\d+)""").find(it.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
+                }.filter { it > 0 }.distinct(),
                 lotteryStatus = li.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: "",
                 sourceTags = TopicSourceTagsParser.parse(li),
                 styledTags = TopicSourceTagsParser.styled(li),

@@ -34,18 +34,32 @@ internal class TopicScreenPageActions(
             pageCoordinator.loadUntil(target * perPage + 1)
             state.loadingMore.value = false
             state.localReplyPage.value = target.coerceAtLeast(1)
-            listState.scrollToItem(topicLeadingItemCount(state.page.value, hasMainPost, ui.danmakuLocalOn && ui.danmaku.isNotEmpty()))
+            val first = state.page.value?.posts?.filter { it.floor > 0 }?.sortedBy { it.floor }
+                ?.drop((state.localReplyPage.value - 1) * perPage)?.firstOrNull()
+            if (first != null) ui.pendingSearchPost = first
+            else listState.scrollToItem(topicMainItemIndex(state.page.value))
         }
     }
 
     fun jumpFloor(floor: Int) {
+        jumpPosition(floor)
+    }
+
+    fun jumpReply(replyId: Long) {
+        val target = state.page.value?.posts?.firstOrNull { it.id == replyId }
+        if (target != null) ui.pendingSearchPost = target else jumpPosition(0, replyId)
+    }
+
+    private fun jumpPosition(floor: Int, replyId: Long = 0) {
         state.loading.value = true
         state.error.value = null
-        pageCoordinator.loadFloor(floor) { result ->
+        pageCoordinator.loadFloor(floor, replyId) { result ->
             result.onSuccess { loaded ->
                 state.page.value = loaded.page
                 state.localReplyPage.value = 1
                 state.loadedMaxPage.value = loaded.pageNumber
+                state.loadedStartPage.value = loaded.pageNumber
+                state.allSearchPagesLoaded.value = false
                 ui.collapsedReplyIds = emptySet()
                 ui.pendingSearchPost = loaded.target
                 if (loaded.target == null) session.showToast("未找到该楼层")
@@ -62,7 +76,7 @@ internal class TopicScreenPageActions(
 
     fun scrollToComments(hasMainPost: Boolean) {
         scope.launch {
-            listState.animateScrollToItem(topicLeadingItemCount(state.page.value, hasMainPost, ui.danmakuLocalOn && ui.danmaku.isNotEmpty()))
+            listState.animateScrollToItem(topicMainItemIndex(state.page.value), ui.sourceGeometry.commentsTop.toInt().coerceAtLeast(0))
         }
     }
 

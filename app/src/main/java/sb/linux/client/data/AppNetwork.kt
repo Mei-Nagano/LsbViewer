@@ -51,7 +51,7 @@ object AppNetwork {
     private val settingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == null || key in setOf(
                 "doh_enabled", "doh_url", "doh_disable_on_vpn", "doh_auto_without_vpn", "doh_for_websites",
-                "proxy_type", "proxy_host", "proxy_port",
+                "proxy_type", "proxy_host", "proxy_port", "source_domain",
             )) {
             invalidate()
             if (key == "doh_auto_without_vpn") scheduleAutomaticDoh()
@@ -61,6 +61,9 @@ object AppNetwork {
     @Synchronized fun init(context: Context) {
         if (appContext != null) return
         appContext = context.applicationContext
+        val settings = AppSettings(context)
+        sb.linux.client.common.network.Endpoints.configure { settings.sourceDomain }
+        detectProxyOnOpen()
         context.getSharedPreferences("lsb_app_settings", Context.MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(settingsListener)
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
@@ -91,10 +94,11 @@ object AppNetwork {
         if (!autoTuneRunning.compareAndSet(false, true)) return
         backgroundScope.launch {
             try {
+                awaitProxyDetection()
                 // 等网络能力与 VPN 路由稳定，避免切网瞬间误判。
                 delay(800)
                 val settings = AppSettings(context)
-                if (!settings.dohAutoWithoutVpn || isVpnActive(context)) return@launch
+                if (!settings.dohAutoWithoutVpn || isVpnActive(context) || proxyConfig().enabled) return@launch
                 settings.dohEnabled = true
                 val now = System.currentTimeMillis()
                 if (now - lastAutoTuneAt.get() < 30L * 60L * 1000L) return@launch
@@ -109,7 +113,7 @@ object AppNetwork {
                         .filter { it.second != null }
                         .minByOrNull { it.second!! }
                 }?.first
-                if (fastest != null && settings.dohAutoWithoutVpn && !isVpnActive(context)) {
+                if (fastest != null && settings.dohAutoWithoutVpn && !isVpnActive(context) && !proxyConfig().enabled) {
                     settings.dohUrl = fastest.url
                 }
             } finally {
@@ -121,15 +125,20 @@ object AppNetwork {
     fun isDohActive(): Boolean {
         val context = appContext ?: return false
         val settings = AppSettings(context)
-        return settings.dohEnabled && !(settings.dohDisableOnVpn && isVpnActive(context))
+        return !proxyConfig().enabled && settings.dohEnabled && !(settings.dohDisableOnVpn && isVpnActive(context))
     }
 
     fun proxyConfig(): AppProxyConfig {
         val context = appContext ?: return AppProxyConfig(0, "", 0)
-        if (isDohActive()) return AppProxyConfig(0, "", 0)
         val settings = AppSettings(context)
         return AppProxyConfig(settings.proxyType, settings.proxyHost.trim(), settings.proxyPort)
     }
+
+    fun detectProxyOnOpen() {
+        appContext?.let { AppProxyDiscovery.refresh(it, backgroundScope) }
+    }
+
+    suspend fun awaitProxyDetection() = AppProxyDiscovery.awaitReady()
 
     /** 扫描常见本地端口并做协议握手，不依赖代理软件包名或系统 VPN 状态。 */
     suspend fun detectLocalProxy(preferredPort: Int? = null): AppProxyConfig? = coroutineScope {
@@ -175,14 +184,16 @@ object AppNetwork {
 
     private fun cancelTestsOnVpn() {
         val ctx = appContext ?: return
-        if (AppSettings(ctx).dohDisableOnVpn && isVpnActive(ctx)) activeTests.toTypedArray().forEach { it.close() }
+        if (proxyConfig().enabled || (AppSettings(ctx).dohDisableOnVpn && isVpnActive(ctx))) {
+            activeTests.toTypedArray().forEach { it.close() }
+        }
     }
 
     val dns: Dns = object : Dns {
         override fun lookup(hostname: String): List<InetAddress> {
             val context = appContext ?: throw UnknownHostException("网络组件尚未初始化")
             val settings = AppSettings(context)
-            if (!settings.dohEnabled || (settings.dohDisableOnVpn && isVpnActive(context))) {
+            if (!isDohActive()) {
                 return Dns.SYSTEM.lookup(hostname).sortedBy { it !is Inet4Address }
             }
             val endpoint = settings.dohUrl.trim().toHttpUrlOrNull()
@@ -223,6 +234,11 @@ object AppNetwork {
      */
     fun clientBuilder(): OkHttpClient.Builder = OkHttpClient.Builder().dns(dns).connectionPool(connectionPool)
         .proxySelector(dynamicProxySelector)
+        .addInterceptor { chain ->
+            kotlinx.coroutines.runBlocking { awaitProxyDetection() }
+            chain.proceed(chain.request())
+        }
+        .addInterceptor(SourceDomainInterceptor())
         .addInterceptor(CronetFallbackInterceptor())
         .addNetworkInterceptor { chain ->
             chain.request().tag(CronetAttempt::class.java)?.mayHaveSent = true
@@ -241,6 +257,7 @@ object AppNetwork {
     suspend fun benchmark(url: String, host: String = "linux.sb"): DohBenchmark {
         require(DohEndpointPolicy.isValid(url)) { "请输入有效的 HTTPS DoH 地址" }
         val context = appContext ?: throw UnknownHostException("网络组件尚未初始化")
+        check(!proxyConfig().enabled) { "应用代理已启用，DoH 已暂停" }
         check(!AppSettings(context).dohDisableOnVpn || !isVpnActive(context)) { "VPN 已开启" }
         val direct = DohTransport(url, profile = DohProfile.BENCHMARK)
         activeTests.add(direct)

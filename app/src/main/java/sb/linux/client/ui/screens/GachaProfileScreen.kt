@@ -72,8 +72,8 @@ fun GachaProfileScreen(session: Session, nav: NavHostController, sectionUrl: Str
         SettingsPage("我的称号", nav, onBack = exit, headerActions = {
             sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = {
                 overview.refresh(true)
-                requestLink(selectedUrl ?: "https://linux.sb/gacha_profile")
-            }, enabled = !busy && !state.loading)
+                requestLink(selectedUrl ?: sb.linux.client.common.network.Endpoints.abs("/gacha_profile"))
+            }, enabled = !busy, loading = state.loading)
         }) {
             GachaOverviewCard(overview, account.userId)
             SettingsCard {
@@ -90,10 +90,10 @@ fun GachaProfileScreen(session: Session, nav: NavHostController, sectionUrl: Str
 
                 }
             }
-            val tabs = (listOf(sb.linux.client.domain.account.AccountNode.Link("我的称号", "https://linux.sb/gacha_profile")) + collection.state.page?.sections.orEmpty()).distinctBy { android.net.Uri.parse(it.url).path }
+            val tabs = (listOf(sb.linux.client.domain.account.AccountNode.Link("我的称号", sb.linux.client.common.network.Endpoints.abs("/gacha_profile"))) + collection.state.page?.sections.orEmpty()).distinctBy { android.net.Uri.parse(it.url).path }
             if (tabs.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(spacing.item)) {
                 items(tabs, key = { it.url }) { tab ->
-                    FilterChip(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), selected = (selectedUrl ?: "https://linux.sb/gacha_profile").let { current ->
+                    FilterChip(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), selected = (selectedUrl ?: sb.linux.client.common.network.Endpoints.abs("/gacha_profile")).let { current ->
                         val path = android.net.Uri.parse(current).path.orEmpty()
                         val tabPath = android.net.Uri.parse(tab.url).path.orEmpty()
                         path == tabPath || (tabPath == "/gacha_market" && path.startsWith("/gacha_market"))

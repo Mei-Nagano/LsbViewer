@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.patterns.topic.TopicCardView
 import sb.linux.client.domain.topic.TopicCard
+import sb.linux.client.ui.patterns.settings.searchingFor
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
 
 @Composable
 internal fun PostCardPreview(
@@ -64,122 +66,41 @@ internal fun PostCardPreview(
     }
 }
 
-/** 元素选择器（实时预览下半部分）：默认折叠，点击标题行展开（3.5） */
+/** 元素选择器保留实时预览，配置项共用设置列表行。 */
 @Composable
 internal fun ElementSelectorList(
-    session: Session,
-    scheme: ColorScheme,
-    onClickRole: (PreviewRole) -> Unit,
-    onClickElement: (String) -> Unit,
+    session: Session, scheme: ColorScheme,
+    onClickRole: (PreviewRole) -> Unit, onClickElement: (String) -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    Surface(
-        Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = scheme.surfaceContainerHigh
-    ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            // 折叠/展开标题行（默认折叠）
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.medium)
-                    .clickable { expanded = !expanded }
-                    .padding(horizontal = 4.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "配色角色与卡片元素",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = scheme.onSurface
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    if (expanded) "收起" else "展开",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = scheme.primary
-                )
-                Icon(
-                    if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    null, tint = scheme.onSurfaceVariant
-                )
+    val searched = searchingFor("配色角色与卡片元素", *PreviewRole.entries.map { it.label }.toTypedArray(),
+        *CardElements.map { it.label }.toTypedArray())
+    LaunchedEffect(searched) { if (searched) expanded = true }
+    GroupCard {
+        sb.linux.client.ui.patterns.settings.SettingsListRow("配色角色与卡片元素", "展开后修改主题角色与帖子卡片颜色",
+            onClick = { expanded = !expanded }, trailing = {
+                Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (expanded) "收起" else "展开")
+            })
+        if (expanded) {
+            GroupLabel("配色角色")
+            PreviewRole.entries.forEach { role ->
+                val overridden = when (role) {
+                    PreviewRole.PRIMARY -> session.themePrimary != null
+                    PreviewRole.SECONDARY -> session.themeSecondary != null
+                    PreviewRole.TERTIARY -> session.themeTertiary != null
+                }
+                sb.linux.client.ui.patterns.settings.SettingsListRow(role.label, if (overridden) "已自定义" else "跟随主题",
+                    onClick = { onClickRole(role) }, trailing = {
+                        Box(Modifier.size(30.dp).clip(MaterialTheme.shapes.small).background(previewRoleColor(scheme, role)))
+                    })
             }
-            if (!expanded) {
-                Text(
-                    "展开可按列表方式修改配色角色与卡片元素颜色",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
-                )
-            } else {
-                Text(
-                    "配色角色",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
-                )
-                PreviewRole.entries.forEach { role ->
-                    val color = previewRoleColor(scheme, role)
-                    val overridden = when (role) {
-                        PreviewRole.PRIMARY -> session.themePrimary != null
-                        PreviewRole.SECONDARY -> session.themeSecondary != null
-                        PreviewRole.TERTIARY -> session.themeTertiary != null
-                    }
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.medium)
-                            .clickable { onClickRole(role) }
-                            .padding(horizontal = 4.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(Modifier.size(30.dp).clip(MaterialTheme.shapes.small).background(color))
-                        Spacer(Modifier.width(10.dp))
-                        Text(role.label, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (overridden) "已自定义" else "跟随主题",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = scheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = scheme.onSurfaceVariant)
-                    }
-                }
-                Text(
-                    "帖子卡片元素",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 2.dp)
-                )
-                CardElements.forEach { el ->
-                    val color = cardElementColor(session, scheme, el.key)
-                    val overridden = session.cardColors.containsKey(el.key)
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.medium)
-                            .clickable { onClickElement(el.key) }
-                            .padding(horizontal = 4.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(Modifier.size(30.dp).clip(MaterialTheme.shapes.small).background(color))
-                        Spacer(Modifier.width(10.dp))
-                        Text(el.label, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (overridden) "已自定义" else "跟随主题",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = scheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = scheme.onSurfaceVariant)
-                    }
-                }
+            GroupLabel("帖子卡片元素")
+            CardElements.forEach { el ->
+                sb.linux.client.ui.patterns.settings.SettingsListRow(el.label, if (session.cardColors.containsKey(el.key)) "已自定义" else "跟随主题",
+                    onClick = { onClickElement(el.key) }, trailing = {
+                        Box(Modifier.size(30.dp).clip(MaterialTheme.shapes.small).background(cardElementColor(session, scheme, el.key)))
+                    })
             }
         }
     }
 }
-
-/** 顶部日/夜/系统快捷切换：紧凑横向按钮，图标与文字并排，避免文字竖排导致容器过高 */

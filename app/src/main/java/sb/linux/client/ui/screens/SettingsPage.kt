@@ -6,12 +6,13 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.patterns.settings.SettingsScaffold
 import sb.linux.client.ui.patterns.settings.SettingsHeader
@@ -27,28 +28,32 @@ internal fun SettingsPage(
     nav: NavHostController,
     onBack: () -> Unit = { nav.popBackStack() },
     headerActions: @Composable RowScope.() -> Unit = {},
-    showTopBar: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val spacing = LocalAppSpacing.current
+    val scroll = rememberScrollState()
+    var titleHeight by remember(title) { mutableIntStateOf(Int.MAX_VALUE) }
+    val collapsed by remember(scroll, titleHeight) { derivedStateOf { scroll.value >= titleHeight } }
+    sb.linux.client.ui.patterns.settings.SettingsSearchHost(nav) {
     SettingsScaffold {
         Column(Modifier.fillMaxSize()) {
-            if (showTopBar) sb.linux.client.ui.patterns.settings.SettingsTopBar(title, onBack, headerActions)
+            sb.linux.client.ui.patterns.settings.SettingsTopBar(title, onBack, headerActions, showTitle = collapsed)
             Column(
-                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(bottom = spacing.largeSection),
-                verticalArrangement = Arrangement.spacedBy(spacing.section),
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(scroll).padding(bottom = spacing.largeSection),
             ) {
-                SettingsHeader(title, compact = true)
-                content()
+                SettingsHeader(title, compact = true, modifier = Modifier.onSizeChanged { titleHeight = it.height })
+                Spacer(Modifier.height(spacing.contentGap))
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(spacing.section), content = content)
             }
         }
+    }
     }
 }
 
 @Composable
 internal fun SettingsResetRow(title: String, message: String = "恢复默认设置？", onConfirm: () -> Unit) {
     var show by remember { mutableStateOf(false) }
-    SettingMenuRow(title, "", Icons.Filled.RestartAlt, showChevron = false) { show = true }
+    SettingMenuRow(title, "", showChevron = false) { show = true }
     if (show) sb.linux.client.ui.components.feedback.AppConfirmDialog(
         title = title,
         message = message,

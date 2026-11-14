@@ -1,4 +1,6 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
+import sb.linux.client.ui.patterns.settings.settingsRowIcon
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -12,6 +14,7 @@ import sb.linux.client.ui.feature.settings.DataManagementViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
 import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.patterns.settings.SettingsCheckRow
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
 
 /** 数据清理详情：立即清理与自动清理共用项目及写入逻辑。 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,10 +81,8 @@ internal fun DataManagementContent(
                     )
                 }
             }
-            Button(
-                onClick = { confirmClear = true }, enabled = selected.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("清理所选项") }
+            SettingsActionRow("清理所选项", { confirmClear = true }, enabled = selected.isNotEmpty(),
+                subtitle = "已选择 ${selected.size} 类本地数据")
         }
         if (automatic) {
         GroupCard("退出时自动清理") {

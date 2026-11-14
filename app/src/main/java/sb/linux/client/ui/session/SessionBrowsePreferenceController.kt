@@ -53,6 +53,8 @@ internal class SessionBrowsePreferenceController(
         session.topicsPerPage = settings.topicsPerPage
         session.commentSortOrder = settings.commentSortOrder
         session.tableDisplayMode = settings.tableDisplayMode
+        session.hideTopicTags = settings.hideTopicTags
+        session.topicCardAvatarMetadataRow = settings.topicCardAvatarMetadataRow
         session.showUid = settings.showUid
         session.smartDecodeEnabled = settings.smartDecodeEnabled
         session.showOnlineUsers = settings.sidebarShowOnlineUsers

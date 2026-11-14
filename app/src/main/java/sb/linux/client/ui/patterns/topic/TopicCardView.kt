@@ -1,39 +1,26 @@
 package sb.linux.client.ui.patterns.topic
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.topic.TopicCard
-import sb.linux.client.ui.TitleBadgeView
-import sb.linux.client.ui.patterns.user.Avatar
 import sb.linux.client.ui.theme.LocalSurfaceOpacity
-import sb.linux.client.ui.util.onColorFor
 
 /**
  * 帖子卡片（沿用 main 分支样式）：圆角卡片容器，左侧头像，中间标题与元信息，
@@ -42,7 +29,7 @@ import sb.linux.client.ui.util.onColorFor
  * compact = 单列精简模式：隐藏头像与回复数。
  * onElementClick 非空时进入「预览改色」模式：点按各元素回调对应 [CardColorOverrides] key（标题不可改色）。
  */
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TopicCardView(
     card: TopicCard,
@@ -79,12 +66,29 @@ fun TopicCardView(
             .combinedClickable(
                 onClick = {
                     // 预览改色模式：点按卡片空白处改背景色；正常模式打开帖子
-                    if (onElementClick != null) onElementClick(CardColorOverrides.BACKGROUND) else onClick()
+                    if (onElementClick != null) onElementClick(CardColorOverrides.BACKGROUND)
+                    else onClick()
                 },
                 onLongClick = if (onElementClick == null) onLongClick else null,
             ),
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+        if (sb.linux.client.ui.LocalTopicCardAvatarMetadataRow.current) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+                TopicCardTitle(card, titleColor, tagColor,
+                    onElementClick?.let { { it(CardColorOverrides.TAG) } })
+                Spacer(Modifier.size(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!compact) {
+                        sb.linux.client.ui.patterns.user.UserAvatar(card.authorId, card.avatarUrl, 34, online = card.online)
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Box(Modifier.weight(1f)) {
+                        TopicCardMetadata(card, showForum, showComments && !compact, onForumClick,
+                            userOverride, timeOverride, commentsOverride, forumOverride, onElementClick, separateAuthor = true)
+                    }
+                }
+            }
+        } else Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
             if (!compact) {
                 sb.linux.client.ui.patterns.user.UserAvatar(card.authorId, card.avatarUrl, 34, online = card.online)
                 Spacer(Modifier.width(10.dp))

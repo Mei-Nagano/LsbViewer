@@ -14,6 +14,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import sb.linux.client.ui.theme.LocalAppSizes
 import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.patterns.settings.SettingsChoiceMenu
@@ -65,11 +67,12 @@ fun AppBackButton(onClick: () -> Unit, description: String = "返回") {
 }
 
 @Composable
-fun AppRefreshButton(onClick: () -> Unit, enabled: Boolean = true, description: String = "刷新") {
-    IconButton(onClick = onClick, enabled = enabled,
+fun AppRefreshButton(onClick: () -> Unit, enabled: Boolean = true, description: String = "刷新", loading: Boolean = false) {
+    IconButton(onClick = { if (!loading) onClick() }, enabled = enabled && !loading,
         modifier = Modifier.size(40.dp),
         colors = IconButtonDefaults.iconButtonColors(
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) {
-        Icon(Icons.Filled.Refresh, description)
+        if (loading) CircularProgressIndicator(Modifier.size(20.dp).semantics { contentDescription = "${description}中" }, strokeWidth = 2.dp)
+        else Icon(Icons.Filled.Refresh, description)
     }
 }

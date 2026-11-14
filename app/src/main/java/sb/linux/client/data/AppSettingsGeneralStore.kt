@@ -6,12 +6,17 @@ import org.json.JSONObject
 import sb.linux.client.domain.network.DohServer
 
 internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
+    var sourceDomain: String
+        get() = sb.linux.client.common.network.Endpoints.normalizeHost(prefs.getString("source_domain", "linux.sb").orEmpty())
+        set(v) = prefs.edit().putString("source_domain", sb.linux.client.common.network.Endpoints.normalizeHost(v)).apply()
+
+    val proxyAutoDetected: Boolean get() = prefs.getBoolean("proxy_auto_detected", false)
     var linkOpenMode: Int
         get() = prefs.getInt("link_open_mode", 0)
         set(v) = prefs.edit().putInt("link_open_mode", v).apply()
 
     var linkPreviewEnabled: Boolean
-        get() = prefs.getBoolean("link_preview_enabled", true)
+        get() = prefs.getBoolean("link_preview_enabled", false)
         set(v) = prefs.edit().putBoolean("link_preview_enabled", v).apply()
 
     var hideExternalJumpReminder: Boolean
@@ -31,37 +36,38 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
         get() = prefs.getInt("proxy_port", 7890).coerceIn(1, 65535)
         set(v) = prefs.edit().putInt("proxy_port", v.coerceIn(1, 65535)).apply()
 
-    fun saveProxy(type: Int, host: String, port: Int) {
+    fun saveProxy(type: Int, host: String, port: Int, automaticallyDetected: Boolean = false) {
         prefs.edit()
             .putString("proxy_host", host.trim())
             .putInt("proxy_port", port.coerceIn(1, 65535))
             .putInt("proxy_type", type.coerceIn(0, 2))
+            .putBoolean("proxy_auto_detected", automaticallyDetected)
             .apply()
     }
 
     /** DNS over HTTPS。VPN 存在时可自动旁路，防止与 VPN 自身 DNS 策略冲突。 */
     var dohEnabled: Boolean
         get() = prefs.getBoolean("doh_enabled", false)
-        set(v) = prefs.edit()
-            .putBoolean("doh_enabled", v)
-            // DoH 与应用代理共用网络入口；启用 DoH 时关闭代理，避免两套
-            // DNS/转发策略叠加后行为不一致。
-            .apply { if (v) putInt("proxy_type", 0) }
-            .apply()
+        set(v) = prefs.edit().putBoolean("doh_enabled", v).apply()
 
     var dohUrl: String
-        get() = prefs.getString("doh_url", null) ?: DohServers.defaults.first().url
+        get() {
+            val selected = prefs.getString("doh_url", null) ?: return DohServers.defaults.first().url
+            val custom = savedDohServers().any {
+                it.url == selected && !it.id.startsWith("builtin:") && !it.id.startsWith("legacy:")
+            }
+            return if (DohServers.isRetired(selected) && !custom) DohServers.defaults.first().url else selected
+        }
         set(v) = prefs.edit().putString("doh_url", v.trim()).apply()
 
-    fun dohServers(): List<DohServer> {
-        val saved = runCatching {
-            val array = JSONArray(prefs.getString("doh_servers", "[]"))
-            (0 until array.length()).map { array.getJSONObject(it) }.map {
-                DohServer(it.getString("id"), it.getString("name"), it.getString("url"), it.optString("note"))
-            }
-        }.getOrDefault(emptyList())
-        return DohServers.merge(saved, dohUrl)
-    }
+    private fun savedDohServers(): List<DohServer> = runCatching {
+        val array = JSONArray(prefs.getString("doh_servers", "[]"))
+        (0 until array.length()).map { array.getJSONObject(it) }.map {
+            DohServer(it.getString("id"), it.getString("name"), it.getString("url"), it.optString("note"))
+        }
+    }.getOrDefault(emptyList())
+
+    fun dohServers(): List<DohServer> = DohServers.merge(savedDohServers(), dohUrl)
 
     fun saveDohServers(servers: List<DohServer>) {
         val array = JSONArray()
@@ -120,6 +126,14 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
         set(v) = prefs.edit().putInt("update_check_interval_hours", v.coerceIn(1, 24 * 30)).apply()
 
     /** 上次检查更新的时间戳 */
+    var skippedUpdateVersion: String
+        get() = prefs.getString("skipped_update_version", "").orEmpty()
+        set(v) = prefs.edit().putString("skipped_update_version", v).apply()
+
+    var hideStatusBar: Boolean
+        get() = prefs.getBoolean("hide_status_bar", false)
+        set(v) = prefs.edit().putBoolean("hide_status_bar", v).apply()
+
     var lastUpdateCheck: Long
         get() = prefs.getLong("last_update_check", 0L)
         set(v) = prefs.edit().putLong("last_update_check", v).apply()
@@ -193,6 +207,8 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
         .remove("sidebar_two_columns").remove("sidebar_show_online_users").remove("topics_per_page")
         .remove("comment_sort_order").remove("comments_per_page")
         .remove("table_display_mode")
+        .remove("hide_topic_tags")
+        .remove("topic_card_avatar_metadata_row")
         .remove("show_uid")
         .remove("smart_decode_enabled")
         .remove("selection_menu_items")
@@ -209,6 +225,8 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
 
     /** 重置常规设置 */
     fun resetGeneral() = prefs.edit()
+        .remove("source_domain")
+        .remove("hide_status_bar").remove("skipped_update_version")
         .remove("link_open_mode").remove("update_check_mode")
         .remove("link_preview_enabled")
         .remove("link_jump_skip_reminder")
@@ -219,6 +237,7 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
         .apply()
 
     fun resetNetwork() = prefs.edit()
+        .remove("proxy_auto_detected")
         .remove("proxy_type").remove("proxy_host").remove("proxy_port")
         .remove("doh_enabled").remove("doh_url").remove("doh_disable_on_vpn").remove("doh_auto_without_vpn")
         .remove("doh_servers").remove("doh_for_websites")

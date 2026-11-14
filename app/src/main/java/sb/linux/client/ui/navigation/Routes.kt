@@ -86,11 +86,12 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
         ),
     ) { ForumScreen(session, nav) }
     composable(
-        "topic/{tid}?p={p}&floor={floor}&donate={donate}",
+        "topic/{tid}?p={p}&floor={floor}&replyid={replyid}&donate={donate}",
         arguments = listOf(
             navArgument("tid") { type = NavType.LongType },
-            navArgument("p") { type = NavType.IntType; defaultValue = 1 },
+            navArgument("p") { type = NavType.IntType; defaultValue = 0 },
             navArgument("floor") { type = NavType.IntType; defaultValue = 0 },
+            navArgument("replyid") { type = NavType.LongType; defaultValue = 0L },
             navArgument("donate") { type = NavType.BoolType; defaultValue = false },
         ),
     ) { TopicScreen(session, nav) }
@@ -144,17 +145,19 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
     }
     settingsComposable("about") { AboutScreen(session, nav) }
     composable(
-        "web?url={url}",
-        arguments = listOf(navArgument("url") { type = NavType.StringType; defaultValue = "" }),
+        "web?url={url}&inApp={inApp}",
+        arguments = listOf(navArgument("url") { type = NavType.StringType; defaultValue = "" },
+            navArgument("inApp") { type = NavType.BoolType; defaultValue = false }),
     ) { WebScreen(session, nav) }
     settingsComposable("blockWords") { BlockWordsScreen(session, nav) }
     composable("inviteCenter") { InviteCenterScreen(session, nav) }
     composable("userBlock?url={url}", arguments = listOf(
         navArgument("url") { type = NavType.StringType; defaultValue = "/user_block" },
     )) { entry -> SourceUserBlockScreen(session, nav, entry.arguments?.getString("url") ?: "/user_block") }
-    composable("gachaProfile") { GachaProfileScreen(session, nav) }
+    composable("gachaProfile") { SourceGachaScreen(session, nav) }
     composable("gachaPage?url={url}", arguments = listOf(navArgument("url") { type = NavType.StringType })) { entry ->
-        GachaProfileScreen(session, nav, entry.arguments?.getString("url"))
+        WebScreen(session, nav, sourceUrl = entry.arguments?.getString("url") ?: "/gacha_profile",
+            initialContentSelector = ".gacha-profile-page, .gacha-center-page, main")
     }
     composable("identityCenter") { IdentityCenterScreen(session, nav) }
     composable("accountPage?title={title}&url={url}", arguments = listOf(

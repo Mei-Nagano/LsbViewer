@@ -73,7 +73,7 @@ fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Bool
     val serialBg = sourceTitleColor(title, if (dark) "dark-serial-bg" else "color", fg, dark)
     val openLink = LocalLinkHandler.current
     Surface(shape = MaterialTheme.shapes.extraSmall, color = bg,
-        modifier = modifier.clickable(enabled = openLink != null) { openLink?.invoke("https://linux.sb/gacha") }) {
+        modifier = modifier.clickable(enabled = openLink != null) { openLink?.invoke(sb.linux.client.common.network.Endpoints.abs("/gacha")) }) {
         Row(Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(3.dp)) {

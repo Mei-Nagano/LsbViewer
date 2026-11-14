@@ -21,8 +21,10 @@ internal const val FLOOR_PILL_ENABLED = false
 fun TopicScreen(session: Session, nav: NavHostController) {
     val entry = nav.currentBackStackEntry ?: return
     val topicId = entry.arguments?.getLong("tid") ?: return
-    val initialPage = entry.arguments?.getInt("p") ?: 1
+    val requestedPage = entry.arguments?.getInt("p") ?: 0
+    val initialPage = requestedPage.coerceAtLeast(1)
     val initialFloor = entry.arguments?.getInt("floor") ?: 0
+    val initialReplyId = entry.arguments?.getLong("replyid") ?: 0L
     val context = LocalContext.current
     val source = remember(session) { session.topicPageRepository }
     val floorLoader = remember(session, source) { session.topicFloorPageRepository }
@@ -100,6 +102,8 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         topicId = topicId,
         initialPage = initialPage,
         initialFloor = initialFloor,
+        initialReplyId = initialReplyId,
+        restoreReading = requestedPage == 0 && initialFloor == 0 && initialReplyId == 0L,
         paging = paging,
         ui = ui,
         actions = actions,

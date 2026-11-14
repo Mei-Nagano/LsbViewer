@@ -140,10 +140,13 @@ fun AboutScreen(session: Session, nav: NavHostController) {
     updateState.update?.let { rel ->
         AppUpdatePromptDialog(
             releaseName = rel.name,
+            releaseVersion = rel.tag,
             currentVersion = versionName,
             notes = rel.notes,
             onDownload = { openExternal(rel.url); updateState.dismiss() },
             onDismiss = updateState.dismiss,
+            onSkipVersion = updateState.skipVersion,
+            onNeverPrompt = updateState.neverPrompt,
         )
     }
 }

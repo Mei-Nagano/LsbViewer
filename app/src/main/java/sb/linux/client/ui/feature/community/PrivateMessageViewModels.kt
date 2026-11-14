@@ -30,8 +30,8 @@ class DirectMessagesViewModel(private val repository: PrivateMessageRepository) 
     fun load() {
         loadJob?.cancel()
         val query = mutableState.value.query
+        mutableState.update { it.copy(loading = true, error = null) }
         loadJob = viewModelScope.launch {
-            mutableState.update { it.copy(loading = true, error = null) }
             try {
                 val contacts = repository.loadContacts(query)
                 mutableState.update { it.copy(contacts = contacts, loading = false, loaded = true) }
@@ -89,8 +89,8 @@ class ChatViewModel(
             return
         }
         syncJob?.cancel()
+        mutableState.update { it.copy(loading = true, syncError = null) }
         syncJob = viewModelScope.launch {
-            mutableState.update { it.copy(loading = true, syncError = null) }
             try {
                 val thread = repository.loadThread(partnerId)
                 mutableState.update { current ->

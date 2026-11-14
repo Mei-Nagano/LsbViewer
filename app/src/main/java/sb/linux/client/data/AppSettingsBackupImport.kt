@@ -27,6 +27,8 @@ internal fun AppSettings.importBackupJson(
             if (o.has("comment_sort_order")) p.putInt("comment_sort_order", o.optInt("comment_sort_order", 0).coerceIn(0, 2))
             if (o.has("comments_per_page")) p.putInt("comments_per_page", o.optInt("comments_per_page", 20).coerceIn(5, 100))
             if (o.has("table_display_mode")) p.putInt("table_display_mode", o.optInt("table_display_mode", 1).coerceIn(0, 1))
+            if (o.has("hide_topic_tags")) p.putBoolean("hide_topic_tags", o.getBoolean("hide_topic_tags"))
+            if (o.has("topic_card_avatar_metadata_row")) p.putBoolean("topic_card_avatar_metadata_row", o.getBoolean("topic_card_avatar_metadata_row"))
             if (o.has("show_uid")) p.putBoolean("show_uid", o.getBoolean("show_uid"))
             if (o.has("smart_decode_enabled")) p.putBoolean("smart_decode_enabled", o.getBoolean("smart_decode_enabled"))
             if (o.has("auto_clear_items")) {
@@ -37,9 +39,10 @@ internal fun AppSettings.importBackupJson(
             if (o.has("home_sort_drawer_open")) p.putBoolean("home_sort_drawer_open", o.getBoolean("home_sort_drawer_open"))
             if (o.has("unfavorite_confirm")) p.putBoolean("unfavorite_confirm", o.getBoolean("unfavorite_confirm"))
             if (o.has("link_open_mode")) p.putInt("link_open_mode", o.optInt("link_open_mode", 0).coerceIn(0, 1))
+            if (o.has("source_domain")) p.putString("source_domain", sb.linux.client.common.network.Endpoints.normalizeHost(o.getString("source_domain")))
             if (o.has("link_preview_enabled")) p.putBoolean("link_preview_enabled", o.getBoolean("link_preview_enabled"))
             if (o.has("link_jump_skip_reminder")) p.putBoolean("link_jump_skip_reminder", o.getBoolean("link_jump_skip_reminder"))
-            if (o.has("proxy_type")) p.putInt("proxy_type", o.optInt("proxy_type", 0).coerceIn(0, 2))
+            if (o.has("proxy_type")) p.putInt("proxy_type", o.optInt("proxy_type", 0).coerceIn(0, 2)).putBoolean("proxy_auto_detected", false)
             if (o.has("proxy_host")) p.putString("proxy_host", o.getString("proxy_host").trim())
             if (o.has("proxy_port")) p.putInt("proxy_port", o.optInt("proxy_port", 7890).coerceIn(1, 65535))
             if (o.has("doh_enabled")) p.putBoolean("doh_enabled", o.getBoolean("doh_enabled"))
@@ -65,6 +68,8 @@ internal fun AppSettings.importBackupJson(
             // 0 = 每次打开，1 = 按间隔，2 = 从不：上限必须是 2，夹到 1 会把用户
             // 选的「从不」在恢复备份后悄悄改成「按间隔」
             if (o.has("update_check_mode")) p.putInt("update_check_mode", o.optInt("update_check_mode", 1).coerceIn(0, 2))
+            if (o.has("hide_status_bar")) p.putBoolean("hide_status_bar", o.getBoolean("hide_status_bar"))
+            if (o.has("skipped_update_version")) p.putString("skipped_update_version", o.getString("skipped_update_version"))
             if (o.has("update_check_interval_hours")) p.putInt("update_check_interval_hours", o.optInt("update_check_interval_hours", 24).coerceIn(1, 24 * 30))
             if (o.has("tablet_mode")) p.putBoolean("tablet_mode", o.getBoolean("tablet_mode"))
             if (o.has("bottom_bar_style")) p.putInt("bottom_bar_style", o.optInt("bottom_bar_style", 1).coerceIn(0, 1))

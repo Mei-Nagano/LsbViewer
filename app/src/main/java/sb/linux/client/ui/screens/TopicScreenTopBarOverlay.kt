@@ -40,6 +40,14 @@ internal fun BoxScope.TopicScreenTopBarOverlay(
         danmakuVisible = ui.danmakuLocalOn,
         exporting = ui.exportBusy != null,
         infiniteScroll = view.infinite,
+        showFavorite = view.page?.canFavorite == true,
+        favorited = ui.isFav,
+        favoriteBusy = ui.favoriteBusy,
+        loading = paging.loading.value || paging.loadingMore.value,
+        onFavorite = {
+            if (session.account.loginState.loggedIn) actions.requestFavorite()
+            else nav.navigate("login")
+        },
         onMenuExpandedChange = { ui.menuOpen = it },
         onBack = { nav.popBackStack() },
         onComments = { actions.scrollToComments(view.mainPost != null) },
@@ -63,7 +71,12 @@ internal fun BoxScope.TopicScreenTopBarOverlay(
         },
         onExport = { ui.showExportDialog = true },
         onCollections = { ui.showCollectionSheet = true },
-        onRefresh = { actions.load(paging.page.value?.page ?: 1, force = true); actions.loadDanmaku() },
+        onRefresh = {
+            if (!paging.loading.value && !paging.loadingMore.value) {
+                actions.load(paging.page.value?.page ?: 1, force = true)
+                actions.loadDanmaku()
+            }
+        },
         onToggleScrollMode = {
             session.preferences.saveScrollModeOverride("topic", !view.infinite)
             paging.localReplyPage.value = 1

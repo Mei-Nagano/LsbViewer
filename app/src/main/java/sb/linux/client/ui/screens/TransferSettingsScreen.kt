@@ -1,4 +1,7 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
+import sb.linux.client.ui.patterns.settings.settingsRowIcon
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -131,28 +134,14 @@ internal fun TransferSettingsContent(
                 SettingsCheckRow(label, checked = key in backupItems, icon = settingsRowIcon(label),
                     onCheckedChange = { settingsViewModel.setItemEnabled(key, it) })
             }
-            if (!cloud) Row(
-                Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)
-            ) {
-                Button(
-                    onClick = {
-                        // 导出文件名带当前日期时间（3.3）
-                        val now = java.text.SimpleDateFormat(
-                            "yyyyMMdd_HHmmss", java.util.Locale.getDefault()
-                        ).format(java.util.Date())
-                        exportJsonLauncher.launch("lsb_settings_$now.json")
-                    },
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.weight(1f)
-                ) { Text("导出设置") }
-                Button(
-                    onClick = {
-                        importLauncher.launch(arrayOf("application/json", "text/plain", "text/*", "application/octet-stream"))
-                    },
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.weight(1f)
-                ) { Text("导入设置") }
+            if (!cloud) {
+                SettingsActionRow("导出设置", {
+                    val now = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
+                    exportJsonLauncher.launch("lsb_settings_$now.json")
+                }, subtitle = "将已勾选内容保存为 JSON 文件")
+                SettingsActionRow("导入设置", {
+                    importLauncher.launch(arrayOf("application/json", "text/plain", "text/*", "application/octet-stream"))
+                }, subtitle = "从备份文件恢复已有项目")
             }
         }
         }

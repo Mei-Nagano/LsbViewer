@@ -27,10 +27,13 @@ import sb.linux.client.ui.content.renderInline
 
 /** 签名位于正文下方，链接仍沿用应用的统一打开设置。 */
 internal val LocalAllSignaturesHidden = staticCompositionLocalOf<MutableState<Boolean>> { mutableStateOf(false) }
+internal val LocalSignatureRestoreVersion = staticCompositionLocalOf<MutableState<Int>> { mutableStateOf(0) }
+internal const val SIGNATURE_RECOVERY_HINT = "可在「应用设置 → 阅读与交互 → 正文与评论」中恢复显示签名。"
 
 @Composable
 internal fun PostSignature(html: String, modifier: Modifier = Modifier) {
-    var visible by rememberSaveable(html) { mutableStateOf(true) }
+    val restoreVersion = LocalSignatureRestoreVersion.current.value
+    var visible by rememberSaveable(html, restoreVersion) { mutableStateOf(true) }
     val allHidden = LocalAllSignaturesHidden.current
     var confirmation by remember { mutableStateOf(false) }
     val showing = visible && !allHidden.value
@@ -43,8 +46,8 @@ internal fun PostSignature(html: String, modifier: Modifier = Modifier) {
     }
     val linkHandler = LocalLinkHandler.current
     val uriHandler = LocalUriHandler.current
-    Column(modifier) {
-    if (showing) ClickableText(text, style = MaterialTheme.typography.bodySmall.copy(
+    if (showing) Column(modifier) {
+    ClickableText(text, style = MaterialTheme.typography.bodySmall.copy(
         color = color,
     )) { offset ->
         text.getStringAnnotations("URL", offset, offset).firstOrNull()?.item?.let { raw ->
@@ -52,12 +55,12 @@ internal fun PostSignature(html: String, modifier: Modifier = Modifier) {
             if (linkHandler != null) linkHandler(url) else uriHandler.openUri(url)
         }
     }
-    Text(if (showing) "隐藏签名" else "显示签名",
+    Text("隐藏签名",
         style = MaterialTheme.typography.labelSmall, color = toggleColor,
-        modifier = Modifier.clickable { if (showing) confirmation = true else { visible = true; allHidden.value = false } }.padding(top = 4.dp, bottom = 6.dp))
+        modifier = Modifier.clickable { confirmation = true }.padding(top = 4.dp, bottom = 6.dp))
     }
     if (confirmation) AlertDialog(onDismissRequest = { confirmation = false }, title = { Text("隐藏所有签名？") },
-        text = { Text("可隐藏应用内所有帖子和评论的签名，或只隐藏当前签名。") },
+        text = { Text("可隐藏应用内所有帖子和评论的签名，或只隐藏当前签名。\n\n$SIGNATURE_RECOVERY_HINT") },
         confirmButton = { TextButton(onClick = { confirmation = false; allHidden.value = true }) { Text("隐藏所有") } },
         dismissButton = { TextButton(onClick = { confirmation = false; visible = false }) { Text("仅隐藏此条") } })
 }

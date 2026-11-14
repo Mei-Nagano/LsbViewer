@@ -1,28 +1,21 @@
 package sb.linux.client.data.topic
 
-import sb.linux.client.domain.topic.PostEntry
 import sb.linux.client.data.LsbClient
 import sb.linux.client.domain.topic.TopicPageData
 import sb.linux.client.data.TopicPageParser
 import sb.linux.client.domain.topic.TopicFloorPage
 import sb.linux.client.domain.topic.TopicFloorPageRepository
-import sb.linux.client.domain.topic.TopicPageRepository
 
-/** Resolves the server's floor redirect and fills preceding pages for stable local indexing. */
+/** 源站按 replyid／floor 返回目标页，实际页码以 HTML 分页栏为准。 */
 internal class TopicFloorPageLoader(
     private val client: LsbClient,
-    private val pages: TopicPageRepository,
 ) : TopicFloorPageRepository {
-    override suspend fun load(topicId: Long, floor: Int): TopicFloorPage {
-        val response = client.get("/topic/$topicId?floor=$floor")
-        val pageNumber = Regex("""[?&]p=(\d+)""").find(response.url)
-            ?.groupValues?.get(1)?.toIntOrNull() ?: 1
+    override suspend fun load(topicId: Long, floor: Int, replyId: Long): TopicFloorPage {
+        val target = if (replyId > 0) "replyid=$replyId" else "floor=$floor"
+        val response = client.get("/topic/$topicId?$target")
         val targetPage = TopicPageParser.parse(response.html, topicId)
-        val posts = buildList {
-            for (page in 1 until pageNumber) addAll(pages.load(topicId, page).posts)
-            addAll(targetPage.posts)
-        }.distinctBy(PostEntry::id)
-        val page = targetPage.copy(posts = posts)
-        return TopicFloorPage(page, pageNumber.coerceAtLeast(1), posts.firstOrNull { it.floor == floor })
+        return TopicFloorPage(targetPage, targetPage.page, targetPage.posts.firstOrNull {
+            if (replyId > 0) it.id == replyId else it.floor == floor
+        })
     }
 }

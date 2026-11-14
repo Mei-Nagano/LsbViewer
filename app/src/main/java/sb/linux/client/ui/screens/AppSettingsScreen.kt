@@ -22,7 +22,7 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
     var query by rememberSaveable { mutableStateOf("") }
     val master = LocalMasterNav.current
     val spacing = LocalAppSpacing.current
-    SettingsPage("设置", nav, onBack = { (master ?: nav).popBackStack() }, showTopBar = false) {
+    SettingsPage("设置", nav, onBack = { (master ?: nav).popBackStack() }) {
         SettingsTextField(
             value = query, onValueChange = { query = it },
             placeholder = { Text("搜索设置") }, singleLine = true,
@@ -45,7 +45,9 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
             )
             Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
                 results.forEachIndexed { index, entry ->
-                    SettingMenuRow(entry.title, entry.category, shape = settingsItemShape(index, results.size)) { nav.navigate(entry.route) }
+                    SettingMenuRow(entry.title, entry.category, shape = settingsItemShape(index, results.size)) {
+                        sb.linux.client.ui.feature.settings.openSettingsSearchResult(nav, entry)
+                    }
                 }
             }
         }
@@ -53,10 +55,10 @@ fun AppSettingsScreen(session: Session, nav: NavHostController) {
 }
 
 internal val SettingsCategories = listOf(
-    Triple("阅读与交互", "列表加载 · 正文 · 评论 · 侧边栏 · 屏蔽规则", "browseSettings"),
-    Triple("外观与布局", "主题配色 · 页面背景 · 字体 · 主导航与单双栏", "themeSettings"),
-    Triple("发帖与图片上传", "内置图床 · 自定义上传接口", "uploadSettings"),
-    Triple("网络与链接", "应用代理 · 加密 DNS · 链接打开与预览", "networkSettings"),
-    Triple("AI 助手", "总结行为 · 接口 · 模型 · 配置方案", "aiSettings"),
-    Triple("存储与备份", "空间占用 · 清理 · 本地备份 · WebDAV", "storageSettings"),
+    Triple("阅读与交互", "滚动与分页 · 帖子显示 · 评论交互 · 在线用户", "browseSettings"),
+    Triple("外观与布局", "主题与壁纸 · 字体与缩放 · 导航与宽屏布局", "themeSettings"),
+    Triple("发帖与图片上传", "源站附件 · 内置图床 · 自定义图床", "uploadSettings"),
+    Triple("网络与链接", "自动代理 · DoH · 链接与预览", "networkSettings"),
+    Triple("AI 助手", "自动总结 · 接口与模型 · 配置方案 · 总结历史", "aiSettings"),
+    Triple("存储与备份", "缓存占用 · 数据清理 · 本地与云端备份", "storageSettings"),
 )

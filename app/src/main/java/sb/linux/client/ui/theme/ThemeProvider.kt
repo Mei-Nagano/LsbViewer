@@ -50,7 +50,7 @@ fun LsbTheme(
     secondary: Color? = null,
     tertiary: Color? = null,
     customBackground: Color? = null,
-    keepBackgroundColor: Boolean = false,
+    keepBackgroundColor: Boolean = true,
     backgroundImage: String = "",
     backgroundImageOpacity: Float = 0.25f,
     surfaceOpacity: Float = 1f,
@@ -87,7 +87,7 @@ fun LsbTheme(
         )
     }
     // 旧「禁止页面染色」偏好仍保留含义：显式开启时把中性角色压成灰色，
-    // 强调色与容器色不动。新安装默认关闭，使用带轻微色调的 MD3 表面。
+    // 强调色与容器色不动。新安装默认开启，页面表面使用中性色。
     val styledScheme = if (keepBackgroundColor) neutralPageColors(colorScheme, darkTheme) else colorScheme
     // OLED 纯黑模式：深色下把所有表面压到纯黑/近黑，省电且对比更强
     val darkScheme = if (darkTheme && pureDark) styledScheme.copy(

@@ -14,7 +14,8 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.semantics
@@ -25,6 +26,7 @@ import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** 复用源站左导航内容；显示策略继续由应用抽屉拥有。 */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun HomeSidebarDrawer(
     session: Session, sidebar: HomeSidebar?, onClose: () -> Unit, onRefresh: () -> Unit,
@@ -34,6 +36,10 @@ internal fun HomeSidebarDrawer(
 ) {
     val openLink = LocalLinkHandler.current
     val spacing = LocalAppSpacing.current
+    var selectedHotPeriod by rememberSaveable { mutableStateOf("24h") }
+    val hotPeriods = sidebar?.hotTopicPeriods.orEmpty()
+    val hotPeriod = hotPeriods.firstOrNull { it.id == selectedHotPeriod } ?: hotPeriods.firstOrNull()
+    val hotTopics = hotPeriod?.topics ?: sidebar?.hotTopics.orEmpty()
     ModalDrawerSheet(modifier = Modifier.widthIn(max = 300.dp), drawerShape = RectangleShape) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = LocalAppSpacing.current.section)) {
             item { HomeSidebarHeader(session, onClose, onOpenUser, onLogin) }
@@ -107,6 +113,65 @@ internal fun HomeSidebarDrawer(
                         }
                         Text("最近24小时", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            if (hotPeriods.isNotEmpty() || hotTopics.isNotEmpty()) {
+                item(key = "hot_heading") { DrawerTitle("每日热榜") }
+                if (hotPeriods.isNotEmpty()) item(key = "hot_periods") {
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = spacing.item)) {
+                        hotPeriods.forEachIndexed { index, period ->
+                            SegmentedButton(selected = hotPeriod?.id == period.id, onClick = { selectedHotPeriod = period.id },
+                                shape = SegmentedButtonDefaults.itemShape(index, hotPeriods.size), icon = {}) {
+                                Text(period.label, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+                if (hotTopics.isEmpty()) item(key = "hot_empty") {
+                    Text("暂无热榜帖子", Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.item),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                items(hotTopics, key = { "hot_${hotPeriod?.id.orEmpty()}_${it.topicId}" }) { topic ->
+                    HotTopicRow(topic, onOpenTopic, Modifier.fillMaxWidth().padding(horizontal = spacing.item))
+                }
+            }
+            if (!sidebar?.statsText.isNullOrBlank()) {
+                item { DrawerTitle("站点统计") }
+                item {
+                    val stats = parseSidebarStats(sidebar!!.statsText)
+                    Surface(Modifier.fillMaxWidth().padding(horizontal = spacing.item),
+                        shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        if (stats.isNotEmpty()) SidebarStatsCard(stats)
+                        else Text(sidebar.statsText, Modifier.padding(spacing.contentGap),
+                            style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+            sidebar?.onlineUsers?.let { online ->
+                if (online.count.isNotBlank() || online.items.isNotEmpty()) {
+                    item { DrawerTitle("当前在线${online.count.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()}") }
+                    if (session.showOnlineUsers) {
+                        items(online.items.chunked(4), key = { "online_${it.first().userId}" }) { users ->
+                            Row(Modifier.fillMaxWidth().padding(horizontal = spacing.item, vertical = spacing.inline),
+                                horizontalArrangement = Arrangement.spacedBy(spacing.inline)) {
+                                users.forEach { user ->
+                                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        UserAvatar(user.userId, user.avatarUrl, online = true, username = user.username,
+                                            onProfile = { onOpenUser(user.userId) }, minTouchTarget = true)
+                                        Text(user.username, style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.clickable { onOpenUser(user.userId) }.padding(vertical = spacing.inline))
+                                    }
+                                }
+                                repeat(4 - users.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        }
+                        if (online.moreText.isNotBlank()) item {
+                            Text(online.moreText, Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.item),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }

@@ -72,7 +72,7 @@ internal fun HomeNavigationLayout(
     loadPage: (Int, Boolean, Boolean) -> Unit,
     localPage: (Int) -> Unit,
 ) {
-    // 抽屉关闭时内容退出组合，展开状态留在持续组合的首页布局中。
+    // 抽屉保留相同的测量对象与列表状态，关闭过程不更换占位内容。
     var forumsExpanded by rememberSaveable { mutableStateOf(true) }
     ModalNavigationDrawer(
         // 平板双栏：抽屉挂在主栏（左栏）内，而 ModalNavigationDrawer 的 Box 不裁剪内容——
@@ -86,11 +86,6 @@ internal fun HomeNavigationLayout(
         // 但抽屉打开后必须恢复手势与遮罩点击——否则非「全部」分类下打开抽屉后无法关闭
         gesturesEnabled = drawerState.isOpen || session.homeBrowse.homeCombo == 0,
         drawerContent = {
-            // 关闭空闲态不组合侧边栏内容（用户卡片/版块列表/统计等会随首页重组白白耗费性能），
-            // 用等宽占位符撑住抽屉宽度：ModalNavigationDrawer 以 drawerContent 实测宽度计算
-            // 关闭锚点（-width），占位宽度与 sheet 一致（min(屏宽, 300dp)）锚点不漂移；
-            // 打开/动画期间组合真实内容，滑入滑出动画正常
-            if (drawerState.isOpen || drawerState.isAnimationRunning) {
             HomeSidebarDrawer(
                 session = session,
                 sidebar = sidebar,
@@ -99,7 +94,7 @@ internal fun HomeNavigationLayout(
                 onClose = { onCloseDrawer {} },
                 onRefresh = { onCloseDrawer { onRefresh() } },
                 onOpenForum = { fid -> onCloseDrawer { if (fid > 0) nav.navigate("forum/$fid") } },
-                onOpenTopic = { tid -> onCloseDrawer { if (tid > 0) nav.navigate("topic/$tid") } },
+                onOpenTopic = { tid -> onCloseDrawer { if (tid > 0) nav.navigate("topic/$tid?p=1") } },
                 onOpenUser = { uid -> onCloseDrawer { if (uid > 0) nav.navigate("user/$uid") } },
                 onOpenLeaderboard = { onCloseDrawer { nav.navigate("leaderboard?type=points") } },
                 onLogin = { onCloseDrawer { nav.navigate("login") } },
@@ -118,10 +113,7 @@ internal fun HomeNavigationLayout(
                     }
                 },
             )
-            } else {
-                // 等宽空占位：仅撑住 drawerContent 宽度，锚点不漂移（宽度和 sheet 一致）
-                Spacer(Modifier.fillMaxHeight().widthIn(min = 300.dp))
-            }
+
         }
     ) {
         // Keep the first topic below the header without resizing the viewport on scroll.
@@ -179,6 +171,7 @@ internal fun HomeNavigationLayout(
                         .onSizeChanged { if (topBarVisible) topBarHeightPx = it.height }
                 ) {
                     HomeTopBar(
+                        loading = loading || loadingMore,
                         session = session,
                         nav = nav,
                         current = current,

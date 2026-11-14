@@ -30,7 +30,7 @@ internal suspend fun transferEditorClipboardImages(session: Session, media: Sour
     if (media.remoteImageUrl.isBlank() || media.uploadUrl.isBlank()) return 0
     val images = Regex("""!\[[^\]\n]*\]\((https?://[^)\s]+)\)""").findAll(markdown)
         .map { it.value to it.groupValues[1] }.distinct()
-        .filter { runCatching { URI(it.second).host != "linux.sb" }.getOrDefault(false) }.toList()
+        .filter { runCatching { !sb.linux.client.common.network.Endpoints.isInternal(URI(it.second).host) }.getOrDefault(false) }.toList()
     var failed = 0
     for ((markup, url) in images) {
         if (identity != session.accountIdentityVersion) break

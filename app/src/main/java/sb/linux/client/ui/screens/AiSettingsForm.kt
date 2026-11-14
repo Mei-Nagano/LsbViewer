@@ -1,5 +1,7 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
 
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -44,20 +46,20 @@ internal fun AiSettingsForm(
         GroupCard {
         SwitchRow(
             "开启 AI 总结",
-            "帖子顶部显示「AI 总结本帖」按钮，点按后才请求；关闭则帖子内不显示 AI 入口",
+            "在帖子中显示 AI 总结入口，使用当前配置的服务生成总结",
             checked = aiEnabled,
             onCheckedChange = onAiEnabledChange,
         )
         SwitchRow(
             "打开帖子自动总结",
-            "无需点按钮，进帖即请求总结。水贴也会照总结并消耗额度，建议保持关闭",
+            "进入帖子后自动请求总结，会使用所配置服务的额度",
             checked = aiAutoRun,
             enabled = aiEnabled,
             onCheckedChange = onAiAutoRunChange,
         )
         SwitchRow(
             "解析评论区",
-            "开启后连同所有回复一起总结；关闭则仅总结楼主正文",
+            "总结时包含回复内容；关闭后仅处理楼主正文",
             checked = aiIncludeComments,
             enabled = aiEnabled,
             onCheckedChange = onAiIncludeCommentsChange,
@@ -68,12 +70,12 @@ internal fun AiSettingsForm(
     val spacing = LocalAppSpacing.current
     Column(verticalArrangement = Arrangement.spacedBy(spacing.section)) {
         GroupCard("接口配置") {
-          Column(Modifier.fillMaxWidth().padding(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
             SettingsTextField(
                 value = aiUrl,
                 onValueChange = onAiUrlChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("API 地址") },
+                label = { Text("API 地址") }, searchLabel = "API 地址",
+                description = "OpenAI 兼容服务的接口根地址",
                 placeholder = { Text("https://api.openai.com/v1") },
                 shape = MaterialTheme.shapes.large,
                 singleLine = true,
@@ -82,73 +84,64 @@ internal fun AiSettingsForm(
                 value = aiKey,
                 onValueChange = onAiKeyChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("API 密钥") },
+                label = { Text("API 密钥") }, searchLabel = "API 密钥",
+                description = "服务提供的访问密钥，输入时隐藏内容",
                 placeholder = { Text("sk-…") },
                 shape = MaterialTheme.shapes.large,
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
             )
-          }
         }
         GroupCard("模型与生成") {
-          Column(Modifier.fillMaxWidth().padding(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
-            Box(Modifier.fillMaxWidth()) {
-                SettingsTextField(
-                    value = aiModel,
-                    onValueChange = onAiModelChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("模型") },
-                    placeholder = { Text("gpt-4o-mini") },
-                    shape = MaterialTheme.shapes.large,
-                    singleLine = true,
-                    trailingIcon = {
-                        if (modelOptions.isNotEmpty()) {
-                            Box {
-                                IconButton(onClick = { onModelMenuOpenChange(true) }) {
-                                    Icon(Icons.Filled.ArrowDropDown, "选择模型")
-                                }
-                                SettingsChoiceMenu(
-                                    expanded = modelMenuOpen, onDismiss = { onModelMenuOpenChange(false) },
-                                    options = modelOptions.map { it to it }, selectedValue = aiModel,
-                                    onSelect = { onAiModelChange(it); onModelMenuOpenChange(false) },
-                                )
-                            }
-                        }
-                    },
-                )
-            }
-            FilledTonalButton(
-                onClick = onFetchModels,
-                enabled = !modelBusy && aiUrl.isNotBlank(),
+            SettingsTextField(
+                value = aiModel,
+                onValueChange = onAiModelChange,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (modelBusy) "获取中…" else "获取模型列表") }
+                label = { Text("模型") }, searchLabel = "模型",
+                description = "输入模型 ID，或从已获取的模型中选择",
+                placeholder = { Text("gpt-4o-mini") },
+                shape = MaterialTheme.shapes.large,
+                singleLine = true,
+                trailingIcon = {
+                    if (modelOptions.isNotEmpty()) {
+                        Box {
+                            IconButton(onClick = { onModelMenuOpenChange(true) }) {
+                                Icon(Icons.Filled.ArrowDropDown, "选择模型")
+                            }
+                            SettingsChoiceMenu(
+                                expanded = modelMenuOpen, onDismiss = { onModelMenuOpenChange(false) },
+                                options = modelOptions.map { it to it }, selectedValue = aiModel,
+                                onSelect = { onAiModelChange(it); onModelMenuOpenChange(false) },
+                            )
+                        }
+                    }
+                },
+            )
+            SettingsActionRow("获取模型列表", onFetchModels, enabled = !modelBusy && aiUrl.isNotBlank(),
+                subtitle = if (modelBusy) "获取中…" else "从所配置的服务读取可用模型")
             SettingsTextField(
                 value = aiTemp,
                 onValueChange = onAiTempChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("温度 (0 - 2)") },
+                label = { Text("温度 (0 - 2)") }, searchLabel = "温度 (0 - 2)",
+                description = "较低值使总结更稳定，较高值增加变化",
                 shape = MaterialTheme.shapes.large,
                 singleLine = true,
             )
-          }
         }
         GroupCard("总结提示词") {
-          Column(Modifier.fillMaxWidth().padding(spacing.pageHorizontal)) {
             SettingsTextField(
                 value = aiPrompt,
                 onValueChange = onAiPromptChange,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
-                label = { Text("自定义总结提示词") },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("自定义总结提示词") }, searchLabel = "自定义总结提示词",
+                description = "指定总结要求；留空使用内置提示词",
                 placeholder = { Text(AiAssistantDefaults.SUMMARY_PROMPT) },
                 supportingText = { Text("留空使用内置提示词") },
+                minLines = 4,
                 shape = MaterialTheme.shapes.large,
             )
-          }
         }
-        Button(
-            onClick = onSave,
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("保存 AI 设置") }
+        SettingsActionRow("保存 AI 设置", onSave)
     }
 }

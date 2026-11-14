@@ -38,6 +38,18 @@ lsb-release.b64
 *.local
 .env
 *.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.*.sample
+!.env.template
+!.env.*.template
+
+# Python bytecode caches
+__pycache__/
+*.pyc
+*.pyo
 
 # IDE / editor files
 .idea/

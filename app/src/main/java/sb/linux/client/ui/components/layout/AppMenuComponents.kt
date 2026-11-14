@@ -14,11 +14,12 @@ import androidx.compose.ui.text.font.FontWeight
 import sb.linux.client.ui.theme.AppMenuDefaults
 import sb.linux.client.ui.theme.LocalAppSizes
 import sb.linux.client.ui.theme.LocalAppSpacing
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
 
 @Composable
-fun AppGroupLabel(title: String, modifier: Modifier = Modifier) {
-    Text(title, modifier.padding(AppMenuDefaults.labelPadding),
-        style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+fun AppGroupLabel(title: String, modifier: Modifier = Modifier, searchable: Boolean = true) {
+    Text(title, modifier.then(if (searchable) Modifier.settingsSearchAnchor(title) else Modifier).padding(AppMenuDefaults.labelPadding),
+        style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary)
 }
 
@@ -50,9 +51,11 @@ fun AppMenuRow(
     tint: Color = Color.Unspecified, enabled: Boolean = true,
     trailing: (@Composable () -> Unit)? = null, compact: Boolean = false,
     prominent: Boolean = false,
+    titleWeight: FontWeight? = null,
     // 传 null 表示本行不自带点击动作，由调用方在外层提供可访问语义
     // （AppSwitchRow 用整行 toggleable 提供 Role.Switch + 状态，不再叠加第二个点击处理器）。
     onClick: (() -> Unit)? = null,
+    searchable: Boolean = true,
 ) {
     val foreground = if (tint == Color.Unspecified) MaterialTheme.colorScheme.onSurface else tint
     val alpha = if (enabled) 1f else AppMenuDefaults.disabledAlpha
@@ -61,7 +64,7 @@ fun AppMenuRow(
         subtitle.isBlank() -> AppMenuDefaults.singleLineMinHeight
         else -> AppMenuDefaults.twoLineMinHeight
     }
-    Row(modifier.fillMaxWidth()
+    Row(modifier.then(if (searchable) Modifier.settingsSearchAnchor(title) else Modifier).fillMaxWidth()
         .heightIn(min = minHeight)
         .then(if (onClick != null) Modifier.clickable(enabled = enabled, onClick = onClick) else Modifier)
         .padding(when {
@@ -78,7 +81,7 @@ fun AppMenuRow(
                 prominent -> MaterialTheme.typography.titleMedium
                 compact -> MaterialTheme.typography.bodyMedium
                 else -> MaterialTheme.typography.bodyLarge
-            }, fontWeight = if (prominent) FontWeight.SemiBold else FontWeight.Medium, color = foreground.copy(alpha = alpha))
+            }, fontWeight = titleWeight ?: MaterialTheme.typography.bodyLarge.fontWeight, color = foreground.copy(alpha = alpha))
             if (subtitle.isNotBlank()) Text(subtitle, style = if (prominent) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
         }

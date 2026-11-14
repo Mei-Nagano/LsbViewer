@@ -181,7 +181,7 @@ internal fun HomeBody(
                                     TopicCardView(
                                         t,
                                         views = viewsForTopic(t.topicId),
-                                        onClick = { nav.navigate("topic/${t.topicId}") },
+                                        onClick = { nav.navigate("topic/${t.topicId}?p=1") },
                                         onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
                                     )
                                 }

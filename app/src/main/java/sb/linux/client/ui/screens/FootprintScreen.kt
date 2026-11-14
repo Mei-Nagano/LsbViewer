@@ -156,7 +156,7 @@ private fun HistoryList(
                 DismissibleHistory(onDismiss = { onRemove(topic.topicId) }, spacing = spacing) {
                     TopicCardView(
                         topic,
-                        onClick = { nav.navigate("topic/${topic.topicId}") },
+                        onClick = { nav.navigate("topic/${topic.topicId}?p=1") },
                         onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
                         showComments = false,
                         showForum = false,

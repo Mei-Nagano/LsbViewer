@@ -19,8 +19,8 @@ internal fun SettingsCheckRow(
     icon: ImageVector? = null,
     enabled: Boolean = true,
 ) {
-    AppMenuRow(
-        title = title, subtitle = subtitle, icon = icon, prominent = true, enabled = enabled,
+    SettingsListRow(
+        title = title, subtitle = subtitle, icon = icon ?: settingsRowIcon(title), enabled = enabled,
         modifier = Modifier.toggleable(value = checked, enabled = enabled, role = Role.Checkbox, onValueChange = onCheckedChange),
         trailing = {
             Checkbox(checked = checked, onCheckedChange = null, enabled = enabled,

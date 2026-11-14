@@ -81,7 +81,7 @@ internal fun TopicFavorites(
             ) {
                 TopicCardView(
                     topic,
-                    onClick = { nav.navigate("topic/${topic.topicId}") },
+                    onClick = { nav.navigate("topic/${topic.topicId}?p=1") },
                     onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") },
                 )
             }

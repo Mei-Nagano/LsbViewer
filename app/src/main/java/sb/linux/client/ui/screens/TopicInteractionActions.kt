@@ -52,6 +52,7 @@ internal class TopicInteractionActions(
     }
 
     fun requestFavorite() {
-        if (ui.isFav && session.unfavoriteConfirm) ui.showUnfavDialog = true else toggleFavorite()
+        if (ui.favoriteBusy) return
+        if (ui.isFav) ui.showUnfavDialog = true else toggleFavorite()
     }
 }

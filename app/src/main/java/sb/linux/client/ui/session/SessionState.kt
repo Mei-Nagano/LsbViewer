@@ -48,9 +48,12 @@ internal interface SessionState {
     var topicsPerPage: Int
     var commentSortOrder: Int
     var tableDisplayMode: Int
+    var hideTopicTags: Boolean
+    var topicCardAvatarMetadataRow: Boolean
     var showUid: Boolean
     var smartDecodeEnabled: Boolean
     var tabletMode: Boolean
+    var hideStatusBar: Boolean
     /** 用户显式选择「始终单内容栏」；不影响根导航随窗口适配。 */
     var singleContentColumn: Boolean
     var bottomBarStyle: Int

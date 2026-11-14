@@ -1,4 +1,7 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
+import sb.linux.client.ui.patterns.settings.searchingFor
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -48,37 +51,28 @@ internal fun UpdateSettingsScreen(session: Session, nav: NavHostController) {
             Text("当前版本 v${currentVersionName(context)}")
             // ---------- 检查更新 ----------
             GroupCard {
-                Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp)) {
-                    SettingsChoiceRow("检查更新时机", listOf(0 to "每次启动", 1 to "按间隔", 2 to "从不"),
-                        updateMode, viewModel::setUpdateCheckMode)
-                    // 按间隔时的间隔小时数输入
-                    if (updateMode == 1) {
-                        Spacer(Modifier.height(10.dp))
-                        SettingsTextField(
-                            value = intervalText,
-                            onValueChange = viewModel::setIntervalText,
-                            label = { Text("检查间隔（1 - 720 小时）") },
-                            suffix = { Text("小时") },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = { doCheck(false) },
-                        enabled = !updateState.checking,
-                        shape = MaterialTheme.shapes.medium,
+                SettingsChoiceRow("检查更新时机", listOf(0 to "每次启动", 1 to "按间隔", 2 to "从不"),
+                    updateMode, viewModel::setUpdateCheckMode)
+                // 按间隔时的间隔小时数输入
+                if (updateMode == 1 || searchingFor("检查间隔（1 - 720 小时）")) {
+                    SettingsTextField(
+                        value = intervalText,
+                        onValueChange = viewModel::setIntervalText,
+                        label = { Text("检查间隔（1 - 720 小时）") }, searchLabel = "检查间隔（1 - 720 小时）",
+                        suffix = { Text("小时") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large,
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text(if (updateState.checking) "检查中…" else "立即检查更新") }
-                    updateState.msg?.let {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    )
+                }
+                SettingsActionRow("立即检查更新", { doCheck(false) }, enabled = !updateState.checking,
+                    subtitle = if (updateState.checking) "检查中…" else "从 GitHub Releases 获取最新版本")
+                updateState.msg?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
     }
@@ -87,10 +81,13 @@ internal fun UpdateSettingsScreen(session: Session, nav: NavHostController) {
     updateState.update?.let { rel ->
         AppUpdatePromptDialog(
             releaseName = rel.name,
+            releaseVersion = rel.tag,
             currentVersion = currentVersionName(context),
             notes = rel.notes,
             onDownload = { openExternal(rel.url); updateState.dismiss() },
             onDismiss = updateState.dismiss,
+            onSkipVersion = updateState.skipVersion,
+            onNeverPrompt = { updateState.neverPrompt(); viewModel.setUpdateCheckMode(2) },
         )
     }
 }

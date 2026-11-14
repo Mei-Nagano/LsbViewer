@@ -24,6 +24,10 @@ internal fun TopicTopBar(
     danmakuVisible: Boolean,
     exporting: Boolean,
     infiniteScroll: Boolean,
+    showFavorite: Boolean,
+    favorited: Boolean,
+    favoriteBusy: Boolean,
+    loading: Boolean,
     onMenuExpandedChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onComments: () -> Unit,
@@ -36,6 +40,7 @@ internal fun TopicTopBar(
     onCollections: () -> Unit,
     onRefresh: () -> Unit,
     onToggleScrollMode: () -> Unit,
+    onFavorite: () -> Unit,
 ) {
     if (!searchOpen) AppTopBar(
         modifier = modifier,
@@ -48,10 +53,16 @@ internal fun TopicTopBar(
         onBack = onBack,
         actions = {
             IconButton(onClick = onComments) { Icon(Icons.AutoMirrored.Filled.Chat, "直达评论区") }
-            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = onRefresh)
+            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = onRefresh, loading = loading)
             Box {
                 IconButton(onClick = { onMenuExpandedChange(true) }) { Icon(Icons.Filled.MoreVert, "菜单") }
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { onMenuExpandedChange(false) }) {
+                    if (showFavorite) DropdownMenuItem(
+                        text = { Text(if (favorited) "已收藏" else "收藏文章") },
+                        leadingIcon = { Icon(if (favorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, null) },
+                        enabled = !favoriteBusy,
+                        onClick = { onMenuExpandedChange(false); onFavorite() },
+                    )
                     DropdownMenuItem(
                         text = { Text("跳转楼层") },
                         leadingIcon = { Icon(Icons.Filled.FormatListNumbered, null) },

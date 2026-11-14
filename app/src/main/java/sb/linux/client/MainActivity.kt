@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        sb.linux.client.data.AppNetwork.detectProxyOnOpen()
         activeSession?.recoverSession()
     }
 
@@ -61,6 +62,13 @@ class MainActivity : ComponentActivity() {
                 controller.isAppearanceLightStatusBars = !dark
                 controller.isAppearanceLightNavigationBars = !dark
             }
+            LaunchedEffect(session.hideStatusBar) {
+                androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+                    systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    if (session.hideStatusBar) hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                    else show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                }
+            }
             val fontFamily = remember(session.fontKey, session.customFontName) {
                 if (session.fontKey == "custom") {
                     session.preferences.customFontFile.takeIf { it.exists() }?.let { FontFamily(Font(it)) }
@@ -89,7 +97,9 @@ class MainActivity : ComponentActivity() {
                 fontScale = session.fontScale,
                 fontWeightLevel = session.fontWeightLevel,
             ) {
-                AppRoot(session)
+                androidx.compose.runtime.CompositionLocalProvider(
+                    sb.linux.client.ui.components.navigation.LocalHideStatusBar provides session.hideStatusBar,
+                ) { AppRoot(session) }
             }
         }
     }

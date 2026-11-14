@@ -33,7 +33,7 @@ fun CardRedemptionsScreen(session: Session, nav: NavHostController) {
     val openLink = LocalLinkHandler.current
     val spacing = LocalAppSpacing.current
     SettingsPage("发卡兑换记录", nav, headerActions = {
-        sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = { model.load() }, enabled = owner > 0 && !state.loading)
+        sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = { model.load() }, enabled = owner > 0, loading = state.loading)
     }) {
         when {
             owner <= 0 -> EmptyBox("登录后查看兑换记录")

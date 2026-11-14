@@ -5,6 +5,7 @@ import sb.linux.client.domain.community.HomeBrowseCache
 import sb.linux.client.domain.community.HomeSidebar
 import sb.linux.client.domain.community.ForumCount
 import sb.linux.client.domain.community.HotTopic
+import sb.linux.client.domain.community.HotTopicPeriod
 import sb.linux.client.domain.community.NewUser
 import sb.linux.client.domain.community.OnlineUser
 import sb.linux.client.domain.community.OnlineUsers
@@ -76,9 +77,11 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
             sb.forums.forEach { f ->
                 a.put(org.json.JSONObject().put("id", f.id).put("name", f.name).put("count", f.count).put("color", f.color))
             }
-            val h = org.json.JSONArray()
-            sb.hotTopics.forEach { t ->
-                h.put(org.json.JSONObject().put("tid", t.topicId).put("title", t.title).put("meta", t.meta))
+            val h = encodeHotTopics(sb.hotTopics)
+            val hotPeriods = org.json.JSONArray()
+            sb.hotTopicPeriods.forEach { period ->
+                hotPeriods.put(org.json.JSONObject().put("id", period.id).put("label", period.label)
+                    .put("topics", encodeHotTopics(period.topics)))
             }
             val u = org.json.JSONArray()
             sb.newUsers.forEach { n ->
@@ -104,6 +107,7 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
             }
             val o = org.json.JSONObject()
                 .put("forums", a).put("hot", h).put("users", u)
+                .put("hotPeriods", hotPeriods)
                 .put("stats", sb.statsText)
                 .put("onCount", sb.onlineUsers.count).put("onItems", on)
                 .put("announcements", announcements).put("dailyStars", stars)
@@ -117,9 +121,10 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
             val f = o.getJSONArray("forums").getJSONObject(i)
             ForumCount(f.optLong("id"), f.optString("name"), f.optString("count"), f.optString("color"))
         }
-        val hot = (0 until (o.optJSONArray("hot")?.length() ?: 0)).map { i ->
-            val t = o.getJSONArray("hot").getJSONObject(i)
-            HotTopic(t.optLong("tid"), t.optString("title"), t.optString("meta"))
+        val hot = decodeHotTopics(o.optJSONArray("hot"))
+        val hotPeriods = (0 until (o.optJSONArray("hotPeriods")?.length() ?: 0)).map { i ->
+            val period = o.getJSONArray("hotPeriods").getJSONObject(i)
+            HotTopicPeriod(period.getString("id"), period.getString("label"), decodeHotTopics(period.getJSONArray("topics")))
         }
         val users = (0 until (o.optJSONArray("users")?.length() ?: 0)).map { i ->
             val n = o.getJSONArray("users").getJSONObject(i)
@@ -146,7 +151,19 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
             statsText = o.optString("stats"), newUsers = users,
             onlineUsers = OnlineUsers(count = o.optString("onCount"), items = onItems),
             announcements = announcements, dailyStars = stars,
+            hotTopicPeriods = hotPeriods,
         )
     }.getOrNull()
+
+    private fun encodeHotTopics(topics: List<HotTopic>) = org.json.JSONArray().apply {
+        topics.forEach { topic ->
+            put(org.json.JSONObject().put("tid", topic.topicId).put("title", topic.title).put("meta", topic.meta))
+        }
+    }
+
+    private fun decodeHotTopics(array: org.json.JSONArray?): List<HotTopic> = (0 until (array?.length() ?: 0)).map { index ->
+        val topic = array!!.getJSONObject(index)
+        HotTopic(topic.optLong("tid"), topic.optString("title"), topic.optString("meta"))
+    }
 
 }

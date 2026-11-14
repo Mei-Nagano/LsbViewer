@@ -46,7 +46,7 @@ internal fun FollowingListScreen(session: Session, nav: NavHostController, url: 
         FollowingView.FOLLOWERS -> "粉丝"; FollowingView.FOLLOWING -> "关注"; else -> "关注动态"
     }
     AppPageScaffold(title, onBack = { nav.popBackStack() }, actions = {
-        AppRefreshButton(onClick = { retry++ }, enabled = !loading)
+        AppRefreshButton(onClick = { if (!loading) { loading = true; retry++ } }, loading = loading)
     }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             HomeFollowingFilters(view) { view = it }
@@ -60,7 +60,7 @@ internal fun FollowingListScreen(session: Session, nav: NavHostController, url: 
                 current.topics.isEmpty() -> EmptyBox(view.emptyText)
                 else -> LazyColumn(state = list, contentPadding = PaddingValues(vertical = LocalAppSpacing.current.item)) {
                     items(current.topics, key = { it.topicId }) { topic ->
-                        TopicCardView(topic, onClick = { nav.navigate("topic/${topic.topicId}") })
+                        TopicCardView(topic, onClick = { nav.navigate("topic/${topic.topicId}?p=1") })
                     }
                     item { PaginationBar(current.sourcePage, current.sourceTotalPages) { page = it } }
                 }

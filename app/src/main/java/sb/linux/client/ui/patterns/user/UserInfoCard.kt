@@ -43,6 +43,7 @@ fun UserInfoCard(
     onProfile: (() -> Unit)? = null,
     onStatistic: ((String) -> Unit)? = null,
     headerActions: (@Composable RowScope.() -> Unit)? = null,
+    emphasisWeight: FontWeight? = FontWeight.SemiBold,
 ) {
     val openLink = sb.linux.client.ui.LocalLinkHandler.current
     val statisticClick = onStatistic ?: openLink
@@ -58,7 +59,7 @@ fun UserInfoCard(
                 .then(if (onProfile != null) Modifier.clickable(onClick = onProfile) else Modifier)
                 .padding(vertical = spacing.pageVertical),
                 verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.Top,
                     horizontalArrangement = Arrangement.spacedBy(spacing.pageHorizontal)) {
                     if (data.userId > 0) UserAvatar(data.userId, data.avatarUrl, sizes.avatarProfile.value.toInt(),
                         online = data.online, onProfile = onProfile, shape = MaterialTheme.shapes.extraSmall)
@@ -68,23 +69,30 @@ fun UserInfoCard(
                             Icon(Icons.Filled.Person, null, Modifier.size(sizes.avatarReply), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(data.username.ifBlank { "饼友" }, style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
-                                maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            headerActions?.invoke(this)
-                        }
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        Text(data.username.ifBlank { "饼友" }, style = MaterialTheme.typography.titleLarge,
+                            fontWeight = emphasisWeight, modifier = Modifier.fillMaxWidth(),
+                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.weight(1f))
                         // UID 与身份组以辅助文字紧随姓名（§2.1、§3.6）。
                         val identity = listOfNotNull(
                             data.userId.takeIf { it > 0 }?.let { "UID $it" },
                             data.groupBadge?.name?.takeIf(String::isNotBlank)
                                 ?: data.userGroup.takeIf(String::isNotBlank),
                         ).joinToString(" · ")
-                        if (identity.isNotBlank()) Text(identity,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        data.titleBadge?.let { TitleBadgeView(it, small = true) }
+                        Box(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(end = if (headerActions != null) sizes.touchTarget * 2 else 0.dp)) {
+                                if (identity.isNotBlank()) Text(identity,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                data.titleBadge?.let { TitleBadgeView(it, small = true) }
+                            }
+                            if (headerActions != null) Row(
+                                Modifier.matchParentSize().wrapContentSize(Alignment.CenterEnd),
+                                verticalAlignment = Alignment.CenterVertically,
+                                content = headerActions,
+                            )
+                        }
                     }
                 }
                 if (data.subtitle.isNotBlank()) Text(data.subtitle, style = MaterialTheme.typography.bodyMedium,
@@ -93,17 +101,17 @@ fun UserInfoCard(
             if (data.userId > 0) Row(Modifier.fillMaxWidth().padding(bottom = spacing.pageVertical),
                 horizontalArrangement = Arrangement.spacedBy(spacing.item)) {
                 listOf(
-                    Triple("关注", data.following, "https://linux.sb/index.php?sort=following&follow_view=following&follow_uid=${data.userId}"),
-                    Triple("粉丝", data.followers, "https://linux.sb/index.php?sort=following&follow_view=followers&follow_uid=${data.userId}"),
-                    Triple("积分", data.points, "https://linux.sb/user/${data.userId}?tab=points_rewards"),
-                    Triple("烧饼", data.wallet, "https://linux.sb/community_wallet"),
+                    Triple("关注", data.following, "${sb.linux.client.common.network.Endpoints.BASE}/index.php?sort=following&follow_view=following&follow_uid=${data.userId}"),
+                    Triple("粉丝", data.followers, "${sb.linux.client.common.network.Endpoints.BASE}/index.php?sort=following&follow_view=followers&follow_uid=${data.userId}"),
+                    Triple("积分", data.points, "${sb.linux.client.common.network.Endpoints.BASE}/user/${data.userId}?tab=points_rewards"),
+                    Triple("烧饼", data.wallet, "${sb.linux.client.common.network.Endpoints.BASE}/community_wallet"),
                 ).forEach { (label, value, url) ->
                     Column(Modifier.weight(1f)
                         .then(if (statisticClick != null) Modifier.clickable(onClickLabel = "查看$label") { statisticClick(url) } else Modifier)
                         .padding(vertical = spacing.inline), horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
                         Text(value.ifBlank { "—" }, style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold)
+                            fontWeight = emphasisWeight)
                         Text(label, style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

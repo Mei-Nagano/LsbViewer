@@ -166,7 +166,7 @@ fun SearchScreen(session: Session, nav: NavHostController, entry: NavBackStackEn
                 else -> LazyColumn(contentPadding = PaddingValues(vertical = spacing.pageVertical)) {
                     items(pageData.items, key = { item -> itemKey(item) }) { item ->
                         when (item) {
-                            is SearchResultItem.Topic -> TopicSearchItem(item) { nav.navigate("topic/${item.topicId}") }
+                            is SearchResultItem.Topic -> TopicSearchItem(item) { nav.navigate("topic/${item.topicId}?p=1") }
                             is SearchResultItem.User -> UserSearchItem(item) { nav.navigate("user/${item.userId}") }
                         }
                     }

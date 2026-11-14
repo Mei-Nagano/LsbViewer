@@ -57,7 +57,10 @@ internal class SessionPreferences(
     // ---------------- 分类重置（3.9） ----------------
 
     /** 重置外观设置（含卡片元素色与自定义色预选） */
-    fun resetThemeSettings() = themePreferenceController.resetThemeSettings()
+    fun resetThemeSettings() {
+        themePreferenceController.resetThemeSettings()
+        saveHideStatusBar(false)
+    }
     /** 重置浏览设置并刷新内存镜像 */
     fun resetBrowseSettings() = browsePreferenceController.resetBrowseSettings()
     internal fun applyBrowseSettings(settings: BrowseSettings) = browsePreferenceController.apply(settings)
@@ -67,6 +70,7 @@ internal class SessionPreferences(
         resetBrowseSettings()
         session.aiConfigurationRepository.reset()
         session.generalSettingsRepository.reset()
+        session.hideStatusBar = session.generalSettingsRepository.current().hideStatusBar
         session.proxySettingsRepository.resetNetworkSettings()
         session.backupSettingsRepository.resetWebDavSettings()
         saveTabletMode(false)
@@ -77,6 +81,7 @@ internal class SessionPreferences(
     }
 
     fun saveTabletMode(v: Boolean) = uiPreferenceController.saveTabletMode(v)
+    fun saveHideStatusBar(v: Boolean) = uiPreferenceController.saveHideStatusBar(v)
     fun saveBottomBarStyle(v: Int) = uiPreferenceController.saveBottomBarStyle(v)
     fun saveBottomBarItems(items: List<String>) = uiPreferenceController.saveBottomBarItems(items)
     fun saveReplyBarStyle(v: Int) = uiPreferenceController.saveReplyBarStyle(v)

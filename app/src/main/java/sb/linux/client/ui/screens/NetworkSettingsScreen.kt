@@ -1,4 +1,7 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
+import sb.linux.client.ui.patterns.settings.searchingFor
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,40 +46,34 @@ internal fun NetworkSettingsDetailScreen(session: Session, nav: NavHostControlle
     SettingsPage(title, nav, onBack = exit) {
         if (section == "proxy") {
             GroupCard {
-                Column(
-                    Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
-                ) {
-                    Text("应用代理", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                    Text(
-                        "供翻墙软件的仅代理模式使用。覆盖应用请求、图片和在线网页；启用后不会使用 Cronet 直连回退。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text("应用代理", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(
+                    "启动或回到应用时自动检测并保存系统、本地代理。代理生效时，应用联网和网页浏览优先使用代理；关闭后恢复已保存的 DoH 设置。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SettingsChoiceRow("代理类型", listOf(0 to "关闭", 1 to "HTTP", 2 to "SOCKS5"),
+                    state.proxyType, viewModel::setProxyType)
+                if (state.proxyType != 0 || searchingFor("代理主机", "代理端口")) {
+                    SettingsTextField(
+                        value = state.proxyHost, onValueChange = viewModel::setProxyHost,
+                        label = { Text("代理主机") }, searchLabel = "代理主机", placeholder = { Text("127.0.0.1") },
+                        description = "代理服务器的 IP 或主机名",
+                        singleLine = true, isError = state.proxyError != null, modifier = Modifier.fillMaxWidth(),
                     )
-                    SettingsChoiceRow("代理类型", listOf(0 to "关闭", 1 to "HTTP", 2 to "SOCKS5"),
-                        state.proxyType, viewModel::setProxyType)
-                    if (state.proxyType != 0) {
-                        SettingsTextField(
-                            value = state.proxyHost, onValueChange = viewModel::setProxyHost,
-                            label = { Text("代理主机") }, placeholder = { Text("127.0.0.1") },
-                            singleLine = true, isError = state.proxyError != null, modifier = Modifier.fillMaxWidth(),
-                        )
-                        SettingsTextField(
-                            value = state.proxyPort,
-                            onValueChange = viewModel::setProxyPort,
-                            label = { Text("代理端口") }, placeholder = { Text("7890") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true, isError = state.proxyError != null, modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    state.proxyError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-                    OutlinedButton(
-                        onClick = viewModel::detect,
-                        enabled = !state.detecting,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(if (state.detecting) "正在检测…" else "自动检测本地代理") }
-                    Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) { Text("保存代理设置") }
+                    SettingsTextField(
+                        value = state.proxyPort,
+                        onValueChange = viewModel::setProxyPort,
+                        label = { Text("代理端口") }, searchLabel = "代理端口", placeholder = { Text("7890") },
+                        description = "代理服务器监听的端口",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true, isError = state.proxyError != null, modifier = Modifier.fillMaxWidth(),
+                    )
                 }
+                state.proxyError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                SettingsActionRow("重新检测本地代理", viewModel::detect, enabled = !state.detecting,
+                    subtitle = if (state.detecting) "正在检测…" else "立即识别当前代理")
+                SettingsActionRow("保存代理设置", viewModel::save)
             }
         }
         if (section == "dns") DohSettingsContent(session)

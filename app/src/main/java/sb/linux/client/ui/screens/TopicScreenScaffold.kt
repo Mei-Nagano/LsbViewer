@@ -65,7 +65,7 @@ internal fun TopicScreenScaffold(
                     favorited = ui.isFav,
                     likeCount = mainPost?.likeCount ?: 0,
                     showLike = mainPost?.canLike == true,
-                    showFavorite = page.canFavorite,
+                    showFavorite = false,
                     onReply = {
                         if (session.account.loginState.loggedIn) {
                             ui.quoteText = ""

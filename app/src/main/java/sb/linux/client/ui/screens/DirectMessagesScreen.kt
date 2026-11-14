@@ -55,7 +55,7 @@ fun DirectMessagesScreen(session: Session, nav: NavHostController, showBack: Boo
         primaryPage = !showBack,
         onBack = if (showBack) ({ nav.popBackStack() }) else null,
         actions = {
-            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = viewModel::load, enabled = !state.loading)
+            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = viewModel::load, loading = state.loading)
         },
     ) { pad ->
         DirectMessagesSection(session, nav, pad, viewModel, state)

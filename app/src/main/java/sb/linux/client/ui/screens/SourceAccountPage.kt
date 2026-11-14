@@ -39,10 +39,12 @@ internal fun SourceAccountPage(
     onExit: (() -> Unit)? = null,
     onLoaded: ((android.webkit.WebView, String) -> Unit)? = null,
     settingsStyle: Boolean = false,
+    initialContentSelector: String? = null,
 ) {
     AccountPageGate(session.account.loginState.loggedIn && session.account.loginState.userId > 0,
         title, message, nav, settingsStyle) {
         if (onExit != null) DisposableEffect(session) { onDispose { onExit() } }
-        WebScreen(session, nav, sourceUrl = path, title = title, onLoaded = onLoaded, settingsStyle = settingsStyle)
+        WebScreen(session, nav, sourceUrl = path, title = title, onLoaded = onLoaded, settingsStyle = settingsStyle,
+            initialContentSelector = initialContentSelector)
     }
 }

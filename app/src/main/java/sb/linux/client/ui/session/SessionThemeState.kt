@@ -19,7 +19,7 @@ internal class SessionThemeState {
     var themeSecondary by mutableStateOf<Color?>(null)
     var themeTertiary by mutableStateOf<Color?>(null)
     var themeBackground by mutableStateOf<Color?>(null)
-    var keepBackgroundColor by mutableStateOf(false)
+    var keepBackgroundColor by mutableStateOf(true)
     var backgroundImage by mutableStateOf("")
     var backgroundImageEnabled by mutableStateOf(false)
     var backgroundImageOpacity by mutableStateOf(0.25f)

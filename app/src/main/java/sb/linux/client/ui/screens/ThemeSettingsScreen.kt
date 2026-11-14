@@ -4,9 +4,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -19,6 +21,11 @@ import sb.linux.client.ui.theme.colorToKey
 import sb.linux.client.ui.theme.isCustomColorKey
 import sb.linux.client.ui.patterns.settings.SettingsScaffold
 import sb.linux.client.ui.patterns.settings.SettingsHeader
+import sb.linux.client.ui.patterns.settings.SettingsSearchHost
+import sb.linux.client.ui.patterns.settings.LocalSettingsSearchTarget
+import sb.linux.client.ui.patterns.settings.settingsSearchAnchor
+import sb.linux.client.ui.patterns.settings.SettingsChoiceRow
+import sb.linux.client.ui.session.ThemeModePref
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -156,23 +163,38 @@ internal fun ThemeSettingsDetailScreen(session: Session, nav: NavHostController,
     val title = when (section) {
         "background" -> "壁纸"
         "fonts" -> "字体"
-        "layout" -> "导航与布局"
+        "layout" -> "导航设置"
         else -> "主题设置"
+    }
+    val listState = rememberLazyListState()
+    var titleHeight by remember(title) { mutableIntStateOf(Int.MAX_VALUE) }
+    val collapsed by remember(listState, titleHeight) { derivedStateOf {
+        listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset >= titleHeight
+    } }
+    SettingsSearchHost(nav) {
+    val searchTarget = LocalSettingsSearchTarget.current
+    LaunchedEffect(searchTarget?.title) {
+        if (searchTarget != null) {
+            val itemIndex = nav.currentBackStackEntry!!.savedStateHandle.get<Int>("settings_search_item") ?: 0
+            listState.scrollToItem(itemIndex)
+        }
     }
     SettingsScaffold {
         val spacing = LocalAppSpacing.current
         Column(Modifier.fillMaxSize()) {
-        sb.linux.client.ui.patterns.settings.SettingsTopBar(title, onBack = { nav.popBackStack() })
+        sb.linux.client.ui.patterns.settings.SettingsTopBar(title, onBack = { nav.popBackStack() }, showTitle = collapsed)
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(bottom = spacing.largeSection),
             verticalArrangement = Arrangement.spacedBy(spacing.contentGap)
         ) {
-            item { SettingsHeader(title, compact = true) }
+            item { SettingsHeader(title, compact = true, modifier = Modifier.onSizeChanged { titleHeight = it.height }) }
             if (section == "colors") {
                 item {
                     GroupCard("显示模式") {
-                        DayNightToggle(session.themeMode) { session.preferences.saveTheme(it, session.dynamicColor) }
+                        SettingsChoiceRow("深浅模式", listOf(ThemeModePref.SYSTEM to "跟随系统", ThemeModePref.LIGHT to "浅色", ThemeModePref.DARK to "深色"),
+                            session.themeMode, { session.preferences.saveTheme(it, session.dynamicColor) }, subtitle = "选择应用整体明暗外观")
                     }
                 }
                 themeBackgroundPalette(
@@ -216,4 +238,5 @@ internal fun ThemeSettingsDetailScreen(session: Session, nav: NavHostController,
         }
         }
     }
+}
 }

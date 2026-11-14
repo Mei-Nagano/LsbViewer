@@ -100,7 +100,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
         title = profile?.username ?: "用户",
         onBack = { nav.popBackStack() },
         actions = {
-            AppRefreshButton(onClick = ::refreshProfile, enabled = !loading)
+            AppRefreshButton(onClick = ::refreshProfile, loading = loading)
             if (session.account.loginState.loggedIn && !isSelf && !profile?.blockUrl.isNullOrBlank()) {
                 TextButton(onClick = {
                     nav.navigate("userBlock?url=" + android.net.Uri.encode(profile!!.blockUrl))
@@ -146,19 +146,25 @@ fun UserScreen(session: Session, nav: NavHostController) {
                         error?.let { message -> item { Text(message,
                             Modifier.padding(horizontal = spacing.pageHorizontal), color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall) } }
+                        if (tab == "points_rewards" && loading) item {
+                            Text("正在更新积分明细 · 已读取 ${state.content?.loadedPages ?: 0}/${state.content?.totalPages?.takeIf { it > 0 } ?: "…"} 页",
+                                Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.inline),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         when (tab) {
                             "replies" -> userReplyRows(replies) { topicId -> nav.navigate("topic/$topicId") }
-                            "points_rewards" -> pointsHistoryRows(pointRows, profile?.points.orEmpty())
+                            "points_rewards" -> pointsHistoryRows(pointRows, profile?.points.orEmpty(), visualize = isSelf)
                             "notifications" -> userNotificationRows(notifications, nav)
                             else -> if (topicCards.isEmpty()) {
                                 item { EmptyBox("暂无主题", modifier = Modifier.fillParentMaxHeight(0.5f)) }
                             } else itemsIndexed(topicCards, key = { i, t -> "${t.topicId}-${t.pinned}-$i" }) { _, t ->
-                                TopicCardView(t, onClick = { nav.navigate("topic/${t.topicId}") },
+                                TopicCardView(t, onClick = { nav.navigate("topic/${t.topicId}?p=1") },
                                     onForumClick = { fid -> if (fid > 0) nav.navigate("forum/$fid") })
                             }
                         }
                     }
                 }
+                if (loading && state.content != null) LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
                 // 返回顶部悬浮按钮：滚过前几条后出现
                 val showBackTop by remember {
                     derivedStateOf { userListState.firstVisibleItemIndex > 2 }

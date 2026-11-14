@@ -19,13 +19,16 @@ internal class SessionPreferenceState {
     var topicsPerPage by mutableIntStateOf(15)
     var commentSortOrder by mutableIntStateOf(0)
     var tableDisplayMode by mutableIntStateOf(1)
+    var hideTopicTags by mutableStateOf(false)
+    var topicCardAvatarMetadataRow by mutableStateOf(false)
     var showUid by mutableStateOf(true)
     var smartDecodeEnabled by mutableStateOf(false)
     var tabletMode by mutableStateOf(true)
+    var hideStatusBar by mutableStateOf(false)
     /** 显式选择「始终单内容栏」；键缺失跟随窗口。 */
     var singleContentColumn by mutableStateOf(false)
     var bottomBarStyle by mutableIntStateOf(0)
     var bottomBarItems by mutableStateOf(listOf("home", "topicCollections", "messages", "me"))
     var replyBarStyle by mutableIntStateOf(1)
-    var linkPreviewEnabled by mutableStateOf(true)
+    var linkPreviewEnabled by mutableStateOf(false)
 }

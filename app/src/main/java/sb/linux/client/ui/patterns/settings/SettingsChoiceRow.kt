@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -14,7 +13,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.components.layout.AppMenuRow
@@ -30,17 +28,16 @@ internal fun <T> SettingsChoiceRow(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String = "",
-    icon: ImageVector? = Icons.Filled.Tune,
+    icon: ImageVector? = settingsRowIcon(title),
     enabled: Boolean = true,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val label = options.firstOrNull { it.first == selectedValue }?.second ?: "未选择"
-    AppMenuRow(
+    SettingsListRow(
         title = title,
         subtitle = subtitle,
         icon = icon,
         modifier = modifier,
-        prominent = true,
         enabled = enabled,
         onClick = { expanded = true },
         trailing = {
@@ -86,7 +83,7 @@ internal fun <T> SettingsChoiceMenu(
             val active = value == selectedValue
             val foreground = if (active) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
             DropdownMenuItem(
-                text = { Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = foreground) },
+                text = { Text(label, style = MaterialTheme.typography.bodyLarge, color = foreground) },
                 onClick = { onSelect(value) },
                 leadingIcon = {
                     if (active) Icon(Icons.Filled.Check, null, Modifier.size(sizes.icon), tint = foreground)

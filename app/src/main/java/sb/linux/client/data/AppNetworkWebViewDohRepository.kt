@@ -6,6 +6,7 @@ import sb.linux.client.domain.network.WebViewDohTunnel
 
 /** Supplies WebView with the same active proxy / DoH policy used by app networking. */
 internal class AppNetworkWebViewDohRepository : WebViewDohNetworkRepository {
+    override suspend fun awaitReady() = AppNetwork.awaitProxyDetection()
     override fun currentPolicy(): WebViewDohPolicy {
         val proxy = AppNetwork.proxyConfig()
         val context = AppNetwork.appContext()

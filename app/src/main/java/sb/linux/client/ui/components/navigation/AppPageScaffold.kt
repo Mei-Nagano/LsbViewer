@@ -45,6 +45,7 @@ fun AppPageScaffold(
     primaryPage: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
+    ApplyDialogStatusBarPreference()
     Scaffold(
         modifier = modifier,
         topBar = {

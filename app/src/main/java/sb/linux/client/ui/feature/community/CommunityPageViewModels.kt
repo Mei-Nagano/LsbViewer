@@ -25,8 +25,8 @@ class IdentityCenterViewModel(private val repository: IdentityRepository) : View
     val uiState = mutableState.asStateFlow()
 
     fun load() {
+        mutableState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            mutableState.update { it.copy(loading = true, error = null) }
             try {
                 mutableState.update { it.copy(data = repository.loadIdentity(), loading = false) }
             } catch (error: Exception) {
@@ -53,8 +53,8 @@ class InviteCenterViewModel(private val repository: InviteRepository) : ViewMode
     val uiState = mutableState.asStateFlow()
 
     fun load() {
+        mutableState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            mutableState.update { it.copy(loading = true, error = null) }
             try {
                 mutableState.update { it.copy(data = repository.loadInvitations(), loading = false) }
             } catch (error: Exception) {

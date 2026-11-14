@@ -54,18 +54,23 @@ class AppSettings(context: Context) {
     var commentSortOrder by browse::commentSortOrder
     var commentsPerPage by browse::commentsPerPage
     var tableDisplayMode by browse::tableDisplayMode
+    var hideTopicTags by browse::hideTopicTags
+    var topicCardAvatarMetadataRow by browse::topicCardAvatarMetadataRow
     var showUid by browse::showUid
     var smartDecodeEnabled by browse::smartDecodeEnabled
     var autoClearItems by browse::autoClearItems
     var homeSortDrawerOpen by browse::homeSortDrawerOpen
     var scrollModeOverrides by browse::scrollModeOverrides
     var linkOpenMode by general::linkOpenMode
+    var sourceDomain by general::sourceDomain
     var linkPreviewEnabled by general::linkPreviewEnabled
     var hideExternalJumpReminder by general::hideExternalJumpReminder
     var proxyType by general::proxyType
     var proxyHost by general::proxyHost
     var proxyPort by general::proxyPort
-    fun saveProxy(type: Int, host: String, port: Int) = general.saveProxy(type, host, port)
+    val proxyAutoDetected: Boolean get() = general.proxyAutoDetected
+    fun saveProxy(type: Int, host: String, port: Int, automaticallyDetected: Boolean = false) =
+        general.saveProxy(type, host, port, automaticallyDetected)
     var dohEnabled by general::dohEnabled
     var dohUrl by general::dohUrl
     fun dohServers() : List<DohServer> = general.dohServers()
@@ -82,6 +87,8 @@ class AppSettings(context: Context) {
     var updateCheckMode by general::updateCheckMode
     var updateCheckIntervalHours by general::updateCheckIntervalHours
     var lastUpdateCheck by general::lastUpdateCheck
+    var hideStatusBar by general::hideStatusBar
+    var skippedUpdateVersion by general::skippedUpdateVersion
     var tabletMode by general::tabletMode
     /** 显式选择「始终单内容栏」；键缺失跟随窗口。 */
     val singleContentColumn get() = general.singleContentColumn

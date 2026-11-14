@@ -11,6 +11,7 @@ import sb.linux.client.ui.components.feedback.AppConfirmDialog
 import sb.linux.client.ui.feature.profile.PersonalSignatureViewModel
 import sb.linux.client.ui.feature.profile.PersonalSignatureViewModelFactory
 import sb.linux.client.ui.patterns.settings.SettingsCard
+import sb.linux.client.ui.patterns.settings.SettingsActionRow
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.LocalAppSpacing
 
@@ -34,32 +35,25 @@ internal fun PersonalSignatureScreen(session: Session, nav: NavHostController) {
         SettingsPage("个人签名", nav, onBack = { back() }) {
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.page?.let { page ->
-                SettingsCard {
-                    Column(Modifier.padding(spacing.pageHorizontal),
-                        verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
-                        if (page.description.isNotBlank()) Text(page.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        SettingsTextField(
-                            value = state.signature, onValueChange = viewModel::editSignature,
-                            label = { Text("签名内容") },
-                            supportingText = { Text(page.signatureHint.removePrefix("签名内容").trim()) },
-                            enabled = !state.loading && !state.saving,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large,
-                        )
-                    }
-                }
-                SettingsCard {
+                GroupCard {
+                    if (page.description.isNotBlank()) Text(page.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SettingsTextField(
+                        value = state.signature, onValueChange = viewModel::editSignature,
+                        label = { Text("签名内容") }, searchLabel = "签名内容",
+                        description = page.signatureHint.removePrefix("签名内容").trim(),
+                        supportingText = { Text(page.signatureHint.removePrefix("签名内容").trim()) },
+                        enabled = !state.loading && !state.saving,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                    )
                     SwitchRow("隐藏全站帖子签名",
                         page.hiddenHint.removePrefix("隐藏全站帖子签名").trim(), state.hidden,
                         enabled = !state.loading && !state.saving,
                         onCheckedChange = viewModel::editHidden)
-                }
-                Button(onClick = viewModel::save,
-                    enabled = state.changed && !state.loading && !state.saving,
-                    modifier = Modifier.fillMaxWidth()) {
-                    Text(if (state.saving) "正在保存…" else "保存设置")
+                    SettingsActionRow("保存签名设置", viewModel::save, enabled = state.changed && !state.loading && !state.saving,
+                        subtitle = if (state.saving) "正在保存…" else "同步签名及显示偏好到源站")
                 }
             }
             state.error?.let { error ->

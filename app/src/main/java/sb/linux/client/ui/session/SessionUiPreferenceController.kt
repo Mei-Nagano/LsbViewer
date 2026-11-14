@@ -3,6 +3,11 @@ package sb.linux.client.ui.session
 internal class SessionUiPreferenceController(
     private val session: Session,
 ) {
+    fun saveHideStatusBar(value: Boolean) {
+        session.generalSettingsRepository.setHideStatusBar(value)
+        session.hideStatusBar = value
+    }
+
     fun saveTabletMode(value: Boolean) {
         session.generalSettingsRepository.setTabletMode(value)
         val current = session.generalSettingsRepository.current()

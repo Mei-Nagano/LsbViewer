@@ -1,21 +1,26 @@
 name: Build Release APK
 
 # 触发：推送 v* 标签时构建并发布 Release；也可在 Actions 页面手动触发（手动触发同样发布 Release）。
-# 版本号自动化：构建版本取自标签（或手动触发时 build.gradle.kts 的默认值），发布成功后
-# 工作流把下一开发版本（patch+1）写回 main 的 build.gradle.kts——发版全程无需手动改版本号
+# 版本号在 app/build.gradle.kts 中手动维护，发布标签必须与该版本一致。
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release 标签名（留空则发布 build.gradle.kts 中的当前版本，如 v1.0.7）'
+        description: 'Release 标签名（须匹配手动版本；留空使用当前版本，如 v1.1.0）'
         required: false
         default: ''
 
-# 创建 Release 需要仓库写入权限
+# Release 附件和 Actions artifact 分别使用独立权限与接口。
 permissions:
   contents: write
+  actions: write
+
+# 串行构建，防止旧产物清理误删另一次正在上传的安装包。
+concurrency:
+  group: release-apk
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -25,6 +30,54 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+
+      - name: 读取手动版本号
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          VERSION=$(grep -oP '^\s*versionName\s*=\s*"\K[^" ]+' app/build.gradle.kts | head -1)
+          VCODE=$(grep -oP '^\s*versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | head -1)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$VCODE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::请在 app/build.gradle.kts 中填写有效的 versionName 和 versionCode"
+            exit 1
+          fi
+          if [ "$REF_TYPE" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="${INPUT_TAG:-v$VERSION}"
+          fi
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::发布标签 $TAG 与手动版本 $VERSION 不一致，请使用 v$VERSION"
+            exit 1
+          fi
+          echo "构建版本：$VERSION (versionCode=$VCODE)"
+          echo "REL_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "REL_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: 读取本版本更新日志
+        run: |
+          python3 .github/scripts/extract-release-notes.py "$REL_VERSION" "$RUNNER_TEMP/release-notes.md"
+
+      - name: 清理旧 Actions 安装包
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner, repo, name: 'LinuxSB-apk', per_page: 100,
+            });
+            for (const artifact of artifacts) {
+              if (artifact.name !== 'LinuxSB-apk' || !artifact.workflow_run ||
+                  artifact.workflow_run.id === context.runId) continue;
+              try {
+                await github.rest.actions.deleteArtifact({ owner, repo, artifact_id: artifact.id });
+                core.info(`已删除旧 Actions 安装包：${artifact.id}`);
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+            // 仅删除 Actions artifact；不调用 Release 或 release assets 删除接口。
 
       - name: 配置 JDK 17
         uses: actions/setup-java@v4
@@ -55,31 +108,10 @@ jobs:
           LSB_KEY_ALIAS: ${{ secrets.LSB_KEY_ALIAS }}
           LSB_KEY_PASSWORD: ${{ secrets.LSB_KEY_PASSWORD }}
         run: |
-          # 版本号来源：标签触发取标签名（v1.0.7 → 1.0.7）；手动触发取输入 tag
-          # （留空则读 build.gradle.kts 的默认 versionName，即"下一待发布版本"）。
-          # versionCode 按 major*10000+minor*100+patch 编码，随版本名单调递增
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            INPUT="${{ github.event.inputs.tag }}"
-            if [ -n "$INPUT" ]; then VERSION="${INPUT#v}"; else
-              VERSION=$(grep -oP 'versionName\s*=.*\?:\s*"\K[0-9.]+' app/build.gradle.kts | head -1)
-            fi
-          fi
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::版本号格式异常：'$VERSION'（应为 X.Y.Z）"
-            exit 1
-          fi
-          IFS='.' read -r MA MI PA <<< "$VERSION"
-          VCODE=$((MA*10000 + MI*100 + PA))
-          echo "构建版本：$VERSION (versionCode=$VCODE)"
-          echo "REL_VERSION=$VERSION" >> "$GITHUB_ENV"
           # 兜底：Windows 提交可能丢失 gradlew 执行位（exit 126）
           chmod +x gradlew
           ./gradlew assembleRelease \
             -PLSB_STORE_FILE="$RUNNER_TEMP/lsb-release.jks" \
-            -PappVersionName="$VERSION" \
-            -PappVersionCode="$VCODE" \
             --no-daemon --stacktrace
 
       - name: 上传构建产物
@@ -88,57 +120,27 @@ jobs:
           name: LinuxSB-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          overwrite: true
 
       # 创建 GitHub Release 并附带三个 ABI 的 APK：
       # - 标签触发：直接用推送的标签名
-      # - 手动触发：用输入的 tag（留空则用构建版本拼成 vX.Y.Z），并在当前 commit 上补建标签
+      # - 手动触发：用已校验的 tag，并在当前 commit 上补建标签
       - name: 发布 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            TAG="$GITHUB_REF_NAME"
-            EXTRA_ARGS=""
-          else
-            TAG="${{ github.event.inputs.tag }}"
-            if [ -z "$TAG" ]; then TAG="v$REL_VERSION"; fi
-            EXTRA_ARGS="--target $GITHUB_SHA"
+          EXTRA_ARGS=()
+          if [ "$REF_TYPE" != "tag" ]; then
+            EXTRA_ARGS=(--target "$GITHUB_SHA")
           fi
-          echo "发布 Release：$TAG"
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            echo "::error::Release $TAG 已存在，如需重发请先删除或换一个标签"
+          echo "发布 Release：$REL_TAG"
+          if gh release view "$REL_TAG" > /dev/null 2>&1; then
+            echo "::error::Release $REL_TAG 已存在，请手动更新版本号后使用新的匹配标签"
             exit 1
           fi
-          gh release create "$TAG" \
+          gh release create "$REL_TAG" \
             app/build/outputs/apk/release/*.apk \
-            --title "LinuxSB $TAG" \
-            --generate-notes \
-            $EXTRA_ARGS
-
-      # 发布成功后把下一开发版本（patch+1）写回 build.gradle.kts，
-      # 此后发版无需手动改版本号：手动触发（tag 留空）即可发布文件里的当前版本
-      - name: 写回下一开发版本号
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          IFS='.' read -r MA MI PA <<< "$REL_VERSION"
-          NEXT="$MA.$MI.$((PA+1))"
-          IFS='.' read -r A B C <<< "$NEXT"
-          NEXT_CODE=$((A*10000 + B*100 + C))
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout -q -B ver-sync origin/main
-          sed -E -i "s/^([[:space:]]*versionCode = .*\?: )[0-9]+$/\1$NEXT_CODE/" app/build.gradle.kts
-          sed -E -i "s/^([[:space:]]*versionName = .*\?: )\"[^\"]*\"$/\1\"$NEXT\"/" app/build.gradle.kts
-          if git diff --quiet; then
-            echo "版本号已是 $NEXT，无需写回"
-          else
-            git add app/build.gradle.kts
-            git commit -m "chore: 发布 v$REL_VERSION，下一开发版本 $NEXT"
-            if git push origin ver-sync:main; then
-              echo "已写回 main：$NEXT / $NEXT_CODE"
-            else
-              echo "::warning::版本号写回失败（main 有新提交或分支保护），请手动把 build.gradle.kts 改为 $NEXT / $NEXT_CODE"
-            fi
-          fi
+            --title "LinuxSB $REL_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            "${EXTRA_ARGS[@]}"
