@@ -10,4 +10,8 @@ data class LoginState(
     val avatarUrl: String = "",
     val userGroup: String = "",
     val titleBadge: TitleBadge? = null, // 当前佩戴称号，与用户组、积分分开保存
+    val following: String = "",
+    val followers: String = "",
+    val wallet: String = "",
+    val groupBadge: UserGroupBadge? = null,
 )

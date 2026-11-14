@@ -10,6 +10,7 @@ import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
@@ -23,6 +24,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.CoroutineScope
 import sb.linux.client.domain.community.HomeSidebar
+import sb.linux.client.domain.community.FollowingView
 import sb.linux.client.ui.session.HomeTabState
 import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.topic.TopicCard
@@ -67,13 +69,11 @@ internal fun HomeNavigationLayout(
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
     searchFocus: FocusRequester,
-    sortDrawerOpen: Boolean,
-    onSortDrawerOpenChange: (Boolean) -> Unit,
-    tabIndex: Int,
-    combo: Int,
     loadPage: (Int, Boolean, Boolean) -> Unit,
     localPage: (Int) -> Unit,
 ) {
+    // 抽屉关闭时内容退出组合，展开状态留在持续组合的首页布局中。
+    var forumsExpanded by rememberSaveable { mutableStateOf(true) }
     ModalNavigationDrawer(
         // 平板双栏：抽屉挂在主栏（左栏）内，而 ModalNavigationDrawer 的 Box 不裁剪内容——
         // 关闭态抽屉 offset=-width，整个矩形滑到主栏左边界外，正好盖在左侧导航栏（首页/我的按钮）
@@ -94,6 +94,8 @@ internal fun HomeNavigationLayout(
             HomeSidebarDrawer(
                 session = session,
                 sidebar = sidebar,
+                forumsExpanded = forumsExpanded,
+                onToggleForums = { forumsExpanded = !forumsExpanded },
                 onClose = { onCloseDrawer {} },
                 onRefresh = { onCloseDrawer { onRefresh() } },
                 onOpenForum = { fid -> onCloseDrawer { if (fid > 0) nav.navigate("forum/$fid") } },
@@ -125,31 +127,48 @@ internal fun HomeNavigationLayout(
         // Keep the first topic below the header without resizing the viewport on scroll.
         var topBarHeightPx by remember { mutableIntStateOf(0) }
         val topInset = with(LocalDensity.current) { topBarHeightPx.toDp() }
+        val following = session.homeBrowse.homeCombo == 0 && session.homeBrowse.homeTabIndex == 4
         Box(Modifier.fillMaxSize().statusBarsPadding().clipToBounds()) {
-            HomeBody(
-                topInset = topInset,
-                session = session,
-                nav = nav,
-                viewsForTopic = viewsForTopic,
-                current = current,
-                homeInfinite = homeInfinite,
-                loading = loading,
-                error = error,
-                visibleTopics = visibleTopics,
-                pagedTopics = pagedTopics,
-                localTotalPages = localTotalPages,
-                pendingNewTopics = pendingNewTopics,
-                onAcceptPendingTopics = onAcceptPendingTopics,
-                loadingMore = loadingMore,
-                categoryMotion = categoryMotion,
-                listState = listState,
-                onLoadPage = { page, append, foldNew -> loadPage(page, append, foldNew) },
-                onLocalPage = { localPage(it) },
-                onRefresh = { onRefresh() },
-                onOpenDrawer = { onOpenDrawer() },
-                onSelectCombo = { target, direction -> onSelectCombo(target, direction) },
-                scope = scope,
-            )
+            Column(Modifier.fillMaxSize().then(if (following) Modifier.padding(top = topInset) else Modifier)) {
+                if (following) HomeFollowingFilters(session.homeBrowse.followingView) {
+                    session.homeBrowse.followingView = it
+                }
+                Box(Modifier.weight(1f)) {
+                    if (following && session.homeBrowse.followingView != FollowingView.TOPICS) {
+                        HomeFollowingUsersContent(
+                            current, session.homeBrowse.followingView, loading, loadingMore, error,
+                            homeInfinite, listState,
+                            onLoad = { page, append -> loadPage(page, append, false) },
+                            onRefresh = onRefresh, onOpenUser = { nav.navigate("user/$it") },
+                        )
+                    } else {
+                        HomeBody(
+                            topInset = if (following) 0.dp else topInset,
+                            session = session,
+                            nav = nav,
+                            viewsForTopic = viewsForTopic,
+                            current = current,
+                            homeInfinite = homeInfinite,
+                            loading = loading,
+                            error = error,
+                            visibleTopics = visibleTopics,
+                            pagedTopics = pagedTopics,
+                            localTotalPages = localTotalPages,
+                            pendingNewTopics = pendingNewTopics,
+                            onAcceptPendingTopics = onAcceptPendingTopics,
+                            loadingMore = loadingMore,
+                            categoryMotion = categoryMotion,
+                            listState = listState,
+                            onLoadPage = { page, append, foldNew -> loadPage(page, append, foldNew) },
+                            onLocalPage = { localPage(it) },
+                            onRefresh = { onRefresh() },
+                            onOpenDrawer = { onOpenDrawer() },
+                            onSelectCombo = { target, direction -> onSelectCombo(target, direction) },
+                            scope = scope,
+                        )
+                    }
+                }
+            }
             AnimatedVisibility(
                 visible = topBarVisible, modifier = Modifier.align(Alignment.TopCenter),
                 enter = fadeIn() + slideInVertically { -it },
@@ -181,13 +200,6 @@ internal fun HomeNavigationLayout(
                         onOpenDrawer = { onOpenDrawer() },
                         onRefresh = { onRefresh() },
                         onSubmitSearch = { onSubmitSearch() },
-                    )
-                    HomeSortControls(
-                        session = session,
-                        combo = combo,
-                        tabIndex = tabIndex,
-                        sortDrawerOpen = sortDrawerOpen,
-                        onSortDrawerOpenChange = onSortDrawerOpenChange,
                         onSelectCombo = { target, direction -> onSelectCombo(target, direction) },
                     )
                 }

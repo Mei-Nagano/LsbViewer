@@ -13,17 +13,19 @@ import sb.linux.client.ui.session.Session
 fun SourceEditorScreen(
     session: Session, nav: NavHostController, editId: Long = 0L,
     replyTopicId: Long = 0L, quote: String = "", onClose: (() -> Unit)? = null,
+    sourceUrl: String? = null,
 ) {
     var confirmExit by remember { mutableStateOf(false) }
     var quoteApplied by remember { mutableStateOf(false) }
     val close = { if (onClose != null) onClose() else { nav.popBackStack(); Unit } }
     BackHandler { confirmExit = true }
-    val path = when {
+    val path = sourceUrl ?: when {
         replyTopicId > 0 -> "/topic/$replyTopicId#reply"
         editId > 0 -> "/topic_edit/$editId"
         else -> "/topic_edit"
     }
     WebScreen(session, nav, sourceUrl = path,
+        routeInternalLinks = false,
         title = when { replyTopicId > 0 -> "回复帖子"; editId > 0 -> "编辑帖子"; else -> "发表主题" },
         onBack = { confirmExit = true },
         onLoaded = { view, url ->

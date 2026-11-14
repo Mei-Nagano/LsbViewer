@@ -80,13 +80,12 @@ internal fun TopicFloorJumpEffect(
             onPendingPostChange(null)
             return@LaunchedEffect
         }
-        val replyStart = 1 + (if (mainPost != null) 1 else 0) +
-            (if (danmakuEnabled && danmaku.isNotEmpty()) 1 else 0) +
+        val replyStart = topicLeadingItemCount(page, mainPost != null, danmakuEnabled && danmaku.isNotEmpty()) +
             (if (replies.isNotEmpty() || (page?.loginVisibleReplies ?: -1) >= 0) 1 else 0)
         withFrameNanos { }
         onHighlight(target.id)
         listState.animateScrollToItem(
-            if (isMain) 1 else replyStart + replyIndex,
+            if (isMain) topicMainItemIndex(page) else replyStart + replyIndex,
             pendingRestoreOffset ?: 0,
         )
         onRestoreOffsetConsumed()

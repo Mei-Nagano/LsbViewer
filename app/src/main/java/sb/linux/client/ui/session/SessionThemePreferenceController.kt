@@ -55,7 +55,7 @@ internal class SessionThemePreferenceController(
     }
 
     fun saveFontWeightLevel(value: Int) {
-        session.fontWeightLevel = value.coerceIn(0, 2)
+        session.fontWeightLevel = value.coerceIn(-3, 2)
         prefs.edit().putInt("font_weight_level", session.fontWeightLevel).apply()
     }
 

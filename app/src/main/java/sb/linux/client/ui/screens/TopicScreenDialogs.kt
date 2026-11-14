@@ -18,22 +18,13 @@ internal fun TopicScreenDialogs(
     actions: TopicScreenActions,
     exportColors: androidx.compose.material3.ColorScheme,
 ) {
-    if (ui.showReply) Dialog(
-        onDismissRequest = { },
-        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false),
-    ) {
-        SourceEditorScreen(session, nav, replyTopicId = topicId, quote = ui.quoteText, onClose = {
-            ui.showReply = false
-            actions.load(paging.page.value?.page ?: 1, append = true, force = true)
-        })
-    }
     TopicPrimaryDialogs(
         session = session,
         topicId = topicId,
         page = paging.page.value,
         replyViewModel = actions.replyViewModel,
         captchaOverride = ui.captchaOverride,
-        replyOpen = false,
+        replyOpen = ui.showReply,
         replyText = ui.quoteText,
         onReplyDismiss = { ui.showReply = false },
         onLoadPage = { actions.load(it, append = true, force = true) },

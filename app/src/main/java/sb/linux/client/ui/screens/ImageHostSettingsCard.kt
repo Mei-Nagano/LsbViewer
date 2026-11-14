@@ -13,6 +13,9 @@ import sb.linux.client.ui.feature.media.ImageHostSettingsViewModelFactory
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.AppMenuDefaults
 import sb.linux.client.ui.theme.LocalAppSpacing
+import sb.linux.client.ui.patterns.settings.SettingsChoiceRow
+import sb.linux.client.ui.components.input.AppSwitchRow
+import sb.linux.client.domain.media.ImageUploadMethod
 
 @Composable
 internal fun ImageHostSettingsCard(session: Session, resetTick: Int) {
@@ -28,54 +31,40 @@ internal fun ImageHostSettingsCard(session: Session, resetTick: Int) {
             viewModel.consumeFeedback()
         }
     }
-    val useBuiltIn = state.settings.useBuiltIn
+    val method = state.settings.uploadMethod
+    val useBuiltIn = method == ImageUploadMethod.BUILT_IN
 
     GroupCard {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
         ) {
-            Text("内置图床", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text("图片上传", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             Text(
-                if (useBuiltIn)
+                if (method == ImageUploadMethod.ATTACHMENT_SPACE)
+                    "图片上传至当前账号的源站附件空间，保留原图，可在附件管理中查看；大小和可用空间以源站限制为准。"
+                else if (useBuiltIn)
                     "内置 Pixhost 和 Catbox，免登录、无需 API Key。上传内容将公开托管于所选第三方服务，请勿上传隐私或敏感内容。"
                 else
                     "使用 multipart/form-data 上传到自定义接口，兼容返回 url、data.url、link 或 src 的常见 API。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = useBuiltIn,
-                    onClick = { viewModel.setBuiltInEnabled(true) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    modifier = Modifier.weight(1f),
-                ) { Text("内置匿名图床", maxLines = 1) }
-                SegmentedButton(
-                    selected = !useBuiltIn,
-                    onClick = { viewModel.setBuiltInEnabled(false) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    modifier = Modifier.weight(1f),
-                ) { Text("自定义接口", maxLines = 1) }
-            }
+            SettingsChoiceRow("默认上传方式", ImageUploadMethod.entries.map { it to it.label },
+                method, viewModel::setUploadMethod)
+            AppSwitchRow("选择图片前询问上传方式", checked = state.settings.askUploadMethod,
+                onCheckedChange = viewModel::setAskUploadMethod)
             if (useBuiltIn) {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    listOf("pixhost" to "Pixhost", "catbox" to "Catbox").forEachIndexed { index, (value, label) ->
-                        SegmentedButton(
-                            selected = state.settings.provider == value,
-                            onClick = { viewModel.setProvider(value) },
-                            shape = SegmentedButtonDefaults.itemShape(index, 2),
-                        ) { Text(label) }
-                    }
-                }
+                SettingsChoiceRow("图床服务", listOf("pixhost" to "Pixhost", "catbox" to "Catbox"),
+                    state.settings.provider, viewModel::setProvider)
                 Text(
                     "Pixhost 单张上限 10 MB，Catbox 上限 20 MB；均支持免登录上传，成功后插入原图链接。",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            if (!useBuiltIn) {
-            OutlinedTextField(
+            if (method == ImageUploadMethod.CUSTOM) {
+            SettingsTextField(
                 value = state.urlDraft,
                 onValueChange = viewModel::setUrl,
                 label = { Text("上传接口地址") },
@@ -84,7 +73,7 @@ internal fun ImageHostSettingsCard(session: Session, resetTick: Int) {
                 enabled = !useBuiltIn,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            SettingsTextField(
                 value = state.tokenDraft,
                 onValueChange = viewModel::setToken,
                 label = { Text("访问令牌（可选）") },
@@ -93,7 +82,7 @@ internal fun ImageHostSettingsCard(session: Session, resetTick: Int) {
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            SettingsTextField(
                 value = state.fileFieldDraft,
                 onValueChange = viewModel::setFileField,
                 label = { Text("文件字段名") },

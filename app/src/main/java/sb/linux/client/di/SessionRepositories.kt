@@ -114,12 +114,16 @@ internal class SessionRepositories(
         LocalBrowsingHistoryRepository(settings)
     }
     internal val imageUploadRepository: ImageUploadRepository by lazy {
-        ImageHostClient(session.getApplication())
+        sb.linux.client.data.SourceAttachmentImageClient(
+            session.getApplication(), sourceEditorRepository, ImageHostClient(session.getApplication()),
+            { session.account.loginState.userId }, { session.accountIdentityVersion },
+        )
     }
     internal val imageHostSettingsRepository: ImageHostSettingsRepository by lazy {
         AppSettingsImageHostSettingsRepository(settings)
     }
     internal val linkPreviewRepository: LinkPreviewRepository by lazy { LinkPreviewClient() }
+    internal val externalJumpRepository by lazy { sb.linux.client.data.ExternalJumpService(client) }
     internal val updateRepository: UpdateRepository by lazy { UpdateChecker() }
     internal val dohSettingsRepository: DohSettingsRepository by lazy { DohSettingsRepositoryImpl(settings) }
     internal val proxyDetectionRepository: ProxyDetectionRepository by lazy { AppProxyDetectionRepository() }
@@ -185,12 +189,12 @@ internal class SessionRepositories(
     internal val favoritesRepository: FavoritesRepository by lazy {
         LocalFavoritesRepository(settings, favoriteSourceService)
     }
-    internal val userPageService by lazy { UserPageService(client) }
+    internal val userPageService by lazy { UserPageService(client) { session.accountIdentityVersion } }
     internal val userPageRepository: UserPageRepository get() = userPageService
     internal val userByNameService by lazy { UserByNameService(client) }
     internal val userLookupRepository: UserLookupRepository get() = userByNameService
     internal val communityPageService by lazy {
-        CommunityPageService(client, session::updateNotifUnread)
+        CommunityPageService(client, session::updateNotifUnread, userPageRepository)
     }
     internal val notificationRepository: NotificationRepository get() = communityPageService
     internal val identityRepository: IdentityRepository get() = communityPageService
@@ -199,11 +203,15 @@ internal class SessionRepositories(
     internal val reportRepository: ReportRepository get() = communityPageService
     internal val profilePageService by lazy { ProfilePageService(client) }
     internal val profileSettingsRepository: ProfileSettingsRepository get() = profilePageService
+    internal val personalSignatureRepository by lazy { sb.linux.client.data.PersonalSignatureService(client) }
+    internal val accountManagementRepository by lazy { sb.linux.client.data.AccountManagementService(client) }
     internal val topicInteractionDataSource by lazy {
         TopicInteractionDataSource(client, settings, session.topicPageCacheRepository::clearTopic)
     }
     internal val topicInteractionRepository: TopicInteractionRepository get() = topicInteractionDataSource
     internal val topicReplyService by lazy { TopicReplyService(client) }
+    internal val sourceEditorRepository by lazy { sb.linux.client.data.SourceEditorService(client) }
+    internal val sourceEditorDraftRepository by lazy { sb.linux.client.data.SourceEditorDraftStore(session.getApplication()) }
     internal val topicReplyRepository: TopicReplyRepository get() = topicReplyService
     internal val topicPageDataSource by lazy {
         TopicPageDataSource(client, session.topicPageCacheRepository)
@@ -213,12 +221,15 @@ internal class SessionRepositories(
     }
     internal val topicPageRepository: TopicPageRepository get() = topicPageDataSource
     internal val topicFloorPageRepository: TopicFloorPageRepository get() = topicFloorPageLoader
+    internal val topicLinkRepository by lazy { sb.linux.client.data.TopicLinkService(client) }
     internal val accountAuthenticationService by lazy {
         AccountAuthenticationService(client, settings, session::refreshSession)
     }
     internal val accountAuthenticationRepository: AccountAuthenticationRepository
         get() = accountAuthenticationService
-    internal val userSummaryRepository by lazy { sb.linux.client.data.UserSummaryService(client) }
+    internal val userSummaryRepository by lazy { sb.linux.client.data.UserSummaryService(client) {
+        session.account.loginState.userId.takeIf { session.account.loginState.loggedIn } ?: 0L
+    } }
     internal val newTopicFormLoader by lazy { NewTopicFormLoader(client) }
     internal val newTopicSubmitter by lazy { NewTopicSubmitter(client) }
     internal val newTopicRepository: NewTopicRepository by lazy {

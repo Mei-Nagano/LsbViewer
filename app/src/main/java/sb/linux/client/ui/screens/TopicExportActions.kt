@@ -9,7 +9,6 @@ import kotlinx.coroutines.withContext
 import sb.linux.client.common.network.Endpoints
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.export.TopicExportFiles
-import sb.linux.client.ui.export.TopicLongImageRenderer
 import java.io.File
 
 /** Selects topic content and runs file rendering and sharing off the main thread. */
@@ -31,8 +30,8 @@ internal class TopicExportActions(
         colorScheme: ColorScheme,
     ) {
         val page = state.page.value ?: return
-        ui.exportBusy = kind
-        val exportTheme = sb.linux.client.ui.export.TopicExportThemeFactory.from(colorScheme)
+        if (kind != "html") return
+        ui.exportBusy = "html"
         val selectedPosts = when (scopeMode) {
             "main" -> page.posts.filter { it.floor == 0 }.take(1)
             "range" -> page.posts.filter { it.floor in fromFloor.coerceAtMost(toFloor)..fromFloor.coerceAtLeast(toFloor) }
@@ -48,17 +47,11 @@ internal class TopicExportActions(
             try {
                 val url = Endpoints.abs("/topic/$topicId")
                 val files: List<File> = withContext(Dispatchers.IO) {
-                    when (kind) {
-                        "html" -> listOf(TopicExportFiles.exportHtml(context, page.title, selectedPosts, url))
-                        "md" -> listOf(TopicExportFiles.exportMarkdown(context, page.title, selectedPosts, url))
-                        else -> TopicLongImageRenderer.renderLongImages(
-                            context, page.title, selectedPosts, url, exportTheme, multiPage,
-                        )
-                    }
+                    listOf(TopicExportFiles.exportHtml(context, page.title, selectedPosts, url))
                 }
                 TopicExportFiles.shareFiles(
                     context, files,
-                    when (kind) { "html" -> "text/html"; "md" -> "text/markdown"; else -> "image/png" },
+                    "text/html",
                 )
             } catch (error: Exception) {
                 session.showToast("导出失败：${error.message}")

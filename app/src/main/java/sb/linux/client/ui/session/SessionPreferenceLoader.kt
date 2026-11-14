@@ -35,7 +35,7 @@ internal class SessionPreferenceLoader(
         session.fontKey = prefs.getString("font_key", "default") ?: "default"
         session.customFontName = prefs.getString("custom_font_name", "") ?: ""
         session.fontScale = prefs.getFloat("font_scale", 1f).coerceIn(0.85f, 1.30f)
-        session.fontWeightLevel = prefs.getInt("font_weight_level", 0).coerceIn(0, 2)
+        session.fontWeightLevel = prefs.getInt("font_weight_level", 0).coerceIn(-3, 2)
         session.updateCardColors(themePreferences.parseCardColors(prefs.getString("card_colors", "")))
         session.applyBrowseSettings(session.browseSettingsRepository.current())
         val general = session.generalSettingsRepository.current()

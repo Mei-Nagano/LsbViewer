@@ -17,12 +17,14 @@ object TopicListParser {
             val userLink = meta?.selectFirst("a[href^=/user/]")
             val forumLink = li.selectFirst("a.post-forum-badge") ?: meta?.selectFirst("a[href^=/forum/]")
             // 无 <a> 且非时间的 span：[回复数, 最后回复人]
-            val plainSpans = meta?.select("span")
+            val plainSpans = meta?.children()?.filter { it.normalName() == "span" }
                 ?.filter { !it.hasAttr("data-performance-time") && it.select("a").isEmpty() }
                 ?.map { it.text().trim() }
                 ?.filter { it.isNotBlank() } ?: emptyList()
             val replies = plainSpans.firstOrNull { it.all { c -> c.isDigit() } }?.toIntOrNull() ?: 0
-            val lastReplier = plainSpans.lastOrNull { !it.all { c -> c.isDigit() } } ?: ""
+            val lastReplyLink = meta?.select("a[href^=/user/]")?.drop(1)?.lastOrNull()
+            val lastReplier = lastReplyLink?.let(SourceHtmlSupport::textWithoutGachaTitle)
+                ?: plainSpans.lastOrNull { !it.all { c -> c.isDigit() } }.orEmpty()
             val timeSpan = meta?.selectFirst("span[data-performance-time]")
             val timeText = timeSpan?.attr("data-performance-time")?.toLongOrNull()
                 ?.let { TimeFormat.relative(it) } ?: (timeSpan?.text() ?: "")
@@ -46,9 +48,11 @@ object TopicListParser {
                 pages = li.select(".topic-pages a").mapNotNull { it.text().toIntOrNull() },
                 lotteryStatus = li.selectFirst(".community-lottery-title-status")?.text()?.trim() ?: "",
                 sourceTags = TopicSourceTagsParser.parse(li),
+                styledTags = TopicSourceTagsParser.styled(li),
                 cardStatus = li.selectFirst(".virtual-card-title-status")?.text()?.trim() ?: "",
                 online = authorId in onlineIds || SourceHtmlSupport.onlineOf(li),
-                titleBadge = SourceHtmlSupport.gachaTitleOf(meta ?: li),
+                titleBadge = meta?.children()?.firstOrNull()?.let(SourceHtmlSupport::gachaTitleOf),
+                lastReplierId = SourceHtmlSupport.idFrom(lastReplyLink?.attr("href")),
             )
         }
         return items to parsePagination(d)

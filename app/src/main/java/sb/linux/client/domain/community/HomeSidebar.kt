@@ -6,7 +6,13 @@ data class HomeSidebar(
     val statsText: String = "",
     val newUsers: List<NewUser> = emptyList(),
     val onlineUsers: OnlineUsers = OnlineUsers(),
+    val announcements: List<SidebarAnnouncement> = emptyList(),
+    val dailyStars: List<DailyStar> = emptyList(),
 )
+
+data class SidebarAnnouncement(val title: String, val url: String)
+data class DailyStar(val heading: String, val userId: Long, val username: String,
+    val avatarUrl: String, val description: String, val online: Boolean = false)
 
 data class OnlineUsers(
     val count: String = "",

@@ -33,9 +33,10 @@ fun NavGraphBuilder.masterRoutes(session: Session, nav: NavHostController, homeD
         "messages?section={section}",
         arguments = listOf(navArgument("section") { type = NavType.StringType; defaultValue = "dm" }),
     ) { entry ->
-        MessagesScreen(session, nav, entry.arguments?.getString("section") ?: "dm", showBack = false)
+        if (entry.arguments?.getString("section") == "notifications") NotificationsScreen(session, nav)
+        else DirectMessagesScreen(session, nav, showBack = false)
     }
-    composable("directMessagesRoot") { MessagesScreen(session, nav, initialSection = "dm", showBack = false) }
+    composable("directMessagesRoot") { DirectMessagesScreen(session, nav, showBack = false) }
     composable(
         "me",
         exitTransition = { fadeOut(tween(NAV_FADE_MS)) },
@@ -85,14 +86,22 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
         ),
     ) { ForumScreen(session, nav) }
     composable(
-        "topic/{tid}?p={p}&floor={floor}",
+        "topic/{tid}?p={p}&floor={floor}&donate={donate}",
         arguments = listOf(
             navArgument("tid") { type = NavType.LongType },
             navArgument("p") { type = NavType.IntType; defaultValue = 1 },
             navArgument("floor") { type = NavType.IntType; defaultValue = 0 },
+            navArgument("donate") { type = NavType.BoolType; defaultValue = false },
         ),
     ) { TopicScreen(session, nav) }
+    composable("pollPage?url={url}", arguments = listOf(navArgument("url") { type = NavType.StringType })) { entry ->
+        SourcePollScreen(session, nav, entry.arguments?.getString("url").orEmpty())
+    }
     composable("newTopic") { SourceEditorScreen(session, nav) }
+    composable("editorPage?url={url}&tid={tid}", arguments = listOf(
+        navArgument("url") { type = NavType.StringType }, navArgument("tid") { type = NavType.LongType; defaultValue = 0L },
+    )) { entry -> SourceEditorScreen(session, nav, editId = entry.arguments?.getLong("tid") ?: 0L,
+        sourceUrl = entry.arguments?.getString("url")) }
     composable(
         "editTopic/{tid}",
         arguments = listOf(navArgument("tid") { type = NavType.LongType }),
@@ -126,6 +135,13 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
         enterTransition = { fadeIn(tween(NAV_FADE_MS)) },
         popExitTransition = { fadeOut(tween(NAV_FADE_MS)) },
     ) { ExportedHtmlScreen(session, nav) }
+    settingsComposable("licenses") { LicensesScreen(nav) }
+    composable("followList?url={url}", arguments = listOf(
+        navArgument("url") { type = NavType.StringType; defaultValue = "/index.php?sort=following&follow_view=following" },
+    )) { entry ->
+        val url = entry.arguments?.getString("url").orEmpty()
+        FollowingListScreen(session, nav, url)
+    }
     settingsComposable("about") { AboutScreen(session, nav) }
     composable(
         "web?url={url}",
@@ -136,7 +152,15 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
     composable("userBlock?url={url}", arguments = listOf(
         navArgument("url") { type = NavType.StringType; defaultValue = "/user_block" },
     )) { entry -> SourceUserBlockScreen(session, nav, entry.arguments?.getString("url") ?: "/user_block") }
-    composable("gachaProfile") { SourceGachaScreen(session, nav) }
+    composable("gachaProfile") { GachaProfileScreen(session, nav) }
+    composable("gachaPage?url={url}", arguments = listOf(navArgument("url") { type = NavType.StringType })) { entry ->
+        GachaProfileScreen(session, nav, entry.arguments?.getString("url"))
+    }
+    composable("identityCenter") { IdentityCenterScreen(session, nav) }
+    composable("accountPage?title={title}&url={url}", arguments = listOf(
+        navArgument("title") { type = NavType.StringType }, navArgument("url") { type = NavType.StringType },
+    )) { entry -> NativeAccountScreen(session, nav, entry.arguments?.getString("title").orEmpty(),
+        entry.arguments?.getString("url").orEmpty(), onChanged = { session.refreshSession() }) }
     composable("gachaCenter") { SourceGachaScreen(session, nav, "center") }
     composable("gachaMarket") { SourceGachaScreen(session, nav, "market") }
     composable(
@@ -151,17 +175,19 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
         arguments = listOf(navArgument("type") { type = NavType.StringType; defaultValue = "points" }),
     ) { LeaderboardScreen(session, nav) }
     composable("notifications") { NotificationsScreen(session, nav) }
+    composable("lotteryPrizes") { LotteryPrizesScreen(session, nav) }
     composable("directMessages") { DirectMessagesScreen(session, nav) }
     composable(
         "topicCollections?tab={tab}",
         arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "everyone" }),
     ) { TopicCollectionsScreen(session, nav, initialMine = it.arguments?.getString("tab") == "mine") }
-    composable("directMessagesRoot") { MessagesScreen(session, nav, initialSection = "dm", showBack = false) }
+    composable("directMessagesRoot") { DirectMessagesScreen(session, nav, showBack = false) }
     composable(
         "messages?section={section}",
         arguments = listOf(navArgument("section") { type = NavType.StringType; defaultValue = "dm" }),
     ) { entry ->
-        MessagesScreen(session, nav, entry.arguments?.getString("section") ?: "dm", showBack = false)
+        if (entry.arguments?.getString("section") == "notifications") NotificationsScreen(session, nav)
+        else DirectMessagesScreen(session, nav, showBack = false)
     }
     composable("topicCollectionsRoot") { TopicCollectionsScreen(session, nav, initialMine = false, showBack = false) }
     composable("collectionActions?path={path}") { CollectionDetailScreen(session, nav) }

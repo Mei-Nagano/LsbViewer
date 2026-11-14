@@ -21,7 +21,7 @@ internal const val FLOOR_PILL_ENABLED = false
 fun TopicScreen(session: Session, nav: NavHostController) {
     val entry = nav.currentBackStackEntry ?: return
     val topicId = entry.arguments?.getLong("tid") ?: return
-    val initialPage = 1
+    val initialPage = entry.arguments?.getInt("p") ?: 1
     val initialFloor = entry.arguments?.getInt("floor") ?: 0
     val context = LocalContext.current
     val source = remember(session) { session.topicPageRepository }
@@ -53,13 +53,11 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         factory = aiFactory,
         key = "topic-ai-$topicId",
     )
-    val pinnedSnapshot = remember(topicId) {
-        session.floatingTopicSnapshot?.takeIf {
-            session.floatingTopicId == topicId && it.topic.topicId == topicId
-        }
-    }
     val aiSettings = aiViewModel.topicSettings()
     val ui = remember(topicId) { TopicScreenUiState(session, interactions.favoriteCommentIds()) }
+    androidx.compose.runtime.LaunchedEffect(entry) {
+        if (entry.arguments?.getBoolean("donate") == true) ui.showDonate = true
+    }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val pageCoordinatorFactory = remember(
@@ -102,7 +100,6 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         topicId = topicId,
         initialPage = initialPage,
         initialFloor = initialFloor,
-        pinnedSnapshot = pinnedSnapshot,
         paging = paging,
         ui = ui,
         actions = actions,

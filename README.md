@@ -55,12 +55,6 @@ Windows 使用 `gradlew.bat assembleDebug`。安装包输出至 `app/build/outpu
 
 工程在单一 Android 模块内按业务域组织。`domain/` 放置纯 Kotlin 业务模型与 repository 契约，`data/` 实现论坛传输、源站 HTML 解析、持久化和各业务数据服务，`common/` 提供跨层共用的网络地址、文本转换和规则；`di/` 负责 repository 与本地存储适配器装配，`platform/` 放置验证码、Cookie 与 WebView 等平台桥接。`ui/feature/` 按业务域放置 ViewModel，`ui/screens/` 组合 Route、页面状态与 Compose 界面，页面请求和业务状态由对应 ViewModel 管理；`ui/navigation/` 负责导航接线，`ui/session/` 管理应用级 UI 状态和 Session 生命周期协调。论坛交互依赖网页和表单协议，不提供 REST API，因此源站请求与 HTML 结构集中在数据边界维护。
 
-重构约束、兼容性要求及最终设备验收清单见 [`docs/REFACTOR_DEVELOPMENT_GUIDE.md`](docs/REFACTOR_DEVELOPMENT_GUIDE.md)。
-
-UI 分层、公共组件、共享模型与工具、统一视觉及新增页面约束见 [`docs/UI_DEVELOPMENT_GUIDE.md`](docs/UI_DEVELOPMENT_GUIDE.md)。
-
-新一轮完整视觉改版见 [`docs/MD3_UI_REDESIGN.md`](docs/MD3_UI_REDESIGN.md)，包含 MD3 设计系统、页面规格、偏好迁移与实施验收计划；当前实现进度与剩余验收项见 [`docs/md3-redesign/IMPLEMENTATION_STATUS.md`](docs/md3-redesign/IMPLEMENTATION_STATUS.md) 与 [`docs/md3-redesign/ACCEPTANCE_REPORT.md`](docs/md3-redesign/ACCEPTANCE_REPORT.md)。
-
 ## 隐私与使用说明
 
 浏览和互动会连接 Linux.sb；图片上传会连接所选图床。匿名上传的图片通常可被持有链接的人访问，请勿上传敏感资料。AI 总结仅在相关功能启用和请求触发时，将所选内容发送至用户配置的接口。包含 API 密钥或账号信息的备份应妥善保管。

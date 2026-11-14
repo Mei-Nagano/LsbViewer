@@ -16,18 +16,19 @@ import sb.linux.client.ui.feature.network.NetworkSettingsViewModel
 import sb.linux.client.ui.feature.network.NetworkSettingsViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
 import sb.linux.client.ui.theme.LocalAppSpacing
+import sb.linux.client.ui.patterns.settings.SettingsChoiceRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
+internal fun NetworkSettingsDetailScreen(session: Session, nav: NavHostController, section: String) {
     val factory = remember(session.proxySettingsRepository, session.proxyDetectionRepository) {
         NetworkSettingsViewModelFactory(session.proxySettingsRepository, session.proxyDetectionRepository)
     }
     val viewModel: NetworkSettingsViewModel = viewModel(factory = factory)
     val state = viewModel.state
     val saved = session.proxySettingsRepository.current()
-    val exit = rememberSettingsExit(state.proxyType != saved.type ||
-        (state.proxyType != 0 && (state.proxyHost.trim() != saved.host || state.proxyPort != saved.port.toString()))) { nav.popBackStack() }
+    val exit = rememberSettingsExit(section == "proxy" && (state.proxyType != saved.type ||
+        (state.proxyType != 0 && (state.proxyHost.trim() != saved.host || state.proxyPort != saved.port.toString())))) { nav.popBackStack() }
     LaunchedEffect(state.feedback) {
         state.feedback?.let {
             session.showToast(it)
@@ -38,7 +39,9 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
         onDispose { viewModel.cancelDetection() }
     }
 
-    SettingsPage("网络与链接", nav, onBack = exit) {
+    val title = when (section) { "proxy" -> "应用代理"; "dns" -> "加密 DNS"; else -> "链接设置" }
+    SettingsPage(title, nav, onBack = exit) {
+        if (section == "proxy") {
             GroupCard {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
@@ -50,23 +53,15 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        listOf("关闭", "HTTP", "SOCKS5").forEachIndexed { index, label ->
-                            SegmentedButton(
-                                selected = state.proxyType == index,
-                                onClick = { viewModel.setProxyType(index) },
-                                shape = SegmentedButtonDefaults.itemShape(index, 3),
-                                modifier = Modifier.weight(1f),
-                            ) { Text(label, maxLines = 1) }
-                        }
-                    }
+                    SettingsChoiceRow("代理类型", listOf(0 to "关闭", 1 to "HTTP", 2 to "SOCKS5"),
+                        state.proxyType, viewModel::setProxyType)
                     if (state.proxyType != 0) {
-                        OutlinedTextField(
+                        SettingsTextField(
                             value = state.proxyHost, onValueChange = viewModel::setProxyHost,
                             label = { Text("代理主机") }, placeholder = { Text("127.0.0.1") },
                             singleLine = true, isError = state.proxyError != null, modifier = Modifier.fillMaxWidth(),
                         )
-                        OutlinedTextField(
+                        SettingsTextField(
                             value = state.proxyPort,
                             onValueChange = viewModel::setProxyPort,
                             label = { Text("代理端口") }, placeholder = { Text("7890") },
@@ -83,12 +78,8 @@ fun NetworkSettingsScreen(session: Session, nav: NavHostController) {
                     Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) { Text("保存代理设置") }
                 }
             }
-            GroupLabel("DNS over HTTPS")
-            DohSettingsContent(session)
-            GroupLabel("链接")
-            LinkSettingsContent(session)
-            SettingsResetRow("重置网络设置", onConfirm = viewModel::reset)
+        }
+        if (section == "dns") DohSettingsContent(session)
+        if (section == "links") LinkSettingsContent(session)
     }
 }
-
-/** 常规设置子页面：打开链接方式 + 检查更新时机（3.20） */

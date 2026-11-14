@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.session.Session
 
-/** 称号系统直接使用原站页面，不解析称号页面或代为提交表单。 */
+/** 各称号路由共享原生分区页面和源站表单。 */
 @Composable
 fun SourceGachaScreen(session: Session, nav: NavHostController, kind: String = "profile") {
     val path = when (kind) {
@@ -18,5 +18,6 @@ fun SourceGachaScreen(session: Session, nav: NavHostController, kind: String = "
         "identity" -> "/identity_center"
         else -> "/gacha_profile"
     }
-    WebScreen(session, nav, sourceUrl = path)
+    if (kind == "identity") WebScreen(session, nav, sourceUrl = path)
+    else GachaProfileScreen(session, nav, if (path == "/gacha_profile") null else "https://linux.sb$path")
 }

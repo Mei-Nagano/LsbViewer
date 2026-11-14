@@ -4,11 +4,22 @@ import sb.linux.client.domain.account.LoginState
 import sb.linux.client.domain.account.UserProfile
 
 object UserAccountHtmlParser {
+    private fun rankWithoutUid(element: org.jsoup.nodes.Element?): String =
+        SourceHtmlSupport.textWithoutGachaTitle(element?.clone()?.also {
+            it.select(".user-uid-badge, .user-follow-panel-uid").remove()
+        }).replace(Regex("""\bUID\s*\d+""", RegexOption.IGNORE_CASE), "").trim(' ', '·')
+
+    /** 源站 b.title 保存完整数字，b.text 可能是 1K 等缩写。 */
+    private fun accountStat(card: org.jsoup.nodes.Element?, field: String): String {
+        val value = card?.selectFirst("[data-user-follow-stat=$field] b") ?: return ""
+        return value.attr("title").trim().ifBlank { value.text().trim() }
+    }
     // ---------------- 用户 ----------------
 
     fun parseUserProfile(html: String): UserProfile {
         val d = SourceHtmlSupport.sourceDocument(html)
         val onlineIds = SourceHtmlSupport.onlineIdsOf(d)
+        val profileCard = d.selectFirst(".user-card")
         val name = d.selectFirst("a.user-name")?.text()
             ?: d.selectFirst(".user-name")?.text()
             ?: d.selectFirst(".profile-toolbar")?.previousElementSibling()?.text()
@@ -17,10 +28,13 @@ object UserAccountHtmlParser {
             ?: d.selectFirst("a[href^=/user/]")?.attr("href")
         val avatar = d.selectFirst("a.user-avatar-big img, .user-header img")?.attr("src")
             ?: d.selectFirst("img.avatar-img, img[src*='avatar']")?.attr("src") ?: ""
-        val rank = SourceHtmlSupport.textWithoutGachaTitle(d.selectFirst(".user-rank"))
+        val rank = rankWithoutUid(d.selectFirst(".user-rank"))
         // rank 形如 "饼友 · 积分 1324"：拆出用户组与积分
-        val group = rank.substringBefore("积分").trim(' ', '·')
-        val points = Regex("""积分\s*([\d.,kw万K W]+)""", RegexOption.IGNORE_CASE).find(rank)?.groupValues?.get(1) ?: ""
+        val groupBadge = SourceHtmlSupport.groupBadgeOf(profileCard)
+        val group = groupBadge?.name ?: rank.substringBefore("积分").trim(' ', '·')
+        val points = accountStat(profileCard, "points").ifBlank {
+            Regex("""积分\s*([\d.,kw万K W]+)""", RegexOption.IGNORE_CASE).find(rank)?.groupValues?.get(1) ?: ""
+        }
         // 简介保留源站格式：直接取原始 HTML（含 markdown 渲染后的 <strong>/<a>/<br>/<pre> 等），
         // 交由 HtmlContent 渲染，保留加粗、链接、换行与代码块等排版
         val bio = d.selectFirst(".sidebar-bio")?.html()?.trim() ?: ""
@@ -45,6 +59,10 @@ object UserAccountHtmlParser {
             titleBadge = d.selectFirst(".user-header, .user-card")?.let(SourceHtmlSupport::gachaTitleOf),
             blockUrl = blockLink?.attr("href").orEmpty(),
             blockLabel = blockLink?.text().orEmpty(),
+            following = accountStat(profileCard, "following"),
+            followers = accountStat(profileCard, "followers"),
+            wallet = accountStat(profileCard, "wallet"),
+            groupBadge = groupBadge,
         )
     }
 
@@ -52,16 +70,22 @@ object UserAccountHtmlParser {
         val d = SourceHtmlSupport.sourceDocument(html)
         val card = d.selectFirst(".user-card")
         val nameEl = card?.selectFirst("a.user-name")
-        val rank = SourceHtmlSupport.textWithoutGachaTitle(card?.selectFirst(".user-rank"))
-        val points = Regex("""积分\s*([\d.kw万]+)""").find(rank)?.groupValues?.get(1) ?: ""
+        val rank = rankWithoutUid(card?.selectFirst(".user-rank"))
+        val points = accountStat(card, "points").ifBlank {
+            Regex("""积分\s*([\d.,kw万]+)""", RegexOption.IGNORE_CASE).find(rank)?.groupValues?.get(1) ?: ""
+        }
         return LoginState(
             loggedIn = nameEl != null,
             userId = SourceHtmlSupport.idFrom(nameEl?.attr("href")),
             username = nameEl?.text() ?: "",
             points = points,
             avatarUrl = SourceHtmlSupport.absUrl(SourceHtmlSupport.avatarOf(card ?: d)),
-            userGroup = rank.substringBefore("积分").trim(' ', '·'),
+            userGroup = SourceHtmlSupport.groupBadgeOf(card)?.name ?: rank.substringBefore("积分").trim(' ', '·'),
             titleBadge = card?.let(SourceHtmlSupport::gachaTitleOf),
+            following = accountStat(card, "following"),
+            followers = accountStat(card, "followers"),
+            wallet = accountStat(card, "wallet"),
+            groupBadge = SourceHtmlSupport.groupBadgeOf(card),
         )
     }
 

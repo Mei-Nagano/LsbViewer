@@ -18,7 +18,9 @@ internal class ClientImageLoader(
     private val userAgent: String,
 ) {
     private val avatarMemoryCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
-    private val avatarInFlight = java.util.concurrent.ConcurrentHashMap<String, CompletableDeferred<ByteArray>>()
+    private val avatarInFlight = java.util.concurrent.ConcurrentHashMap<Pair<Long, String>, CompletableDeferred<ByteArray>>()
+    private val cacheLock = Any()
+    private var cacheGeneration = 0L
     private val avatarCacheDir: File by lazy { File(context.cacheDir, "lsb_avatar_cache").apply { mkdirs() } }
     /**
      * 拉取图片原始字节（源站头像等静态资源被 /FL/CC/VALIDATOR 重定向验证盾保护，
@@ -30,26 +32,46 @@ internal class ClientImageLoader(
      *  免去 IO 协程调度与占位符→图片的跳变（快滑掉帧与头像闪现的主因） */
     fun peekAvatarBytes(url: String): ByteArray? = avatarMemoryCache[url]
 
+    fun cacheSize(): Long = synchronized(cacheLock) {
+        avatarCacheDir.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
+    }
+
+    fun clearCache() = synchronized(cacheLock) {
+        cacheGeneration++
+        avatarMemoryCache.clear()
+        avatarCacheDir.listFiles()?.filter { it.isFile }?.forEach { file ->
+            check(file.delete() || !file.exists()) { "头像缓存清理失败" }
+        }
+    }
+
     suspend fun fetchBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
-        avatarMemoryCache[url]?.let { return@withContext it }
         // v2 前缀：读取时校验魔数；旧版（未校验内容即写入）残留的验证页 HTML 等坏文件在此自愈删除
         val cacheFile = File(avatarCacheDir, "v2_${url.hashCode().toString(16)}.dat")
-        if (cacheFile.exists()) {
-            val cached = runCatching { cacheFile.readBytes() }.getOrDefault(ByteArray(0))
-            if (isValidImage(cached)) {
-                avatarMemoryCache[url] = cached
-                return@withContext cached
+        val generation = synchronized(cacheLock) {
+            avatarMemoryCache[url]?.let { return@withContext it }
+            if (cacheFile.exists()) {
+                val cached = runCatching { cacheFile.readBytes() }.getOrDefault(ByteArray(0))
+                if (isValidImage(cached)) {
+                    avatarMemoryCache[url] = cached
+                    return@withContext cached
+                }
+                runCatching { cacheFile.delete() } // 坏缓存：删除后重新拉取
             }
-            runCatching { cacheFile.delete() } // 坏缓存：删除后重新拉取
+            cacheGeneration
         }
         // 并发去重：首个请求完成前，同 URL 的后续请求共享其结果
         val mine = CompletableDeferred<ByteArray>()
-        val existing = avatarInFlight.putIfAbsent(url, mine)
+        val requestKey = generation to url
+        val existing = avatarInFlight.putIfAbsent(requestKey, mine)
         if (existing != null) return@withContext existing.await()
         try {
             val bytes = fetchImageBytes(url)
-            avatarMemoryCache[url] = bytes
-            runCatching { cacheFile.writeBytes(bytes) }
+            synchronized(cacheLock) {
+                if (generation == cacheGeneration) {
+                    avatarMemoryCache[url] = bytes
+                    runCatching { cacheFile.writeBytes(bytes) }
+                }
+            }
             mine.complete(bytes)
             bytes
         } catch (e: Exception) {
@@ -59,7 +81,7 @@ internal class ClientImageLoader(
             )
             throw e
         } finally {
-            avatarInFlight.remove(url, mine)
+            avatarInFlight.remove(requestKey, mine)
         }
     }
 

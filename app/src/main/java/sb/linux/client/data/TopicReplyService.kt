@@ -20,11 +20,15 @@ internal class TopicReplyService(private val client: LsbClient) : TopicReplyRepo
         captchaAnswer: String,
         captcha: LoginVerification?,
     ): TopicReplySubmission {
+        val protocol = page?.replyForm ?: error("未找到当前页回复表单，请刷新主题")
+        check(!protocol.required || body.isNotBlank()) { "请填写回复内容" }
+        check(body.length <= protocol.maxLength) { "回复超过源站长度限制" }
         val csrf = page?.csrf?.takeIf { it.isNotBlank() } ?: client.csrf()
         val form = buildMap {
+            putAll(protocol.fields)
             put("_csrf", csrf)
             put("topic_id", topicId.toString())
-            put("body", body)
+            put(protocol.bodyName, body)
             when (captcha) {
                 is sb.linux.client.domain.account.LoginVerification.Native -> {
                     put("native_captcha_token", captcha.token)
@@ -35,8 +39,8 @@ internal class TopicReplyService(private val client: LsbClient) : TopicReplyRepo
                 null -> Unit
             }
         }
-        val response = client.postForm("/reply_edit", form)
-        if (response.url.contains("form_error")) {
+        val response = client.postForm(protocol.action, form)
+        if (response.code !in 200..299 || response.url.contains("form_error") || response.url.contains("/login")) {
             val replacement = if (captcha == null) null else try {
                 refreshCaptcha(topicId, page?.page ?: 1)
             } catch (cancelled: CancellationException) {

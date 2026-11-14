@@ -132,13 +132,11 @@ fun LsbTheme(
         surfaceContainerHigh = finalScheme.surfaceContainerHigh.copy(alpha = surfaceOpacity),
         surfaceContainerHighest = finalScheme.surfaceContainerHighest.copy(alpha = surfaceOpacity),
     )
-    // 应用字号因子下沉到 LocalDensity（Density.fontScale）：
-    // - 所有 sp 文本（MaterialTheme 字阶、阅读字阶、页面中固定 sp 如列表缩进/行高）统一缩放；
-    // - dp 尺寸不受影响；系统字号缩放继续叠加，不再由字阶各自乘一次。
+    // 界面比例同时缩放 dp 控件和 sp 文本；系统文字比例仍独立保留。
     val baseDensity = LocalDensity.current
     val appFontScale = fontScale.coerceIn(0.85f, 1.30f)
     val contentDensity = remember(baseDensity, appFontScale) {
-        Density(baseDensity.density, baseDensity.fontScale * appFontScale)
+        Density(baseDensity.density * appFontScale, baseDensity.fontScale)
     }
     MaterialTheme(
         colorScheme = surfaces,

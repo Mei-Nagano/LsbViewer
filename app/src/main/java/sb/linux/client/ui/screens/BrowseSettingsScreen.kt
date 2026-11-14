@@ -16,7 +16,7 @@ import sb.linux.client.ui.theme.AppMenuDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
+internal fun BrowseSettingsDetailScreen(session: Session, nav: NavHostController, section: String) {
     val factory = remember(session.browseSettingsRepository) {
         BrowseSettingsViewModelFactory(session.browseSettingsRepository, session::applyBrowseSettings)
     }
@@ -30,10 +30,15 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
     val topicsText = state.topicsText
     val commentsText = state.commentsText
 
-    SettingsPage("阅读与交互", nav) {
-
-
-            GroupCard("列表与分页") {
+    val title = when (section) {
+        "list" -> "列表与分页"
+        "sidebar" -> "侧边栏"
+        "content" -> "正文与评论"
+        else -> "帖子交互"
+    }
+    SettingsPage(title, nav) {
+        if (section == "list") {
+            GroupCard {
                 listOf(Triple("首页无限滚动", "home", homeInf), Triple("板块无限滚动", "forum", forumInf),
                     Triple("评论无限滚动", "topic", topicInf)).forEach { (title, key, enabled) ->
                     SwitchRow(title, "关闭后使用分页", enabled) { value ->
@@ -44,7 +49,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                 // 翻页相关设置：仅当存在翻页分类时展示（3.14）
                 if (anyPaged) {
                     Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)) {
-                        OutlinedTextField(
+                        SettingsTextField(
                             value = topicsText,
                             onValueChange = viewModel::setTopicsText,
                             label = { Text("每页帖子数（5 - 50）") },
@@ -54,7 +59,7 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
+                        SettingsTextField(
                             value = commentsText,
                             onValueChange = viewModel::setCommentsText,
                             label = { Text("评论每页数量（5 - 100）") },
@@ -84,7 +89,9 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = viewModel::setCollapseNewTopics
                 )
             }
-            GroupCard("侧边栏") {
+        }
+        if (section == "sidebar") {
+            GroupCard {
                 SwitchRow(
                     "侧边栏双列显示",
                     "快捷功能与版块列表双列排布（可在首页侧边栏切换）",
@@ -98,7 +105,9 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = viewModel::setSidebarShowOnlineUsers
                 )
             }
-            GroupCard("正文与评论") {
+        }
+        if (section == "content") {
+            GroupCard {
                 SwitchRow(
                     "显示打赏弹幕",
                     "在帖子正文与评论区之间滚动展示打赏信息，可在帖子菜单中单独开关",
@@ -124,7 +133,9 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = viewModel::setSmartDecodeEnabled
                 )
             }
-            GroupCard("帖子交互") {
+        }
+        if (section == "interaction") {
+            GroupCard {
                 // 正文长按已交回系统原生选择菜单（复制/翻译/搜索由系统提供），这里不再有自定义菜单项配置
                 SwitchRow(
                     "对话串联",
@@ -139,10 +150,6 @@ fun BrowseSettingsScreen(session: Session, nav: NavHostController) {
                     onCheckedChange = viewModel::setUnfavoriteConfirm
                 )
             }
-            GroupLabel("屏蔽规则")
-            BlockWordsContent(session, nav)
-            SettingsResetRow("重置阅读与交互设置", onConfirm = viewModel::reset)
+        }
     }
 }
-
-/** AI 总结设置子页面（OpenAI 兼容 API） */

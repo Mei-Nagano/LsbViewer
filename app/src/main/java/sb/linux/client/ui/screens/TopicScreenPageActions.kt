@@ -34,7 +34,7 @@ internal class TopicScreenPageActions(
             pageCoordinator.loadUntil(target * perPage + 1)
             state.loadingMore.value = false
             state.localReplyPage.value = target.coerceAtLeast(1)
-            listState.scrollToItem(if (hasMainPost) 2 else 1)
+            listState.scrollToItem(topicLeadingItemCount(state.page.value, hasMainPost, ui.danmakuLocalOn && ui.danmaku.isNotEmpty()))
         }
     }
 
@@ -44,7 +44,6 @@ internal class TopicScreenPageActions(
         pageCoordinator.loadFloor(floor) { result ->
             result.onSuccess { loaded ->
                 state.page.value = loaded.page
-                ui.sortOrder = 1
                 state.localReplyPage.value = 1
                 state.loadedMaxPage.value = loaded.pageNumber
                 ui.collapsedReplyIds = emptySet()
@@ -62,7 +61,9 @@ internal class TopicScreenPageActions(
     }
 
     fun scrollToComments(hasMainPost: Boolean) {
-        scope.launch { listState.animateScrollToItem(if (hasMainPost) 2 else 1) }
+        scope.launch {
+            listState.animateScrollToItem(topicLeadingItemCount(state.page.value, hasMainPost, ui.danmakuLocalOn && ui.danmaku.isNotEmpty()))
+        }
     }
 
     fun openThread(startPost: PostEntry) {

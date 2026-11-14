@@ -9,7 +9,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import sb.linux.client.ui.feature.topic.TopicPinnedSnapshot
 import sb.linux.client.domain.topic.PostEntry
 import sb.linux.client.ui.session.Session
 
@@ -19,7 +18,6 @@ internal fun TopicScreenEffects(
     topicId: Long,
     initialPage: Int,
     initialFloor: Int,
-    pinnedSnapshot: TopicPinnedSnapshot?,
     paging: TopicPagingState,
     ui: TopicScreenUiState,
     actions: TopicScreenActions,
@@ -39,18 +37,11 @@ internal fun TopicScreenEffects(
             actions.load(paging.page.value?.page ?: initialPage, force = true)
         }
     }
-    LaunchedEffect(topicId) { session.preferences.clearFloatingTopic(topicId) }
     LaunchedEffect(paging.page.value?.topicId, paging.page.value?.favorited) {
-        paging.page.value?.let { ui.isFav = it.favorited }
+        paging.page.value?.let { if (!ui.favoriteBusy) ui.isFav = it.favorited }
     }
     LaunchedEffect(ui.topicSearchQuery, searchHits.size) {
         ui.topicSearchIndex = ui.topicSearchIndex.coerceIn(0, (searchHits.size - 1).coerceAtLeast(0))
-    }
-    LaunchedEffect(ui.sortOrder, paging.page.value?.page, paging.page.value?.totalPages, paging.loading.value, paging.loadingMore.value) {
-        val page = paging.page.value
-        if (ui.sortOrder == 2 && page != null && !paging.loading.value && !paging.loadingMore.value &&
-            page.page < page.totalPages && paging.reverseStalledAtPage.value != page.page
-        ) actions.loadAllRemaining()
     }
     TopicFloorJumpEffect(
         pendingPost = ui.pendingSearchPost,
@@ -101,12 +92,6 @@ internal fun TopicScreenEffects(
         ui.readingPositionRestored = true
         // 楼层深链由上面的效果处理，不能被阅读位置覆盖
         if (initialFloor > 0) return@LaunchedEffect
-        pinnedSnapshot?.let {
-            withFrameNanos { }
-            listState.scrollToItem(it.listIndex, it.offset)
-            ui.returnPos = null
-            return@LaunchedEffect
-        }
         val anchor = actions.readingAnchor()
         val page = paging.page.value ?: return@LaunchedEffect
         withFrameNanos { }
@@ -130,7 +115,6 @@ internal fun TopicScreenEffects(
         session = session,
         topicId = topicId,
         initialPage = initialPage,
-        pinnedSnapshot = pinnedSnapshot,
         paging = paging,
         ui = ui,
         actions = actions,
@@ -169,23 +153,11 @@ private fun TopicInitialLoadEffect(
     session: Session,
     topicId: Long,
     initialPage: Int,
-    pinnedSnapshot: TopicPinnedSnapshot?,
     paging: TopicPagingState,
     ui: TopicScreenUiState,
     actions: TopicScreenActions,
 ) {
     LaunchedEffect(topicId) {
-        if (pinnedSnapshot != null) {
-            ui.sortOrder = pinnedSnapshot.sort
-            paging.localReplyPage.value = pinnedSnapshot.localPage
-            ui.collapsedReplyIds = pinnedSnapshot.collapsed
-            paging.loadedMaxPage.value = pinnedSnapshot.topic.page
-            paging.page.value = pinnedSnapshot.topic
-            ui.danmaku = pinnedSnapshot.danmaku
-            ui.danmakuLocalOn = pinnedSnapshot.danmakuEnabled
-            paging.loading.value = false
-            return@LaunchedEffect
-        }
         val rebuilt = if (paging.loadedMaxPage.value > 1) {
             actions.restoreCachedPages(paging.loadedMaxPage.value)
         } else null

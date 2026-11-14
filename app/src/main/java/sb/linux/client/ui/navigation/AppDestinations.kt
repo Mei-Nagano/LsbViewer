@@ -34,13 +34,13 @@ internal object AppDestinations {
         Icons.Filled.CollectionsBookmark, Icons.Outlined.CollectionsBookmark,
     )
     val messages = AppDestination(
-        "messages", "消息", "messages",
+        "messages", "私信", "messages",
         Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat,
     )
     val me = AppDestination("me", "我的", "me", Icons.Filled.Person, Icons.Outlined.Person)
     val forums = AppDestination("forums", "版块", "forums", Icons.Filled.ViewList, Icons.Outlined.ViewList)
 
-    /** 新安装默认四项：社区 / 淘帖 / 消息 / 我的。 */
+    /** 新安装默认四项：社区 / 淘帖 / 私信 / 我的。 */
     val defaults: List<AppDestination> = listOf(home, collections, messages, me)
 
     /** 允许出现在自定义根导航里的全部目的地（最多 5 项）。 */

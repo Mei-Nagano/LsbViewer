@@ -11,7 +11,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -78,7 +77,7 @@ internal fun ProfileHeaderCard(avatarUrl: String, username: String, info: List<P
 @Composable
 internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange: (String) -> Unit) {
     when (f.type) {
-        "textarea" -> OutlinedTextField(
+        "textarea" -> SettingsTextField(
             value = value,
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth(),
@@ -87,36 +86,16 @@ internal fun ProfileFieldInput(f: ProfileSettingsField, value: String, onChange:
             minLines = 2,
         )
 
-        "select" -> {
-            var expanded by remember { mutableStateOf(false) }
-            val current = f.options.firstOrNull { it.first == value }?.second ?: value
-            OutlinedTextField(
-                value = current,
-                onValueChange = {},
-                readOnly = true,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(f.label) },
-                shape = MaterialTheme.shapes.large,
-                trailingIcon = { TextButton(onClick = { expanded = true }) { Text("选择") } },
-            )
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                f.options.forEach { (v, label) ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        onClick = { onChange(v); expanded = false },
-                    )
-                }
-            }
-        }
+        "select" -> sb.linux.client.ui.patterns.settings.SettingsChoiceRow(f.label, f.options, value, onChange)
 
         "checkbox" -> sb.linux.client.ui.components.input.AppSwitchRow(
             title = f.label,
             checked = value == "1",
             onCheckedChange = { onChange(if (it) "1" else "0") },
-            compact = true,
+            prominent = true,
         )
 
-        else -> OutlinedTextField(
+        else -> SettingsTextField(
             value = value,
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth(),

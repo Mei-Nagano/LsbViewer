@@ -5,6 +5,8 @@ import sb.linux.client.domain.community.HotTopic
 import sb.linux.client.domain.community.NewUser
 import sb.linux.client.domain.community.OnlineUser
 import sb.linux.client.domain.community.OnlineUsers
+import sb.linux.client.domain.community.SidebarAnnouncement
+import sb.linux.client.domain.community.DailyStar
 
 
 object HomeSidebarHtmlParser {
@@ -15,7 +17,30 @@ object HomeSidebarHtmlParser {
         val aside = d.selectFirst("aside.sidebar") ?: d
 
         // 版块列表：与底栏「板块导航」使用同一解析（全文档抓取 a[href^=/forum/]），保证两处板块一致
-        val forums = ForumParser.parseForumList(html).map { ForumCount(id = it.id, name = it.name, count = it.topicCount) }
+        val leftForums = d.select(".forum-enhancements-left-navigation a[href^=/forum/]").mapNotNull { a ->
+            val id = SourceHtmlSupport.idFrom(a.attr("href"))
+            if (id <= 0) null else ForumCount(id,
+                a.selectFirst(".forum-enhancements-left-name")?.text() ?: a.text(),
+                a.selectFirst(".forum-enhancements-left-count")?.text().orEmpty())
+        }
+        val forums = leftForums.ifEmpty {
+            ForumParser.parseForumList(html).map { ForumCount(id = it.id, name = it.name, count = it.topicCount) }
+        }
+        val announcements = d.select(".forum-enhancements-announcement-links a[href]").map {
+            SidebarAnnouncement(it.text(), SourceHtmlSupport.absUrl(it.attr("href")))
+        }.distinctBy { it.url }
+        // 网页 JS 将 template 放到公告之后；原生客户端直接读取服务端模板。
+        val stars = d.select(".daily_star_item").mapNotNull { item ->
+            val user = item.selectFirst("a.daily_star_user[href]") ?: return@mapNotNull null
+            val uid = SourceHtmlSupport.idFrom(user.attr("href"))
+            if (uid <= 0) null else DailyStar(
+                heading = item.selectFirst(".daily_star_heading strong")?.text().orEmpty(),
+                userId = uid, username = user.selectFirst(".daily_star_info strong")?.text().orEmpty(),
+                avatarUrl = SourceHtmlSupport.absUrl(SourceHtmlSupport.avatarOf(user)),
+                description = user.selectFirst(".daily_star_info > span")?.text().orEmpty(),
+                online = user.selectFirst(".online-users-dot") != null,
+            )
+        }.distinctBy { it.heading }
 
         // 每日热帖
         val hot = aside.select(".daily-hot-topics-list a[href^=/topic/]").mapNotNull { a ->
@@ -85,6 +110,8 @@ object HomeSidebarHtmlParser {
             statsText = stats,
             newUsers = newUsers,
             onlineUsers = onlineUsers,
+            announcements = announcements,
+            dailyStars = stars,
         )
     }
 

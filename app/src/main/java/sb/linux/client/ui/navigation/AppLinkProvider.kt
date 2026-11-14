@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.domain.linkpreview.LinkPreviewInfo
 import sb.linux.client.ui.session.Session
@@ -39,6 +41,7 @@ internal fun AppLinkProvider(
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
+    val masterNav = LocalMasterNav.current
     val settingsFactory = remember(session.generalSettingsRepository) {
         GeneralSettingsViewModelFactory(session.generalSettingsRepository)
     }
@@ -50,113 +53,37 @@ internal fun AppLinkProvider(
     var linkPreviewTarget by remember { mutableStateOf<String?>(null) }
     var linkPreviewInfo by remember { mutableStateOf<LinkPreviewInfo?>(null) }
     var linkPreviewLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val signaturesHidden = remember(session.accountIdentityVersion) { mutableStateOf(false) }
 
     fun openLinkDirect(raw: String) {
         val url = Endpoints.abs(raw)
-        val internalUri = android.net.Uri.parse(url)
-        if (Endpoints.isInternal(internalUri.host)) {
-            val internalPath = internalUri.path.orEmpty().let { if (it.length > 1) it.trimEnd('/') else it }
-            if (internalPath == "/gacha" || internalPath.startsWith("/gacha_") || internalPath == "/identity_center") {
-                linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
-            }
-            if (internalPath in setOf("/profile", "/user_signature", "/user_privacy")) {
-                linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
-            }
-            if (internalPath == "/community_activity") {
-                linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
-            }
-            if (internalPath == "/user_block") {
-                linkNav.navigate("userBlock?url=${android.net.Uri.encode(url)}"); return
-            }
-            when (internalPath) {
-                "/", "" -> { linkNav.navigate("home"); return }
-                "/forum_list" -> { linkNav.navigate("forums"); return }
-                "/topic_collections" -> {
-                    val tab = if (internalUri.getQueryParameter("tab") == "everyone") "everyone" else "mine"
-                    linkNav.navigate("topicCollections?tab=$tab"); return
-                }
-                // 源站的 @提及 有两种写法：/user/{uid} 与 /user?username={名字}。
-                // 后者要先查 uid 才能落到 user/{uid} 路由，交给中转屏处理。
-                "/user" -> {
-                    val username = internalUri.getQueryParameter("username").orEmpty()
-                    val tab = internalUri.getQueryParameter("tab") ?: "topics"
-                    if (tab == "attachments") {
-                        linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
-                    }
-                    if (username.isNotBlank()) {
-                        linkNav.navigate(
-                            "userByName?name=${android.net.Uri.encode(username)}&tab=${android.net.Uri.encode(tab)}",
-                        )
-                        return
-                    }
-                    internalUri.getQueryParameter("uid")?.toLongOrNull()?.takeIf { it > 0 }?.let {
-                        linkNav.navigate("user/$it?tab=${android.net.Uri.encode(tab)}"); return
-                    }
-                }
-                "/direct_messages" -> { linkNav.navigate("directMessages"); return }
-                "/notifications" -> { linkNav.navigate("notifications"); return }
-                "/invite_center" -> { linkNav.navigate("inviteCenter"); return }
-                "/leaderboard" -> {
-                    val type = internalUri.getQueryParameter("type") ?: "points"
-                    linkNav.navigate("leaderboard?type=${android.net.Uri.encode(type)}"); return
-                }
-                "/search" -> {
-                    val query = internalUri.getQueryParameter("q") ?: internalUri.getQueryParameter("keyword") ?: ""
-                    val scope = internalUri.getQueryParameter("scope")
-                        ?: internalUri.getQueryParameter("field") ?: "all"
-                    val sort = internalUri.getQueryParameter("sort") ?: "relevance"
-                    linkNav.navigate(
-                        "search?q=${android.net.Uri.encode(query)}&scope=${android.net.Uri.encode(scope)}&sort=${android.net.Uri.encode(sort)}",
-                    ); return
-                }
-                "/daily_checkin" -> {
-                    session.showToast("此功能暂不提供"); return
-                }
-            }
-            Regex("^/topic_collection/\\d+$").takeIf { it.matches(internalPath) }?.let {
-                val path = internalPath + internalUri.query?.let { "?$it" }.orEmpty()
-                linkNav.navigate("collectionActions?path=${android.net.Uri.encode(path)}"); return
-            }
-            Regex("^/topic_collection_manage(?:/\\d+)?$").takeIf { it.matches(internalPath) }?.let {
-                val path = internalPath + internalUri.query?.let { "?$it" }.orEmpty()
-                linkNav.navigate("topicCollectionManage?path=${android.net.Uri.encode(path)}"); return
-            }
-            Regex("^/direct_messages/(\\d+)$").find(internalPath)?.let {
-                linkNav.navigate("chat/${it.groupValues[1]}"); return
-            }
-            Regex("^/topic/(\\d+)$").find(internalPath)?.let {
-                val page = internalUri.getQueryParameter("p")?.toIntOrNull() ?: 1
-                val floor = internalUri.getQueryParameter("floor")?.toIntOrNull() ?: 0
-                linkNav.navigate("topic/${it.groupValues[1]}?p=$page&floor=$floor"); return
-            }
-            Regex("^/forum/(\\d+)$").find(internalPath)?.let {
-                val page = internalUri.getQueryParameter("p")?.toIntOrNull() ?: 1
-                linkNav.navigate("forum/${it.groupValues[1]}?p=$page"); return
-            }
-            Regex("^/user/(\\d+)$").find(internalPath)?.let {
-                val tab = internalUri.getQueryParameter("tab") ?: "topics"
-                if (tab == "attachments") {
-                    linkNav.navigate("web?url=${android.net.Uri.encode(url)}"); return
-                }
-                if (tab == "notifications") linkNav.navigate("notifications")
-                else linkNav.navigate("user/${it.groupValues[1]}?tab=${android.net.Uri.encode(tab)}")
-                return
-            }
-        }
-        // 站内兜底：上面的精确匹配没命中，但路径里仍带得出帖子/用户/板块 id 时留在应用内。
-        // 设置页承诺「站内跳转始终在应用内进行」，所以这段不受 linkOpenMode 影响。
         val uri = android.net.Uri.parse(url)
         if (Endpoints.isInternal(uri.host)) {
-            val path = uri.path ?: ""
-            Regex("""/topic/(\d+)""").find(path)?.let { m -> linkNav.navigate("topic/${m.groupValues[1]}"); return }
-            Regex("""/user/(\d+)""").find(path)?.let { m -> linkNav.navigate("user/${m.groupValues[1]}"); return }
-            Regex("""/forum/(\d+)""").find(path)?.let { m -> linkNav.navigate("forum/${m.groupValues[1]}"); return }
-            uri.getQueryParameter("username")?.takeIf { it.isNotBlank() }?.let {
-                linkNav.navigate("userByName?name=${android.net.Uri.encode(it)}&tab=topics"); return
+            val path = uri.path.orEmpty().trimEnd('/').ifBlank { "/" }
+            sourceHomeSelection(url)?.let { (combo, index) ->
+                session.homeBrowse.homeCombo = combo
+                session.homeBrowse.homeTabIndex = index
+                (masterNav ?: linkNav).navigate("home") { launchSingleTop = true }
+                return
             }
-            uri.getQueryParameter("uid")?.toLongOrNull()?.takeIf { it > 0 }?.let {
-                linkNav.navigate("user/$it"); return
+            val route = sourcePageRoute(url, session.account.loginState.userId)
+            if (route != null) {
+                val tid = Regex("^/topic/(\\d+)$").find(path)?.groupValues?.get(1)?.toLongOrNull()
+                val replyId = uri.getQueryParameter("replyid")?.toLongOrNull() ?: 0L
+                if (route.startsWith("topic/") && tid != null && replyId > 0 && uri.getQueryParameter("floor").isNullOrBlank()) {
+                    scope.launch {
+                        val floor = try { session.topicLinkRepository.replyFloor(tid, replyId) }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { null }
+                        if (floor == null) session.showToast("无法定位该回复，已打开主题")
+                        linkNav.navigate(route.substringBefore("&floor=") + "&floor=${floor ?: 0}")
+                    }
+                } else (if (route == "forums") masterNav ?: linkNav else linkNav).navigate(route)
+                return
             }
+            linkNav.navigate("web?url=${android.net.Uri.encode(url)}")
+            return
         }
         if (settingsViewModel.linkOpenMode() == 0) {
             linkNav.navigate("web?url=${android.net.Uri.encode(url)}")
@@ -170,11 +97,24 @@ internal fun AppLinkProvider(
         }
     }
 
+    fun openResolvedLink(url: String) {
+        val uri = android.net.Uri.parse(url)
+        if (session.generalSettingsRepository.current().hideExternalJumpReminder &&
+            Endpoints.isInternal(uri.host) && uri.path?.trimEnd('/') == "/jump") {
+            scope.launch {
+                val target = try { session.externalJumpRepository.permittedTarget(url) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { null }
+                openLinkDirect(target ?: url)
+            }
+        } else openLinkDirect(url)
+    }
+
     fun openLink(raw: String) {
         val url = Endpoints.abs(raw)
         val host = runCatching { android.net.Uri.parse(url).host.orEmpty() }.getOrDefault("")
         val externalJump = SourceExternalJump.target(url)
-        if (!session.linkPreviewEnabled || (Endpoints.isInternal(host) && externalJump == null)) openLinkDirect(url)
+        if (!session.linkPreviewEnabled || (Endpoints.isInternal(host) && externalJump == null)) openResolvedLink(url)
         else {
             linkPreviewInfo = null
             linkPreviewTarget = url
@@ -230,15 +170,20 @@ internal fun AppLinkProvider(
                 TextButton(onClick = {
                     val target = linkPreviewTarget ?: return@TextButton
                     linkPreviewTarget = null; linkPreviewInfo = null
-                    openLinkDirect(target)
+                    openResolvedLink(target)
                 }) { Text("打开链接") }
             },
             dismissButton = { TextButton(onClick = { linkPreviewTarget = null; linkPreviewInfo = null }) { Text("取消") } },
         )
     }
     CompositionLocalProvider(
+        sb.linux.client.ui.screens.LocalAllSignaturesHidden provides signaturesHidden,
         sb.linux.client.ui.patterns.user.LocalUserBlockChanged provides session::onUserSummaryBlockChanged,
         sb.linux.client.ui.patterns.user.LocalUserSummaryRepository provides session.userSummaryRepository,
+        sb.linux.client.ui.patterns.user.LocalAvatarUserLookupRepository provides session.userLookupRepository,
+        sb.linux.client.ui.patterns.user.LocalAvatarAccountId provides session.account.loginState.userId,
+        sb.linux.client.ui.patterns.user.LocalAvatarAccountVersion provides session.accountIdentityVersion,
+        sb.linux.client.ui.patterns.user.LocalUserFollowChanged provides session::onUserSummaryFollowChanged,
         LocalLinkHandler provides { openLink(it) },
         content = content,
     )

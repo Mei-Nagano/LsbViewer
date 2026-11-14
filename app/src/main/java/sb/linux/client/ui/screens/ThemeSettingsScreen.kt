@@ -2,18 +2,14 @@ package sb.linux.client.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.Session
@@ -21,10 +17,12 @@ import sb.linux.client.ui.theme.LocalAppSpacing
 import sb.linux.client.ui.theme.colorSeed
 import sb.linux.client.ui.theme.colorToKey
 import sb.linux.client.ui.theme.isCustomColorKey
+import sb.linux.client.ui.patterns.settings.SettingsScaffold
+import sb.linux.client.ui.patterns.settings.SettingsHeader
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
+internal fun ThemeSettingsDetailScreen(session: Session, nav: NavHostController, section: String) {
     var showColorPicker by remember { mutableStateOf(false) }
     var showBackgroundPicker by remember { mutableStateOf(false) }
     var pickingRole by remember { mutableStateOf<PreviewRole?>(null) }
@@ -155,63 +153,67 @@ fun ThemeSettingsScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    sb.linux.client.ui.components.navigation.AppPageScaffold(
-        title = "外观与布局",
-        onBack = { nav.popBackStack() },
-    ) { pad ->
+    val title = when (section) {
+        "background" -> "壁纸"
+        "fonts" -> "字体"
+        "layout" -> "导航与布局"
+        else -> "主题设置"
+    }
+    SettingsScaffold {
         val spacing = LocalAppSpacing.current
+        Column(Modifier.fillMaxSize()) {
+        sb.linux.client.ui.patterns.settings.SettingsTopBar(title, onBack = { nav.popBackStack() })
         LazyColumn(
-            modifier = Modifier
-                .padding(pad)
-                .fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(bottom = spacing.largeSection),
             verticalArrangement = Arrangement.spacedBy(spacing.contentGap)
         ) {
-            item {
-                Column {
-                    GroupLabel("显示模式")
-                    DayNightToggle(session.themeMode) { session.preferences.saveTheme(it, session.dynamicColor) }
+            item { SettingsHeader(title, compact = true) }
+            if (section == "colors") {
+                item {
+                    GroupCard("显示模式") {
+                        DayNightToggle(session.themeMode) { session.preferences.saveTheme(it, session.dynamicColor) }
+                    }
                 }
+                themeBackgroundPalette(
+                    section = "colors",
+                    session = session,
+                    currentScheme = currentScheme,
+                    backgroundImportBusy = backgroundImportBusy,
+                    onOpenBackgroundPicker = { showBackgroundPicker = true },
+                    onSelectBackgroundImage = { backgroundPicker.launch("image/*") },
+                    onPickRole = { pickingRole = it },
+                    onPickElement = { pickingElement = it },
+                    onOpenThemeColorPicker = { showColorPicker = true },
+                )
+                themeStyleSettings(session, dark)
             }
-            // 原三级子页（主题与配色 / 页面背景 / 字体与文字 / 导航与布局）直接在此页展示
-            themeBackgroundPalette(
-                section = "colors",
-                session = session,
-                currentScheme = currentScheme,
-                backgroundImportBusy = backgroundImportBusy,
-                onOpenBackgroundPicker = { showBackgroundPicker = true },
-                onSelectBackgroundImage = { backgroundPicker.launch("image/*") },
-                onPickRole = { pickingRole = it },
-                onPickElement = { pickingElement = it },
-                onOpenThemeColorPicker = { showColorPicker = true },
-            )
-            themeStyleSettings(session, dark)
-            themeBackgroundPalette(
-                section = "background",
-                session = session,
-                currentScheme = currentScheme,
-                backgroundImportBusy = backgroundImportBusy,
-                onOpenBackgroundPicker = { showBackgroundPicker = true },
-                onSelectBackgroundImage = { backgroundPicker.launch("image/*") },
-                onPickRole = { pickingRole = it },
-                onPickElement = { pickingElement = it },
-                onOpenThemeColorPicker = { showColorPicker = true },
-            )
-            themeFontSettings(
-                session = session,
-                customFontFamily = customFontFamily,
-                onChooseCustomFont = {
-                    fontPicker.launch(
-                        arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream"),
-                    )
-                },
-            )
-            themeLayoutSettings(session)
-            item { SettingsResetRow("重置外观设置") { session.preferences.resetThemeSettings() } }
+            if (section == "background") {
+                themeBackgroundPalette(
+                    section = "background",
+                    session = session,
+                    currentScheme = currentScheme,
+                    backgroundImportBusy = backgroundImportBusy,
+                    onOpenBackgroundPicker = { showBackgroundPicker = true },
+                    onSelectBackgroundImage = { backgroundPicker.launch("image/*") },
+                    onPickRole = { pickingRole = it },
+                    onPickElement = { pickingElement = it },
+                    onOpenThemeColorPicker = { showColorPicker = true },
+                )
+            }
+            if (section == "fonts") {
+                themeFontSettings(
+                    session = session,
+                    customFontFamily = customFontFamily,
+                    onChooseCustomFont = {
+                        fontPicker.launch(
+                            arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream"),
+                        )
+                    },
+                )
+            }
+            if (section == "layout") themeLayoutSettings(session)
+        }
         }
     }
 }
-
-// ==================== 常规设置（3.20） ====================
-
-/** 当前应用版本名（包管理器读取，避免依赖 BuildConfig 配置） */

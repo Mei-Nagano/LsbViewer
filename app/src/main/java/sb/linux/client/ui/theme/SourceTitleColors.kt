@@ -15,10 +15,13 @@ internal fun sourceTitleColor(title: TitleBadge, property: String, fallback: Col
         "danger" to "#f47278", "danger-soft" to "#241b20",
         "info" to "#6aaeff", "info-soft" to "#19212a",
         "text-muted" to "#9399ab", "success" to "#2ab86e", "success-soft" to "#19211d",
+        "brand" to "#9db5ca", "brand-soft" to "#202b37", "line" to "#3f4e60", "line-soft" to "#202432",
     ) else mapOf(
         "warning" to "#c2410c", "warning-soft" to "#fff7ed",
         "danger" to "#d94b4b", "danger-soft" to "#fff3f3",
         "info" to "#4a9eff", "info-soft" to "#eef4ff", "text-muted" to "#555",
+        "success" to "#169c52", "success-soft" to "#ecfdf3",
+        "brand" to "#405d78", "brand-soft" to "#e8eff6", "line" to "#d7dde5", "line-soft" to "#f0f2f5",
     )
     val value = if (raw.startsWith("var(--")) palette[raw.removePrefix("var(--").substringBefore(')')] else raw
     if (value == null) return fallback

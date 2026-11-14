@@ -1,170 +1,137 @@
 package sb.linux.client.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.CollectionsBookmark
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.Leaderboard
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MilitaryTech
-import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.navigation.NavHostController
-import sb.linux.client.ui.components.navigation.AppPageScaffold
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import sb.linux.client.ui.navigation.LocalMasterNav
+import sb.linux.client.ui.components.feedback.AppConfirmDialog
+import sb.linux.client.ui.components.navigation.AppPageScaffold
+import sb.linux.client.ui.feature.settings.SettingsSearchIndex
+import sb.linux.client.ui.patterns.settings.*
 import sb.linux.client.ui.session.Session
-import sb.linux.client.ui.patterns.user.UserInfoCard
-import sb.linux.client.ui.patterns.user.toUserInfoCardData
-import sb.linux.client.ui.theme.LocalAppSizes
 import sb.linux.client.ui.theme.LocalAppSpacing
-import sb.linux.client.ui.theme.LocalSurfaceOpacity
 
-/**
- * 我的（P10）：资料摘要 + 我的内容 / 社区工具 / 应用三组入口。
- *
- * 游客头部解释登录价值并给一个主按钮，同时保留公开社区入口、应用设置与本地内容；
- * 自动签到不设按钮，只展示业务已提供的结果。
- *
- * 版式与设置页一致：居中限宽、整页滚动、分组留白，条目使用设置页的
- * 圆形图标 + 主标题样式，不再使用分组卡片与右侧箭头。
- */
 @Composable
 fun MeScreen(session: Session, nav: NavHostController) {
-    val state = session.account.loginState
-    // 双栏时在主栏内切换顶层页面（应用设置/首页），手机走原导航
+    var query by rememberSaveable { mutableStateOf("") }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
+    val spacing = LocalAppSpacing.current
+    val account = session.account.loginState
+    var showLogout by remember(account.userId) { mutableStateOf(false) }
     val masterNav = LocalMasterNav.current
     fun openMasterTab(route: String) {
-        if (masterNav != null) {
-            masterNav.navigate(route) {
-                popUpTo(masterNav.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
-        } else {
-            nav.navigate(route)
-        }
+        if (masterNav != null) masterNav.navigate(route) {
+            popUpTo(masterNav.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        } else nav.navigate(route)
     }
+    BackHandler(searching) { searching = false; query = "" }
+    LaunchedEffect(searching) { if (searching) focus.requestFocus() }
+    LaunchedEffect(session) { session.refreshSession() }
 
-    AppPageScaffold(title = "我的", onBack = null) { pad ->
-        BoxWithConstraints(Modifier.padding(pad).fillMaxSize()) {
-            val spacing = LocalAppSpacing.current
-            val sizes = LocalAppSizes.current
-            val horizontal = if (maxWidth >= 600.dp) spacing.pageHorizontalWide else spacing.pageHorizontal
-            // 背景图模式下与设置页一样铺一层不透明表面，保证文字可读。
-            val protect = LocalSurfaceOpacity.current < 0.999f
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(if (protect) MaterialTheme.colorScheme.surface else Color.Transparent),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                Column(
-                    Modifier
-                        .widthIn(max = sizes.formMaxWidth)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = horizontal, vertical = spacing.pageVertical),
-                    verticalArrangement = Arrangement.spacedBy(spacing.section),
-                ) {
-                    if (state.loggedIn) {
-                        UserInfoCard(
-                            data = state.toUserInfoCardData(),
-                            modifier = Modifier.padding(vertical = spacing.item),
-                            onProfile = { nav.navigate("user/${state.userId}") },
-                        )
-                        MenuGroup("我的内容") {
-                            MenuRow(Icons.Filled.History, "浏览历史") { nav.navigate("footprint") }
-                            MenuRow(Icons.Filled.Favorite, "收藏内容") { nav.navigate("favorites") }
-                            MenuRow(Icons.Filled.CollectionsBookmark, "我的淘帖") { nav.navigate("topicCollections?tab=mine") }
-                            MenuRow(Icons.Filled.Email, "我的私信") { nav.navigate("directMessages") }
-                        }
-                        MenuGroup("社区工具") {
-                            MenuRow(Icons.Filled.Campaign, "原站广告") { nav.navigate("sourcePromotions") }
-                            MenuRow(Icons.Filled.Insights, "社区活跃度") { nav.navigate("communityActivity") }
-                            MenuRow(Icons.Filled.Leaderboard, "用户榜单") { nav.navigate("leaderboard?type=points") }
-                            MenuRow(Icons.Filled.PersonAdd, "邀请中心") { nav.navigate("inviteCenter") }
-                            MenuRow(Icons.Filled.MilitaryTech, "我的称号") { nav.navigate("gachaProfile") }
-                            MenuRow(Icons.Filled.Lock, "我的隐私") { nav.navigate("userPrivacy") }
-                            MenuRow(Icons.Filled.Block, "屏蔽名单") { nav.navigate("userBlock") }
-                            MenuRow(Icons.Filled.AttachFile, "附件管理") { nav.navigate("attachments") }
-                        }
-                    } else {
-                        GuestHeader(onLogin = { nav.navigate("login") })
-                        MenuGroup("游客可用") {
-                            MenuRow(Icons.Filled.Home, "浏览社区") { openMasterTab("home") }
-                            MenuRow(Icons.Filled.Campaign, "原站广告") { nav.navigate("sourcePromotions") }
-                            MenuRow(Icons.Filled.Insights, "社区活跃度") { nav.navigate("communityActivity") }
-                            MenuRow(Icons.Filled.Leaderboard, "用户榜单") { nav.navigate("leaderboard?type=points") }
-                        }
+    AppPageScaffold(title = "我的", onBack = null, primaryPage = true,
+        actions = {
+                IconButton(onClick = { searching = !searching; query = "" }) {
+                    Icon(if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                        if (searching) "关闭搜索" else "搜索设置")
+                }
+                IconButton(onClick = { nav.navigate("about") }) { Icon(Icons.Filled.Info, "关于应用") }
+        }) { padding ->
+            Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical)) {
+            if (searching) {
+                OutlinedTextField(
+                    value = query, onValueChange = { query = it },
+                    placeholder = { Text("搜索设置") }, singleLine = true,
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus).padding(bottom = spacing.section),
+                )
+            }
+            if (query.isBlank()) {
+                MeAccountCard(account) {
+                    nav.navigate(if (account.loggedIn && account.userId > 0) "user/${account.userId}" else "login")
+                }
+                Spacer(Modifier.height(spacing.section))
+                SettingsCategoryGrid(meAccountCategories(account.userId)) {
+                    if (!account.loggedIn || account.userId <= 0) nav.navigate("login")
+                    else if (it.route == "logout") showLogout = true
+                    else nav.navigate(it.route)
+                }
+                Spacer(Modifier.height(spacing.contentGap))
+                Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
+                    val actions = listOf(
+                        Triple("我的内容", Icons.Filled.CollectionsBookmark, { nav.navigate("myContent") }),
+                        Triple("原站广告", Icons.Filled.Campaign, { nav.navigate("sourcePromotions") }),
+                        Triple("应用设置", Icons.Filled.Settings, { openMasterTab("appSettings") }),
+                        Triple("关于", Icons.Filled.Info, { nav.navigate("about") }),
+                    )
+                    actions.forEachIndexed { index, (title, icon, onClick) ->
+                        SettingMenuRow(title, "", icon, showChevron = false,
+                            shape = settingsItemShape(index, actions.size), onClick = onClick)
                     }
-                    MenuGroup("应用") {
-                        MenuRow(Icons.Filled.Tune, "我的内容") { nav.navigate("myContent") }
-                        MenuRow(Icons.Filled.Settings, "应用设置") { openMasterTab("appSettings") }
-                        MenuRow(Icons.Filled.Info, "关于应用") { nav.navigate("about") }
+                }
+            } else {
+                val results = SettingsSearchIndex.search(query)
+                if (results.isEmpty()) Text("没有找到相关设置",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = spacing.section))
+                Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
+                    results.forEachIndexed { index, entry ->
+                        SettingMenuRow(entry.title, entry.category, shape = settingsItemShape(index, results.size)) { nav.navigate(entry.route) }
                     }
                 }
             }
+            Spacer(Modifier.height(spacing.largeSection))
         }
     }
+    if (showLogout) AppConfirmDialog(
+        title = "退出登录", message = "确定要退出当前账号吗？",
+        onDismiss = { showLogout = false },
+        onConfirm = {
+            showLogout = false
+            session.onLoggedOut()
+            if (masterNav != null) {
+                masterNav.navigate("home") {
+                    popUpTo(masterNav.graph.findStartDestination().id) { inclusive = true }
+                }
+                nav.popBackStack("detailEmpty", false)
+            } else nav.navigate("home") { popUpTo("home") { inclusive = true } }
+        }, confirmText = "退出", dismissText = "取消", destructive = true,
+    )
 }
 
-/** 游客头部：解释登录价值并提供一个主按钮，不伪造账号信息。 */
-@Composable
-private fun GuestHeader(onLogin: () -> Unit) {
-    val spacing = LocalAppSpacing.current
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = spacing.item),
-    ) {
-        Column(Modifier.padding(spacing.contentGap + spacing.inline)) {
-            Text("未登录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(spacing.inline))
-            Text(
-                "登录后可发帖、回帖、投币与私信；公开内容仍可直接阅读。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(spacing.contentGap))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.item)) {
-                Button(onClick = onLogin) { Text("去登录") }
-            }
-        }
-    }
-}
+internal fun meAccountCategories(userId: Long) = listOf(
+    SettingsCategory("主题", "查看我发布的主题", "user/$userId?tab=topics", Icons.AutoMirrored.Filled.Article),
+    SettingsCategory("回复", "查看我发布的回复", "user/$userId?tab=replies", Icons.Filled.Forum),
+    SettingsCategory("私信", "查看我的私信", "directMessages", Icons.Filled.Mail),
+    SettingsCategory("通知", "查看我的通知", "notifications", Icons.Filled.Notifications),
+    SettingsCategory("隐私", "管理我的隐私", "userPrivacy", Icons.Filled.Lock),
+    SettingsCategory("收藏", "打开我的收藏", "favorites", Icons.Filled.Bookmark),
+    SettingsCategory("淘贴", "打开我的淘贴", "topicCollections?tab=mine", Icons.Filled.CollectionsBookmark),
+    SettingsCategory("签名", "管理个人签名", "personalSignature", Icons.Filled.EditNote),
+    SettingsCategory("活跃度", "查看个人社区活跃度", "communityActivity", Icons.Filled.Insights),
+    SettingsCategory("附件", "管理我的附件", "attachments", Icons.Filled.AttachFile),
+    SettingsCategory("资料", "在应用内打开个人资料", "settings", Icons.Filled.AccountCircle),
+    SettingsCategory("邀请", "打开邀请中心", "inviteCenter", Icons.Filled.PersonAdd),
+    SettingsCategory("烧饼", "打开我的烧饼", "communityWallet", Icons.Filled.AccountBalanceWallet),
+    SettingsCategory("称号", "打开我的称号", "gachaProfile", Icons.Filled.MilitaryTech),
+    SettingsCategory("广告", "打开我的广告", "myPromotions", Icons.Filled.Campaign),
+    SettingsCategory("退出", "确认退出登录", "logout", Icons.AutoMirrored.Filled.Logout),
+)

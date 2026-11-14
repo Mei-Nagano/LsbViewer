@@ -30,24 +30,20 @@ internal fun LazyListScope.topicHeaderItem(
     onRegenerateAi: () -> Unit,
     onDismissAi: () -> Unit,
     onJoinReply: () -> Unit,
-    pollBusy: Boolean,
-    essenceBusy: Boolean,
-    essenceTopUpBusy: Boolean,
-    onEssenceBusyChange: (Boolean) -> Unit,
-    onEssenceTopUpBusyChange: (Boolean) -> Unit,
-    onPollBusyChange: (Boolean) -> Unit,
-    onLogin: () -> Unit,
     onRefresh: () -> Unit,
     onTitleBottomInRoot: (Float) -> Unit,
 ) {
 item(key = "header") {
                         Column {
-                            // 完整标题独立成段（headlineSmall 24/32），元信息另起一行 bodySmall；
+                            // 完整标题独立成段（22/32 加粗，对齐 v1.0.70 的标题观感），元信息另起一行 bodySmall；
                             // onGloballyPositioned：标题行滑出顶栏后，顶栏切换为显示标题（11）
                             Text(
                                 d.title,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.headlineSmall.copy(
+                                    fontSize = 22.sp,
+                                    lineHeight = 32.sp,
+                                ),
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .semantics { heading() }
@@ -55,8 +51,8 @@ item(key = "header") {
                                     .padding(
                                         start = 16.dp,
                                         end = 16.dp,
-                                        top = 12.dp,
-                                        bottom = 4.dp
+                                        top = 10.dp,
+                                        bottom = 6.dp
                                     ),
                             )
                             Text(
@@ -73,6 +69,9 @@ item(key = "header") {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             )
+                            if (d.styledTags.isNotEmpty()) FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                d.styledTags.forEach { sb.linux.client.ui.patterns.topic.SourceTopicTagView(it) }
+                            }
                             // AI 总结：开启总开关后显示入口，默认等用户点按钮才请求
                             if (aiSettings.enabled) {
                                 AiSummaryCard(
@@ -96,49 +95,6 @@ item(key = "header") {
                                         interactionViewModel.joinLottery(d, option) { result ->
                                             result.onSuccess { session.showToast(it.message); onRefresh() }
                                                 .onFailure { session.showToast(it.message ?: "失败") }
-                                        }
-                                    },
-                                )
-                            }
-                            if (d.poll != null || d.essenceReview != null || d.essenceApplication != null) {
-                                TopicPollView(
-                                    poll = d.poll,
-                                    essence = d.essenceReview,
-                                    application = d.essenceApplication,
-                                    loggedIn = session.account.loginState.loggedIn,
-                                    busy = pollBusy || essenceBusy,
-                                    topUpBusy = essenceTopUpBusy,
-                                    onLogin = { onLogin() },
-                                    onApply = { application ->
-                                        onEssenceBusyChange(true)
-                                        interactionViewModel.applyForEssence(d, application) { result ->
-                                            result.onSuccess {
-                                                session.showToast(it.message)
-                                                if (it.succeeded) onRefresh()
-                                            }.onFailure { session.showToast(it.message ?: "申请失败") }
-                                            onEssenceBusyChange(false)
-                                        }
-                                    },
-                                    onTopUp = { amount ->
-                                        val topUp = d.essenceReview?.topUp ?: return@TopicPollView
-                                        onEssenceTopUpBusyChange(true)
-                                        interactionViewModel.topUpEssence(d, topUp, amount) { result ->
-                                            result.onSuccess {
-                                                session.showToast(it.message)
-                                                if (it.succeeded) onRefresh()
-                                            }.onFailure { session.showToast(it.message ?: "追加失败") }
-                                            onEssenceTopUpBusyChange(false)
-                                        }
-                                    },
-                                    onVote = { selected, reason ->
-                                        val poll = d.poll ?: return@TopicPollView
-                                        onPollBusyChange(true)
-                                        interactionViewModel.vote(d, poll, selected, reason) { result ->
-                                            result.onSuccess {
-                                                session.showToast(it.message)
-                                                if (it.succeeded) onRefresh()
-                                            }.onFailure { session.showToast(it.message ?: "投票失败") }
-                                            onPollBusyChange(false)
                                         }
                                     },
                                 )

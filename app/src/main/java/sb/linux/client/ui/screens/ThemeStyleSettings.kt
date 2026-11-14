@@ -1,4 +1,5 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsSlider
 
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.clickable
@@ -98,7 +99,7 @@ item {
         val snapPoints = listOf(-1f, 0f, 1f)
         var dragging by remember { mutableStateOf(false) }
         var dragValue by remember { mutableStateOf(session.themeContrast) }
-        Slider(
+        SettingsSlider(
             value = if (dragging) dragValue else session.themeContrast,
             onValueChange = { dragging = true; dragValue = it },
             onValueChangeFinished = {

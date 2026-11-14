@@ -27,8 +27,8 @@ data class AppSpacing(
     val pageVertical: Dp = 16.dp,
     /** 独立分组之间 */
     val section: Dp = 24.dp,
-    /** 正文段落之间（阅读专用，D04「段后 16dp」） */
-    val paragraph: Dp = 16.dp,
+    /** 正文段落之间（阅读专用，对齐 v1.0.70 的紧凑节奏 4dp） */
+    val paragraph: Dp = 4.dp,
     /** 双栏之间 */
     val paneGap: Dp = 24.dp,
     /** 独立内容段／资料头与列表之间 */

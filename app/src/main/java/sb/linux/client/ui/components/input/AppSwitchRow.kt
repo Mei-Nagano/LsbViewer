@@ -2,10 +2,17 @@ package sb.linux.client.ui.components.input
 
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.graphics.vector.ImageVector
 import sb.linux.client.ui.components.layout.AppMenuRow
 
 /**
@@ -27,6 +34,8 @@ fun AppSwitchRow(
     subtitle: String = "",
     enabled: Boolean = true,
     compact: Boolean = false,
+    prominent: Boolean = false,
+    icon: ImageVector? = null,
 ) {
     AppMenuRow(
         title = title,
@@ -39,12 +48,17 @@ fun AppSwitchRow(
         ),
         enabled = enabled,
         compact = compact,
+        prominent = prominent,
+        icon = icon,
         trailing = {
             Switch(
                 checked = checked,
                 onCheckedChange = null,
                 enabled = enabled,
                 modifier = Modifier.clearAndSetSemantics { },
+                thumbContent = if (prominent) {
+                    { Icon(if (checked) Icons.Filled.Check else Icons.Filled.Close, null, Modifier.size(16.dp)) }
+                } else null,
             )
         },
     )

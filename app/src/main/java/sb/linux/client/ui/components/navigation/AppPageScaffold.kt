@@ -42,6 +42,7 @@ fun AppPageScaffold(
     titleContent: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
+    primaryPage: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
@@ -53,6 +54,7 @@ fun AppPageScaffold(
                 navigationIcon = navigationIcon,
                 titleContent = titleContent,
                 actions = actions,
+                primaryPage = primaryPage,
             )
         },
         bottomBar = bottomBar,
@@ -78,6 +80,7 @@ fun AppTopBar(
     titleContent: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
+    primaryPage: Boolean = false,
 ) {
     TopAppBar(
         modifier = modifier.heightIn(min = LocalAppSizes.current.topBarHeight),
@@ -85,6 +88,8 @@ fun AppTopBar(
         title = {
             if (titleContent != null) {
                 titleContent()
+            } else if (primaryPage) {
+                AppPageTitle(title)
             } else {
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -92,9 +97,7 @@ fun AppTopBar(
         navigationIcon = {
             when {
                 navigationIcon != null -> navigationIcon()
-                onBack != null -> IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                }
+                onBack != null -> AppBackButton(onBack)
             }
         },
         actions = actions,

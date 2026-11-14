@@ -39,50 +39,11 @@ internal fun UserAccountActions(
     masterNav: NavHostController?,
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = LocalAppSpacing.current.pageHorizontal,
-                vertical = LocalAppSpacing.current.inline,
-            ),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
-        Column {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { nav.navigate("settings") }
-                    .padding(
-                        horizontal = LocalAppSpacing.current.pageHorizontal,
-                        vertical = LocalAppSpacing.current.contentGap,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Settings, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(12.dp))
-                Text("个人设置", style = MaterialTheme.typography.bodyLarge)
-            }
-            HorizontalDivider(
-                Modifier.padding(horizontal = 16.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-            )
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { confirmLogout = true }
-                    .padding(
-                        horizontal = LocalAppSpacing.current.pageHorizontal,
-                        vertical = LocalAppSpacing.current.contentGap,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Logout, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.width(12.dp))
-                Text("退出登录", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
-            }
-        }
+    androidx.compose.material3.FilledTonalIconButton(onClick = { nav.navigate("settings") }) {
+        Icon(Icons.Filled.Settings, "个人设置", Modifier.size(20.dp))
+    }
+    androidx.compose.material3.FilledTonalIconButton(onClick = { confirmLogout = true }) {
+        Icon(Icons.AutoMirrored.Filled.Logout, "退出登录", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
     }
     if (confirmLogout) {
         sb.linux.client.ui.components.feedback.AppConfirmDialog(

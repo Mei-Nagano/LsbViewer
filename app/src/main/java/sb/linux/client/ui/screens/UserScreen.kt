@@ -56,7 +56,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
     val factory = remember(session.userPageRepository, uid, initialTab) {
         UserPageViewModelFactory(session.userPageRepository, uid, initialTab)
     }
-    val viewModel: UserPageViewModel = viewModel(factory = factory, key = "user-page-$uid")
+    val viewModel: UserPageViewModel = viewModel(factory = factory, key = "user-page-$uid-${session.accountIdentityVersion}")
     val state by viewModel.uiState.collectAsState()
     val tab = state.tab
     val profile = state.content?.profile
@@ -73,19 +73,19 @@ fun UserScreen(session: Session, nav: NavHostController) {
     val masterNav = LocalMasterNav.current
     val spacing = LocalAppSpacing.current
 
-    LaunchedEffect(viewModel, session.homeBrowse.refreshRequest) { viewModel.load() }
+    LaunchedEffect(viewModel) { viewModel.load(forceRefresh = false) }
 
-    // 点进该用户主页即刷新其头像缓存：清掉 Coil 内存/磁盘里该 URL 的旧图，
-    // 大头像随后以新拉取的字节解码，侧栏等处的旧头像也能随之更新。
+    // 普通返回保留头像和明细缓存，只有手动刷新才重新获取同 URL 的头像。
     val context = LocalContext.current
-    LaunchedEffect(profile?.avatarUrl) {
-        val url = profile?.avatarUrl ?: return@LaunchedEffect
+    fun refreshProfile() {
+        val url = profile?.avatarUrl.orEmpty()
         if (url.isNotBlank()) {
             val loader = coil.Coil.imageLoader(context)
             val memCache = loader.memoryCache
             memCache?.keys?.filter { it.key == url }?.forEach { key -> memCache.remove(key) }
             loader.diskCache?.remove(url)
         }
+        viewModel.load()
     }
 
     val tabs = buildList {
@@ -100,6 +100,7 @@ fun UserScreen(session: Session, nav: NavHostController) {
         title = profile?.username ?: "用户",
         onBack = { nav.popBackStack() },
         actions = {
+            AppRefreshButton(onClick = ::refreshProfile, enabled = !loading)
             if (session.account.loginState.loggedIn && !isSelf && !profile?.blockUrl.isNullOrBlank()) {
                 TextButton(onClick = {
                     nav.navigate("userBlock?url=" + android.net.Uri.encode(profile!!.blockUrl))
@@ -119,49 +120,35 @@ fun UserScreen(session: Session, nav: NavHostController) {
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            profile?.let { UserProfileHeader(it) }
-            // 本人主页：个人设置与退出登录入口（原"我的"页账号分类移入，3.1）
-            if (isSelf && session.account.loginState.loggedIn) UserAccountActions(session, nav, masterNav)
-            ScrollableTabRow(
-                selectedTabIndex = tabs.indexOfFirst { it.first == tab }.coerceAtLeast(0),
-                edgePadding = spacing.pageHorizontal,
-                containerColor = MaterialTheme.colorScheme.surface,
+            profile?.let {
+                UserProfileHeader(it, headerActions = if (isSelf && session.account.loginState.loggedIn) {
+                    { UserAccountActions(session, nav, masterNav) }
+                } else null)
+            }
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    .padding(horizontal = spacing.pageHorizontal, vertical = spacing.inline),
+                horizontalArrangement = Arrangement.spacedBy(spacing.item),
             ) {
                 tabs.forEach { (t, label) ->
-                    Tab(selected = tab == t, onClick = { viewModel.selectTab(t) }, text = { Text(label) })
+                    FilterChip(selected = tab == t, onClick = { viewModel.selectTab(t) },
+                        label = { Text(label) }, shape = androidx.compose.foundation.shape.CircleShape)
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
-                    loading -> LoadingBox()
-                    error != null -> ErrorBox(error!!) { viewModel.load() }
+                    loading && state.content == null -> LoadingBox()
+                    error != null && state.content == null -> ErrorBox(error!!) { viewModel.load() }
                     else -> LazyColumn(
                         state = userListState,
                         contentPadding = PaddingValues(vertical = LocalAppSpacing.current.pageVertical)
                     ) {
+                        error?.let { message -> item { Text(message,
+                            Modifier.padding(horizontal = spacing.pageHorizontal), color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall) } }
                         when (tab) {
                             "replies" -> userReplyRows(replies) { topicId -> nav.navigate("topic/$topicId") }
-                            "points_rewards" -> if (pointRows.isEmpty()) {
-                                item { EmptyBox("暂无积分记录", modifier = Modifier.fillParentMaxHeight(0.5f)) }
-                            } else itemsIndexed(pointRows, key = { i, row -> "${row.timeText}-${row.reason}-$i" }) { index, row ->
-                                ListItem(
-                                    headlineContent = { Text(row.reason) },
-                                    supportingContent = { Text(row.timeText) },
-                                    trailingContent = {
-                                        Text(
-                                            "${if (row.positive) "+" else ""}${row.change} 积分",
-                                            color = if (row.positive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                                            style = MaterialTheme.typography.labelLarge
-                                        )
-                                    }
-                                )
-                                if (index != pointRows.lastIndex) {
-                                    HorizontalDivider(
-                                        Modifier.padding(start = spacing.pageHorizontal),
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                    )
-                                }
-                            }
+                            "points_rewards" -> pointsHistoryRows(pointRows, profile?.points.orEmpty())
                             "notifications" -> userNotificationRows(notifications, nav)
                             else -> if (topicCards.isEmpty()) {
                                 item { EmptyBox("暂无主题", modifier = Modifier.fillParentMaxHeight(0.5f)) }

@@ -22,6 +22,8 @@ import sb.linux.client.ui.patterns.user.*
 import sb.linux.client.ui.components.feedback.*
 import sb.linux.client.ui.components.layout.*
 import sb.linux.client.ui.components.navigation.*
+import sb.linux.client.ui.patterns.settings.SettingsScaffold
+import sb.linux.client.ui.patterns.settings.SettingsCard
 
 /** 应用内 WebView 页面：常规设置选择「应用内打开」时，站内未映射页面与外部链接在此展示 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,6 +33,8 @@ fun WebScreen(
     onBack: (() -> Unit)? = null,
     onLoaded: ((android.webkit.WebView, String) -> Unit)? = null,
     onOpenWindow: ((String) -> Unit)? = null,
+    settingsStyle: Boolean = false,
+    routeInternalLinks: Boolean = true,
 ) {
     val entry = nav.currentBackStackEntry ?: return
     val rawUrl = sourceUrl ?: entry.arguments?.getString("url").orEmpty()
@@ -46,10 +50,12 @@ fun WebScreen(
     val linkHandler = LocalLinkHandler.current
     val chooseFiles = rememberWebFileChooser()
 
-    AppPageScaffold(
+    WebPageScaffold(
         title = title ?: pageTitle,
+        settingsStyle = settingsStyle,
         onBack = { if (onBack != null) onBack() else nav.popBackStack() },
         actions = {
+            AppRefreshButton(onClick = { webView?.let { WebViewDoh.load(it, currentUrl) } }, enabled = !loading)
             // 在浏览器打开：调起系统浏览器查看当前页面
             IconButton(onClick = {
                 runCatching {
@@ -109,6 +115,12 @@ fun WebScreen(
                             request: android.webkit.WebResourceRequest,
                         ): Boolean {
                             val destination = request.url
+                            if (routeInternalLinks && request.isForMainFrame && request.method.equals("GET", ignoreCase = true) &&
+                                Endpoints.isInternal(destination.host) && linkHandler != null &&
+                                sb.linux.client.ui.navigation.sourcePageRoute(destination.toString(), session.account.loginState.userId) != null) {
+                                linkHandler(destination.toString())
+                                return true
+                            }
                             // 站内明文跳转升级为 HTTPS，保证继续走 DoH 代理而不是系统 DNS。
                             if (request.isForMainFrame && request.method.equals("GET", ignoreCase = true) &&
                                 destination.scheme.equals("http", ignoreCase = true) &&
@@ -118,6 +130,12 @@ fun WebScreen(
                                 return true
                             }
                             val fromSource = Endpoints.isInternal(android.net.Uri.parse(view.url.orEmpty()).host)
+                            if (request.isForMainFrame && request.hasGesture() && fromSource &&
+                                Endpoints.isInternal(destination.host) && destination.path?.trimEnd('/') == "/jump" &&
+                                linkHandler != null) {
+                                linkHandler(destination.toString())
+                                return true
+                            }
                             if (request.isForMainFrame && request.hasGesture() && fromSource &&
                                 destination.scheme in setOf("http", "https") && !Endpoints.isInternal(destination.host) && linkHandler != null
                             ) {
@@ -163,6 +181,27 @@ fun WebScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/** 设置网页仅替换应用外壳；滚动和业务表单仍由 WebView 自己处理。 */
+@Composable
+private fun WebPageScaffold(
+    title: String,
+    settingsStyle: Boolean,
+    onBack: () -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    if (!settingsStyle) {
+        AppPageScaffold(title, onBack, actions = actions, content = content)
+        return
+    }
+    SettingsScaffold {
+        Column(Modifier.fillMaxSize()) {
+            sb.linux.client.ui.patterns.settings.SettingsTopBar(title, onBack = onBack, actions = actions)
+            SettingsCard(Modifier.weight(1f)) { content(PaddingValues()) }
         }
     }
 }

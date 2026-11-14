@@ -11,6 +11,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.patterns.settings.SettingsChoiceRow
+import sb.linux.client.ui.patterns.settings.SettingsSlider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AspectRatio
+import kotlin.math.roundToInt
 
 internal fun LazyListScope.themeFontSettings(
     session: Session,
@@ -66,32 +71,31 @@ item {
                 )
             }
         }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("字体大小", style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.weight(1f))
-            Text("${(session.fontScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium)
-        }
-        Slider(
-            value = session.fontScale,
-            onValueChange = session.preferences::saveFontScale,
-            valueRange = 0.85f..1.30f,
-            steps = 8,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal),
+        SettingsChoiceRow("字体粗细", listOf(-3 to "极细", -2 to "细体", -1 to "较细", 0 to "标准", 1 to "较粗", 2 to "粗体"),
+            session.fontWeightLevel, session.preferences::saveFontWeightLevel)
+        SettingsSlider(value = session.fontWeightLevel.toFloat(),
+            onValueChange = { session.preferences.saveFontWeightLevel(it.roundToInt()) },
+            valueRange = -3f..2f, steps = 4,
+            modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp))
+        Text("当前正文粗细 ${(400 + session.fontWeightLevel * 100)}", style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+item {
+    GroupCard {
+        ListItem(
+            headlineContent = { Text("界面缩放") },
+            supportingContent = { Text("调整全局显示比例") },
+            leadingContent = { Icon(Icons.Filled.AspectRatio, null) },
+            trailingContent = { Text("${(session.fontScale * 100).toInt()}%", style = MaterialTheme.typography.titleSmall) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         )
-        Text("字体粗细", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal))
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp)) {
-            listOf("标准", "较粗", "粗体").forEachIndexed { index, label ->
-                SegmentedButton(
-                    selected = session.fontWeightLevel == index,
-                    onClick = { session.preferences.saveFontWeightLevel(index) },
-                    shape = SegmentedButtonDefaults.itemShape(index, 3),
-                ) { Text(label) }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
+        SettingsSlider(
+            value = session.fontScale, onValueChange = session.preferences::saveFontScale,
+            valueRange = 0.85f..1.30f, steps = 8,
+            modifier = Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp),
+        )
     }
 }
 item { Spacer(Modifier.height(24.dp)) }

@@ -55,13 +55,20 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     internal val forumRepository: ForumRepository = appContainer.forumRepository
     private val repositories by lazy { SessionRepositories(this, appContainer.client) }
     private val accountLifecycle by lazy { SessionAccountLifecycleCoordinator(this) }
+    internal val accountIdentityVersion: Long get() = accountLifecycle.identityVersion
     internal fun onUserSummaryBlockChanged() {
         topicPageCacheRepository.clearAll()
         homeBrowseCache.clearHomeCache()
-        homeBrowse.homeTabs.forEach { it.topics = emptyList(); it.loaded = false }
+        homeBrowse.homeTabs.forEach { it.reset() }
         homeBrowse.requestRefresh()
+        refreshKeywordFilter(force = true)
     }
     internal val userSummaryRepository get() = repositories.userSummaryRepository
+    internal fun onUserSummaryFollowChanged() {
+        listOf(8, 10, 11).forEach { homeBrowse.homeTabs[it].reset() }
+        homeBrowse.requestRefresh()
+        refreshSession()
+    }
     internal val accountSessionRepository get() = repositories.accountSessionRepository
     internal val topicCollectionRepository: TopicCollectionPageRepository get() = repositories.topicCollectionRepository
     internal val keywordFilterRepository: KeywordFilterRepository get() = repositories.keywordFilterRepository
@@ -84,6 +91,8 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     internal val imageUploadRepository: ImageUploadRepository get() = repositories.imageUploadRepository
     internal val imageHostSettingsRepository: ImageHostSettingsRepository get() = repositories.imageHostSettingsRepository
     internal val linkPreviewRepository: LinkPreviewRepository get() = repositories.linkPreviewRepository
+    internal val externalJumpRepository get() = repositories.externalJumpRepository
+    internal val topicLinkRepository get() = repositories.topicLinkRepository
     internal val updateRepository: UpdateRepository get() = repositories.updateRepository
     internal val dohSettingsRepository: DohSettingsRepository get() = repositories.dohSettingsRepository
     internal val proxyDetectionRepository: ProxyDetectionRepository get() = repositories.proxyDetectionRepository
@@ -114,7 +123,11 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     internal val leaderboardRepository get() = repositories.leaderboardRepository
     internal val reportRepository get() = repositories.reportRepository
     internal val profileSettingsRepository get() = repositories.profileSettingsRepository
+    internal val personalSignatureRepository get() = repositories.personalSignatureRepository
+    internal val accountManagementRepository get() = repositories.accountManagementRepository
     internal val topicInteractionRepository get() = repositories.topicInteractionRepository
+    internal val sourceEditorRepository get() = repositories.sourceEditorRepository
+    internal val sourceEditorDraftRepository get() = repositories.sourceEditorDraftRepository
     internal val topicReplyRepository get() = repositories.topicReplyRepository
     internal val topicPageRepository get() = repositories.topicPageRepository
     internal val topicFloorPageRepository get() = repositories.topicFloorPageRepository

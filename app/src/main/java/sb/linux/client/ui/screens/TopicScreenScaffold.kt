@@ -31,8 +31,6 @@ internal fun TopicScreenScaffold(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    // 宽屏详情图没有 home：钉住必须由主栏导航承担，否则会抛“目标不存在”。
-    val masterNav = LocalMasterNav.current
     val page = view.page
     val mainPost = view.mainPost
     BackHandler(ui.topicSearchOpen) {
@@ -68,7 +66,6 @@ internal fun TopicScreenScaffold(
                     likeCount = mainPost?.likeCount ?: 0,
                     showLike = mainPost?.canLike == true,
                     showFavorite = page.canFavorite,
-                    pinned = session.floatingTopicId == topicId,
                     onReply = {
                         if (session.account.loginState.loggedIn) {
                             ui.quoteText = ""
@@ -83,22 +80,7 @@ internal fun TopicScreenScaffold(
                         if (session.account.loginState.loggedIn) actions.requestFavorite()
                         else nav.navigate("login")
                     },
-                    onPin = {
-                        page.pinSnapshot(session, listState, paging, ui, topicId)
-                        if (masterNav != null) {
-                            // 宽屏：主栏切回社区，详情宿主退栈回到空态；快照供“继续阅读”恢复
-                            masterNav.navigate(AppDestinations.home.route) {
-                                popUpTo(masterNav.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                            }
-                            runCatching { nav.popBackStack() }
-                        } else {
-                            nav.navigate(AppDestinations.home.route) {
-                                popUpTo(AppDestinations.home.route) { inclusive = false }
-                                launchSingleTop = true
-                            }
-                        }
-                    },
+
                 )
             }
         },

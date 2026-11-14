@@ -12,6 +12,7 @@ import androidx.navigation.NavHostController
 import kotlinx.coroutines.launch
 import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.topic.TopicCard
+import sb.linux.client.domain.community.FollowingView
 import sb.linux.client.ui.feature.home.HomePageViewModel
 import sb.linux.client.ui.feature.home.HomePageViewModelFactory
 import sb.linux.client.ui.navigation.LocalMasterNav
@@ -21,6 +22,9 @@ internal val SORTS = listOf(
     "comment" to "新评论",
     "post" to "新帖子",
     "featured" to "精华",
+    "hot" to "热议",
+    "following" to "关注",
+    "footprint" to "足迹",
 )
 
 /** 顶栏搜索范围值 → 中文标签 */
@@ -44,12 +48,17 @@ fun HomeScreen(
     val tabIndex = session.homeBrowse.homeTabIndex
     val combo = session.homeBrowse.homeCombo
     val tabStates = session.homeBrowse.homeTabs
+    val followingView = session.homeBrowse.followingView
     val categoryIndex = when (combo) {
         1 -> 4
         2 -> 5
         3 -> 3
         4 -> 6
-        else -> tabIndex.coerceIn(0, SORTS.size - 1)
+        else -> if (tabIndex == 4) when (followingView) {
+            FollowingView.TOPICS -> 8
+            FollowingView.FOLLOWING -> 10
+            FollowingView.FOLLOWERS -> 11
+        } else tabIndex.coerceIn(SORTS.indices).let { if (it < 3) it else it + 4 }
     }
     val current = tabStates[categoryIndex]
     val currentSort = when (combo) {
@@ -65,6 +74,7 @@ fun HomeScreen(
     val pageFactory = remember(
         session.homeRepository, session.homeBrowseCache, session.topicPageCacheRepository,
         session.topicViewsRepository, current, currentSort, homeInfinite,
+        followingView, session.account.loginState.userId, session.accountIdentityVersion,
     ) {
         HomePageViewModelFactory(
             repository = session.homeRepository,
@@ -76,11 +86,13 @@ fun HomeScreen(
             homeInfinite = homeInfinite,
             pageSize = { session.topicsPerPage },
             showToast = session::showToast,
+            followingView = followingView,
+            accountUserId = session.account.loginState.userId,
         )
     }
     val pageViewModel: HomePageViewModel = viewModel(
         factory = pageFactory,
-        key = "home-page-$currentSort",
+        key = "home-page-$currentSort-${if (currentSort == "following") followingView.sourceValue else ""}-${current.generation}",
     )
     val pageState by pageViewModel.uiState.collectAsState()
     val loading = pageState.loading
@@ -99,8 +111,6 @@ fun HomeScreen(
     var searchFieldMenu by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }
     // 进入搜索态时自动聚焦输入框（否则输入框一出现就因「未失焦且为空」被立刻关闭，表现为闪现）
-    // 排序抽屉（t8）：(全部/仅抽奖/仅发卡) 上方的 (新评论/新帖子/精华) 折叠区，状态持久化
-    var sortDrawerOpen by remember { mutableStateOf(session.homeBrowse.homeSortDrawerOpen) }
     // 源站首页侧板数据（与首次首页请求同步解析，并本地永久缓存，避免每次访问源站）
 
     val scope = rememberCoroutineScope()
@@ -185,10 +195,6 @@ fun HomeScreen(
         menuOpen = menuOpen,
         onMenuOpenChange = { menuOpen = it },
         searchFocus = searchFocus,
-        sortDrawerOpen = sortDrawerOpen,
-        onSortDrawerOpenChange = { sortDrawerOpen = it },
-        tabIndex = tabIndex,
-        combo = combo,
         loadPage = { page, append, foldNew -> pageViewModel.load(page, append, foldNew) },
         localPage = { pageViewModel.goLocalPage(it, display.filterTopics) },
     )

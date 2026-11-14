@@ -26,6 +26,12 @@ internal fun TopicReplyDialogHost(
         ReplyDialog(
             session = session,
             initial = initial,
+            mentionUrl = page?.replyForm?.mentionUrl.orEmpty(),
+            submitLabel = page?.replyForm?.submitLabel?.ifBlank { "发布" } ?: "发布",
+            submissionNotice = page?.replyForm?.submissionNotice.orEmpty(),
+            previewUrl = page?.replyForm?.previewUrl.orEmpty(), previewCsrf = page?.csrf.orEmpty(), previewTopicId = topicId,
+            editorMedia = page?.replyForm?.media ?: sb.linux.client.domain.topic.SourceEditorMedia(),
+            maxBodyLength = page?.replyForm?.maxLength ?: Int.MAX_VALUE,
             captcha = activeCaptcha,
             onRefreshCaptcha = {
                 viewModel.refreshCaptcha(topicId, page?.page ?: 1) { result ->

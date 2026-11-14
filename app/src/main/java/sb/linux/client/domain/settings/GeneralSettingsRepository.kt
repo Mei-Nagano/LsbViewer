@@ -12,6 +12,7 @@ data class GeneralSettings(
     val bottomBarStyle: Int,
     val bottomBarItems: List<String>,
     val replyBarStyle: Int,
+    val hideExternalJumpReminder: Boolean = false,
 )
 
 interface GeneralSettingsRepository {
@@ -21,6 +22,7 @@ interface GeneralSettingsRepository {
     fun setUpdateCheckIntervalHours(hours: Int)
     fun markUpdateCheck(atMillis: Long)
     fun setLinkPreviewEnabled(enabled: Boolean)
+    fun setHideExternalJumpReminder(enabled: Boolean)
     fun setTabletMode(enabled: Boolean)
     fun setBottomBarStyle(style: Int)
     fun setBottomBarItems(items: List<String>)

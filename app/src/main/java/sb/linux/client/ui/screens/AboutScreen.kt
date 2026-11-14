@@ -71,16 +71,9 @@ fun AboutScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    sb.linux.client.ui.components.navigation.AppPageScaffold(
-        title = "关于应用",
-        onBack = { nav.popBackStack() },
-    ) { pad ->
+    SettingsPage("关于应用", nav) {
         Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
+            Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(spacing.largeSection))
@@ -119,16 +112,17 @@ fun AboutScreen(session: Session, nav: NavHostController) {
             )
             Spacer(Modifier.height(spacing.section))
             // List group
-            GroupCard {
-                SettingMenuRow("开发人员", "Mei-Nagano", Icons.Filled.Person) { openExternal(UpdateProjectLinks.DEVELOPER_URL) }
-                SettingMenuRow("项目地址", "GitHub · ${UpdateProjectLinks.REPO}", Icons.Filled.Code) { openExternal(UpdateProjectLinks.PROJECT_URL) }
-                SettingMenuRow("开源协议", "MIT License", Icons.Filled.Gavel) { openExternal(UpdateProjectLinks.LICENSE_URL) }
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.inline)) {
+                SettingMenuRow("开发人员", "Mei-Nagano", Icons.Filled.Person, shape = sb.linux.client.ui.patterns.settings.settingsItemShape(0, 5)) { openExternal(UpdateProjectLinks.DEVELOPER_URL) }
+                SettingMenuRow("项目地址", "GitHub · ${UpdateProjectLinks.REPO}", Icons.Filled.Code, shape = sb.linux.client.ui.patterns.settings.settingsItemShape(1, 5)) { openExternal(UpdateProjectLinks.PROJECT_URL) }
+                SettingMenuRow("开源协议", "MIT License", Icons.Filled.Gavel, shape = sb.linux.client.ui.patterns.settings.settingsItemShape(2, 5)) { nav.navigate("licenses") }
                 SettingMenuRow(
                     "检查更新",
                     if (updateState.checking) "正在检查…" else "检查 GitHub 最新版本",
                     Icons.Filled.SystemUpdate,
+                    shape = sb.linux.client.ui.patterns.settings.settingsItemShape(3, 5),
                 ) { doCheck(false) }
-                SettingMenuRow("意见反馈", "GitHub Issues", Icons.Filled.Feedback) { openExternal("${UpdateProjectLinks.PROJECT_URL}/issues/new") }
+                SettingMenuRow("意见反馈", "GitHub Issues", Icons.Filled.Feedback, shape = sb.linux.client.ui.patterns.settings.settingsItemShape(4, 5)) { openExternal("${UpdateProjectLinks.PROJECT_URL}/issues/new") }
             }
             updateState.msg?.let {
                 Spacer(Modifier.height(spacing.contentGap))

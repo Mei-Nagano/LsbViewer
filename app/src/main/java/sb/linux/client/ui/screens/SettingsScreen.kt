@@ -8,6 +8,7 @@ import sb.linux.client.ui.session.Session
 @Composable
 fun SettingsScreen(session: Session, nav: NavHostController) {
     SourceAccountPage(session, nav, "个人资料与账号", "/profile", "登录后管理原站个人资料与账号",
+        settingsStyle = true,
         onExit = { session.refreshSession() },
         onLoaded = { _, url ->
             if (Endpoints.isInternal(android.net.Uri.parse(url).host)) {

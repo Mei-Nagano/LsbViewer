@@ -14,6 +14,7 @@ import sb.linux.client.domain.community.NotificationItem
 internal class CommunityPageService(
     private val client: LsbClient,
     private val updateUnread: (Int) -> Unit,
+    private val userPages: sb.linux.client.domain.account.UserPageRepository,
 ) : NotificationRepository, IdentityRepository, InviteRepository, LeaderboardRepository, ReportRepository {
     private val reportSubmissionData = mutableMapOf<Pair<Long, String>, ReportFormParseResult>()
     override suspend fun loadIdentity(): IdentityCenterData =
@@ -25,9 +26,10 @@ internal class CommunityPageService(
     override suspend fun loadLeaderboard(type: String): List<LeaderRow> =
         CommunityFeedHtmlParser.parseLeaderboard(client.get("/leaderboard?type=$type").html)
 
-    override suspend fun loadNotifications(userId: Long): List<NotificationItem> {
-        val html = client.get("/user/$userId?tab=notifications").html
-        val items = NotificationHtmlParser.parseNotifications(html)
+    override fun cachedNotifications(userId: Long) = userPages.cached(userId, "notifications")?.notifications
+
+    override suspend fun loadNotifications(userId: Long, forceRefresh: Boolean): List<NotificationItem> {
+        val items = userPages.load(userId, "notifications", forceRefresh).notifications
         updateUnread(0)
         return items
     }

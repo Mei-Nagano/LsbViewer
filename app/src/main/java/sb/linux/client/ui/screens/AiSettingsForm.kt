@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.ai.AiAssistantDefaults
 import sb.linux.client.ui.theme.AppMenuDefaults
 import sb.linux.client.ui.theme.LocalAppSpacing
+import sb.linux.client.ui.patterns.settings.SettingsChoiceMenu
 
 @Composable
 internal fun AiSettingsForm(
@@ -39,8 +40,8 @@ internal fun AiSettingsForm(
     onSave: () -> Unit,
     configuration: Boolean = true,
 ) {
-    GroupCard {
-        if (!configuration) {
+    if (!configuration) {
+        GroupCard {
         SwitchRow(
             "开启 AI 总结",
             "帖子顶部显示「AI 总结本帖」按钮，点按后才请求；关闭则帖子内不显示 AI 入口",
@@ -62,11 +63,13 @@ internal fun AiSettingsForm(
             onCheckedChange = onAiIncludeCommentsChange,
         )
         }
-        if (configuration) Column(
-            Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap),
-        ) {
-            OutlinedTextField(
+        return
+    }
+    val spacing = LocalAppSpacing.current
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.section)) {
+        GroupCard("接口配置") {
+          Column(Modifier.fillMaxWidth().padding(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
+            SettingsTextField(
                 value = aiUrl,
                 onValueChange = onAiUrlChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -75,7 +78,7 @@ internal fun AiSettingsForm(
                 shape = MaterialTheme.shapes.large,
                 singleLine = true,
             )
-            OutlinedTextField(
+            SettingsTextField(
                 value = aiKey,
                 onValueChange = onAiKeyChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -85,8 +88,12 @@ internal fun AiSettingsForm(
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
             )
+          }
+        }
+        GroupCard("模型与生成") {
+          Column(Modifier.fillMaxWidth().padding(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.contentGap)) {
             Box(Modifier.fillMaxWidth()) {
-                OutlinedTextField(
+                SettingsTextField(
                     value = aiModel,
                     onValueChange = onAiModelChange,
                     modifier = Modifier.fillMaxWidth(),
@@ -96,27 +103,26 @@ internal fun AiSettingsForm(
                     singleLine = true,
                     trailingIcon = {
                         if (modelOptions.isNotEmpty()) {
-                            IconButton(onClick = { onModelMenuOpenChange(true) }) {
-                                Icon(Icons.Filled.ArrowDropDown, "选择模型")
+                            Box {
+                                IconButton(onClick = { onModelMenuOpenChange(true) }) {
+                                    Icon(Icons.Filled.ArrowDropDown, "选择模型")
+                                }
+                                SettingsChoiceMenu(
+                                    expanded = modelMenuOpen, onDismiss = { onModelMenuOpenChange(false) },
+                                    options = modelOptions.map { it to it }, selectedValue = aiModel,
+                                    onSelect = { onAiModelChange(it); onModelMenuOpenChange(false) },
+                                )
                             }
                         }
                     },
                 )
-                DropdownMenu(expanded = modelMenuOpen, onDismissRequest = { onModelMenuOpenChange(false) }) {
-                    modelOptions.forEach { model ->
-                        DropdownMenuItem(
-                            text = { Text(model) },
-                            onClick = { onAiModelChange(model); onModelMenuOpenChange(false) },
-                        )
-                    }
-                }
             }
-            OutlinedButton(
+            FilledTonalButton(
                 onClick = onFetchModels,
                 enabled = !modelBusy && aiUrl.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (modelBusy) "获取中…" else "获取模型列表") }
-            OutlinedTextField(
+            SettingsTextField(
                 value = aiTemp,
                 onValueChange = onAiTempChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -124,7 +130,11 @@ internal fun AiSettingsForm(
                 shape = MaterialTheme.shapes.large,
                 singleLine = true,
             )
-            OutlinedTextField(
+          }
+        }
+        GroupCard("总结提示词") {
+          Column(Modifier.fillMaxWidth().padding(spacing.pageHorizontal)) {
+            SettingsTextField(
                 value = aiPrompt,
                 onValueChange = onAiPromptChange,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
@@ -133,11 +143,12 @@ internal fun AiSettingsForm(
                 supportingText = { Text("留空使用内置提示词") },
                 shape = MaterialTheme.shapes.large,
             )
+          }
         }
-        if (configuration) Button(
+        Button(
             onClick = onSave,
             shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) { Text("保存 AI 设置") }
     }
 }

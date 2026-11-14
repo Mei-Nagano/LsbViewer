@@ -64,9 +64,10 @@ internal fun cleanImagePlaceholder(source: AnnotatedString): AnnotatedString {
 }
 
 internal fun trimInlineEdges(source: AnnotatedString): AnnotatedString {
-    val start = source.text.indexOfFirst { !it.isWhitespace() }
+    // br 生成的换行和不换行空格属于原文，只清除 DOM 缩进产生的边缘空格。
+    val start = source.text.indexOfFirst { it !in " \t\r" }
     if (start < 0) return AnnotatedString("")
-    val end = source.text.indexOfLast { !it.isWhitespace() } + 1
+    val end = source.text.indexOfLast { it !in " \t\r" } + 1
     return if (start == 0 && end == source.length) source else source.subSequence(start, end)
 }
 
@@ -100,8 +101,8 @@ internal fun renderTopicBlock(element: Element, linkColor: Color, codeBg: Color)
 }
 
 internal fun parseTopicTable(element: Element, linkColor: Color, codeBg: Color): List<List<TableCellData>> =
-    element.select("tr").mapNotNull { row ->
-        val cells = row.select("th, td").map { cell ->
+    element.select("tr").filter { it.closest("table") == element }.mapNotNull { row ->
+        val cells = row.children().filter { it.normalName() in setOf("th", "td") }.map { cell ->
             val rich = renderInline(cell, linkColor, codeBg)
             TableCellData(
                 text = rich.text.trim(),

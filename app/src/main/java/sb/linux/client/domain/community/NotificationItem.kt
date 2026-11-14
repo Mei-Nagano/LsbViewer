@@ -11,8 +11,14 @@ data class NotificationItem(
     val partnerId: Long = 0,
     val partnerAvatar: String = "",
     val quoteText: String = "",
+    val isSystem: Boolean = false,
+    val lotteryPrize: String = "",
+    val redemptionCode: String = "",
+    val cardRedemptionTitle: String = "",
+    val cardRedemptionCost: String = "",
 )
 
 interface NotificationRepository {
-    suspend fun loadNotifications(userId: Long): List<NotificationItem>
+    suspend fun loadNotifications(userId: Long, forceRefresh: Boolean = false): List<NotificationItem>
+    fun cachedNotifications(userId: Long): List<NotificationItem>? = null
 }

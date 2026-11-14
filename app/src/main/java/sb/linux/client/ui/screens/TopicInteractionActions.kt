@@ -35,15 +35,19 @@ internal class TopicInteractionActions(
 
     fun toggleFavorite() {
         val page = state.page.value ?: return
+        if (ui.favoriteBusy) return
         val wasFavorite = ui.isFav
+        ui.favoriteBusy = true
+        ui.isFav = !wasFavorite
         viewModel.toggleFavorite(page, wasFavorite) { result ->
             result.onSuccess { change ->
-                if (change == null) session.showToast("操作失败") else {
+                if (change == null) { ui.isFav = wasFavorite; session.showToast("操作失败") } else {
                     session.showToast(if (wasFavorite) "已取消收藏" else "已收藏")
                     ui.isFav = change.page.favorited
                     state.page.value = change.page
                 }
-            }.onFailure { session.showToast(it.message ?: "失败") }
+            }.onFailure { ui.isFav = wasFavorite; session.showToast(it.message ?: "失败") }
+            ui.favoriteBusy = false
         }
     }
 

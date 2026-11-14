@@ -6,6 +6,7 @@ data class WebViewDohPolicy(
     val proxyUrl: String?,
     val dohActive: Boolean,
     val dohUrl: String,
+    val forWebsites: Boolean = true,
 )
 
 interface WebViewDohTunnel : Closeable {

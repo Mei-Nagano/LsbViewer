@@ -3,7 +3,6 @@ package sb.linux.client.ui.session
 import androidx.compose.ui.graphics.Color
 import sb.linux.client.common.filter.KeywordFilterSnapshot
 import sb.linux.client.common.ui.SessionUiInvalidation
-import sb.linux.client.ui.feature.topic.TopicPinnedSnapshot
 
 /** Readable state surface shared by the app ViewModel and app-scoped state coordinators. */
 internal interface SessionState {
@@ -59,9 +58,6 @@ internal interface SessionState {
     var replyBarStyle: Int
     var linkPreviewEnabled: Boolean
 
-    var floatingTopicId: Long
-    var floatingTopicTitle: String
-    var floatingTopicSnapshot: TopicPinnedSnapshot?
     val checkinText: String
     val checkinCheckedToday: Boolean
     val keywordFilter: KeywordFilterSnapshot

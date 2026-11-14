@@ -21,6 +21,11 @@ class GeneralSettingsViewModel(
 
     fun linkOpenMode(): Int = repository.current().linkOpenMode
 
+    fun setHideExternalJumpReminder(enabled: Boolean) {
+        repository.setHideExternalJumpReminder(enabled)
+        state = state.copy(settings = repository.current())
+    }
+
     fun setLinkOpenMode(mode: Int) {
         repository.setLinkOpenMode(mode)
         state = state.copy(settings = repository.current())

@@ -14,5 +14,6 @@ data class UserPageContent(
 )
 
 interface UserPageRepository {
-    suspend fun load(userId: Long, tab: String): UserPageContent
+    suspend fun load(userId: Long, tab: String, forceRefresh: Boolean = false): UserPageContent
+    fun cached(userId: Long, tab: String): UserPageContent? = null
 }

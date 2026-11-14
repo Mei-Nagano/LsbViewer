@@ -57,9 +57,11 @@ internal fun buildTopicReplyPresentation(
             if (floor > 0) threadReplies[floor] = (threadReplies[floor] ?: 0) + 1
         }
     }
-    val paged = if (infinite) replies
+    val pageSlice = if (infinite) replies
     else replies.drop((localReplyPage - 1) * repliesPerPage).take(repliesPerPage)
-    val flat = when {
+    val pinned = replies.filter { it.pinned }
+    val paged = pinned + pageSlice.filterNot { it.pinned }
+    val treeSlice = when {
         !hasTree -> emptyList()
         infinite -> flattenTree(tree, collapsedIds)
         else -> flattenTree(
@@ -67,6 +69,7 @@ internal fun buildTopicReplyPresentation(
             collapsedIds,
         )
     }
+    val flat = if (hasTree) pinned.map { it to 0 } + treeSlice.filterNot { it.first.pinned } else emptyList()
     val total = if (infinite) data?.totalPages ?: 1 else {
         val base = if (hasTree) tree.size else replies.size
         val full = ((base + repliesPerPage - 1) / repliesPerPage).coerceAtLeast(1)

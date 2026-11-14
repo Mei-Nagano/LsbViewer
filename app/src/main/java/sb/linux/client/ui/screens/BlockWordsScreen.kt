@@ -30,7 +30,6 @@ import sb.linux.client.common.filter.KeywordFilterRules
 import sb.linux.client.ui.components.feedback.ErrorBox
 import sb.linux.client.ui.components.feedback.LoadingBox
 import sb.linux.client.ui.components.feedback.LoginRequiredBox
-import sb.linux.client.ui.components.navigation.AppPageScaffold
 import sb.linux.client.ui.feature.settings.KeywordFilterViewModel
 import sb.linux.client.ui.feature.settings.KeywordFilterViewModelFactory
 import sb.linux.client.ui.session.Session
@@ -40,22 +39,7 @@ import sb.linux.client.ui.theme.LocalAppSpacing
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BlockWordsScreen(session: Session, nav: NavHostController) {
-    val spacing = LocalAppSpacing.current
-    AppPageScaffold(
-        title = "帖子列表过滤 · 源站同步",
-        onBack = { nav.popBackStack() },
-    ) { pad ->
-        Column(
-            Modifier
-                .padding(pad)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = spacing.pageHorizontal, vertical = spacing.pageVertical),
-            verticalArrangement = Arrangement.spacedBy(spacing.contentGap),
-        ) {
-            BlockWordsContent(session, nav)
-        }
-    }
+    SettingsPage("屏蔽规则", nav) { BlockWordsContent(session, nav) }
 }
 
 /** 屏蔽规则内容：并入「阅读与交互」二级页展示，也可由独立路由复用。 */
@@ -100,59 +84,59 @@ internal fun BlockWordsContent(session: Session, nav: NavHostController) {
                 nav.navigate("userBlock")
             }
             Text(
-                "与源站「首页关键词过滤」一致：标题、用户名和首页版块规则只影响帖子列表，不影响搜索和其他页面。",
+                "关键词和版块设置只隐藏帖子列表中的内容。用户屏蔽在统一名单中管理，可隐藏其主题和回帖、拒收私信，并禁止对方回复你的主题和回帖。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             if (state.snapshot.policy.availablePresets.isNotEmpty()) {
-                Text("常用关键词", style = MaterialTheme.typography.titleSmall)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.inline)) {
-                    state.snapshot.policy.availablePresets.forEach { preset ->
-                        val selected = KeywordFilterRules.normalize(preset) in state.presets
-                        InputChip(
-                            selected = selected,
-                            onClick = { viewModel.togglePreset(preset) },
-                            enabled = !state.busy,
-                            label = { Text(preset) },
-                        )
+                GroupCard("常用关键词") {
+                    FlowRow(Modifier.padding(spacing.pageHorizontal), horizontalArrangement = Arrangement.spacedBy(spacing.inline)) {
+                        state.snapshot.policy.availablePresets.forEach { preset ->
+                            val selected = KeywordFilterRules.normalize(preset) in state.presets
+                            InputChip(
+                                selected = selected,
+                                onClick = { viewModel.togglePreset(preset) },
+                                enabled = !state.busy,
+                                label = { Text(preset) },
+                            )
+                        }
                     }
                 }
             }
 
-            EditableKeywordSection(
-                title = "自定义屏蔽词",
-                emptyMessage = "暂无自定义屏蔽词",
-                inputLabel = "新屏蔽词",
-                input = state.input,
-                onInputChange = viewModel::setInput,
-                values = state.custom,
-                onAdd = viewModel::addCustomWords,
-                onRemove = viewModel::removeCustomWord,
-                enabled = !state.busy,
-                supportingText = "最多 ${KeywordFilterRules.MAX_CUSTOM_WORDS} 个，每项 ${KeywordFilterRules.MAX_VALUE_LENGTH} 字符；保存时按源站规则清洗。",
-            )
-
-            ForumKeywordSection(
-                options = state.snapshot.policy.forums.map { it.id to it.name },
-                selected = state.selectedForums,
-                enabled = !state.busy,
-                blockingEnabled = state.snapshot.policy.forumBlockingEnabled,
-                warning = state.snapshot.policy.warning,
-                onSelectionChange = viewModel::selectForums,
-            )
-
-            EditableKeywordSection(
-                title = "列表过滤用户名",
-                emptyMessage = "暂无屏蔽用户",
-                inputLabel = "用户名",
-                input = state.userInput,
-                onInputChange = viewModel::setUserInput,
-                values = state.users,
-                onAdd = viewModel::addUsers,
-                onRemove = viewModel::removeUser,
-                enabled = !state.busy,
-            )
+            GroupCard {
+                Column(Modifier.padding(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.item)) {
+                    EditableKeywordSection(
+                        title = "自定义屏蔽词",
+                        emptyMessage = "暂无自定义屏蔽词",
+                        inputLabel = "新屏蔽词",
+                        input = state.input,
+                        onInputChange = viewModel::setInput,
+                        values = state.custom,
+                        onAdd = viewModel::addCustomWords,
+                        onRemove = viewModel::removeCustomWord,
+                        enabled = !state.busy,
+                        supportingText = "最多 ${KeywordFilterRules.MAX_CUSTOM_WORDS} 个，每项 ${KeywordFilterRules.MAX_VALUE_LENGTH} 字符；保存时按源站规则清洗。",
+                    )
+                }
+            }
+            GroupCard {
+                Column(Modifier.padding(spacing.pageHorizontal), verticalArrangement = Arrangement.spacedBy(spacing.item)) {
+                    ForumKeywordSection(
+                        options = state.snapshot.policy.forums.map { it.id to it.name },
+                        selected = state.selectedForums,
+                        enabled = !state.busy,
+                        blockingEnabled = state.snapshot.policy.forumBlockingEnabled,
+                        warning = state.snapshot.policy.warning,
+                        onSelectionChange = viewModel::selectForums,
+                    )
+                }
+            }
+            if (state.users.isNotEmpty()) SettingMenuRow(
+                "待处理的旧用户名规则",
+                "${state.users.size} 条旧规则仍在隐藏主题，请到统一名单确认转入或移除。恢复列表默认不会清除它们。",
+            ) { nav.navigate("userBlock") }
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -162,7 +146,7 @@ internal fun BlockWordsContent(session: Session, nav: NavHostController) {
                     onClick = viewModel::clearPersonalRules,
                     enabled = !state.busy,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                ) { Text("清空个人屏蔽") }
+                ) { Text("恢复列表默认") }
                 Button(
                     onClick = viewModel::save,
                     enabled = !state.busy,

@@ -34,7 +34,14 @@ internal fun TopicPollView(
     onApply: (EssenceApplication) -> Unit,
     onTopUp: (Int) -> Unit,
     onVote: (List<TopicPollOption>, String) -> Unit,
+    onView: () -> Unit = {},
+    viewBusy: Boolean = false,
 ) {
+    if (poll != null && essence == null && application == null) {
+        OrdinaryTopicPollCard(poll, loggedIn, busy, onLogin, onVote = { onVote(it, "") }, onView = onView, viewBusy = viewBusy)
+        return
+    }
+    val openLink = sb.linux.client.ui.LocalLinkHandler.current
     val vote = poll
     var selectedValues by remember(vote?.action, vote?.options) {
         mutableStateOf(vote?.options.orEmpty().filter { it.selected }.map { it.value }.toSet())
@@ -56,16 +63,17 @@ internal fun TopicPollView(
         ) {
             Row(
                 Modifier.fillMaxWidth().clickable(
-                    enabled = !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled
+                    enabled = !busy && loggedIn && !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled
                 ) {
                     selectedValues = if (currentPoll.multiple) {
-                        if (option.value in selectedValues) selectedValues - option.value else selectedValues + option.value
+                        if (option.value in selectedValues) selectedValues - option.value
+                        else if (selectedValues.size < currentPoll.maxChoices) selectedValues + option.value else selectedValues
                     } else setOf(option.value)
                 }.padding(horizontal = 8.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (currentPoll.multiple) Checkbox(selected, null, enabled = !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled)
-                else RadioButton(selected, null, enabled = !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled)
+                if (currentPoll.multiple) Checkbox(selected, null, enabled = !busy && loggedIn && !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled)
+                else RadioButton(selected, null, enabled = !busy && loggedIn && !currentPoll.closed && currentPoll.unavailableReason.isBlank() && !option.disabled)
                 Text(option.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             }
         }
@@ -90,7 +98,8 @@ internal fun TopicPollView(
                         when {
                             essence?.subtitle?.isNotBlank() == true -> essence.subtitle
                             vote?.unavailableReason?.isNotBlank() == true -> vote.unavailableReason
-                            vote?.closed == true -> "投票已结束"
+                            vote?.resultView == true -> "投票结果"
+                            vote?.closed == true -> "当前不可投票"
                             vote?.multiple == true -> "可选择多项"
                             vote != null -> "请选择一项"
                             else -> "申精评议"
@@ -176,6 +185,18 @@ internal fun TopicPollView(
                     vote.options.forEach { option -> optionCard(option, Modifier.weight(1f)) }
                 }
             } else vote?.options.orEmpty().forEach { option -> optionCard(option, Modifier.fillMaxWidth()) }
+            vote?.results.orEmpty().forEach { result ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth()) {
+                        Text(result.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Text(result.count, style = MaterialTheme.typography.labelMedium)
+                    }
+                    LinearProgressIndicator(progress = { result.fraction }, modifier = Modifier.fillMaxWidth(), drawStopIndicator = {})
+                }
+            }
+            if (!vote?.viewUrl.isNullOrBlank()) TextButton(onClick = { openLink?.invoke(vote!!.viewUrl) }) {
+                Text(vote?.viewLabel.orEmpty().ifBlank { "查看投票" })
+            }
             if (vote?.reasonName?.isNotBlank() == true) OutlinedTextField(
                 value = reason, onValueChange = { reason = it.take(vote.reasonMaxLength) },
                 label = { Text(if (vote.reasonRequired) "投票理由（必填）" else "投票理由") },
@@ -189,11 +210,13 @@ internal fun TopicPollView(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                vote.closed -> Text("当前不可投票", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                vote.closed && !vote.resultView -> Text("当前不可投票", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                vote.resultView -> Unit
                 !loggedIn -> Button(onClick = onLogin, Modifier.fillMaxWidth()) { Text("登录后投票") }
                 else -> Button(
                     onClick = { onVote(vote.options.filter { it.value in selectedValues }, reason.trim()) },
-                    enabled = !busy && selectedValues.isNotEmpty() && vote.action.isNotBlank() && (!vote.reasonRequired || reason.isNotBlank()),
+                    enabled = !busy && selectedValues.isNotEmpty() && selectedValues.size <= vote.maxChoices &&
+                        (!vote.selectionMustChange || selectedValues != vote.options.filter { it.selected }.map { it.value }.toSet()) && vote.action.isNotBlank() && (!vote.reasonRequired || reason.isNotBlank()),
                     modifier = Modifier.align(Alignment.End),
                     shape = CircleShape,
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),

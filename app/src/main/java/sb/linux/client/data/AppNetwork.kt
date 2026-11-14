@@ -50,7 +50,7 @@ object AppNetwork {
     val connectionPool = okhttp3.ConnectionPool(5, 10, java.util.concurrent.TimeUnit.MINUTES)
     private val settingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == null || key in setOf(
-                "doh_enabled", "doh_url", "doh_disable_on_vpn", "doh_auto_without_vpn",
+                "doh_enabled", "doh_url", "doh_disable_on_vpn", "doh_auto_without_vpn", "doh_for_websites",
                 "proxy_type", "proxy_host", "proxy_port",
             )) {
             invalidate()
@@ -186,7 +186,7 @@ object AppNetwork {
                 return Dns.SYSTEM.lookup(hostname).sortedBy { it !is Inet4Address }
             }
             val endpoint = settings.dohUrl.trim().toHttpUrlOrNull()
-            if (endpoint == null || endpoint.scheme != "https") return Dns.SYSTEM.lookup(hostname)
+            if (endpoint == null || endpoint.scheme != "https") throw UnknownHostException("DoH 地址无效")
             val key = "${generation.get()}|${endpoint}|$hostname"
             DnsCache.get(key)?.let { return it }
             var lastFailure: Exception? = null

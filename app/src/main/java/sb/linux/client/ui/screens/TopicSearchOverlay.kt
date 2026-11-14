@@ -90,7 +90,7 @@ internal fun TopicSearchOverlay(
             verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.item)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "关闭搜索") }
+                sb.linux.client.ui.components.navigation.AppBackButton(onClose, "关闭搜索")
                 OutlinedTextField(
                     value = query,
                     onValueChange = onQueryChange,

@@ -41,10 +41,10 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
             session.notificationRepository, uid, session::updateNotifUnread, session::showToast,
         )
     }
-    val viewModel: NotificationsViewModel = viewModel(factory = factory, key = "notifications-$uid")
+    val viewModel: NotificationsViewModel = viewModel(factory = factory, key = "notifications-$uid-${session.accountIdentityVersion}")
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(viewModel) {
-        if (session.account.loginState.loggedIn) viewModel.load()
+        if (session.account.loginState.loggedIn) viewModel.loadCached()
     }
 
     AppPageScaffold(
@@ -56,16 +56,14 @@ fun NotificationsScreen(session: Session, nav: NavHostController) {
             TextButton(onClick = viewModel::markRead, enabled = state.items.isNotEmpty() && anyUnread) {
                 Text("标记已读")
             }
-            IconButton(onClick = viewModel::load, enabled = !state.loading) {
-                Icon(Icons.Filled.Refresh, "刷新")
-            }
+            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = viewModel::load, enabled = !state.loading)
         },
     ) { pad ->
         NotificationsSection(session, nav, pad, state, onRetry = viewModel::load)
     }
 }
 
-/** 通知分区内容；由「消息」根分区宿主与旧路由共用。 */
+/** 独立通知页内容，与私信联系人列表分开。 */
 @Composable
 internal fun NotificationsSection(
     session: Session,
@@ -79,14 +77,19 @@ internal fun NotificationsSection(
         !session.account.loginState.loggedIn -> LoginRequiredBox(
             "通知与源站账号绑定", "登录后可查看系统与互动通知", Modifier.padding(contentPadding),
         ) { nav.navigate("login") }
-        state.loading -> LoadingBox(Modifier.padding(contentPadding))
-        state.error != null -> ErrorBox(state.error!!, Modifier.padding(contentPadding), onRetry = onRetry)
+        state.loading && state.items.isEmpty() -> LoadingBox(Modifier.padding(contentPadding))
+        state.error != null && state.items.isEmpty() -> ErrorBox(state.error!!, Modifier.padding(contentPadding), onRetry = onRetry)
         state.items.isEmpty() -> EmptyBox("暂无通知", modifier = Modifier.padding(contentPadding))
         else -> Column(Modifier.padding(contentPadding).fillMaxSize()) {
             LazyColumn(
                 Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = spacing.pageVertical),
             ) {
+                state.error?.let { error -> item {
+                    Text(error, Modifier.padding(horizontal = spacing.pageHorizontal),
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                } }
                 // 通知内容可能完全重复：key 必须带 index 防止重复 key 崩溃
                 itemsIndexed(state.items) { _, item ->
                     NotificationSummaryCard(item, nav)

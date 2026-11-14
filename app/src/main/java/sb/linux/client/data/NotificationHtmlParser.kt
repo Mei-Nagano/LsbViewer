@@ -15,16 +15,18 @@ object NotificationHtmlParser {
             val content = run {
                 val el = contentEl?.clone()
                 el?.select("blockquote")?.remove()
+                el?.select("a[href]")?.filter { it.text().trim() == "查看主题" }?.forEach { it.remove() }
                 el?.text() ?: ""
             }.replace(Regex("""\s+"""), " ").trim()
             // 源站私信（站内信）必带「回复TA」→ /notify/{uid}，帖子/系统通知没有此入口。
             // 用它作为私信强标志：即便私信正文里贴了 /topic/ 链接（旧逻辑会被骗去当帖子）也绝不串帖。
             val replyAction = li.selectFirst(".notification-reply-action")?.attr("href") ?: ""
-            val isPm = replyAction.contains("/notify/") || Regex(
+            val isPm = replyAction.contains("/notify/") || replyAction.contains("/direct_messages/") || Regex(
                 """私信|私聊|站内信|短消息|聊天|私讯|回信|pm|conversation"""
             , RegexOption.IGNORE_CASE).containsMatchIn(typeText)
             // 主目标链接：私信用「回复TA」进对话，帖子/系统通知取正文里的「查看主题」链接
-            val link = replyAction.ifBlank { li.selectFirst(".notification-content a[href]")?.attr("href") ?: "" }
+            val link = replyAction.ifBlank { li.select(".notification-content a[href]")
+                .firstOrNull { Regex("/topic/\\d+").containsMatchIn(it.attr("href")) }?.attr("href").orEmpty() }
             // 确为帖子类：非私信，且主链接确为 /topic/{id}
             val isTopic = !isPm && Regex("""/topic/\d+""").containsMatchIn(link)
             // 发送者/来源：私信是发送者名；系统/帖子用 .post-title（可能为 <span>系统</span> 或帖子标题链接）
@@ -32,7 +34,10 @@ object NotificationHtmlParser {
                 ?: li.selectFirst(".notification-content img[alt]")?.attr("alt")
                 ?: li.selectFirst(".notification-content a[href*=\"/user/\"]")?.text()
             // 私信对方 uid 与头像：优先 /notify/{uid} 回复入口，其次头像链接 /user/{uid} 与头像 src
-            val partnerId = Regex("""/notify/(\d+)""").find(replyAction)
+            val isSystem = sender?.trim() == "系统" && li.selectFirst(".post-title[href*=/user/]") == null
+            val prize = if (isSystem) Regex("抽奖帖中获得[「『](.*?)[」』]").find(content)?.groupValues?.get(1).orEmpty() else ""
+            val cardRedemption = if (isSystem && isTopic) Regex("你兑换[“\"「『](.+?)[”\"」』]消耗\\s*([\\d,]+)\\s*积分").find(content) else null
+            val partnerId = Regex("""/(?:notify|direct_messages)/(\d+)""").find(replyAction)
                 ?.groupValues?.get(1)?.toLongOrNull()
                 ?: (li.selectFirst(".post-avatar a[href*=\"/user/\"]")?.attr("href")
                     ?.let { Regex("""/user/(\d+)""").find(it)?.groupValues?.get(1)?.toLongOrNull() } ?: 0)
@@ -51,6 +56,12 @@ object NotificationHtmlParser {
                 partnerId = if (isPm) partnerId else 0,
                 partnerAvatar = partnerAvatar,
                 quoteText = if (isPm) quoteText else "",
+                isSystem = isSystem,
+                lotteryPrize = prize,
+                redemptionCode = if (prize.isNotBlank() || cardRedemption != null) contentEl?.selectFirst("code")?.wholeText()?.trim().orEmpty()
+                    .ifBlank { Regex("兑换码[：:]\\s*([^。]+)").find(content)?.groupValues?.get(1)?.trim().orEmpty() } else "",
+                cardRedemptionTitle = cardRedemption?.groupValues?.get(1).orEmpty(),
+                cardRedemptionCost = cardRedemption?.groupValues?.get(2).orEmpty().replace(",", ""),
             )
         }
     }

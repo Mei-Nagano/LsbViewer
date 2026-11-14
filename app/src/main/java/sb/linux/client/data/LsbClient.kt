@@ -148,6 +148,10 @@ class LsbClient(
 
     fun peekAvatarBytes(url: String): ByteArray? = avatarLoader.peekAvatarBytes(url)
 
+    fun avatarCacheSize(): Long = avatarLoader.cacheSize()
+
+    fun clearAvatarCache() = avatarLoader.clearCache()
+
     suspend fun fetchBytes(url: String): ByteArray = avatarLoader.fetchBytes(url)
 
     suspend fun postForm(path: String, form: Map<String, String>): Resp = requestExecutor.postForm(path, form)
@@ -157,8 +161,8 @@ class LsbClient(
 
     suspend fun postAjax(path: String, form: Map<String, String>): JSONObject = requestExecutor.postAjax(path, form)
 
-    suspend fun postMultipart(path: String, fields: Map<String, String>, fileField: String, file: File, mime: String): Resp =
-        requestExecutor.postMultipart(path, fields, fileField, file, mime)
+    suspend fun postMultipart(path: String, fields: Map<String, String>, fileField: String, file: File, mime: String, ajax: Boolean = false): Resp =
+        requestExecutor.postMultipart(path, fields, fileField, file, mime, ajax)
 
     internal suspend fun getAjaxJsonForRepository(path: String): JSONObject = requestExecutor.getAjaxJson(path)
 

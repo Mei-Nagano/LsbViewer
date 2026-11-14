@@ -55,7 +55,7 @@ fun IdentityCenterScreen(session: Session, nav: NavHostController) {
     AppPageScaffold(
         title = "认证中心",
         onBack = { nav.popBackStack() },
-        actions = { IconButton(onClick = viewModel::load) { Icon(Icons.Filled.Refresh, "刷新") } },
+        actions = { sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = viewModel::load) },
     ) { pad ->
         when {
             state.loading -> LoadingBox(Modifier.padding(pad))

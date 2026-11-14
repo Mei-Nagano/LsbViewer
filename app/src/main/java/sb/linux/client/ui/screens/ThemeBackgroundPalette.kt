@@ -1,4 +1,5 @@
 package sb.linux.client.ui.screens
+import sb.linux.client.ui.patterns.settings.SettingsSlider
 
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.background
@@ -70,9 +71,9 @@ item {
                 onCheckedChange = session.preferences::saveBackgroundImageEnabled)
             Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal)) {
                 Text("背景图片不透明度 ${(session.backgroundImageOpacity * 100).toInt()}%")
-                Slider(value = session.backgroundImageOpacity, onValueChange = session.preferences::saveBackgroundImageOpacity, valueRange = 0.05f..0.65f)
+                SettingsSlider(value = session.backgroundImageOpacity, onValueChange = session.preferences::saveBackgroundImageOpacity, valueRange = 0.05f..0.65f)
                 Text("卡片、顶栏表面不透明度 ${(session.surfaceOpacity * 100).toInt()}%")
-                Slider(value = session.surfaceOpacity, onValueChange = session.preferences::saveSurfaceOpacity, valueRange = 0.2f..1f)
+                SettingsSlider(value = session.surfaceOpacity, onValueChange = session.preferences::saveSurfaceOpacity, valueRange = 0.2f..1f)
             }
         }
         SwitchRow(

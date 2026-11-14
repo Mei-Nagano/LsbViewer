@@ -10,10 +10,11 @@ import sb.linux.client.ui.theme.LocalAppSpacing
 
 /** Full profile variant of the card also used by the sidebar and Me page. */
 @Composable
-internal fun UserProfileHeader(profile: UserProfile) {
+internal fun UserProfileHeader(profile: UserProfile, headerActions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null) {
     val spacing = LocalAppSpacing.current
     UserInfoCard(
         data = profile.toUserInfoCardData(),
+        headerActions = headerActions,
         modifier = Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.item),
     )
 }

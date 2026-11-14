@@ -21,16 +21,26 @@ internal object TopicPageParser {
         val essenceApplication = TopicEssenceReviewParser.parseApplication(essencePanel)
         val essenceReview = TopicEssenceReviewParser.parseReview(essencePanel)
         val poll = TopicPollParser.parse(d, essencePanel, essenceApplication)
+        val treasurePool = TopicSpecialPanelParser.treasure(d)
+        val resourceVote = TopicSpecialPanelParser.resource(d)
+        val forumMove = TopicForumMoveParser.parse(d)
 
         val postElements = d.select("ul.topic-post-list li.post-entry, ul.post-list.topic-post-list li.post-entry")
+        fun sourceId(li: org.jsoup.nodes.Element): Long = if (li.attr("data-reply-pin") == "top-copy")
+            li.selectFirst("form.reply-pin-action-form input[name=reply_id]")?.attr("value")?.toLongOrNull()
+                ?: li.id().removePrefix("post-").toLongOrNull() ?: 0L
+            else li.id().removePrefix("post-").toLongOrNull() ?: 0L
+        fun sourceFloor(li: org.jsoup.nodes.Element): Int = li.attr("data-floor").toIntOrNull()
+            ?: if (li.attr("data-reply-pin") == "top-copy") Regex("#\\s*(\\d+)").find(li.selectFirst(".post-floor")?.text().orEmpty())
+                ?.groupValues?.get(1)?.toIntOrNull() ?: 0 else 0
         val replyIdToFloor = postElements.mapNotNull { li ->
-            val replyId = li.id().removePrefix("post-").toLongOrNull() ?: return@mapNotNull null
-            val floor = li.attr("data-floor").toIntOrNull() ?: return@mapNotNull null
+            val replyId = sourceId(li)
+            val floor = sourceFloor(li)
             if (floor > 0) replyId to floor else null
         }.toMap()
         val posts = postElements.map { li ->
             val block = BlockedPostParser.parse(li)
-            val floorNum = li.attr("data-floor").toIntOrNull() ?: 0
+            val floorNum = sourceFloor(li)
             // 网页脚本会补 data-quote-threads-parent-floor，但 OkHttp 拿到的是执行脚本前 HTML。
             // 因此还需从正文第一段开头的 ?replyid=父回复ID 反查父楼层，这是原生客户端的权威兜底。
             val ownContent = li.select(".post-content").firstOrNull { it.closest("li.post-entry") == li }
@@ -100,23 +110,20 @@ internal object TopicPageParser {
                         ".community-lottery-readonly-prize, .community-lottery-prize-row, " +
                         ".red-packet-card, .donate-area, [data-donate-area], .quick-reply-main-action, .virtual-card-box"
                         + ", .topic-poll, .poll-card, form[class*=poll]"
+                        + ", .jubaopen-card, .resource_vote-card"
                         // 淘帖插件会把所属专辑、收录/移除表单插进 post-content；
                         // 应用已有独立淘帖入口和帖子菜单，这些不属于 Markdown 正文。
                         + ", [class*=topic-collection], [data-topic-collection], "
                         + "form[action*=topic_collection], form[action*=topic_collections]"
                         + ", .topic-essence-review-reply-label"
+                        + ", [id$=-topic_forum_move], [data-topic-footer-action], .topic-footer-actions"
+                        + ", a[href$=-topic_forum_move], [data-target$=-topic_forum_move]"
+                        + ", form[action*=topic_forum_move]"
                 ).remove()
                 // 编辑信息节点：专用类名优先（含源站新类 sb-limit-edit-time-note）；
                 // 兜底查找正文内任意含「最后编辑」的尾部元素
                 // （包括深层嵌套，如 blockquote 内的编辑标注），避免残留在正文中显示在分隔线上方
                 val editEl = contentEl.selectFirst(".post-edit-info, .edit-info, .post-last-edit, .sb-limit-edit-time-note")
-                    ?: contentEl.select("p, div, span, small, em, footer")
-                        .lastOrNull { el ->
-                            val t = el.ownText().ifBlank { el.text() }
-                            t.contains("最后编辑") && el.children().none { c ->
-                                c.text().contains("最后编辑")
-                            }
-                        }
                 if (editEl != null) {
                     val editorA = editEl.selectFirst("a[href^=/user/]")
                     if (editorA != null) {
@@ -126,38 +133,10 @@ internal object TopicPageParser {
                     editInfo = editEl.text().trim()
                     editEl.remove()
                 }
-                // 树形回复引用锚点剥离：源站在正文首段开头渲染「@用户 #N」锚点
-                //（href 为 ?replyid=父楼id）。层级关系已由 data-quote-threads-parent-floor
-                // 表达、UI 以「回复 #N」胶囊展示，正文里去掉避免重复。
-                // 长用户名时源站会把锚点结构拆散（#楼层号 落在锚点外、或锚点外有空白文本），
-                // 旧逻辑只认「首段第一个子节点恰为完整锚点」导致剥离失败——正文残留
-                //「@用户 #N」文本且层级展示错乱。放宽：找首段开头第一个 replyid 锚点删除，
-                // 并连同其后紧邻的「#N」文本节点一并剥离
-                if (parentFloorNum > 0) {
-                    contentEl.selectFirst("p")?.let { p ->
-                        val anchor = p.select("a[href*=replyid=]").firstOrNull()
-                        if (anchor != null) {
-                            // 锚点须位于段落开头（前面的兄弟节点仅允许空白文本）
-                            val leading = mentionAnchor != null && anchor.attr("href") == mentionHref &&
-                                generateSequence(anchor.previousSibling()) { it.previousSibling() }.all {
-                                    it is TextNode && it.isBlank
-                                }
-                            if (leading) {
-                                val next = anchor.nextSibling()
-                                anchor.remove()
-                                // 「#N」被拆到锚点外时，紧邻的纯楼层号文本一并删除
-                                if (next is TextNode) {
-                                    next.text(next.wholeText.replaceFirst(Regex("""^\s*#\s*$parentFloorNum(?:\s+|$)"""), ""))
-                                }
-                            }
-                        }
-                    }
-                    // 剥离后首段可能只剩空白（纯引用回复），删除避免顶部空行
-                    contentEl.selectFirst("p")?.takeIf { it.text().isBlank() && it.children().isEmpty() }?.remove()
-                }
+                // 引用提及和楼层号属于正文，层级元数据不改写正文内容。
             }
             PostEntry(
-                id = (li.attr("id").removePrefix("post-").toLongOrNull() ?: 0L),
+                id = sourceId(li),
                 floor = floorNum,
                 parentFloor = parentFloorNum.takeIf { it > 0 && it != floorNum } ?: 0,
                 authorId = SourceHtmlSupport.idFrom(authorA?.attr("href")),
@@ -196,8 +175,11 @@ internal object TopicPageParser {
                 redPacketReward = li.selectFirst(".red-packet-reply-reward")?.attr("aria-label").orEmpty(),
                 essenceVoteLabel = essenceVoteLabel,
                 essenceVoteSupport = essenceVoteSupport,
+                sourceActions = li.select("form.reply-pin-action-form,form[action*=red_packet]")
+                    .filter { it.closest("li.post-entry") == li }.map { AccountManagementParser.parseForm(it, Endpoints.abs("/topic/$fallbackId")) },
+                pinned = li.hasAttr("data-reply-pin") || li.selectFirst(".reply-pin-badge") != null,
             )
-        }
+        }.filter { it.id > 0 }.groupBy { it.id }.values.map { copies -> copies.first().copy(pinned = copies.any { it.pinned }) }
         val favForm = d.selectFirst("form.topic-favorites-action")
         val (page, totalPages) = TopicListParser.parsePagination(d)
 
@@ -213,7 +195,27 @@ internal object TopicPageParser {
 
         // 正文标签：标题旁的状态徽章（如抽奖帖的 已开奖 / 抽奖中）
         val titleTag = d.selectFirst(".post-topic-title, h1.post-content-title, h1.topic-title")
-            ?.let(TopicSourceTagsParser::parse)?.joinToString(" · ").orEmpty()
+            ?.let(TopicSourceTagsParser::styled)?.filterNot { it.classes.contains("resource_vote-rate") }
+            ?.joinToString(" · ") { it.label }.orEmpty()
+
+        val replyFormElement = d.selectFirst("form.ajax-reply-form:has(textarea[name])")
+        val replyBody = replyFormElement?.selectFirst("textarea[name]")
+        val replyUpload = replyFormElement?.selectFirst(".attachment-uploader")
+        val replyForm = if (replyFormElement != null && replyBody != null) sb.linux.client.domain.topic.TopicReplyForm(
+            action = Endpoints.abs(replyFormElement.attr("action")),
+            fields = SourceHtmlSupport.hiddenFields(replyFormElement), bodyName = replyBody.attr("name"),
+            required = replyBody.hasAttr("required"), maxLength = replyBody.attr("maxlength").toIntOrNull() ?: Int.MAX_VALUE,
+            mentionUrl = replyFormElement.selectFirst("[data-nb-editor-mention-url]")?.attr("data-nb-editor-mention-url").orEmpty(),
+            submitLabel = replyFormElement.selectFirst("button[type=submit]")?.text().orEmpty().ifBlank { "发布" },
+            submissionNotice = replyFormElement.selectFirst(".jubaopen-reply-notice")?.text().orEmpty(),
+            previewUrl = replyFormElement.selectFirst("[data-nb-editor-preview-url]")?.attr("data-nb-editor-preview-url").orEmpty(),
+            media = sb.linux.client.domain.topic.SourceEditorMedia(
+                uploadUrl = replyUpload?.attr("data-upload-url").orEmpty(),
+                csrf = replyFormElement.selectFirst("input[name=_csrf]")?.attr("value").orEmpty(),
+                maxUploadBytes = (replyUpload?.attr("data-upload-max-mb")?.toLongOrNull() ?: 20) * 1024 * 1024,
+                acceptedFiles = replyUpload?.selectFirst("input[type=file]")?.attr("accept").orEmpty(),
+                remoteImageUrl = replyFormElement.selectFirst("[data-nb-editor-remote-url]")?.attr("data-nb-editor-remote-url").orEmpty()),
+        ) else null
 
         return TopicPageData(
             topicId = fallbackId,
@@ -236,11 +238,17 @@ internal object TopicPageParser {
             viewsText = viewsText,
             repliesText = repliesText,
             redPacket = RedPacketParser.parse(d),
+            styledTags = d.selectFirst(".post-topic-title,h1.post-content-title,h1.topic-title")?.let { TopicSourceTagsParser.styled(it).filterNot { tag -> tag.classes.contains("resource_vote-rate") } }.orEmpty(),
+            footerPanels = TopicSourceActionsParser.panels(d),
             lottery = lottery,
             poll = poll,
             replyCaptcha = replyCaptcha,
+            replyForm = replyForm,
             essenceApplication = essenceApplication,
             essenceReview = essenceReview,
+            treasurePool = treasurePool,
+            resourceVote = resourceVote,
+            forumMove = forumMove,
         )
     }
 

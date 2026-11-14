@@ -7,7 +7,10 @@ data class PointRow(
     val positive: Boolean,
     val timestamp: Long = 0,
     val topicId: Long = 0,
-)
+    val eventReason: String = reason,
+) {
+    val signedAmount: Long get() = (change.replace(",", "").toLongOrNull() ?: 0L) * if (positive) 1 else -1
+}
 
 data class ReplyItem(
     val topicId: Long,

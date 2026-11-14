@@ -11,6 +11,8 @@ import sb.linux.client.domain.community.HomeBrowseCache
 import sb.linux.client.domain.community.HomeBrowseRepository
 import sb.linux.client.domain.community.HomePage
 import sb.linux.client.domain.community.HomeSidebar
+import sb.linux.client.domain.community.FollowingView
+import sb.linux.client.domain.community.FollowingUser
 import sb.linux.client.domain.topic.TopicCard
 import sb.linux.client.domain.topic.TopicPageCacheRepository
 import sb.linux.client.domain.topic.TopicViewsRepository
@@ -35,7 +37,10 @@ class HomePageViewModel(
     private val homeInfinite: Boolean,
     private val pageSize: () -> Int,
     private val showToast: (String) -> Unit,
+    private val followingView: FollowingView = FollowingView.TOPICS,
+    private val accountUserId: Long = 0,
 ) : ViewModel() {
+    private val accountFeed = currentSort in setOf("following", "footprint")
     private val mutableState = MutableStateFlow(HomePageUiState(sidebar = cache.loadHomeSidebar()))
     val uiState = mutableState.asStateFlow()
 
@@ -50,33 +55,38 @@ class HomePageViewModel(
         mutableState.update { it.copy(pendingTopics = topics) }
 
     fun loadCachedHome(allowed: Boolean): List<TopicCard> =
-        if (allowed) cache.loadHomeCache(currentSort) else emptyList()
+        if (allowed && !accountFeed) cache.loadHomeCache(currentSort) else emptyList()
 
     fun acceptPendingTopics(currentTopics: List<TopicCard>): List<TopicCard> {
         val merged = (mutableState.value.pendingTopics + currentTopics).distinctBy(TopicCard::topicId)
-        cache.saveHomeCache(currentSort, merged)
+        if (!accountFeed) cache.saveHomeCache(currentSort, merged)
         mutableState.update { it.copy(pendingTopics = emptyList()) }
         return merged
     }
 
     fun load(page: Int, append: Boolean = false, foldNew: Boolean = false) {
+        val generation = current.generation
         viewModelScope.launch {
             mutableState.update {
                 it.copy(loading = !append, loadingMore = append, error = null)
             }
             try {
-                val loaded = repository.load(currentSort, page)
+                val loaded = loadPage(page)
+                if (generation != current.generation) return@launch
                 applyLoadedPage(loaded, page, append, foldNew)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
             } catch (error: Exception) {
+                if (generation != current.generation) return@launch
                 mutableState.update { it.copy(error = error.message ?: "加载失败") }
                 if (current.topics.isNotEmpty()) showToast(error.message ?: "加载失败")
             } finally {
-                mutableState.update { it.copy(loading = false, loadingMore = false) }
+                if (generation == current.generation) mutableState.update { it.copy(loading = false, loadingMore = false) }
             }
         }
     }
 
     fun goLocalPage(target: Int, filterTopics: (List<TopicCard>) -> List<TopicCard>) {
+        val generation = current.generation
         viewModelScope.launch {
             val requiredCount = target * pageSize().coerceAtLeast(1)
             mutableState.update { it.copy(error = null) }
@@ -86,11 +96,14 @@ class HomePageViewModel(
                 mutableState.update { it.copy(loadingMore = true) }
                 try {
                     val nextPage = current.sourcePage + 1
-                    val loaded = repository.load(currentSort, nextPage)
+                    val loaded = loadPage(nextPage)
+                    if (generation != current.generation) return@launch
                     current.topics = (current.topics + loaded.topics).distinctBy(TopicCard::topicId)
                     current.sourcePage = loaded.page.coerceAtLeast(nextPage)
                     current.sourceTotalPages = loaded.totalPages.coerceAtLeast(nextPage)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
                 } catch (error: Exception) {
+                    if (generation != current.generation) return@launch
                     mutableState.update { it.copy(error = error.message ?: "加载失败") }
                     break
                 }
@@ -99,6 +112,10 @@ class HomePageViewModel(
             current.page = target.coerceAtLeast(1)
         }
     }
+
+    private suspend fun loadPage(page: Int): HomePage = if (currentSort == "following")
+        repository.loadFollowing(followingView, page, accountUserId)
+    else repository.load(currentSort, page)
 
     private fun applyLoadedPage(loaded: HomePage, requestedPage: Int, append: Boolean, foldNew: Boolean) {
         val items = loaded.topics
@@ -116,6 +133,10 @@ class HomePageViewModel(
             }
             else -> items
         }
+        current.followingUsers = if (append)
+            (current.followingUsers + loaded.followingUsers).distinctBy(FollowingUser::userId)
+        else loaded.followingUsers
+        current.emptyText = loaded.emptyText
         if (!foldNew) current.sourcePage = loaded.page.coerceAtLeast(if (append) requestedPage else 1)
         current.sourceTotalPages = loaded.totalPages
         if (!foldNew) current.page = if (homeInfinite) current.sourcePage else 1
@@ -124,7 +145,7 @@ class HomePageViewModel(
         if (!append && !foldNew) {
             mutableState.update { it.copy(pendingTopics = emptyList(), scrollToTopVersion = it.scrollToTopVersion + 1) }
         }
-        if (!append) cache.saveHomeCache(currentSort, items)
+        if (!append && !accountFeed) cache.saveHomeCache(currentSort, items)
         if (!append) refreshSidebar(loaded.sidebar)
     }
 
@@ -136,6 +157,8 @@ class HomePageViewModel(
             hotTopics = parsed.hotTopics.ifEmpty { old.hotTopics },
             statsText = parsed.statsText.ifBlank { old.statsText },
             newUsers = parsed.newUsers.ifEmpty { old.newUsers },
+            announcements = parsed.announcements.ifEmpty { old.announcements },
+            dailyStars = parsed.dailyStars.ifEmpty { old.dailyStars },
             onlineUsers = parsed.onlineUsers.takeIf {
                 it.count.isNotBlank() || it.items.isNotEmpty()
             } ?: old.onlineUsers,
@@ -155,10 +178,13 @@ class HomePageViewModelFactory(
     private val homeInfinite: Boolean,
     private val pageSize: () -> Int,
     private val showToast: (String) -> Unit,
+    private val followingView: FollowingView = FollowingView.TOPICS,
+    private val accountUserId: Long = 0,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
         HomePageViewModel(
             repository, cache, topicPageCache, topicViews, current, currentSort, homeInfinite, pageSize, showToast,
+            followingView, accountUserId,
         ) as T
 }

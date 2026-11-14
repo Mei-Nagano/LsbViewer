@@ -23,10 +23,10 @@ import sb.linux.client.ui.components.layout.*
 import sb.linux.client.ui.components.navigation.*
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Boolean, searchHighlight: String, showFloorBadge: Boolean, onUser: () -> Unit, onFloor: (Int) -> Unit) {
+internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Boolean, searchHighlight: String, showFloorBadge: Boolean, onUser: () -> Unit, onFloor: (Int) -> Unit, avatarColumnModifier: Modifier = Modifier) {
 // 作者行：头像 + 名称/徽章 + 元信息，楼层号固定右上角
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(avatarColumnModifier, horizontalAlignment = Alignment.CenterHorizontally) {
                 UserAvatar(post.authorId, post.avatarUrl, avatarSize, online = post.online, onProfile = onUser, minTouchTarget = true)
                 if (LocalShowUid.current && post.authorUid > 0) {
                     Text(
@@ -55,6 +55,8 @@ internal fun PostAuthorHeader(post: PostEntry, avatarSize: Int, isOpAuthor: Bool
                     if (isOpAuthor) {
                         PillBadge("楼主", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer, Modifier.align(Alignment.CenterVertically))
                     }
+                    if (post.pinned) PillBadge("置顶", MaterialTheme.colorScheme.onTertiaryContainer,
+                        MaterialTheme.colorScheme.tertiaryContainer, Modifier.align(Alignment.CenterVertically))
                     if (post.userGroup.isNotBlank()) {
                         PillBadge(post.userGroup, MaterialTheme.colorScheme.onSecondaryContainer, MaterialTheme.colorScheme.secondaryContainer, Modifier.align(Alignment.CenterVertically))
                     }

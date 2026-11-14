@@ -14,7 +14,6 @@ import androidx.navigation.NavHostController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import sb.linux.client.common.network.Endpoints
-import sb.linux.client.ui.feature.topic.TopicPinnedSnapshot
 import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.topic.TopicPageData
 
@@ -74,24 +73,3 @@ internal fun BoxScope.TopicScreenTopBarOverlay(
         },
     )
 }
-
-internal fun TopicPageData.pinSnapshot(
-    session: Session,
-    listState: LazyListState,
-    paging: TopicPagingState,
-    ui: TopicScreenUiState,
-    topicId: Long,
-) {
-    session.floatingTopicSnapshot = TopicPinnedSnapshot(
-        this,
-        listState.firstVisibleItemIndex,
-        listState.firstVisibleItemScrollOffset,
-        paging.localReplyPage.value,
-        ui.sortOrder,
-        ui.collapsedReplyIds,
-        ui.danmaku,
-        ui.danmakuLocalOn,
-    )
-    session.preferences.pinFloatingTopic(topicId, title)
-}
-

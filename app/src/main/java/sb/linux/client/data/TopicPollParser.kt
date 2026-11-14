@@ -7,6 +7,8 @@ import sb.linux.client.domain.topic.TopicPollOption
 
 internal object TopicPollParser {
     fun parse(document: org.jsoup.nodes.Document, essencePanel: org.jsoup.nodes.Element?, essenceApplication: EssenceApplication?): TopicPoll? {
+        val ordinary = document.selectFirst(".poll-card")
+        if (ordinary != null) return parseOrdinary(ordinary)
         val pollForm = document.selectFirst(
             ".topic-essence-review-vote-form[action], .topic-poll form[action], .poll-card form[action], form[class*=poll][action], " +
                 "form[action]:has(input[type=radio][name*=poll]), form[action]:has(input[type=checkbox][name*=poll])"
@@ -65,4 +67,46 @@ internal object TopicPollParser {
             )
         }
     }
+    private fun parseOrdinary(root: Element): TopicPoll {
+        val form = root.selectFirst("form.poll-form")
+        val inputs = form?.select("input[type=radio][name], input[type=checkbox][name]").orEmpty()
+        val status = root.selectFirst(".poll-status")?.text().orEmpty()
+        val submit = form?.selectFirst("button[type=submit]")
+        val view = root.selectFirst("a[href*=poll_view]")
+        val badge = root.selectFirst(".poll-status-badge")?.text().orEmpty()
+        val footer = root.select(".poll-foot-main > span").map { it.text() }
+        val initial = form?.selectFirst("[name=poll_initial]")?.attr("value").orEmpty()
+        val voted = inputs.any { it.hasAttr("checked") } ||
+            initial.trim() !in setOf("", "0", "[]", "null") ||
+            listOf("已投", "已参与", "已选择", "修改投票").any { status.contains(it) || badge.contains(it) || submit?.text()?.contains(it) == true }
+        val multiple = inputs.any { it.attr("type") == "checkbox" } || status.contains("多选")
+        val maximum = Regex("(?:最多|限选|最多可选|最多选择)\\s*(\\d+)").find(status)?.groupValues?.get(1)?.toIntOrNull()
+            ?: if (multiple) Int.MAX_VALUE else 1
+        val results = root.select(".poll-option-row:has(.poll-result-count)").map { row ->
+            val bar = row.selectFirst("[role=progressbar]")
+            val value = bar?.attr("aria-valuenow")?.toFloatOrNull() ?: 0f
+            val max = bar?.attr("aria-valuemax")?.toFloatOrNull() ?: 100f
+            sb.linux.client.domain.topic.TopicPollResult(row.selectFirst(".poll-option-text")?.text().orEmpty(),
+                row.selectFirst(".poll-result-count")?.text().orEmpty(), (value / max.coerceAtLeast(1f)).coerceIn(0f, 1f))
+        }
+        return TopicPoll(
+            title = root.selectFirst(".poll-head-title strong")?.text().orEmpty().ifBlank { "帖子投票" },
+            note = listOf(status, root.selectFirst(".poll-foot-main")?.text().orEmpty()).filter(String::isNotBlank).joinToString("\n"),
+            action = form?.attr("action").orEmpty(), fields = form?.let(SourceHtmlSupport::hiddenFields).orEmpty(),
+            options = inputs.map { input -> TopicPollOption(input.attr("name"), input.attr("value"),
+                input.closest("label")?.selectFirst(".poll-option-text")?.text().orEmpty(), input.hasAttr("checked"), input.hasAttr("disabled")) },
+            multiple = multiple, maxChoices = maximum, submitLabel = submit?.text().orEmpty().ifBlank { "投票" },
+            submitName = submit?.attr("name").orEmpty(), submitValue = submit?.attr("value").orEmpty(),
+            closed = listOf("结束", "截止", "过期", "关闭").any { badge.contains(it) } || status.contains("投票已结束"),
+            results = results, viewUrl = view?.attr("href").orEmpty(), viewLabel = view?.text().orEmpty(),
+            resultView = root.hasClass("poll-results-view"), selectionMustChange = form?.selectFirst("[name=poll_initial]") != null,
+            voted = voted, statusLabel = badge,
+            deadline = footer.firstOrNull { it.contains("截止时间") }.orEmpty(),
+            participants = footer.firstOrNull { it.contains("人参与") }.orEmpty(),
+            remainingActions = Regex("剩余\\s*\\d+\\s*次操作").find(status)?.value.orEmpty(),
+            choiceLabel = status.substringBefore(" · ").ifBlank { if (multiple) "多选投票" else "单选投票" } +
+                if (multiple && maximum != Int.MAX_VALUE) " · 最多 $maximum 项" else "",
+        )
+    }
+
 }

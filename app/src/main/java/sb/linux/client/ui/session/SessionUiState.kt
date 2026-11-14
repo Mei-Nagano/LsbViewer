@@ -3,7 +3,6 @@ package sb.linux.client.ui.session
 import androidx.compose.ui.graphics.Color
 import sb.linux.client.common.filter.KeywordFilterSnapshot
 import sb.linux.client.common.ui.SessionUiInvalidation
-import sb.linux.client.ui.feature.topic.TopicPinnedSnapshot
 
 /** Compose-observable state owner projected through the SessionState contract. */
 internal class SessionUiState : SessionState {
@@ -11,7 +10,6 @@ internal class SessionUiState : SessionState {
     private val preferenceState = SessionPreferenceState()
     private val feedbackState = SessionFeedbackState()
     private val accountUiState = SessionAccountUiState()
-    private val topicPinState = SessionTopicPinState()
 
     override val homeBrowse = HomeBrowseState()
     override val homeRefreshRequest: Int get() = homeBrowse.refreshRequest
@@ -66,12 +64,6 @@ internal class SessionUiState : SessionState {
     override var bottomBarItems by preferenceState::bottomBarItems
     override var replyBarStyle by preferenceState::replyBarStyle
     override var linkPreviewEnabled by preferenceState::linkPreviewEnabled
-
-    override var floatingTopicId by topicPinState::topicId
-    override var floatingTopicTitle by topicPinState::title
-    override var floatingTopicSnapshot: TopicPinnedSnapshot?
-        get() = topicPinState.snapshot
-        set(value) { topicPinState.snapshot = value }
 
     override val checkinText: String get() = accountUiState.checkinText
     override val checkinCheckedToday: Boolean get() = accountUiState.checkinCheckedToday

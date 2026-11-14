@@ -83,8 +83,9 @@ class KeywordFilterViewModel(private val repository: KeywordFilterRepository) : 
 
     fun clearPersonalRules() {
         val defaults = state.snapshot.policy.defaultForumIds
-        state = state.copy(presets = emptyList(), custom = emptyList(), users = emptyList(), selectedForums = defaults)
-        persist(KeywordFilterSettings(forumExcludedIds = emptyList(), forumExtraIds = emptyList()))
+        state = state.copy(presets = emptyList(), custom = emptyList(), selectedForums = defaults)
+        // 源站统一用户名单启用后，恢复列表默认保留待处理的旧用户名规则。
+        persist(KeywordFilterSettings(users = state.users, forumExcludedIds = emptyList(), forumExtraIds = emptyList()))
     }
 
     fun consumeToast() { state = state.copy(toastMessage = null) }

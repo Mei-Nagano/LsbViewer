@@ -71,9 +71,16 @@ private fun renderSvgToBitmap(svg: ByteArray, px: Int): Bitmap? = runCatching {
  * 快速滑动时 CPU 开销显著。容量按个数计（头像 Bitmap 约 px*px*4 字节，64 个足够）。
  */
 private val svgBitmapCache = android.util.LruCache<String, Bitmap>(64)
+private var svgCacheGeneration = 0L
+
+internal fun clearAvatarBitmapCache() = synchronized(svgBitmapCache) {
+    svgCacheGeneration++
+    svgBitmapCache.evictAll()
+}
 
 @Composable
-fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: Boolean = false) {
+fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: Boolean = false,
+    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.extraSmall) {
     val context = LocalContext.current
     val app = context.applicationContext as LsbApp
     val target = url.trim()
@@ -111,9 +118,12 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
     ) {
         value = if (b != null && b.isNotEmpty() && isSvgContents(b)) {
             val key = "$target#$px"
+            val generation = synchronized(svgBitmapCache) { svgCacheGeneration }
             svgBitmapCache.get(key) ?: withContext(Dispatchers.IO) {
                 renderSvgToBitmap(b, px)
-            }?.also { svgBitmapCache.put(key, it) }
+            }?.also { bitmap -> synchronized(svgBitmapCache) {
+                if (generation == svgCacheGeneration) svgBitmapCache.put(key, bitmap)
+            } }
         } else null
     }
 
@@ -149,7 +159,7 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
         Box(
             Modifier
                 .matchParentSize()
-                .clip(MaterialTheme.shapes.extraSmall)
+                .clip(shape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
             contentAlignment = Alignment.Center
         ) {

@@ -11,7 +11,7 @@ internal object TopicTitleParser {
             // 状态重复拼进标题；状态由 titleTag 单独展示，标题只保留文本本体。
             it.select(
                 ".topic-management-featured-badge, .topic-management-detail-badge, " +
-                    ".community-lottery-title-status, .virtual-card-title-status, [class*=red-packet-title]"
+                    ".community-lottery-title-status, .virtual-card-title-status, [class*=red-packet-title], .resource_vote-rate, .poll-vote-badge, .topic-badge, .topic-stamp-badge, .jubaopen-title-badge, .hot-discussions-badge, .topic-management-locked-badge"
             ).remove()
         }?.text()
         return (titleText("h1.post-content-title")

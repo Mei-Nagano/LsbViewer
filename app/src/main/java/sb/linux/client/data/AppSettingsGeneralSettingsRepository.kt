@@ -17,6 +17,7 @@ internal class AppSettingsGeneralSettingsRepository(
         settings.bottomBarStyle,
         settings.bottomBarItems,
         settings.replyBarStyle,
+        settings.hideExternalJumpReminder,
     )
 
     override fun setLinkOpenMode(mode: Int) { settings.linkOpenMode = mode.coerceIn(0, 1) }
@@ -24,6 +25,7 @@ internal class AppSettingsGeneralSettingsRepository(
     override fun setUpdateCheckIntervalHours(hours: Int) { settings.updateCheckIntervalHours = hours }
     override fun markUpdateCheck(atMillis: Long) { settings.lastUpdateCheck = atMillis }
     override fun setLinkPreviewEnabled(enabled: Boolean) { settings.linkPreviewEnabled = enabled }
+    override fun setHideExternalJumpReminder(enabled: Boolean) { settings.hideExternalJumpReminder = enabled }
     override fun setTabletMode(enabled: Boolean) { settings.tabletMode = enabled }
     override fun setBottomBarStyle(style: Int) { settings.bottomBarStyle = style }
     override fun setBottomBarItems(items: List<String>) { settings.bottomBarItems = items }

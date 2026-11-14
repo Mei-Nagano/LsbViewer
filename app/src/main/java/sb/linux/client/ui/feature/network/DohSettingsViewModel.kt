@@ -53,6 +53,11 @@ class DohSettingsViewModel(private val repository: DohSettingsRepository) : View
         refreshConfiguration()
     }
 
+    fun setForWebsites(enabled: Boolean) {
+        repository.setForWebsites(enabled)
+        refreshConfiguration()
+    }
+
     fun saveServers(servers: List<DohServer>) {
         repository.saveServers(servers)
         refreshConfiguration()

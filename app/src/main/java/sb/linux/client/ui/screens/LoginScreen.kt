@@ -46,9 +46,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
         onBack = { nav.popBackStack() },
         // 登录是可取消的门禁：返回图标保留「取消登录」语义，避免把用户困在登录页
         navigationIcon = {
-            IconButton(onClick = { nav.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "取消登录")
-            }
+            sb.linux.client.ui.components.navigation.AppBackButton({ nav.popBackStack() }, "取消登录")
         },
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.TopCenter) {

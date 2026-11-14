@@ -21,10 +21,11 @@ import sb.linux.client.ui.feature.ai.AiSettingsViewModel
 import sb.linux.client.ui.feature.ai.AiSettingsViewModelFactory
 import sb.linux.client.domain.ai.AiSummaryRecord
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.patterns.settings.SettingsChoiceMenu
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AiSettingsScreen(session: Session, nav: NavHostController, section: String = "behavior") {
+internal fun AiSettingsDetailScreen(session: Session, nav: NavHostController, section: String) {
     val settingsViewModelFactory = remember(
         session.aiConfigurationRepository, session.aiAssistantRepository, session.aiSummaryHistoryRepository,
     ) {
@@ -38,7 +39,7 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
     val state = settingsViewModel.state
     val aiSettings = state.settings
     val saved = session.aiConfigurationRepository.current()
-    val exit = rememberSettingsExit(section != "history" &&
+    val exit = rememberSettingsExit(section == "configuration" &&
         (aiSettings != saved || state.temperatureText != saved.temperature.toString())) { nav.popBackStack() }
     LaunchedEffect(state.feedback) {
         state.feedback?.let {
@@ -85,58 +86,52 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
     }
 
     SettingsPage(
-        if (section == "history") "AI 总结历史" else "AI 助手",
+        when (section) { "history" -> "总结历史"; "configuration" -> "接口与配置方案"; else -> "总结行为" },
         nav,
         onBack = exit,
     ) {
 
 
-            if (section != "history") GroupCard {
-                Text(
-                    "AI 配置方案",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(start = AppMenuDefaults.contentHorizontal, top = 12.dp, bottom = 4.dp),
-                )
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+            if (section == "configuration") GroupCard("配置方案") {
+                Column(
+                    Modifier.fillMaxWidth().padding(sb.linux.client.ui.theme.LocalAppSpacing.current.pageHorizontal),
+                    verticalArrangement = Arrangement.spacedBy(sb.linux.client.ui.theme.LocalAppSpacing.current.contentGap),
                 ) {
-                    OutlinedTextField(
+                    SettingsTextField(
                         value = state.presetName, onValueChange = settingsViewModel::setPresetName,
-                        label = { Text("方案名称 / 选择方案") }, singleLine = true,
+                        label = { Text("方案名称") }, singleLine = true,
+                        shape = MaterialTheme.shapes.large,
                         trailingIcon = {
                             Box {
                                 IconButton(onClick = { presetMenu = true }) { Icon(Icons.Filled.ArrowDropDown, "选择已保存方案") }
-                                DropdownMenu(expanded = presetMenu, onDismissRequest = { presetMenu = false }) {
-                                    if (aiPresets.isEmpty()) DropdownMenuItem(text = { Text("暂无已保存方案") }, onClick = {}, enabled = false)
-                                    aiPresets.forEach { preset ->
-                                        DropdownMenuItem(
-                                            text = { Text(preset.name) },
-                                            trailingIcon = { IconButton(onClick = {
-                                                settingsViewModel.removePreset(preset.name)
-                                            }) { Icon(Icons.Filled.Delete, "删除方案") } },
-                                            onClick = {
-                                                settingsViewModel.applyPreset(preset.name)
-                                                presetMenu = false
-                                                session.showToast("已切换到「${preset.name}」")
-                                            },
-                                        )
-                                    }
-                                }
+                                SettingsChoiceMenu(
+                                    expanded = presetMenu, onDismiss = { presetMenu = false },
+                                    options = aiPresets.map { it.name to it.name }, selectedValue = state.presetName,
+                                    trailingContent = { name ->
+                                        IconButton(onClick = { settingsViewModel.removePreset(name) }) {
+                                            Icon(Icons.Filled.Delete, "删除方案")
+                                        }
+                                    },
+                                    onSelect = { name ->
+                                        settingsViewModel.applyPreset(name)
+                                        presetMenu = false
+                                        session.showToast("已切换到「$name」")
+                                    },
+                                )
                             }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    Button(
+                    FilledTonalButton(
                         onClick = settingsViewModel::savePreset,
                         enabled = state.presetName.isNotBlank(),
-                    ) { Text("保存") }
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("保存当前配置为方案") }
                 }
 
             }
 
-            if (section != "history") AiSettingsForm(
+            if (section == "behavior") AiSettingsForm(
                 aiEnabled = aiSettings.enabled,
                 onAiEnabledChange = {
                     settingsViewModel.updateSettings { settings -> settings.copy(enabled = it) }
@@ -172,10 +167,10 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
                 aiPrompt = aiSettings.prompt,
                 onAiPromptChange = { value -> settingsViewModel.updateSettings { it.copy(prompt = value) } },
                 onSave = settingsViewModel::saveSettings,
-                // 原「接口与配置方案」三级页并入本页：摘要开关与接口配置一起展示
+                // 总结行为即时写入；接口配置在独立详情中显式保存。
                 configuration = false,
             )
-            if (section != "history") AiSettingsForm(
+            if (section == "configuration") AiSettingsForm(
                 aiEnabled = aiSettings.enabled,
                 onAiEnabledChange = {},
                 aiAutoRun = aiSettings.autoRun,
@@ -205,7 +200,7 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
                 configuration = true,
             )
             if (section == "history") {
-            SwitchRow("仅看收藏的总结", "历史保留每次总结结果，不再覆盖同帖旧记录", checked = favoriteOnly, onCheckedChange = { favoriteOnly = it })
+            SwitchRow("只显示已收藏的总结", "开启后，历史列表仅显示手动收藏的总结；关闭可查看全部记录", checked = favoriteOnly, onCheckedChange = { favoriteOnly = it })
             if (summaryHistory.isEmpty()) Text(
                 "暂无总结记录",
                 style = MaterialTheme.typography.bodySmall,
@@ -234,5 +229,3 @@ fun AiSettingsScreen(session: Session, nav: NavHostController, section: String =
             Spacer(Modifier.height(12.dp))
     }
 }
-
-/** 备份设置子页面：本地 JSON 导入 / 导出 + WebDAV 云备份 */

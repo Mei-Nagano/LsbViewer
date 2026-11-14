@@ -47,7 +47,7 @@ object WebViewDoh {
         }
     }
 
-    /** 视频域名绕过 DoH 隧道，其他网页仍等待同一份网络策略。 */
+    /** 播放器同样遵循目标域名 DNS 范围设置，额外保留源站请求头。 */
     fun loadDirect(view: WebView, url: String, headers: Map<String, String> = emptyMap()) {
         context = view.context.applicationContext
         scope.launch {
@@ -84,7 +84,7 @@ object WebViewDoh {
         val active = policy.dohActive
         val key = when {
             proxyUrl != null -> "proxy:$proxyUrl"
-            active -> "doh:${policy.dohUrl}:video-bypass-v4"
+            active -> "doh:${policy.dohUrl}:websites:${policy.forWebsites}:v5"
             else -> "off"
         }
         if (key == applied) return true
@@ -112,7 +112,6 @@ object WebViewDoh {
                     ProxyController.getInstance().setProxyOverride(
                         ProxyConfig.Builder()
                             .addProxyRule("http://127.0.0.1:${bridge.port}", ProxyConfig.MATCH_HTTPS)
-                            .apply { VIDEO_DOH_BYPASS_RULES.forEach(::addBypassRule) }
                             .build(),
                         androidx.core.content.ContextCompat.getMainExecutor(ctx),
                     ) { if (continuation.isActive) continuation.resume(Unit) }
@@ -134,17 +133,4 @@ object WebViewDoh {
         catch (_: Exception) { false }
     }
 
-    /** 视频页面与媒体资源使用系统网络，避开 DoH 隧道。显式应用代理仍优先。 */
-    private val VIDEO_DOH_BYPASS_RULES = listOf(
-        "bilibili.com", "*.bilibili.com",
-        "bilivideo.com", "*.bilivideo.com", "bilivideo.cn", "*.bilivideo.cn",
-        "hdslb.com", "*.hdslb.com",
-        "biliapi.com", "*.biliapi.com", "biliapi.net", "*.biliapi.net",
-        "douyin.com", "*.douyin.com", "douyinvod.com", "*.douyinvod.com",
-        "byteimg.com", "*.byteimg.com", "bytecdn.cn", "*.bytecdn.cn",
-        "bytegoofy.com", "*.bytegoofy.com", "bytedance.com", "*.bytedance.com",
-        "youtube.com", "*.youtube.com", "youtube-nocookie.com", "*.youtube-nocookie.com",
-        "googlevideo.com", "*.googlevideo.com", "ytimg.com", "*.ytimg.com",
-        "ggpht.com", "*.ggpht.com", "gstatic.com", "*.gstatic.com",
-    )
 }

@@ -27,7 +27,7 @@ object TopicCollectionListParser {
         return TopicCollectionSummary(
             collectionId = id,
             title = link.text().trim(),
-            authorId = idFrom(author?.attr("href").orEmpty()),
+            authorId = sb.linux.client.data.SourceHtmlSupport.idFrom(author?.attr("href").orEmpty()),
             authorName = author?.text()?.trim().orEmpty(),
             avatarUrl = absoluteUrl(row.selectFirst("img")?.attr("src").orEmpty()),
             visibility = tag,

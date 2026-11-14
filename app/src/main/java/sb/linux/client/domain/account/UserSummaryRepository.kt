@@ -16,9 +16,11 @@ data class UserSummary(
     val canFollow: Boolean,
     val canNotify: Boolean,
     val notify: String,
+    val following: Boolean = false,
 )
 
 interface UserSummaryRepository {
     suspend fun load(userId: Long): UserSummary
     suspend fun toggleBlock(userId: Long): UserSummary
+    suspend fun toggleFollow(userId: Long): UserSummary = error("当前数据源不支持关注操作")
 }

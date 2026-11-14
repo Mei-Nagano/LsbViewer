@@ -15,9 +15,9 @@ import androidx.compose.ui.unit.sp
  * - 默认系统 sans-serif 与中文 fallback，不额外下载字体；
  * - 中文为主的整段文字 tracking=0；
  * - 用户字体与字重增量在此处各应用一次。
- * - 应用字号因子**不在这里乘**：根部把 fontScale 注入 LocalDensity（Density.fontScale），
+ * - 应用字号因子**不在这里乘**：根部通过 LocalDensity.density 调整全局界面比例，
  *   所有 sp（本表、阅读字阶、页面里的固定 sp）统一缩放，系统字号继续叠加，
- *   避免不同页面各乘一次导致「字体大小控制不统一」。
+ *   避免不同页面各乘一次导致界面缩放不统一。
  */
 private fun baseTypography(): Typography = Typography(
     displayLarge = TextStyle(fontSize = 57.sp, lineHeight = 64.sp, fontWeight = FontWeight.Normal),
@@ -41,12 +41,12 @@ private fun baseTypography(): Typography = Typography(
 private fun TextStyle.styled(family: FontFamily?, weightDelta: Int) = copy(
     fontFamily = family ?: fontFamily,
     letterSpacing = 0.sp,
-    fontWeight = FontWeight(((fontWeight ?: FontWeight.Normal).weight + weightDelta).coerceAtMost(900)),
+    fontWeight = FontWeight(((fontWeight ?: FontWeight.Normal).weight + weightDelta).coerceIn(100, 900)),
 )
 
 internal fun appTypography(fontFamily: FontFamily?, weightLevel: Int): Typography {
     val t = baseTypography()
-    val delta = weightLevel.coerceIn(0, 2) * 100
+    val delta = weightLevel.coerceIn(-3, 2) * 100
     fun TextStyle.adjusted() = styled(fontFamily, delta)
     return t.copy(
         displayLarge = t.displayLarge.adjusted(), displayMedium = t.displayMedium.adjusted(),
@@ -63,7 +63,7 @@ internal fun appTypography(fontFamily: FontFamily?, weightLevel: Int): Typograph
 /**
  * 阅读专用字阶（DESIGN_SYSTEM D04「阅读专用角色」）。
  *
- * 与设置页的 bodyLarge 分开：正文 18/30，评论 16/26，代码等宽 14/22；
+ * 与设置页的 bodyLarge 分开：正文 14/24，评论 14/24，代码等宽 13/21；
  * 字号因子由根部 LocalDensity 统一缩放，这里只写设计表中的基准 sp。
  */
 @Immutable
@@ -78,22 +78,22 @@ data class AppReadingType(
 )
 
 internal fun appReadingType(fontFamily: FontFamily?, weightLevel: Int): AppReadingType {
-    val delta = weightLevel.coerceIn(0, 2) * 100
+    val delta = weightLevel.coerceIn(-3, 2) * 100
     fun reading(size: Int, line: Int, weight: FontWeight, family: FontFamily? = fontFamily) = TextStyle(
         fontFamily = family,
         fontSize = size.sp,
         lineHeight = line.sp,
         letterSpacing = 0.sp,
-        fontWeight = FontWeight((weight.weight + delta).coerceAtMost(900)),
+        fontWeight = FontWeight((weight.weight + delta).coerceIn(100, 900)),
     )
     return AppReadingType(
-        body = reading(18, 30, FontWeight.Normal),
-        quote = reading(16, 26, FontWeight.Normal),
-        code = reading(14, 22, FontWeight.Normal, FontFamily.Monospace),
-        heading1 = reading(28, 36, FontWeight.Medium),
-        heading2 = reading(24, 32, FontWeight.Medium),
-        heading3 = reading(20, 28, FontWeight.Medium),
-        comment = reading(16, 26, FontWeight.Normal),
+        body = reading(14, 24, FontWeight.Normal),
+        quote = reading(12, 20, FontWeight.Normal),
+        code = reading(13, 21, FontWeight.Normal, FontFamily.Monospace),
+        heading1 = reading(24, 32, FontWeight.Medium),
+        heading2 = reading(20, 28, FontWeight.Medium),
+        heading3 = reading(17, 26, FontWeight.Medium),
+        comment = reading(14, 24, FontWeight.Normal),
     )
 }
 

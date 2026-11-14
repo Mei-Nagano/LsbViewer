@@ -67,6 +67,7 @@ fun PostCard(
     onBodyLayout: (Float, Float) -> Unit = { _, _ -> },
     searchHighlight: String = "",
     onSearchPosition: (Float) -> Unit = {},
+    replyParentAuthorId: Long = 0L,
 ) {
     // 背景图模式下正文必须有独立不透明保护面，否则文字直接压在图片上。
     val protectSurface = LocalSurfaceOpacity.current < 0.999f
@@ -90,6 +91,7 @@ fun PostCard(
                 threadReplyCount = threadReplyCount,
                 showReplyCapsule = showReplyCapsule,
                 replyParentAvatar = replyParentAvatar,
+                replyParentAuthorId = replyParentAuthorId,
                 childReplyCount = childReplyCount,
                 childrenCollapsed = childrenCollapsed,
                 onToggleChildren = onToggleChildren,
@@ -130,6 +132,7 @@ fun PostCard(
                 threadReplyCount = threadReplyCount,
                 showReplyCapsule = showReplyCapsule,
                 replyParentAvatar = replyParentAvatar,
+                replyParentAuthorId = replyParentAuthorId,
                 childReplyCount = childReplyCount,
                 childrenCollapsed = childrenCollapsed,
                 onToggleChildren = onToggleChildren,

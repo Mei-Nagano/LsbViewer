@@ -48,6 +48,7 @@ internal fun TopicTopBar(
         onBack = onBack,
         actions = {
             IconButton(onClick = onComments) { Icon(Icons.AutoMirrored.Filled.Chat, "直达评论区") }
+            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = onRefresh)
             Box {
                 IconButton(onClick = { onMenuExpandedChange(true) }) { Icon(Icons.Filled.MoreVert, "菜单") }
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { onMenuExpandedChange(false) }) {
@@ -85,11 +86,6 @@ internal fun TopicTopBar(
                         text = { Text("收录到淘帖") },
                         leadingIcon = { Icon(Icons.Filled.CollectionsBookmark, null) },
                         onClick = { onMenuExpandedChange(false); onCollections() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("刷新") },
-                        leadingIcon = { Icon(Icons.Filled.Refresh, null) },
-                        onClick = { onMenuExpandedChange(false); onRefresh() },
                     )
                     DropdownMenuItem(
                         text = { Text(if (infiniteScroll) "切换为翻页模式" else "切换为无限滚动") },

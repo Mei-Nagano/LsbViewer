@@ -9,17 +9,20 @@ import sb.linux.client.domain.media.ImageHostConfig
 import sb.linux.client.domain.media.ImageHostSettings
 import sb.linux.client.domain.media.ImageHostSettingsRepository
 import sb.linux.client.domain.media.ImageUploadRepository
+import sb.linux.client.domain.media.ImageUploadMethod
 
 class ImageUploadViewModel(
     private val repository: ImageUploadRepository,
     private val settingsRepository: ImageHostSettingsRepository,
 ) : ViewModel() {
-    fun hasUsableHost(): Boolean = settingsRepository.current().let { it.useBuiltIn || it.url.isNotBlank() }
+    fun hasUsableHost(method: ImageUploadMethod = settingsRepository.current().uploadMethod): Boolean =
+        method != ImageUploadMethod.CUSTOM || settingsRepository.current().url.isNotBlank()
 
-    fun upload(uri: String, onComplete: (Result<String>) -> Unit) {
+    fun upload(uri: String, method: ImageUploadMethod = settingsRepository.current().uploadMethod,
+        onComplete: (Result<String>) -> Unit) {
         viewModelScope.launch {
             try {
-                onComplete(Result.success(repository.upload(uri, settingsRepository.current().toConfig())))
+                onComplete(Result.success(repository.upload(uri, settingsRepository.current().toConfig(method))))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -38,10 +41,11 @@ class ImageUploadViewModelFactory(
         ImageUploadViewModel(repository, settingsRepository) as T
 }
 
-private fun ImageHostSettings.toConfig() = ImageHostConfig(
-    useBuiltInHost = useBuiltIn,
+private fun ImageHostSettings.toConfig(method: ImageUploadMethod) = ImageHostConfig(
+    useBuiltInHost = method == ImageUploadMethod.BUILT_IN,
     builtInProvider = provider,
     endpoint = url,
     fieldName = fileField,
     token = token,
+    method = method,
 )

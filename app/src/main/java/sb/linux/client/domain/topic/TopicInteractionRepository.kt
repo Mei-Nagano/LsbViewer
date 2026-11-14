@@ -16,7 +16,11 @@ interface TopicInteractionRepository {
     suspend fun applyForEssence(page: TopicPageData, application: EssenceApplication): TopicActionResult
     suspend fun topUpEssence(page: TopicPageData, topUp: EssencePointsTopUp, amount: Int): TopicActionResult
     suspend fun vote(page: TopicPageData, poll: TopicPoll, selected: List<TopicPollOption>, reason: String): TopicActionResult
+    suspend fun loadPollView(topicId: Long, url: String): TopicPoll
     suspend fun buyVirtualCard(page: TopicPageData, card: VirtualCard): TopicActionResult
+    suspend fun moveForum(page: TopicPageData, form: sb.linux.client.domain.account.AccountForm, fields: List<Pair<String, String>>): TopicActionResult
+    suspend fun loadSourcePanel(page: TopicPageData, url: String): sb.linux.client.domain.account.AccountManagementPage
+    suspend fun submitSourceAction(page: TopicPageData, form: sb.linux.client.domain.account.AccountForm, fields: List<Pair<String, String>>): TopicActionResult
     suspend fun toggleFavorite(page: TopicPageData, wasFavorite: Boolean): TopicFavoriteChange?
     fun toggleCommentFavorite(topicId: Long, topicTitle: String, post: PostEntry): Pair<Set<Long>, String>
 }

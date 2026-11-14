@@ -52,7 +52,7 @@ import sb.linux.client.common.collection.TopicCollectionSummary
 import sb.linux.client.common.collection.TopicCollectionTab
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.theme.LocalAppSpacing
-import sb.linux.client.ui.patterns.user.Avatar
+import sb.linux.client.ui.patterns.user.UserAvatar
 import sb.linux.client.ui.Badge
 import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.components.feedback.ErrorBox
@@ -117,7 +117,7 @@ private fun CollectionCard(summary: TopicCollectionSummary, onClick: () -> Unit)
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
-                Avatar(summary.avatarUrl, 40)
+                UserAvatar(summary.authorId, summary.avatarUrl, 40, username = summary.authorName)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(

@@ -6,6 +6,7 @@ data class ImageHostConfig(
     val endpoint: String,
     val fieldName: String,
     val token: String,
+    val method: ImageUploadMethod = if (useBuiltInHost) ImageUploadMethod.BUILT_IN else ImageUploadMethod.CUSTOM,
 )
 
 interface ImageUploadRepository {

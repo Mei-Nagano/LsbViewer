@@ -1,6 +1,5 @@
 package sb.linux.client.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,7 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,7 +51,6 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     }
     val viewModel: ChatViewModel = viewModel(factory = factory, key = "chat-$partnerId")
     val state by viewModel.uiState.collectAsState()
-    var confirmBlock by remember { mutableStateOf(false) }
     var emojiOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val spacing = LocalAppSpacing.current
@@ -64,32 +61,20 @@ fun ChatScreen(session: Session, nav: NavHostController) {
         if (state.messages.isNotEmpty()) listState.scrollToItem(state.messages.size - 1)
     }
 
-    if (confirmBlock) sb.linux.client.ui.components.feedback.AppConfirmDialog(
-        title = state.blockLabel,
-        message = "按原站规则更新与该用户的私信关系。",
-        onDismiss = { confirmBlock = false },
-        onConfirm = { confirmBlock = false; viewModel.toggleBlock() },
-        confirmText = "确认", dismissText = "取消",
-    )
     AppPageScaffold(
         title = "",
         onBack = { nav.popBackStack() },
-        // 顶栏对方头像同样可点击进入其个人主页
+        // 顶栏对方头像与消息列表共用用户面板入口。
         titleContent = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.contentGap)) {
-                Box(
-                    Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(enabled = partnerId > 0) {
-                        nav.navigate("user/$partnerId")
-                    }
-                ) { sb.linux.client.ui.patterns.user.UserAvatar(partnerId, state.avatarUrl, 30) }
+                UserAvatar(partnerId, state.avatarUrl, 30,
+                    onProfile = { nav.navigate("user/$partnerId") })
                 Text(state.name.ifBlank { "用户 $partnerId" }, style = MaterialTheme.typography.titleLarge,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
         actions = {
-            if (state.blockLabel.isNotBlank()) TextButton(enabled = !state.blocking && !state.loading,
-                onClick = { confirmBlock = true }) { Text(state.blockLabel) }
-            IconButton(enabled = !state.loading && !state.sending, onClick = viewModel::sync) { Icon(Icons.Filled.Refresh, "同步私信") }
+            sb.linux.client.ui.components.navigation.AppRefreshButton(enabled = !state.loading && !state.sending, onClick = viewModel::sync, description = "同步私信")
         },
         bottomBar = {
             // 输入工具区用色调表面，不再叠 6dp 阴影
@@ -147,7 +132,7 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     }
 }
 
-/** 单条气泡：对方靠左、头像在消息左侧（可点头像进对方主页），我方靠右无头像，气泡着色区分 */
+/** 单条气泡：对方靠左、头像打开用户面板，我方靠右无头像，气泡着色区分 */
 @Composable
 private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
     val mine = !m.incoming
@@ -161,12 +146,8 @@ private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
         ) {
         // 对方头像固定在消息左侧（QQ/微信式），48dp 触区包住 32dp 视觉头像
         if (!mine) {
-            Box(
-                Modifier.size(48.dp).clip(MaterialTheme.shapes.small).clickable(onClick = onPartnerClick),
-                contentAlignment = Alignment.Center,
-            ) {
-                Avatar(m.avatarUrl, 32)
-            }
+            sb.linux.client.ui.patterns.user.UserAvatar(m.partnerId, m.avatarUrl, 32,
+                onProfile = onPartnerClick, minTouchTarget = true)
             Spacer(Modifier.width(8.dp))
         }
         Column(horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {

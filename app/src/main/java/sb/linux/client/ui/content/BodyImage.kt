@@ -1,14 +1,13 @@
 package sb.linux.client.ui.content
 
-import sb.linux.client.ui.components.feedback.AppInlineLoading
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.BrokenImage
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,8 +67,7 @@ internal fun BodyImage(
         modifier.fillMaxWidth()
             .then(if (fillContainer) Modifier.fillMaxSize() else Modifier.aspectRatio(ratio.coerceIn(0.02f, 20f)))
             .clip(MaterialTheme.shapes.small)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .onGloballyPositioned { coordinates ->
                 val position = coordinates.positionInWindow()
                 widthPx = coordinates.size.width
@@ -94,17 +92,19 @@ internal fun BodyImage(
                     }, onError = { loading = false; failed = true })
             }
         }
-        // 首帧也显示明确占位，不等网络请求创建后才显示进度；失败不留下空白区域。
+        // 加载占位仅用图形表达状态；图片查看与重试保留无障碍说明（§2.1）。
         bodyImageStatus(near && widthPx > 0, loading, failed)?.let { label ->
-            Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (failed) Icons.Filled.BrokenImage else Icons.Filled.Image,
-                    contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(32.dp))
-                Column(Modifier.weight(1f, fill = false)) {
-                    Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (failed) TextButton(onClick = { failed = false; loading = true; retry++ }) { Text("重新加载") }
-                    else Text("点击可打开图片查看器", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (failed) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.BrokenImage, label, Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = { failed = false; loading = true; retry++ }) {
+                        Icon(Icons.Filled.Refresh, "重新加载图片")
+                    }
                 }
-                if (near && loading && !failed) AppInlineLoading(size = 20.dp)
+            } else Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Image, label, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (near && widthPx > 0 && loading) CircularProgressIndicator(Modifier.size(48.dp), strokeWidth = 2.dp)
             }
         }
     }

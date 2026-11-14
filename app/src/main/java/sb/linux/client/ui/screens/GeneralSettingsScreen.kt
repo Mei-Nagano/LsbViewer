@@ -18,10 +18,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import sb.linux.client.ui.feature.settings.GeneralSettingsViewModel
 import sb.linux.client.ui.feature.settings.GeneralSettingsViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
+import sb.linux.client.ui.patterns.settings.SettingsChoiceRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
+internal fun UpdateSettingsScreen(session: Session, nav: NavHostController) {
     val factory = remember(session.generalSettingsRepository) {
         GeneralSettingsViewModelFactory(session.generalSettingsRepository)
     }
@@ -43,38 +44,17 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
         }
     }
 
-    SettingsPage("应用与账号", nav) {
-            SettingMenuRow("个人资料与账号", "源站个人设置") { nav.navigate("settings") }
+    SettingsPage("版本更新", nav) {
             Text("当前版本 v${currentVersionName(context)}")
             // ---------- 检查更新 ----------
             GroupCard {
                 Column(Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp)) {
-                    Text("检查更新时机", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(10.dp))
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        SegmentedButton(
-                            selected = updateMode == 0,
-                            onClick = { viewModel.setUpdateCheckMode(0) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                            modifier = Modifier.weight(1f)
-                        ) { Text("每次启动", maxLines = 1) }
-                        SegmentedButton(
-                            selected = updateMode == 1,
-                            onClick = { viewModel.setUpdateCheckMode(1) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                            modifier = Modifier.weight(1f)
-                        ) { Text("按间隔", maxLines = 1) }
-                        SegmentedButton(
-                            selected = updateMode == 2,
-                            onClick = { viewModel.setUpdateCheckMode(2) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                            modifier = Modifier.weight(1f)
-                        ) { Text("从不", maxLines = 1) }
-                    }
+                    SettingsChoiceRow("检查更新时机", listOf(0 to "每次启动", 1 to "按间隔", 2 to "从不"),
+                        updateMode, viewModel::setUpdateCheckMode)
                     // 按间隔时的间隔小时数输入
                     if (updateMode == 1) {
                         Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
+                        SettingsTextField(
                             value = intervalText,
                             onValueChange = viewModel::setIntervalText,
                             label = { Text("检查间隔（1 - 720 小时）") },
@@ -101,10 +81,6 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
                     }
                 }
             }
-            SettingsResetRow("重置所有应用设置") {
-                session.preferences.resetAllAppSettings()
-                session.showToast("已重置所有应用设置")
-            }
     }
 
     // 发现新版本对话框
@@ -118,7 +94,3 @@ fun GeneralSettingsScreen(session: Session, nav: NavHostController) {
         )
     }
 }
-
-// ==================== 已导出的帖子（3.17） ====================
-
-/** 本地已导出为 HTML 的帖子列表（本地文件读取，不重新解析源站） */

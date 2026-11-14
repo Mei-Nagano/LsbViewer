@@ -13,12 +13,14 @@ internal class DohSettingsRepositoryImpl(private val settings: AppSettings) : Do
         enabled = settings.dohEnabled,
         bypassVpn = settings.dohDisableOnVpn,
         autoWithoutVpn = settings.dohAutoWithoutVpn,
+        forWebsites = settings.dohForWebsites,
     )
 
     override fun setEnabled(enabled: Boolean) { settings.dohEnabled = enabled }
     override fun selectServer(url: String) { settings.dohUrl = url }
     override fun setBypassVpn(enabled: Boolean) { settings.dohDisableOnVpn = enabled }
     override fun setAutoWithoutVpn(enabled: Boolean) { settings.dohAutoWithoutVpn = enabled }
+    override fun setForWebsites(enabled: Boolean) { settings.dohForWebsites = enabled }
     override fun saveServers(servers: List<DohServer>) { settings.saveDohServers(servers) }
 
     override fun isValidEndpoint(url: String): Boolean = DohEndpointPolicy.isValid(url)

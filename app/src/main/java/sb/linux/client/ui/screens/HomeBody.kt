@@ -84,12 +84,14 @@ internal fun HomeBody(
                     loading && current.topics.isEmpty() -> LoadingBox()
                     error != null && current.topics.isEmpty() -> ErrorBox(error!!) { onLoadPage(1, false, false) }
                     visibleTopics.isEmpty() -> EmptyBox(
-                        if (session.keywordFilter.settings.presets.isEmpty() &&
+                        if (session.homeBrowse.homeCombo == 0 && session.homeBrowse.homeTabIndex == 4)
+                            current.emptyText.ifBlank { "暂无关注动态" }
+                        else if (session.keywordFilter.settings.presets.isEmpty() &&
                             session.keywordFilter.settings.custom.isEmpty() &&
                             session.keywordFilter.settings.users.isEmpty() &&
                             session.keywordFilter.settings.forumExcludedIds.isEmpty() &&
                             session.keywordFilter.settings.forumExtraIds.isEmpty()
-                        ) "暂无帖子"
+                        ) current.emptyText.ifBlank { "暂无帖子" }
                         else "暂无帖子（已按源站屏蔽规则过滤）"
                     )
                     else -> Box(
@@ -210,15 +212,11 @@ internal fun HomeBody(
                                 }
                             }
                         }
-                        if (session.floatingTopicId > 0L) {
-                            sb.linux.client.ui.patterns.topic.PinnedTopicCapsule(session.floatingTopicId, session.floatingTopicTitle) {
-                                nav.navigate("topic/${session.floatingTopicId}")
-                            }
-                        }
+
                     }
                 }
                 // 首页唯一悬浮按钮：发帖与回到顶部共用，图标随滚动状态切换。
-                FloatingActionButton(
+                SmallFloatingActionButton(
                     onClick = {
                         if (backTopMode) {
                             backTopMode = false
@@ -230,7 +228,7 @@ internal fun HomeBody(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = LocalAppSpacing.current.pageHorizontal, bottom = 24.dp)
-                        .size(LocalAppSizes.current.fabSize),
+                        .size(40.dp),
                     containerColor = if (backTopMode) {
                         MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f)
                     } else {

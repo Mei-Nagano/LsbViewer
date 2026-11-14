@@ -68,7 +68,7 @@ fun DanmakuBar(items: List<DanmakuItem>) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    Avatar(d.avatarUrl, 15)
+                    UserAvatar(0L, d.avatarUrl, 15, username = d.user)
                     Text(
                         "${d.user} ${d.action} ${d.amount}",
                         style = MaterialTheme.typography.labelSmall,

@@ -55,11 +55,9 @@ internal fun ReplyBar(
     likeCount: Int,
     showLike: Boolean,
     showFavorite: Boolean,
-    pinned: Boolean,
     onReply: () -> Unit,
     onLike: () -> Unit,
     onFavorite: () -> Unit,
-    onPin: () -> Unit,
 ) {
     // 底栏容器统一走 surfaceContainer，与聊天输入栏、其它底栏保持同一种层次
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
@@ -88,17 +86,16 @@ internal fun ReplyBar(
                     if (showLike) TopicBarAction(if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (likeCount > 0) "$likeCount" else "点赞", liked, onLike)
                 }
             }
-            Surface(
+            if (showFavorite) Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.weight(1f).height(52.dp),
+                modifier = Modifier.width(72.dp).height(52.dp),
             ) {
                 Row(
                     Modifier.fillMaxSize(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    TopicBarAction(Icons.Filled.PushPin, if (pinned) "已钉住" else "钉住", pinned, onPin)
                     if (showFavorite) TopicBarAction(if (favorited) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, if (favorited) "已收藏" else "收藏", favorited, onFavorite)
                 }
             }

@@ -20,8 +20,7 @@ internal fun LoginBrand() {
     Box(
         Modifier
             .size(76.dp)
-            .clip(MaterialTheme.shapes.large)
-            .background(MaterialTheme.colorScheme.primaryContainer),
+            .clip(MaterialTheme.shapes.large),
         contentAlignment = Alignment.Center,
     ) {
         Image(

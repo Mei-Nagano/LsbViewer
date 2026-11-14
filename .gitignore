@@ -49,6 +49,7 @@ lsb-release.b64
 .claude/
 .codeartsdoer/
 .codegraph/
+/.agents/
 
 # OS and temporary files
 .DS_Store
@@ -60,6 +61,11 @@ desktop.ini
 *.bak
 *.orig
 *.rej
+*.swp
+*.swo
+*~
+/tmp/
+/temp/
 
 # Local task checklist and work logs (not tracked)
 checklist.md
@@ -70,13 +76,21 @@ FEATURE-AUDIT.md
 
 # Local agent instructions
 agents.md
+AGENTS.md
 
 # Local acceptance screenshots and run artifacts
+/.screenshots/
 docs/md3-redesign/evidence/
 docs/md3-redesign/finalcheck-*/
 docs/md3-redesign/recheck-*/
 docs/md3-redesign/acceptance-*/
 docs/ui-acceptance/
 
+# Local development, design and acceptance documents
+/docs/
+
 # Duplicate project copy
 /LsbViewer-main/
+
+# Local scratch worktrees
+/.wt-*/

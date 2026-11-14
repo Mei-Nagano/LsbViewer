@@ -37,9 +37,11 @@ internal class TopicScreenUiState(
     var showDonate by mutableStateOf(false)
     var showCollectionSheet by mutableStateOf(false)
     var pollBusy by mutableStateOf(false)
+    var pollViewBusy by mutableStateOf(false)
+    var favoriteBusy by mutableStateOf(false)
     var essenceBusy by mutableStateOf(false)
     var essenceTopUpBusy by mutableStateOf(false)
-    var sortOrder by mutableIntStateOf(session.commentSortOrder)
+    val sortOrder = 1
     var danmaku by mutableStateOf<List<DanmakuItem>>(emptyList())
     var danmakuLocalOn by mutableStateOf(session.danmakuOn)
     var threadPosts by mutableStateOf<List<PostEntry>?>(null)

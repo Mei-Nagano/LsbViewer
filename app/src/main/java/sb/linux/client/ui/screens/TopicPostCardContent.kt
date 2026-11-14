@@ -14,6 +14,7 @@ import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.*
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.unit.*
@@ -60,11 +61,16 @@ internal fun PostCardContent(
     onSearchPosition: (Float) -> Unit = {},
     /** 评论正文使用 16/26 的评论字阶；主帖使用 18/30。 */
     comment: Boolean = false,
+    replyParentAuthorId: Long = 0L,
 ) {
     if (post.userBlocked) {
         BlockedPostPlaceholder(post, avatarSize,
             modifier.onGloballyPositioned { onBodyLayout(it.positionInRoot().y, it.size.height.toFloat()) }, onFloor)
         return
+    }
+    val density = LocalDensity.current
+    var avatarColumnWidth by remember(avatarSize, density) {
+        mutableStateOf(maxOf(48, avatarSize + 8).dp)
     }
     Column(modifier) {
         PostAuthorHeader(
@@ -75,11 +81,14 @@ internal fun PostCardContent(
             showFloorBadge = showFloorBadge,
             onUser = onUser,
             onFloor = onFloor,
+            avatarColumnModifier = Modifier.onSizeChanged {
+                avatarColumnWidth = with(density) { it.width.toDp() }
+            },
         )
         Spacer(Modifier.height(10.dp))
         // 正文：交给系统原生长按选择菜单（复制/翻译/搜索由系统提供）；#楼层号可点击跳转
         SelectionContainer {
-            HtmlContent(post.contentHtml, modifier = Modifier.onGloballyPositioned { onBodyLayout(it.positionInRoot().y, it.size.height.toFloat()) }, onFloor = onFloor, onHeadingPosition = onHeadingPosition, highlightQuery = searchHighlight, onSearchPosition = onSearchPosition, comment = comment)
+            HtmlContent(post.contentHtml, modifier = Modifier.padding(start = if (comment) ((48 - avatarSize).coerceAtLeast(0) / 2).dp else 0.dp).onGloballyPositioned { onBodyLayout(it.positionInRoot().y, it.size.height.toFloat()) }, onFloor = onFloor, onHeadingPosition = onHeadingPosition, highlightQuery = searchHighlight, onSearchPosition = onSearchPosition, comment = comment, mergeImages = false)
         }
         SmartDecodedContentPanel(post.contentHtml)
         // 回复目标与本评论的子树折叠均位于卡片右下角；二者互不抢占点击区域。
@@ -97,7 +106,7 @@ internal fun PostCardContent(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            if (replyParentAvatar.isNotBlank()) Avatar(replyParentAvatar, 16)
+                            if (replyParentAvatar.isNotBlank()) UserAvatar(replyParentAuthorId, replyParentAvatar, 16)
                             else Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
                             Text("回复 #${post.parentFloor}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                         }
@@ -164,7 +173,9 @@ internal fun PostCardContent(
         }
         Spacer(Modifier.height(4.dp))
         if (post.signatureHtml.isNotBlank()) {
-            PostSignature(post.signatureHtml)
+            // 头像居中于点击区域和 UID 共用的列中，签名与其可见左边缘对齐。
+            val signatureInset = ((avatarColumnWidth - avatarSize.dp) / 2).coerceAtLeast(0.dp)
+            PostSignature(post.signatureHtml, Modifier.padding(start = signatureInset))
             Spacer(Modifier.height(6.dp))
         }
         // 功能按钮与正文之间的分割线
@@ -216,6 +227,7 @@ internal fun PostCardContent(
                 label = if (showFloorBadge) "" else "举报",
                 onClick = onReport
             )
+            if (!comment) TopicForumMoveAction()
             // 本地收藏评论（34）：仅回复显示，收藏后图标填充
             if (showFloorBadge && onFavComment != null) {
                 PostAction(
@@ -231,5 +243,6 @@ internal fun PostCardContent(
             }
             Spacer(Modifier.weight(1f))
         }
+        TopicPostSourceActions(post)
     }
 }

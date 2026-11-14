@@ -19,7 +19,7 @@ object TopicCollectionDetailParser {
         val summary = TopicCollectionSummary(
             collectionId = collectionId,
             title = title,
-            authorId = TopicCollectionListParser.idFrom(authorLink?.attr("href").orEmpty()),
+            authorId = SourceHtmlSupport.idFrom(authorLink?.attr("href").orEmpty()),
             authorName = authorLink?.text()?.trim().orEmpty(),
             articleCount = meta.firstOrNull { it.contains("篇") } ?: "",
             subscriberCount = meta.firstOrNull { it.contains("订阅") } ?: "",

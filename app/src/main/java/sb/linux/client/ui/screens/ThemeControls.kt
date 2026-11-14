@@ -23,46 +23,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sb.linux.client.ui.session.ThemeModePref
+import sb.linux.client.ui.patterns.settings.SettingsChoiceRow
 
 @Composable
 internal fun DayNightToggle(mode: ThemeModePref, onSelect: (ThemeModePref) -> Unit) {
-    val items = listOf(
-        Triple(ThemeModePref.SYSTEM, Icons.Filled.BrightnessAuto, "跟随系统"),
-        Triple(ThemeModePref.LIGHT, Icons.Filled.LightMode, "浅色"),
-        Triple(ThemeModePref.DARK, Icons.Filled.DarkMode, "深色"),
+    SettingsChoiceRow(
+        title = "深浅模式", subtitle = "选择应用的显示模式", icon = Icons.Filled.BrightnessAuto,
+        options = listOf(ThemeModePref.SYSTEM to "跟随系统", ThemeModePref.LIGHT to "浅色", ThemeModePref.DARK to "深色"),
+        selectedValue = mode, onSelect = onSelect,
     )
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items.forEach { (m, icon, label) ->
-            val selected = mode == m
-            val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
-            val fg = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-            Row(
-                Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(MaterialTheme.shapes.large)
-                    .background(bg)
-                    .clickable { onSelect(m) },
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(icon, label, modifier = Modifier.size(18.dp), tint = fg)
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = fg,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1
-                )
-            }
-        }
-    }
 }
 
 /** 主题色预设方形色板（ColorBlendr 风格，适应性排布） */

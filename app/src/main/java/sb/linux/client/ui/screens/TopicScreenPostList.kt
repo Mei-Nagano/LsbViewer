@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -31,6 +32,9 @@ internal fun TopicScreenPostList(
     val reply = view.reply
     val mainPost = view.mainPost
     // 阅读列最大 720dp 并居中；宽窗剩余空间用于留白，不把段落无限拉宽。
+    CompositionLocalProvider(LocalTopicSourceActions provides TopicSourceActionContext(page, session, actions.interactionViewModel,
+        { actions.load(page.page, force = true) },
+        { url -> nav.navigate("web?url=${android.net.Uri.encode(url)}") })) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
             state = listState,
@@ -50,20 +54,11 @@ internal fun TopicScreenPostList(
             onRegenerateAi = { actions.runAi(force = true) },
             onDismissAi = { ui.aiSummary = null; ui.aiError = null },
             onJoinReply = { ui.quoteText = ""; ui.showReply = true },
-            pollBusy = ui.pollBusy,
-            essenceBusy = ui.essenceBusy,
-            essenceTopUpBusy = ui.essenceTopUpBusy,
-            onEssenceBusyChange = { ui.essenceBusy = it },
-            onEssenceTopUpBusyChange = { ui.essenceTopUpBusy = it },
-            onPollBusyChange = { ui.pollBusy = it },
-            onLogin = { nav.navigate("login") },
             onRefresh = { actions.load(page.page, force = true) },
             onTitleBottomInRoot = { ui.titleBottomInRoot = it },
         )
         page.redPacket?.let { panel ->
-            item(key = "red-packet") { RedPacketCard(panel) {
-                nav.navigate("web?url=" + android.net.Uri.encode("https://linux.sb/topic/${page.topicId}"))
-            } }
+            item(key = "red-packet") { RedPacketCard(panel) }
         }
         mainPost?.let { main ->
             item(key = "main-${main.id}") {
@@ -91,6 +86,13 @@ internal fun TopicScreenPostList(
                     } else null,
                     onEditUser = { nav.navigate("user/$it") },
                 )
+            }
+        }
+        page.treasurePool?.let { panel -> item(key = "treasure-pool") { TreasurePoolCard(panel) } }
+        if (page.poll != null || page.essenceReview != null || page.essenceApplication != null || page.resourceVote != null || page.footerPanels.isNotEmpty()) {
+            item(key = "topic-interactive-panels") {
+                TopicInteractivePanels(page, session, actions, ui, onLogin = { nav.navigate("login") },
+                    onRefresh = { actions.load(page.page, force = true) })
             }
         }
         if (ui.danmakuLocalOn && ui.danmaku.isNotEmpty()) {
@@ -122,7 +124,7 @@ internal fun TopicScreenPostList(
                 replyCountText = page.repliesText.ifBlank { reply.replies.size.toString() },
             ),
             actions = TopicReplyListActions(
-                onSortChange = { ui.sortOrder = it; session.preferences.saveCommentSortOrder(it) },
+                onSortChange = {},
                 onToggleCollapsed = { postId ->
                     ui.collapsedReplyIds = if (postId in ui.collapsedReplyIds) {
                         ui.collapsedReplyIds - postId
@@ -148,5 +150,6 @@ internal fun TopicScreenPostList(
             ),
         )
         }
+    }
     }
 }

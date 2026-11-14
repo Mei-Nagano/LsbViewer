@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import sb.linux.client.ui.components.feedback.LoginRequiredBox
 import sb.linux.client.ui.session.Session
@@ -12,9 +13,16 @@ import sb.linux.client.ui.session.Session
 @Composable
 internal fun AccountPageGate(
     loggedIn: Boolean, title: String, message: String, nav: NavHostController,
+    settingsStyle: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     if (loggedIn) { content(); return }
+    if (settingsStyle) {
+        SettingsPage(title, nav) {
+            LoginRequiredBox(title, message, Modifier.fillMaxWidth().heightIn(min = 240.dp)) { nav.navigate("login") }
+        }
+        return
+    }
     sb.linux.client.ui.components.navigation.AppPageScaffold(
         title = title,
         onBack = { nav.popBackStack() },
@@ -30,10 +38,11 @@ internal fun SourceAccountPage(
     session: Session, nav: NavHostController, title: String, path: String, message: String,
     onExit: (() -> Unit)? = null,
     onLoaded: ((android.webkit.WebView, String) -> Unit)? = null,
+    settingsStyle: Boolean = false,
 ) {
     AccountPageGate(session.account.loginState.loggedIn && session.account.loginState.userId > 0,
-        title, message, nav) {
+        title, message, nav, settingsStyle) {
         if (onExit != null) DisposableEffect(session) { onDispose { onExit() } }
-        WebScreen(session, nav, sourceUrl = path, title = title, onLoaded = onLoaded)
+        WebScreen(session, nav, sourceUrl = path, title = title, onLoaded = onLoaded, settingsStyle = settingsStyle)
     }
 }

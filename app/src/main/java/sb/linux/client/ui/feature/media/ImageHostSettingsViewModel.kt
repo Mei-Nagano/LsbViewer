@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import sb.linux.client.domain.media.ImageHostSettings
 import sb.linux.client.domain.media.ImageHostSettingsRepository
+import sb.linux.client.domain.media.ImageUploadMethod
 
 data class ImageHostSettingsUiState(
     val settings: ImageHostSettings,
@@ -30,6 +31,15 @@ class ImageHostSettingsViewModel(
     fun setToken(value: String) { state = state.copy(tokenDraft = value) }
     fun setFileField(value: String) { state = state.copy(fileFieldDraft = value) }
     fun consumeFeedback() { state = state.copy(feedback = null) }
+    fun setUploadMethod(method: ImageUploadMethod) {
+        repository.saveUploadPreference(method, state.settings.askUploadMethod)
+        state = state.copy(settings = repository.current())
+    }
+
+    fun setAskUploadMethod(ask: Boolean) {
+        repository.saveUploadPreference(state.settings.uploadMethod, ask)
+        state = state.copy(settings = repository.current())
+    }
 
     fun setBuiltInEnabled(enabled: Boolean) {
         repository.setBuiltInEnabled(enabled)

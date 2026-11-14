@@ -51,6 +51,7 @@ internal fun HomeListEffects(
 
     LaunchedEffect(current) {
         if (!current.loaded) {
+            // 空状态没有 LazyColumn；加载前滚动会等待首次布局，阻止请求执行。
             val cached = loadCachedHome()
             if (cached.isNotEmpty()) {
                 current.topics = cached
@@ -61,9 +62,9 @@ internal fun HomeListEffects(
             } else {
                 onLoad(1, false, false)
             }
-        } else if (current.scrollIndex > 0 && listState.firstVisibleItemIndex == 0) {
+        } else {
             listState.scrollToItem(
-                current.scrollIndex.coerceAtMost(current.topics.size - 1).coerceAtLeast(0),
+                current.scrollIndex.coerceAtMost(maxOf(current.topics.size, current.followingUsers.size) - 1).coerceAtLeast(0),
                 current.scrollOffset,
             )
         }

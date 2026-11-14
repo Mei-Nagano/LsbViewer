@@ -82,18 +82,6 @@ internal class SessionPreferences(
     fun saveReplyBarStyle(v: Int) = uiPreferenceController.saveReplyBarStyle(v)
     fun saveLinkPreviewEnabled(v: Boolean) = uiPreferenceController.saveLinkPreviewEnabled(v)
 
-    fun pinFloatingTopic(topicId: Long, title: String) {
-        session.floatingTopicId = topicId
-        session.floatingTopicTitle = title.trim()
-    }
-
-    fun clearFloatingTopic(topicId: Long? = null) {
-        if (topicId == null || session.floatingTopicId == topicId) {
-            session.floatingTopicId = 0L
-            session.floatingTopicTitle = ""
-        }
-    }
-
     fun saveDanmaku(v: Boolean) = uiPreferenceController.saveDanmaku(v)
     fun saveSidebarTwoColumns(v: Boolean) = uiPreferenceController.saveSidebarTwoColumns(v)
     fun saveShowOnlineUsers(v: Boolean) = uiPreferenceController.saveShowOnlineUsers(v)

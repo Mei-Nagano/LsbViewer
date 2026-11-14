@@ -60,8 +60,23 @@ class TopicInteractionViewModel(
     fun vote(page: TopicPageData, poll: TopicPoll, selected: List<TopicPollOption>, reason: String, onComplete: (Result<TopicActionResult>) -> Unit) =
         runRequest({ repository.vote(page, poll, selected, reason) }, onComplete)
 
+    fun loadPollView(topicId: Long, url: String, onComplete: (Result<TopicPoll>) -> Unit) =
+        runRequest({ repository.loadPollView(topicId, url) }, onComplete)
+
     fun buyVirtualCard(page: TopicPageData, card: VirtualCard, onComplete: (Result<TopicActionResult>) -> Unit) =
         runRequest({ repository.buyVirtualCard(page, card) }, onComplete)
+
+    fun moveForum(page: TopicPageData, form: sb.linux.client.domain.account.AccountForm,
+        fields: List<Pair<String, String>>, onComplete: (Result<TopicActionResult>) -> Unit) =
+        runRequest({ repository.moveForum(page, form, fields) }, onComplete)
+
+    fun loadSourcePanel(page: TopicPageData, url: String,
+        onComplete: (Result<sb.linux.client.domain.account.AccountManagementPage>) -> Unit) =
+        runRequest({ repository.loadSourcePanel(page, url) }, onComplete)
+
+    fun submitSourceAction(page: TopicPageData, form: sb.linux.client.domain.account.AccountForm,
+        fields: List<Pair<String, String>>, onComplete: (Result<TopicActionResult>) -> Unit) =
+        runRequest({ repository.submitSourceAction(page, form, fields) }, onComplete)
 
     fun react(
         topicId: Long,

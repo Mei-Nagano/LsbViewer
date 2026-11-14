@@ -33,39 +33,10 @@ import sb.linux.client.ui.util.onColorFor
 
 @Composable
 private fun HueGradientSlider(hue: Float, onValueChange: (Float) -> Unit, modifier: Modifier = Modifier) {
-    Canvas(
-        modifier
-            .fillMaxWidth()
-            .height(30.dp)
-            .clip(MaterialTheme.shapes.large)
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    down.consume()
-                    onValueChange((down.position.x / size.width * 360f).coerceIn(0f, 360f))
-                    while (true) {
-                        val change = awaitDragOrCancellation(down.id) ?: break
-                        change.consume()
-                        onValueChange((change.position.x / size.width * 360f).coerceIn(0f, 360f))
-                    }
-                }
-            }
-    ) {
-        // 常驻彩虹渐变背景：与色相值一一对应
-        drawRect(
-            Brush.horizontalGradient(
-                listOf(0f, 60f, 120f, 180f, 240f, 300f, 360f).map { hsvColor(it, 1f, 1f) }
-            )
-        )
-        // 当前位置圆形手柄
-        val x = size.width * (hue.coerceIn(0f, 360f) / 360f)
-        val cy = size.height / 2f
-        drawCircle(Color.White, radius = size.height * 0.30f, center = Offset(x, cy))
-        drawCircle(
-            Color.Black, radius = size.height * 0.30f,
-            center = Offset(x, cy), style = Stroke(size.height * 0.06f)
-        )
-    }
+    sb.linux.client.ui.patterns.settings.SettingsSlider(
+        value = hue, onValueChange = onValueChange, valueRange = 0f..360f, modifier = modifier,
+        trackBrush = Brush.horizontalGradient(listOf(0f, 60f, 120f, 180f, 240f, 300f, 360f).map { hsvColor(it, 1f, 1f) }),
+    )
 }
 
 /** 统一的 HSV 取色对话框：SV 方块 + 彩虹色相滑条 + 预设色 + 实时 HEX，遵循 MD3 对话框规范 */

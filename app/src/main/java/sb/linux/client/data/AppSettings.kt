@@ -61,6 +61,7 @@ class AppSettings(context: Context) {
     var scrollModeOverrides by browse::scrollModeOverrides
     var linkOpenMode by general::linkOpenMode
     var linkPreviewEnabled by general::linkPreviewEnabled
+    var hideExternalJumpReminder by general::hideExternalJumpReminder
     var proxyType by general::proxyType
     var proxyHost by general::proxyHost
     var proxyPort by general::proxyPort
@@ -71,7 +72,10 @@ class AppSettings(context: Context) {
     fun saveDohServers(servers: List<DohServer>) = general.saveDohServers(servers)
     var dohDisableOnVpn by general::dohDisableOnVpn
     var dohAutoWithoutVpn by general::dohAutoWithoutVpn
+    var dohForWebsites by general::dohForWebsites
     var useBuiltInImageHost by general::useBuiltInImageHost
+    var imageUploadMethod by general::imageUploadMethod
+    var askImageUploadMethod by general::askImageUploadMethod
     var imageHostUrl by general::imageHostUrl
     var imageHostToken by general::imageHostToken
     var imageHostField by general::imageHostField

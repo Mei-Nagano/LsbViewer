@@ -24,6 +24,7 @@ data class DohConfiguration(
     val enabled: Boolean,
     val bypassVpn: Boolean,
     val autoWithoutVpn: Boolean,
+    val forWebsites: Boolean = true,
 )
 
 interface DohSettingsRepository {
@@ -33,6 +34,7 @@ interface DohSettingsRepository {
     fun selectServer(url: String)
     fun setBypassVpn(enabled: Boolean)
     fun setAutoWithoutVpn(enabled: Boolean)
+    fun setForWebsites(enabled: Boolean)
     fun saveServers(servers: List<DohServer>)
     fun isValidEndpoint(url: String): Boolean
     suspend fun benchmark(url: String): DohBenchmark

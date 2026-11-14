@@ -11,8 +11,9 @@ import sb.linux.client.ui.feature.settings.DataManagementViewModel
 import sb.linux.client.ui.feature.settings.DataManagementViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
 import sb.linux.client.ui.theme.LocalAppSpacing
+import sb.linux.client.ui.patterns.settings.SettingsCheckRow
 
-/** 数据清理内容：并入「存储与备份」二级页展示，不再单独成页。 */
+/** 数据清理详情：立即清理与自动清理共用项目及写入逻辑。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DataManagementContent(
@@ -64,24 +65,16 @@ internal fun DataManagementContent(
         if (!automatic) {
             if (showAnalysis) {
                 GroupLabel("空间占用")
-                GroupCard {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 12.dp)) {
-                        CacheAnalysisCard(session, cacheRevision)
-                    }
-                }
+                CacheAnalysisCard(session, cacheRevision)
             }
             GroupLabel("立即清理")
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            GroupCard {
                 options.forEach { (key, labels) ->
                     val checked = key in selected
-                    ListItem(
-                        headlineContent = { Text(labels.first) },
-                        supportingContent = { Text(labels.second) },
-                        trailingContent = { Checkbox(checked = checked, onCheckedChange = { value ->
-                            selected = if (value) selected + key else selected - key
-                        }) },
-                        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clickable { selected = if (checked) selected - key else selected + key },
+                    SettingsCheckRow(
+                        title = labels.first, subtitle = labels.second,
+                        checked = checked, icon = settingsRowIcon(labels.first),
+                        onCheckedChange = { selected = if (it) selected + key else selected - key },
                     )
                 }
             }

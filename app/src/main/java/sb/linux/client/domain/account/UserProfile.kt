@@ -15,4 +15,8 @@ data class UserProfile(
     val titleBadge: TitleBadge? = null,
     val blockUrl: String = "",
     val blockLabel: String = "",
+    val following: String = "",
+    val followers: String = "",
+    val wallet: String = "",
+    val groupBadge: UserGroupBadge? = null,
 )

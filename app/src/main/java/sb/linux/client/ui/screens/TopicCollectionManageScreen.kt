@@ -82,9 +82,7 @@ fun TopicCollectionManageScreen(session: Session, nav: NavHostController) {
         title = title,
         onBack = { nav.popBackStack() },
         actions = {
-            IconButton(enabled = !loading && !submitting, onClick = { load() }) {
-                Icon(Icons.Filled.Refresh, "刷新")
-            }
+            sb.linux.client.ui.components.navigation.AppRefreshButton(enabled = !loading && !submitting, onClick = { load() })
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {

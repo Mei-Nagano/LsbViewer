@@ -49,7 +49,6 @@ fun ExportDialog(
     var scopeMode by remember { mutableStateOf("all") }
     var fromFloor by remember { mutableStateOf("0") }
     var toFloor by remember { mutableStateOf("20") }
-    var multiPage by remember { mutableStateOf(true) }
     var selectedIds by remember { mutableStateOf(posts.map { it.id }.toSet()) }
     ModalBottomSheet(onDismissRequest = { if (busy == null) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), sheetGesturesEnabled = false) {
@@ -63,7 +62,7 @@ fun ExportDialog(
                 TextButton(onClick = onDismiss, enabled = busy == null) { Text("关闭") }
             }
             Text(
-                "选择内容范围和格式，文件保存后可在「设置 → 已导出的帖子」查看",
+                "选择导出内容范围，HTML 文件保存后可在「我的 → 我的内容 → 已导出的帖子」查看",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
@@ -109,17 +108,8 @@ fun ExportDialog(
                     }
                 }
             }
-            sb.linux.client.ui.components.input.AppSwitchRow(
-                title = "长图自动分页",
-                subtitle = "按实际高度分页，单篇超长正文也完整导出",
-                checked = multiPage,
-                onCheckedChange = { multiPage = it },
-                compact = true,
-            )
             listOf(
                 Triple("html", "导出 HTML", "保留原帖结构与样式，适合存档"),
-                Triple("md", "导出 Markdown", "纯文本轻量格式，便于编辑"),
-                Triple("img", "导出长图", "渲染为图片，方便直接分享"),
             ).forEach { (kind, label, subtitle) ->
                 ExportSheetItem(
                     icon = when (kind) {
@@ -137,7 +127,7 @@ fun ExportDialog(
                             scopeMode,
                             fromFloor.toIntOrNull() ?: 0,
                             toFloor.toIntOrNull() ?: Int.MAX_VALUE,
-                            multiPage,
+                            false,
                             selectedIds,
                         )
                     }

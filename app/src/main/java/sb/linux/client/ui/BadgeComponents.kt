@@ -45,13 +45,20 @@ fun Badge(text: String, bg: Color, fg: Color, small: Boolean = false, modifier: 
 }
 
 /** 称号稀有度配色（对齐源站 gacha-title-* 的深浅配色风格） */
-fun titleRarityColor(rarity: String): Pair<Color, Color> {
+fun titleRarityColor(rarity: String, dark: Boolean = false): Pair<Color, Color> {
     val r = rarity.uppercase().trim()
+    if (dark) return when {
+        r.contains("UR") -> Color(0xFFDFC6F7) to Color(0xFF2C1940)
+        r.contains("SSR") -> Color(0xFFF6A04E) to Color(0xFF252019)
+        r.contains("SR") -> Color(0xFF6AAEFF) to Color(0xFF19212A)
+        r == "R" -> Color(0xFF9DB5CA) to Color(0xFF202B37)
+        else -> Color(0xFF9399AB) to Color(0xFF202432)
+    }
     return when {
         r.contains("UR") -> Color(0xFFA855F7) to Color(0xFFEFE3FF)   // 源站 UR 紫
         r.contains("SSR") -> Color(0xFFFF8F00) to Color(0xFFFFF0D6)  // 橙金
-        r.contains("SR") -> Color(0xFF9C27B0) to Color(0xFFF3E5F5)   // 紫
-        r.contains("R") -> Color(0xFF1E88E5) to Color(0xFFE3F2FD)    // 蓝
+        r.contains("SR") -> Color(0xFF4A9EFF) to Color(0xFFEEF4FF)
+        r == "R" -> Color(0xFF405D78) to Color(0xFFE8EFF6)
         else -> Color(0xFF6B7280) to Color(0xFFE9ECEF)               // 灰（N/默认）
     }
 }
@@ -60,7 +67,7 @@ fun titleRarityColor(rarity: String): Pair<Color, Color> {
 @Composable
 fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Boolean = false) {
     val dark = MaterialTheme.colorScheme.background.let { it.red + it.green + it.blue < 1.5f }
-    val (fallback, soft) = titleRarityColor(title.rarity)
+    val (fallback, soft) = titleRarityColor(title.rarity, dark)
     val fg = sourceTitleColor(title, if (dark) "dark-color" else "color", fallback, dark)
     val bg = sourceTitleColor(title, if (dark) "dark-bg" else "bg", soft, dark)
     val serialBg = sourceTitleColor(title, if (dark) "dark-serial-bg" else "color", fg, dark)

@@ -5,7 +5,9 @@ object PointsHtmlParser {
     fun parsePointRows(html: String): List<PointRow> {
         val d = SourceHtmlSupport.sourceDocument(html)
         return d.select("li.points-rewards-detail").map { li ->
-            val raw = li.selectFirst(".points-rewards-change-value b")?.text() ?: "0"
+            val raw = li.selectFirst(".points-rewards-change-value b")?.text().orEmpty()
+                .replace(",", "").replace("−", "-").trim()
+            check(raw.trimStart('+', '-').toLongOrNull() != null) { "积分金额无法解析，请刷新后重试" }
             val positive = li.selectFirst(".points-rewards-change-value")?.classNames()?.contains("positive") == true
                 || raw.trimStart().startsWith("+")
             PointRow(
@@ -16,6 +18,7 @@ object PointsHtmlParser {
                 positive = positive,
                 timestamp = runCatching { java.time.OffsetDateTime.parse(li.selectFirst("time")?.attr("datetime")).toInstant().toEpochMilli() }.getOrDefault(0L),
                 topicId = SourceHtmlSupport.idFrom(li.selectFirst("a[href^=/topic/]")?.attr("href")),
+                eventReason = li.selectFirst(".points-rewards-reason")?.clone()?.also { it.select("a[href*=/topic/]").remove() }?.text().orEmpty(),
             )
         }
     }

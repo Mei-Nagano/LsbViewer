@@ -74,8 +74,11 @@ internal fun renderInline(el: Element, linkColor: Color, codeBg: Color): Annotat
     ) {
         when (node) {
             is TextNode -> {
-                val text = node.text()
-                if (text.isNotBlank()) {
+                val text = if (code || generateSequence(node.parentNode()) { it.parentNode() }.any {
+                    Regex("white-space\\s*:\\s*pre", RegexOption.IGNORE_CASE).containsMatchIn(it.attr("style"))
+                }) node.wholeText
+                    else node.wholeText.replace(Regex("[\\t\\r\\n ]+"), " ")
+                if (text.isNotEmpty()) {
                     val start = length
                     withStyle(
                         SpanStyle(
@@ -128,6 +131,7 @@ internal fun renderInline(el: Element, linkColor: Color, codeBg: Color): Annotat
             }
             is Element -> {
                 val tag = node.tagName().lowercase()
+                if (tag in setOf("script", "style")) return
                 if (tag == "br") {
                     append("\n")
                     return
@@ -139,7 +143,7 @@ internal fun renderInline(el: Element, linkColor: Color, codeBg: Color): Annotat
                     return
                 }
                 val newLink = if (tag == "a") node.attr("abs:href").ifBlank { node.attr("href") }.ifBlank { null } else link
-                node.childNodes().forEach {
+                withStyle(sourceInlineStyle(node)) { node.childNodes().forEach {
                     appendNode(
                         it,
                         bold || tag == "strong" || tag == "b",
@@ -150,11 +154,11 @@ internal fun renderInline(el: Element, linkColor: Color, codeBg: Color): Annotat
                         when (tag) { "sup" -> 1; "sub" -> -1; else -> baseline },
                         marked || tag == "mark",
                     )
-                }
+                } }
             }
             else -> {}
         }
     }
-    el.childNodes().forEach { appendNode(it, false, false, false, false, null, 0, false) }
+    appendNode(el, false, false, false, false, null, 0, false)
 }
 

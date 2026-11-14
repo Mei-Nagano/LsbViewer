@@ -38,25 +38,7 @@ internal fun LazyListScope.topicReplyListItems(
                     Spacer(Modifier.width(6.dp))
                     Text(state.replyCountText, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.weight(1f))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(2.dp),
-                    ) {
-                        listOf("热度" to 0, "正序" to 1, "倒序" to 2).forEach { (label, index) ->
-                            val selected = state.sortOrder == index
-                            Text(
-                                label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.clip(CircleShape)
-                                    .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                                    .clickable { if (!selected) actions.onSortChange(index) }
-                                    .padding(horizontal = 10.dp, vertical = 3.dp),
-                            )
-                        }
-                    }
+
                 }
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = LocalAppSpacing.current.pageHorizontal),
@@ -65,7 +47,8 @@ internal fun LazyListScope.topicReplyListItems(
             }
         }
     }
-    val visibleReplies = if (state.hasTree) state.flatTree else state.pagedReplies.map { it to 0 }
+    val visibleReplies = (if (state.hasTree) state.flatTree else state.pagedReplies.map { it to 0 })
+        .sortedBy { if (it.first.pinned) 0 else 1 }
     itemsIndexed(
         visibleReplies,
         key = { _, value -> "r-" + value.first.id },
@@ -91,6 +74,7 @@ internal fun LazyListScope.topicReplyListItems(
                 isMainPost = false,
                 highlight = state.highlightPostId == post.id,
                 replyParentAvatar = post.parentFloor.takeIf { it > 0 }?.let { state.repliesByFloor[it]?.avatarUrl } ?: "",
+                replyParentAuthorId = state.repliesByFloor[post.parentFloor]?.authorId ?: 0L,
                 showReplyCapsule = !state.hasTree,
                 childReplyCount = state.treeChildCounts[post.id] ?: 0,
                 childrenCollapsed = post.id in state.collapsedIds,

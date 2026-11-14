@@ -92,9 +92,15 @@ internal class TopicPageCoordinator(
                     }
                 } else emptyList()
                 state.page.value = if (append && current != null) current.copy(
-                    posts = (current.posts + missing + loaded.posts).associateBy { it.id }.values.toList(),
+                    posts = (current.posts + missing + loaded.posts).groupBy { it.id }.values.map { copies ->
+                        copies.last().copy(pinned = copies.any { it.pinned })
+                    },
                     page = loaded.page,
                     totalPages = loaded.totalPages,
+                    csrf = loaded.csrf,
+                    replyForm = loaded.replyForm,
+                    treasurePool = loaded.treasurePool ?: current.treasurePool,
+                    resourceVote = loaded.resourceVote ?: current.resourceVote,
                 ) else loaded
                 if (!append) redemptions.record(topicId, loaded.title, loaded.virtualCard)
                 state.loadedMaxPage.value = if (append) {
@@ -171,7 +177,9 @@ internal class TopicPageCoordinator(
                     check(loaded.page == page) { "源站未返回第 $page 页，已保留当前搜索结果" }
                     val current = state.page.value
                     state.page.value = current?.copy(
-                        posts = (current.posts + loaded.posts).associateBy { it.id }.values.toList(),
+                        posts = (current.posts + loaded.posts).groupBy { it.id }.values.map { copies ->
+                            copies.last().copy(pinned = copies.any { it.pinned })
+                        },
                         page = maxOf(current.page, loaded.page),
                         totalPages = loaded.totalPages,
                     ) ?: loaded

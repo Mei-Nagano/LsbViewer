@@ -38,6 +38,7 @@ internal fun AppSettings.importBackupJson(
             if (o.has("unfavorite_confirm")) p.putBoolean("unfavorite_confirm", o.getBoolean("unfavorite_confirm"))
             if (o.has("link_open_mode")) p.putInt("link_open_mode", o.optInt("link_open_mode", 0).coerceIn(0, 1))
             if (o.has("link_preview_enabled")) p.putBoolean("link_preview_enabled", o.getBoolean("link_preview_enabled"))
+            if (o.has("link_jump_skip_reminder")) p.putBoolean("link_jump_skip_reminder", o.getBoolean("link_jump_skip_reminder"))
             if (o.has("proxy_type")) p.putInt("proxy_type", o.optInt("proxy_type", 0).coerceIn(0, 2))
             if (o.has("proxy_host")) p.putString("proxy_host", o.getString("proxy_host").trim())
             if (o.has("proxy_port")) p.putInt("proxy_port", o.optInt("proxy_port", 7890).coerceIn(1, 65535))
@@ -45,6 +46,7 @@ internal fun AppSettings.importBackupJson(
             if (o.has("doh_url")) p.putString("doh_url", o.getString("doh_url"))
             if (o.has("doh_disable_on_vpn")) p.putBoolean("doh_disable_on_vpn", o.getBoolean("doh_disable_on_vpn"))
             if (o.has("doh_auto_without_vpn")) p.putBoolean("doh_auto_without_vpn", o.getBoolean("doh_auto_without_vpn"))
+            if (o.has("doh_for_websites")) p.putBoolean("doh_for_websites", o.getBoolean("doh_for_websites"))
             if (o.has("doh_servers")) {
                 val servers = o.getJSONArray("doh_servers")
                 for (index in 0 until servers.length()) {
@@ -54,6 +56,9 @@ internal fun AppSettings.importBackupJson(
                 p.putString("doh_servers", servers.toString())
             }
             if (o.has("use_builtin_image_host")) p.putBoolean("use_builtin_image_host", o.getBoolean("use_builtin_image_host"))
+            if (o.has("image_upload_method")) p.putString("image_upload_method",
+                sb.linux.client.domain.media.ImageUploadMethod.fromValue(o.optString("image_upload_method")).value)
+            if (o.has("ask_image_upload_method")) p.putBoolean("ask_image_upload_method", o.getBoolean("ask_image_upload_method"))
             if (o.has("image_host_url")) p.putString("image_host_url", o.getString("image_host_url"))
             if (o.has("image_host_token")) p.putString("image_host_token", o.getString("image_host_token"))
             if (o.has("image_host_field")) p.putString("image_host_field", o.getString("image_host_field"))
@@ -160,7 +165,7 @@ internal fun AppSettings.importBackupJson(
                 if (t.has("card_colors")) tp.putString("card_colors", t.getString("card_colors"))
                 if (t.has("font_key")) tp.putString("font_key", t.getString("font_key"))
                 if (t.has("font_scale")) tp.putFloat("font_scale", t.getDouble("font_scale").toFloat().coerceIn(0.85f, 1.30f))
-                if (t.has("font_weight_level")) tp.putInt("font_weight_level", t.optInt("font_weight_level", 0).coerceIn(0, 2))
+                if (t.has("font_weight_level")) tp.putInt("font_weight_level", t.optInt("font_weight_level", 0).coerceIn(-3, 2))
                 // 字体文件在私有目录、随不了 JSON；导入后 MainActivity 发现文件不存在会
                 // 自动回落默认字体，这里只把名称补上以免设置页显示为空白的「自定义」
                 if (t.has("custom_font_name")) tp.putString("custom_font_name", t.getString("custom_font_name"))

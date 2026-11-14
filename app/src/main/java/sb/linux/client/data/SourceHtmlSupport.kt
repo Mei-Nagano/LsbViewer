@@ -8,6 +8,16 @@ import sb.linux.client.common.content.HtmlTextConversion
 import sb.linux.client.domain.topic.TitleBadge
 
 internal object SourceHtmlSupport {
+    internal fun groupBadgeOf(element: Element?): sb.linux.client.domain.account.UserGroupBadge? {
+        val badge = element?.selectFirst(".user-uid-badge-group") ?: return null
+        val name = badge.selectFirst(".user-uid-badge-group-name")?.text()?.trim().orEmpty()
+        if (name.isBlank()) return null
+        val palette = badge.classNames().firstOrNull { it in setOf("user-uid-badge-group-ocean",
+            "user-uid-badge-group-violet", "user-uid-badge-group-rose", "user-uid-badge-group-amber",
+            "user-uid-badge-group-jade", "user-uid-badge-group-sky", "user-uid-badge-group-slate") }
+            ?.removePrefix("user-uid-badge-group-") ?: "slate"
+        return sb.linux.client.domain.account.UserGroupBadge(name, palette, badge.attr("style"))
+    }
     /** 分域解析器共用的源站 Document 入口，统一基址和 Jsoup 配置。 */
     fun sourceDocument(html: String): Document = Jsoup.parse(html, Endpoints.BASE)
 

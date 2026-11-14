@@ -114,6 +114,7 @@ internal class ClientRequestExecutor(
         fileField: String,
         file: File,
         mime: String,
+        ajax: Boolean = false,
     ): Resp = withContext(Dispatchers.IO) {
         val b = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
         fields.forEach { (k, v) -> b.addFormDataPart(k, v) }
@@ -121,6 +122,7 @@ internal class ClientRequestExecutor(
         b.addFormDataPart(fileField, file.name, okhttp3.RequestBody.create(media, file))
         val req = Request.Builder().url(Endpoints.abs(path))
             .header("User-Agent", userAgent)
+            .apply { if (ajax) { header("X-Requested-With", "XMLHttpRequest"); header("Accept", "application/json") } }
             .post(b.build())
             .build()
         repeat(3) {

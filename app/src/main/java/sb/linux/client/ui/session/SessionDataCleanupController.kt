@@ -3,8 +3,11 @@ package sb.linux.client.ui.session
 import android.app.Application
 import android.content.Context
 import coil.Coil
+import sb.linux.client.LsbApp
 import sb.linux.client.domain.settings.DataManagementRepository
+import sb.linux.client.ui.patterns.user.clearAvatarBitmapCache
 
+@OptIn(coil.annotation.ExperimentalCoilApi::class)
 internal class SessionDataCleanupController(
     private val context: Application,
     private val session: Session,
@@ -44,6 +47,9 @@ internal class SessionDataCleanupController(
             }
         }
         runCatching { Coil.imageLoader(context).diskCache?.clear() }
+        (context as LsbApp).client.clearAvatarCache()
+        clearAvatarBitmapCache()
+        Coil.imageLoader(context).memoryCache?.clear()
         session.showToast("本地缓存已清除")
     }
 
@@ -64,13 +70,17 @@ internal class SessionDataCleanupController(
             context.getSharedPreferences("lsb_views", Context.MODE_PRIVATE)
                 .edit().clear().apply()
         }
-        if ("images" in items) runCatching {
+        if ("images" in items || "avatars" in items) {
+            (context as LsbApp).client.clearAvatarCache()
+            clearAvatarBitmapCache()
+        }
+        if ("images" in items || "body_images" in items) {
             Coil.imageLoader(context).apply {
                 diskCache?.clear()
                 memoryCache?.clear()
             }
             session.uiInvalidation?.clearBodyImageLayoutCache()
-        }
+        } else if ("avatars" in items) Coil.imageLoader(context).memoryCache?.clear()
         if ("reading_positions" in items) session.readingPositionRepository.clear()
         if ("ai_history" in items) session.aiSummaryHistoryRepository.clear()
         if ("ai_config" in items) session.aiConfigurationRepository.reset()

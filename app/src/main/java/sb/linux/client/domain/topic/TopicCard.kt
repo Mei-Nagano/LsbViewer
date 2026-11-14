@@ -20,9 +20,11 @@ data class TopicCard(
     val lotteryStatus: String = "",
     val cardStatus: String = "",
     val sourceTags: List<String> = emptyList(),
+    val styledTags: List<SourceTopicTag> = emptyList(),
     val views: Int = -1,
     val online: Boolean = false,
     val titleBadge: TitleBadge? = null,
     /** 本地浏览时间（毫秒），仅浏览历史使用；0 表示未记录。 */
     val visitedAt: Long = 0L,
+    val lastReplierId: Long = 0L,
 )

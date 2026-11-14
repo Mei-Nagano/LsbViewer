@@ -42,10 +42,12 @@ internal fun ReplyToolbar(
     onInsert: (String, String, String) -> Unit,
     onUploadImage: (() -> Unit)? = null,
     imageUploadBusy: Boolean = false,
+    onAdvanced: ((String) -> Unit)? = null,
 ) {
     sb.linux.client.ui.content.MarkdownEditorTools(
         onInsert = onInsert, onUpload = { onUploadImage?.invoke() ?: onInsert("![", "](https://)", "图片描述") },
         uploading = imageUploadBusy,
+        onAdvanced = onAdvanced, topic = false,
     )
 }
 

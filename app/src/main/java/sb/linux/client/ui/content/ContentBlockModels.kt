@@ -16,6 +16,10 @@ internal data class TableCellData(
 
 internal data class ContentBlock(
     val annotated: AnnotatedString? = null,
+    val replyVisibleHtml: String? = null,
+    val replyVisibleLocked: Boolean = false,
+    val formulaSource: String? = null,
+    val formulaDisplay: Boolean = false,
     val imageUrl: String? = null,
     val imageUrls: List<String> = emptyList(), // 连续多图：合并为一个翻页块
     val embeddedVideo: EmbeddedVideo? = null,
@@ -29,6 +33,8 @@ internal data class ContentBlock(
     val anchorIds: List<String> = emptyList(),
     val isCode: Boolean = false,
     val isDivider: Boolean = false,
+    val spacerLines: Int = 0,
+    val paragraphStart: Boolean = false,
     val isHeading: Boolean = false,
     val headingLevel: Int = 0,     // 标题级别 1~4，用于排版字号缩放
     val isList: Boolean = false,   // 列表项：悬挂缩进展示（对应源站 <ul>/<ol>）

@@ -31,8 +31,7 @@ import sb.linux.client.ui.theme.LocalReadingType
 /**
  * 将帖子 HTML（服务端渲染的 Markdown 产物）转为 Compose 展示。
  * 支持：p/br、strong/em/del、a、code/pre、blockquote、ul/ol、img、视频、h1-h4、hr、table。
- * 行间距统一：所有正文文本块使用相同 lineHeight，块间不再额外加间距（由行框半行距提供），
- * 避免段落间距与行间距不一致的问题（含 @用户 拆分出的多个段落）。
+ * 正文使用统一行高；HTML 段落之间保留一行留白，显式 br 和空段按原文展示。
  */
 @Composable
 fun HtmlContent(
@@ -133,6 +132,12 @@ fun HtmlContent(
             val anchorModifier = blockAnchorRequesters[idx]
                 ?.let { Modifier.bringIntoViewRequester(it) } ?: Modifier
             when {
+                b.spacerLines > 0 -> Spacer(Modifier.height(with(LocalDensity.current) { (bodyStyle.lineHeight * b.spacerLines.coerceAtMost(8)).toDp() }))
+                b.formulaSource != null -> FormulaBlock(b.formulaSource, b.formulaDisplay, anchorModifier)
+                b.replyVisibleHtml != null -> ReplyVisibleBlock(b, anchorModifier) { content ->
+                    HtmlContent(content, onFloor = onFloor, mergeImages = mergeImages, cacheable = cacheable,
+                        highlightQuery = highlightQuery, onSearchPosition = onSearchPosition, comment = comment)
+                }
                 b.isDetailsSummary -> {
                     val id = b.detailsId ?: return@forEachIndexed
                     DetailsSummaryBlock(
@@ -196,13 +201,20 @@ fun HtmlContent(
                         b.isHeading -> headingStyle(b.headingLevel) to null
                         b.isList -> bodyStyle.copy(
                             textIndent = TextIndent(firstLine = 0.sp, restLine = 22.sp)
-                        ) to FontWeight.Normal
-                        else -> bodyStyle to FontWeight.Normal
+                        ) to null
+                        else -> bodyStyle to null
                     }
                     val base = when {
-                        b.isHeading -> Modifier.padding(top = 6.dp, bottom = 2.dp)
-                        b.isList -> Modifier.padding(start = (6 * b.indent).dp, bottom = 1.dp)
-                        // 相邻段落之间留出 16dp（D04「段后 16dp」），避免正文连成一片
+                        // 标题段前/段后沿用 v1.0.70 的紧凑节奏（6/2），大字号自身已提供层级
+                        b.isHeading -> Modifier.padding(
+                            top = if (idx == 0) 0.dp else 6.dp,
+                            bottom = 2.dp,
+                        )
+                        // 列表项之间保持紧凑（2dp），与段落的 4dp 形成节奏区分
+                        b.isList -> Modifier.padding(start = (6 * b.indent).dp, bottom = 2.dp)
+                        // Markdown 空行形成独立 p，恢复一行段间留白；显式空段不重复加间距（§3.6）。
+                        b.paragraphStart && idx > 0 && blocks[idx - 1].spacerLines == 0 ->
+                            Modifier.padding(top = with(LocalDensity.current) { bodyStyle.lineHeight.toDp() })
                         idx > 0 -> Modifier.padding(top = spacing.paragraph)
                         else -> Modifier
                     }

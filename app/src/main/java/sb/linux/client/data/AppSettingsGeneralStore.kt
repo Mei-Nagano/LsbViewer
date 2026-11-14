@@ -14,6 +14,10 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
         get() = prefs.getBoolean("link_preview_enabled", true)
         set(v) = prefs.edit().putBoolean("link_preview_enabled", v).apply()
 
+    var hideExternalJumpReminder: Boolean
+        get() = prefs.getBoolean("link_jump_skip_reminder", false)
+        set(v) = prefs.edit().putBoolean("link_jump_skip_reminder", v).apply()
+
     /** 应用代理：0 = 关闭，1 = HTTP，2 = SOCKS5。 */
     var proxyType: Int
         get() = prefs.getInt("proxy_type", 0).coerceIn(0, 2)
@@ -76,7 +80,19 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
         get() = prefs.getBoolean("doh_auto_without_vpn", true)
         set(v) = prefs.edit().putBoolean("doh_auto_without_vpn", v).apply()
 
-    /** 默认使用应用内置的 Catbox 匿名上传；关闭后才读取下面的自定义接口配置。 */
+    var dohForWebsites: Boolean
+        get() = prefs.getBoolean("doh_for_websites", true)
+        set(v) = prefs.edit().putBoolean("doh_for_websites", v).apply()
+
+    var imageUploadMethod: String
+        get() = prefs.getString("image_upload_method", "attachment_space") ?: "attachment_space"
+        set(v) = prefs.edit().putString("image_upload_method", v).apply()
+
+    var askImageUploadMethod: Boolean
+        get() = prefs.getBoolean("ask_image_upload_method", true)
+        set(v) = prefs.edit().putBoolean("ask_image_upload_method", v).apply()
+
+    /** 外部图床配置保留；默认图片上传目的地由 imageUploadMethod 决定。 */
     var useBuiltInImageHost: Boolean
         get() = prefs.getBoolean("use_builtin_image_host", true)
         set(v) = prefs.edit().putBoolean("use_builtin_image_host", v).apply()
@@ -195,7 +211,9 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
     fun resetGeneral() = prefs.edit()
         .remove("link_open_mode").remove("update_check_mode")
         .remove("link_preview_enabled")
+        .remove("link_jump_skip_reminder")
         .remove("use_builtin_image_host")
+        .remove("image_upload_method").remove("ask_image_upload_method")
         .remove("image_host_url").remove("image_host_token").remove("image_host_field")
         .remove("update_check_interval_hours")
         .apply()
@@ -203,7 +221,7 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
     fun resetNetwork() = prefs.edit()
         .remove("proxy_type").remove("proxy_host").remove("proxy_port")
         .remove("doh_enabled").remove("doh_url").remove("doh_disable_on_vpn").remove("doh_auto_without_vpn")
-        .remove("doh_servers")
+        .remove("doh_servers").remove("doh_for_websites")
         .apply()
 
     /** 重置 WebDAV 备份配置 */

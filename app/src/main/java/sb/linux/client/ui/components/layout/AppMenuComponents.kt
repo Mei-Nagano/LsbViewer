@@ -49,6 +49,7 @@ fun AppMenuRow(
     modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified, enabled: Boolean = true,
     trailing: (@Composable () -> Unit)? = null, compact: Boolean = false,
+    prominent: Boolean = false,
     // 传 null 表示本行不自带点击动作，由调用方在外层提供可访问语义
     // （AppSwitchRow 用整行 toggleable 提供 Role.Switch + 状态，不再叠加第二个点击处理器）。
     onClick: (() -> Unit)? = null,
@@ -63,14 +64,22 @@ fun AppMenuRow(
     Row(modifier.fillMaxWidth()
         .heightIn(min = minHeight)
         .then(if (onClick != null) Modifier.clickable(enabled = enabled, onClick = onClick) else Modifier)
-        .padding(if (compact) AppMenuDefaults.compactRowPadding else AppMenuDefaults.rowPadding),
+        .padding(when {
+            prominent -> PaddingValues(horizontal = LocalAppSpacing.current.pageHorizontal, vertical = LocalAppSpacing.current.pageVertical)
+            compact -> AppMenuDefaults.compactRowPadding
+            else -> AppMenuDefaults.rowPadding
+        }),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AppMenuDefaults.rowSpacing)) {
-        if (icon != null) Icon(icon, null, Modifier.size(LocalAppSizes.current.icon), tint = foreground.copy(alpha = alpha))
+        if (icon != null) Icon(icon, null, Modifier.size(LocalAppSizes.current.icon),
+            tint = (if (prominent && tint == Color.Unspecified) MaterialTheme.colorScheme.onSurfaceVariant else foreground).copy(alpha = alpha))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppMenuDefaults.titleSubtitleSpacing)) {
-            Text(title, style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium, color = foreground.copy(alpha = alpha))
-            if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodySmall,
+            Text(title, style = when {
+                prominent -> MaterialTheme.typography.titleMedium
+                compact -> MaterialTheme.typography.bodyMedium
+                else -> MaterialTheme.typography.bodyLarge
+            }, fontWeight = if (prominent) FontWeight.SemiBold else FontWeight.Medium, color = foreground.copy(alpha = alpha))
+            if (subtitle.isNotBlank()) Text(subtitle, style = if (prominent) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
         }
         if (trailing != null) trailing() else Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null,

@@ -8,6 +8,8 @@ import sb.linux.client.domain.community.HotTopic
 import sb.linux.client.domain.community.NewUser
 import sb.linux.client.domain.community.OnlineUser
 import sb.linux.client.domain.community.OnlineUsers
+import sb.linux.client.domain.community.SidebarAnnouncement
+import sb.linux.client.domain.community.DailyStar
 import sb.linux.client.domain.topic.TopicCard
 
 internal class HomeCacheStore(context: Context) : HomeBrowseCache {
@@ -28,6 +30,9 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
                         .put("av", t.avatarUrl)
                         .put("ls", t.lotteryStatus).put("cs", t.cardStatus)
                         .put("source_tags", org.json.JSONArray(t.sourceTags))
+                        .put("styled_tags", org.json.JSONArray().apply { t.styledTags.forEach { tag ->
+                            put(org.json.JSONObject().put("label", tag.label).put("classes", tag.classes).put("style", tag.style))
+                        } })
                 )
             }
             homePrefs.edit().putString("sort_$sort", arr.toString()).apply()
@@ -50,6 +55,10 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
                 sourceTags = o.optJSONArray("source_tags")?.let { tags ->
                     (0 until tags.length()).map { tags.optString(it) }.filter(String::isNotBlank)
                 }.orEmpty(),
+                styledTags = o.optJSONArray("styled_tags")?.let { tags -> (0 until tags.length()).map { index ->
+                    val tag = tags.getJSONObject(index)
+                    sb.linux.client.domain.topic.SourceTopicTag(tag.optString("label"), tag.optString("classes"), tag.optString("style"))
+                } }.orEmpty(),
             )
         }
     }.getOrDefault(emptyList())
@@ -80,10 +89,24 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
             sb.onlineUsers.items.forEach { n ->
                 on.put(org.json.JSONObject().put("uid", n.userId).put("name", n.username).put("av", n.avatarUrl))
             }
+            val announcements = org.json.JSONArray()
+            sb.announcements.forEach { notice ->
+                announcements.put(org.json.JSONObject().put("title", notice.title).put("url", notice.url))
+            }
+            val stars = org.json.JSONArray()
+            sb.dailyStars.forEach { star ->
+                stars.put(
+                    org.json.JSONObject()
+                        .put("heading", star.heading).put("uid", star.userId)
+                        .put("name", star.username).put("av", star.avatarUrl)
+                        .put("description", star.description).put("online", star.online)
+                )
+            }
             val o = org.json.JSONObject()
                 .put("forums", a).put("hot", h).put("users", u)
                 .put("stats", sb.statsText)
                 .put("onCount", sb.onlineUsers.count).put("onItems", on)
+                .put("announcements", announcements).put("dailyStars", stars)
             sidebarPrefs.edit().putString("sidebar", o.toString()).apply()
         }
     }
@@ -106,10 +129,23 @@ internal class HomeCacheStore(context: Context) : HomeBrowseCache {
             val n = o.getJSONArray("onItems").getJSONObject(i)
             OnlineUser(n.optLong("uid"), n.optString("name"), n.optString("av"))
         }
+        val announcements = (0 until (o.optJSONArray("announcements")?.length() ?: 0)).map { i ->
+            val notice = o.getJSONArray("announcements").getJSONObject(i)
+            SidebarAnnouncement(notice.optString("title"), notice.optString("url"))
+        }
+        val stars = (0 until (o.optJSONArray("dailyStars")?.length() ?: 0)).map { i ->
+            val star = o.getJSONArray("dailyStars").getJSONObject(i)
+            DailyStar(
+                heading = star.optString("heading"), userId = star.optLong("uid"),
+                username = star.optString("name"), avatarUrl = star.optString("av"),
+                description = star.optString("description"), online = star.optBoolean("online"),
+            )
+        }
         HomeSidebar(
             forums = forums, hotTopics = hot,
             statsText = o.optString("stats"), newUsers = users,
             onlineUsers = OnlineUsers(count = o.optString("onCount"), items = onItems),
+            announcements = announcements, dailyStars = stars,
         )
     }.getOrNull()
 

@@ -34,6 +34,8 @@ data class PostEntry(
     val blockedPlaceholder: String = "",
     val essenceVoteLabel: String = "", // 申精评议回复标签（支持/反对）
     val essenceVoteSupport: Boolean? = null,
+    val sourceActions: List<sb.linux.client.domain.account.AccountForm> = emptyList(),
+    val pinned: Boolean = false,
 )
 
 data class TopicPageData(
@@ -59,7 +61,21 @@ data class TopicPageData(
     val replyCaptcha: LoginVerification? = null, // 回复表单人机验证（CAP / 旧版数学题）
     val essenceApplication: EssenceApplication? = null,
     val essenceReview: EssenceReview? = null,
+    val replyForm: TopicReplyForm? = null,
+    val treasurePool: TreasurePoolPanel? = null,
+    val resourceVote: ResourceVotePanel? = null,
+    val forumMove: TopicForumMove? = null,
+    val styledTags: List<SourceTopicTag> = emptyList(),
+    val footerPanels: List<sb.linux.client.domain.account.AccountNode.Link> = emptyList(),
 )
+
+data class TopicForumMove(val note: String, val form: sb.linux.client.domain.account.AccountForm? = null,
+    val anchorId: String = "")
+
+data class TopicReplyForm(val action: String, val fields: Map<String, String>,
+    val bodyName: String, val required: Boolean, val maxLength: Int, val mentionUrl: String,
+    val submitLabel: String = "发布", val submissionNotice: String = "", val previewUrl: String = "",
+    val media: SourceEditorMedia = SourceEditorMedia())
 
 /** 未申请状态与可用操作均来自源站，不在客户端猜测字数、权限或冷却规则。 */
 data class EssenceApplication(
@@ -146,7 +162,34 @@ data class TopicPoll(
     val reasonRequired: Boolean = false,
     val reasonHint: String = "",
     val reasonMaxLength: Int = 300,
+    val submitName: String = "",
+    val submitValue: String = "",
+    val maxChoices: Int = Int.MAX_VALUE,
+    val results: List<TopicPollResult> = emptyList(),
+    val viewUrl: String = "",
+    val viewLabel: String = "",
+    val resultView: Boolean = false,
+    val selectionMustChange: Boolean = false,
+    val voted: Boolean = false,
+    val statusLabel: String = "",
+    val deadline: String = "",
+    val participants: String = "",
+    val remainingActions: String = "",
+    val choiceLabel: String = "",
 )
+
+data class TopicPollResult(val label: String, val count: String, val fraction: Float)
+
+data class PanelStatistic(val label: String, val value: String, val note: String = "")
+data class TreasurePoolPanel(
+    val title: String, val status: String,
+    val statistics: List<PanelStatistic>, val rules: List<String>,
+)
+data class ResourceVotePanel(
+    val poll: TopicPoll, val available: String, val unavailable: String,
+    val fraction: Float, val summary: String, val recent: List<ResourceVoteRecord>,
+)
+data class ResourceVoteRecord(val user: String, val time: String, val result: String)
 
 data class TopicPollOption(
     val name: String,

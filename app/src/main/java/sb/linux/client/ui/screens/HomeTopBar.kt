@@ -55,6 +55,7 @@ internal fun HomeTopBar(
     onOpenDrawer: () -> Unit,
     onRefresh: () -> Unit,
     onSubmitSearch: () -> Unit,
+    onSelectCombo: (Int, Int) -> Unit,
 ) {
                     // 顶栏：正常态 / 搜索态 二选一
                     if (searchActive) {
@@ -150,14 +151,11 @@ internal fun HomeTopBar(
                         AppTopBar(
                             windowInsets = WindowInsets(0, 0, 0, 0),
                             title = "LINUX SB",
-                            navigationIcon = {
-                                // 平板双栏：侧边栏按钮已移到左侧导航栏顶部，顶栏不再重复展示
-                                if (masterNav == null) {
-                                    IconButton(onClick = { onOpenDrawer() }) {
-                                        Icon(Icons.Filled.Menu, "侧板")
-                                    }
-                                }
-                            },
+                            titleContent = { HomeSortSelector(session, onSelectCombo) { nav.navigate("login") } },
+                            primaryPage = true,
+                            navigationIcon = if (masterNav == null) {
+                                { IconButton(onClick = onOpenDrawer) { Icon(Icons.Filled.Menu, "打开侧栏") } }
+                            } else null,
                             actions = {
                                 // 通知：源站有未读时右上角显示小红点（未读数来自首页 .notify-badge）
                                 Box {
@@ -181,7 +179,8 @@ internal fun HomeTopBar(
                                 IconButton(onClick = { onSearchActiveChange(true) }) {
                                     Icon(Icons.Filled.Search, "搜索")
                                 }
-                                // 三点菜单：刷新 / 切换滚动模式（刷新也可下拉触发）
+                                sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = onRefresh)
+                                // 三点菜单保留其他页面操作。
                                 Box {
                                     IconButton(onClick = { onMenuOpenChange(true) }) {
                                         Icon(Icons.Filled.MoreVert, "菜单")
@@ -194,9 +193,9 @@ internal fun HomeTopBar(
                                             onClick = { onMenuOpenChange(false); nav.navigate("newTopic") }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("刷新") },
-                                            leadingIcon = { Icon(Icons.Filled.Refresh, null) },
-                                            onClick = { onMenuOpenChange(false); onRefresh() }
+                                            text = { Text("申精审核") },
+                                            leadingIcon = { Icon(Icons.Filled.RateReview, null) },
+                                            onClick = { onMenuOpenChange(false); onSelectCombo(3, 1) },
                                         )
                                         DropdownMenuItem(
                                             text = { Text("屏蔽词管理") },

@@ -17,8 +17,9 @@ import sb.linux.client.ui.feature.backup.BackupSettingsViewModel
 import sb.linux.client.ui.feature.backup.BackupSettingsViewModelFactory
 import sb.linux.client.ui.theme.AppMenuDefaults
 import sb.linux.client.ui.theme.LocalAppSpacing
+import sb.linux.client.ui.patterns.settings.SettingsCheckRow
 
-/** 备份内容：并入「存储与备份」二级页展示；`cloud` 决定显示本地导入导出还是 WebDAV 配置。 */
+/** 备份详情：`cloud` 决定显示本地导入导出还是 WebDAV 配置。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TransferSettingsContent(
@@ -127,18 +128,8 @@ internal fun TransferSettingsContent(
                 "cards" to "发卡兑换记录",
             )
             backupOptions.forEach { (key, label) ->
-                Row(
-                    Modifier.fillMaxWidth().clickable {
-                        settingsViewModel.setItemEnabled(key, key !in backupItems)
-                    }.padding(horizontal = 10.dp, vertical = 1.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = key in backupItems,
-                        onCheckedChange = { checked -> settingsViewModel.setItemEnabled(key, checked) },
-                    )
-                    Text(label, style = MaterialTheme.typography.bodyMedium)
-                }
+                SettingsCheckRow(label, checked = key in backupItems, icon = settingsRowIcon(label),
+                    onCheckedChange = { settingsViewModel.setItemEnabled(key, it) })
             }
             if (!cloud) Row(
                 Modifier.padding(horizontal = AppMenuDefaults.contentHorizontal, vertical = 10.dp),

@@ -23,16 +23,20 @@ class NotificationsViewModel(
     private val updateUnread: (Int) -> Unit,
     private val showToast: (String) -> Unit,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(NotificationsUiState())
+    private val mutableState = MutableStateFlow(NotificationsUiState(items = repository.cachedNotifications(userId).orEmpty()))
     val uiState = mutableState.asStateFlow()
 
-    fun load() {
+    fun load() = request(forceRefresh = true)
+    fun loadCached() = request(forceRefresh = false)
+
+    private fun request(forceRefresh: Boolean) {
         viewModelScope.launch {
             mutableState.update { it.copy(loading = true, error = null) }
             try {
-                val items = repository.loadNotifications(userId)
+                val items = repository.loadNotifications(userId, forceRefresh)
                 mutableState.update { it.copy(items = items, loading = false, loaded = true) }
-            } catch (error: Exception) {
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) {
                 mutableState.update { it.copy(loading = false, loaded = true, error = error.message) }
             }
         }

@@ -74,7 +74,7 @@ fun ExportedTopicsScreen(session: Session, nav: NavHostController) {
         title = "已导出的帖子",
         onBack = { nav.popBackStack() },
         actions = {
-            IconButton(onClick = { refresh() }) { Icon(Icons.Filled.Refresh, "刷新") }
+            sb.linux.client.ui.components.navigation.AppRefreshButton(onClick = { refresh() })
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
