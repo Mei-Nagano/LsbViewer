@@ -58,6 +58,15 @@ internal class SessionCookieJar(private val prefs: SharedPreferences) : CookieJa
         persist()
     }
 
+    internal fun remove(name: String, url: String, expected: String): Cookie? = synchronized(this) {
+        val address = url.toHttpUrl()
+        val cookie = memory.values.firstOrNull { it.name == name && it.value == expected && it.matches(address) }
+            ?: return@synchronized null
+        memory.remove(key(cookie))
+        persist()
+        cookie
+    }
+
     private fun persist() {
         prefs.edit().putStringSet(
             "cookies",

@@ -3,18 +3,6 @@ package sb.linux.client.data
 import sb.linux.client.common.error.LsbException
 
 object ChallengePagePolicy {
-        const val UAM_CHALLENGE_JS =
-            "(function(){try{var t=(document.title||'');var b=(document.body?document.body.innerText:'');" +
-                "if(document.querySelector('ul.post-list > li.post-item a.post-title, .post-topic-title, .post-content, .user-card, [data-home-keyword-filter-open], input[type=password], a[href=\"/topic/new\"], a[href=\"/index.php?sort=comment\"], a[href=\"/index.php?sort=post\"]'))return false;" +
-                "var el=!!(document.querySelector('#challenge-form')||document.querySelector('.ui-uam-box')||" +
-                "document.querySelector('.cf-browser-verification')||document.querySelector('#cf-challenge-running')||" +
-                "document.querySelector('.challenge-container')||document.querySelector('[class*=\"turnstile\"]')||" +
-                "document.querySelector('iframe[src*=\"challenges.cloudflare.com\"]'));" +
-                "return (t.indexOf('Checking your Browser')>=0||t.indexOf('Just a moment')>=0||" +
-                "t.indexOf('Attention Required')>=0||t.indexOf('Verifying your request')>=0||" +
-                "b.indexOf('SECURITY_VERIFICATION')>=0||b.indexOf('X-FL-UA-Step')>=0||el);" +
-                "}catch(e){return false;}})()"
-
         /**
          * 挑战页体积上限：验证页是纯脚本页，通常只有几 KB；正常论坛页远大于此。
          * 人可读文案类弱特征只在小于该体积的响应里才采信。

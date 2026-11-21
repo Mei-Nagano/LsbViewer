@@ -43,6 +43,7 @@ internal class TopicSourceActionService(private val client: LsbClient, private v
         val actions = listOf(original.action) + original.buttons.filter { it.enabled }.map { it.action }.filter(String::isNotBlank)
         check(form.method == "post" && form.action in actions && original.buttons.any { it.enabled }) { "源站当前不允许此操作" }
         val verificationNames = when (val verification = original.verification) {
+            is LoginVerification.Pow -> listOf("human_verification_pow_challenge", "human_verification_pow_proof")
             is LoginVerification.Cap -> listOf(verification.fieldName)
             is LoginVerification.Native -> listOf("native_captcha_token", "native_captcha_answer")
             else -> emptyList()

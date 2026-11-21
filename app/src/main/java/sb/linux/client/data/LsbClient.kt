@@ -43,7 +43,8 @@ class LsbClient(
         .addInterceptor { chain ->
             val req = chain.request().newBuilder()
                 .header("User-Agent", UA)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                .header("Accept", chain.request().header("Accept")
+                    ?: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
                 .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
                 .apply {
                     if (chain.request().tag(ImageTraffic::class.java) == null) header("Cache-Control", "max-age=0")
@@ -62,7 +63,7 @@ class LsbClient(
         LsbVerificationCoordinator(
             http, cookieJar, verificationMutex, { verificationUi },
             { ChallengePagePolicy.isUamChallenge(it) }, { ChallengePagePolicy.uamNonce(it) },
-            { cookie, nonce -> ChallengePagePolicy.uamSum(cookie, nonce) }, ChallengePagePolicy.UAM_CHALLENGE_JS, UA,
+            { cookie, nonce -> ChallengePagePolicy.uamSum(cookie, nonce) }, UA,
             verificationWebRepository,
         )
     }
@@ -119,6 +120,10 @@ class LsbClient(
     private suspend fun solveUam(url: String, challengeHtml: String): Boolean =
         verificationCoordinator.solve(url, challengeHtml)
 
+    internal suspend fun recoverAccess(url: String, html: String): Boolean = withContext(Dispatchers.IO) {
+        solveUam(url, html)
+    }
+
     fun importWebCookies(url: String) = verificationCoordinator.importWebCookies(url)
 
     fun exportWebCookies(): Boolean = verificationCoordinator.exportWebCookies()
@@ -153,6 +158,18 @@ class LsbClient(
     fun clearAvatarCache() = avatarLoader.clearCache()
 
     suspend fun fetchBytes(url: String): ByteArray = avatarLoader.fetchBytes(url)
+
+    internal suspend fun consumePostReward(response: Resp): String? = withContext(Dispatchers.IO) {
+        val raw = cookieJar.value(PostRewardNotice.COOKIE, response.url) ?: return@withContext null
+        val user = Jsoup.parse(response.html).selectFirst("[data-post-random-rewards-user]")
+            ?.attr("data-post-random-rewards-user").orEmpty()
+        val message = PostRewardNotice.message(raw, user) ?: return@withContext null
+        val cookie = cookieJar.remove(PostRewardNotice.COOKIE, response.url, raw) ?: return@withContext null
+        verificationWebRepository.clearCookie(sb.linux.client.domain.account.VerificationCookie(
+            cookie.domain, cookie.path, cookie.name, cookie.value,
+        ))
+        message
+    }
 
     suspend fun postForm(path: String, form: Map<String, String>): Resp = requestExecutor.postForm(path, form)
 

@@ -15,7 +15,7 @@ internal object SettingsSearchIndex {
             "折叠刷新后的新帖子|刷新新帖折叠", "头像与元数据同行|帖子卡片布局", "隐藏帖子标签|置顶 精华 抽奖 发卡")
         group("阅读与交互", "browseContent", "显示打赏弹幕|弹幕", "Markdown 表格横向滑动|自动适应表格宽度",
             "显示 UID|头像 数字", "智能识别编码内容|Base64 Hex URL Unicode ROT13", "恢复显示帖子签名|隐藏 评论 签名")
-        group("阅读与交互", "browseInteraction", "对话串联|树形评论", "取消收藏确认")
+        group("阅读与交互", "browseInteraction", "点击头像显示信息卡|个人资料 卡片 直接进入用户主页", "对话串联|树形评论", "取消收藏确认")
         group("阅读与交互", "browseSidebar", "侧边栏双列显示|版块 快捷功能", "侧边栏展示在线用户|当前在线 人数")
         group("阅读与交互", "browseSettings", "重置阅读与交互设置")
         group("网络与链接", "networkLinks", "外部链接打开方式|浏览器 应用内 外部",
@@ -41,7 +41,7 @@ internal object SettingsSearchIndex {
         group("外观与布局", "themeFonts", "界面缩放|显示比例 字体大小", itemIndex = 3)
         group("外观与布局", "themeSettings", "隐藏状态栏|系统 时间 电量 沉浸 安全空间")
         group("外观与布局", "themeLayout", "导航栏|入口 顺序 上移 下移", itemIndex = 1)
-        group("外观与布局", "themeLayout", "社区", "版块", "淘帖", "私信", "我的", itemIndex = 2)
+        group("外观与布局", "themeLayout", "社区", "版块", "节点", "私信", "我的", itemIndex = 2)
         group("外观与布局", "themeSettings", "宽屏列表与详情|单页 自动并排 内容布局 平板 双栏", "重置外观设置")
         group("AI 助手", "aiBehavior", "开启 AI 总结|开关", "打开帖子自动总结|自动运行", "解析评论区|总结包含评论")
         group("AI 助手", "aiConfiguration", "方案名称|已保存方案 配置方案", "保存当前配置为方案", "API 地址|接口 URL",

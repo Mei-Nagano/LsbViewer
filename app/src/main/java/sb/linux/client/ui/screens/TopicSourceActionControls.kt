@@ -28,7 +28,7 @@ internal fun TopicPostSourceActions(post: PostEntry) {
 private fun TopicActionForms(forms: List<AccountForm>, context: TopicSourceActionContext) {
     val owner = context.session.accountIdentityVersion
     var busy by remember(forms, owner) { mutableStateOf(false) }
-    CompositionLocalProvider(LocalAccountVerificationGateway provides context.session.capVerificationGateway) {
+    CompositionLocalProvider(LocalAccountVerificationGateway provides context.session.accountVerificationGateway) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             forms.forEach { form -> NativeAccountForm(form, context.session.accountManagementRepository,
                 !busy, onDirty = {}, onSubmit = { submitted, fields ->

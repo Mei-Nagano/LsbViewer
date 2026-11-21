@@ -154,6 +154,12 @@ internal fun BrowseSettingsDetailScreen(session: Session, nav: NavHostController
         }
         if (section == "interaction") {
             GroupCard {
+                SwitchRow(
+                    "点击头像显示信息卡",
+                    "关闭后直接进入该用户主页",
+                    checked = settings.avatarInfoCardEnabled,
+                    onCheckedChange = viewModel::setAvatarInfoCardEnabled,
+                )
                 // 正文长按已交回系统原生选择菜单（复制/翻译/搜索由系统提供），这里不再有自定义菜单项配置
                 SwitchRow(
                     "对话串联",

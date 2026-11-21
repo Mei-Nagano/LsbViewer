@@ -2,16 +2,23 @@ package sb.linux.client.data.parser
 
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 import sb.linux.client.common.network.Endpoints
 import sb.linux.client.domain.account.LoginVerification
 
-/** 解析登录页实际提供的验证码协议，CAP 优先，旧版 native captcha 作为兼容回退。 */
+/** 解析源站实际提供的 PoW、CAP 或旧版 native captcha 协议。 */
 object LoginVerificationParser {
-    fun parse(html: String, pageUrl: String): LoginVerification? {
-        val document = Jsoup.parse(html, pageUrl.ifBlank { Endpoints.BASE })
+    fun parse(html: String, pageUrl: String): LoginVerification? =
+        parse(Jsoup.parse(html, pageUrl.ifBlank { Endpoints.BASE }), pageUrl)
+
+    fun parse(document: Element, pageUrl: String, resources: Element = document.ownerDocument() ?: document): LoginVerification? {
         // _csrf 只用于后续提交；页面结构变化时不应因为它缺失就整个放弃验证码组件，
         // 提交时还能回退到会话里现取的令牌（见 LsbAuthenticationClient.fetchLoginCaptcha）。
         val csrf = document.selectFirst("input[name=_csrf]")?.attr("value")?.trim().orEmpty()
+
+        document.selectFirst("[data-human-verification][data-human-provider=pow]")?.let { widget ->
+            return PowVerificationParser.parse(widget, resources, csrf, pageUrl)
+        }
 
         document.selectFirst("cap-widget[data-cap-api-endpoint]")?.let { widget ->
             val endpoint = widget.absUrl("data-cap-api-endpoint").ifBlank {

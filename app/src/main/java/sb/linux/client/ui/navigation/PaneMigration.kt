@@ -13,7 +13,7 @@ import androidx.navigation.NavHostController
 
 /** 单/双栏共用的根路由；其余路由视为需要随布局迁移的详情。 */
 private val PaneRootRoutes = setOf(
-    "home", "forums", "topicCollectionsRoot", "directMessagesRoot", "me", "messages", "detailEmpty",
+    "home", "forums", "nodesRoot", "topicCollectionsRoot", "directMessagesRoot", "me", "messages", "detailEmpty",
 )
 
 private val RouteArgPattern = Regex("\\{([^}]+)\\}")

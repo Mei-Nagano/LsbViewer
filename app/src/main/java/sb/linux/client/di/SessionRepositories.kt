@@ -42,7 +42,7 @@ import sb.linux.client.repository.SourceTopicCollectionRepository
 import sb.linux.client.service.KeywordFilterService
 import sb.linux.client.service.TopicCollectionService
 import sb.linux.client.ui.session.Session
-import sb.linux.client.platform.verification.CapVerificationGateway
+import sb.linux.client.platform.verification.AccountVerificationGateway
 import sb.linux.client.data.ClientCapVerificationNetworkRepository
 import sb.linux.client.data.topic.TopicFloorPageLoader
 import sb.linux.client.data.topic.TopicInteractionDataSource
@@ -95,8 +95,12 @@ internal class SessionRepositories(
     private val settings by lazy { AppSettings(session.getApplication<android.app.Application>()) }
 
     internal val aiAssistantRepository: AiAssistantRepository get() = AiClient
-    internal val capVerificationGateway by lazy {
-        CapVerificationGateway(accountAuthenticationRepository, ClientCapVerificationNetworkRepository(client))
+    internal val nodeRepository: sb.linux.client.domain.community.NodeRepository by lazy { sb.linux.client.data.NodePageService(client) }
+    internal val sourceTopicResourceRepository: sb.linux.client.domain.topic.SourceTopicResourceRepository by lazy {
+        sb.linux.client.data.ClientSourceTopicResourceRepository(client)
+    }
+    internal val accountVerificationGateway by lazy {
+        AccountVerificationGateway(accountAuthenticationRepository, ClientCapVerificationNetworkRepository(client), sourceTopicResourceRepository)
     }
     internal val aiConfigurationRepository: AiConfigurationRepository by lazy {
         AppSettingsAiConfigurationRepository(settings)

@@ -21,7 +21,8 @@ internal class AppNetworkWebViewDohRepository : WebViewDohNetworkRepository {
     override fun openTunnel(): WebViewDohTunnel = LocalDnsTunnel(object : okhttp3.Dns {
       override fun lookup(hostname: String): List<java.net.InetAddress> {
         val policy = currentPolicy()
-        return if (policy.dohActive && (sb.linux.client.common.network.Endpoints.isInternal(hostname) || policy.forWebsites))
+        return if (policy.dohActive && (sb.linux.client.common.network.Endpoints.isInternal(hostname) ||
+            hostname.equals("challenges.cloudflare.com", ignoreCase = true) || policy.forWebsites))
             AppNetwork.dns.lookup(hostname) else okhttp3.Dns.SYSTEM.lookup(hostname)
       }
     })

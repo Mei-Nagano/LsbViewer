@@ -96,12 +96,26 @@ fun WebScreen(
                     settings.domStorageEnabled = true
                     settings.userAgentString = sb.linux.client.common.network.ForumUserAgent.DEFAULT
                     settings.setSupportMultipleWindows(true)
-                    val chrome = LinkWindowClient(showWindow = windows::show, closeWindow = windows::close,
+                    val chrome = object : LinkWindowClient(showWindow = windows::show, closeWindow = windows::close,
                         showJsDialog = windows::showJsDialog,
                         chooseFiles = chooseFiles, onProgress = { progress ->
                         loadProgress = progress
                         loading = progress < 100
-                    }, onTitle = windows::title, useNativeJsDialogs = true)
+                    }, onTitle = windows::title, useNativeJsDialogs = true) {
+                        override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                            val line = message.message()
+                            val source = android.net.Uri.parse(this@apply.url.orEmpty())
+                            if (source.scheme == "https" && Endpoints.isForumHost(source.host) &&
+                                line.startsWith(SOURCE_REWARD_TOAST_PREFIX)) {
+                                val notice = try {
+                                    org.json.JSONTokener(line.removePrefix(SOURCE_REWARD_TOAST_PREFIX)).nextValue() as? String
+                                } catch (_: org.json.JSONException) { null }
+                                if (!notice.isNullOrBlank()) session.showToast(notice)
+                                return true
+                            }
+                            return super.onConsoleMessage(message)
+                        }
+                    }
                     webChromeClient = chrome
                     // 注入已保存的登录会话，私信等需要登录的页面在应用内即可直接看到（避免跳登录拦截）
                     session.accountAuthenticationRepository.exportWebCookies()
@@ -115,6 +129,10 @@ fun WebScreen(
                         override fun onPageFinished(view: android.webkit.WebView, url: String) {
                             loading = false
                             onLoaded?.invoke(view, url)
+                            val origin = android.net.Uri.parse(url)
+                            if (origin.scheme == "https" && Endpoints.isForumHost(origin.host)) {
+                                view.evaluateJavascript(sourceRewardToastScript, null)
+                            }
                             val firstLoad = !initialLoadFinished
                             initialLoadFinished = true
                             if (firstLoad && initialContentSelector != null &&

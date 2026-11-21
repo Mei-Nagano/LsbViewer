@@ -10,7 +10,6 @@ data class VerificationCookie(
 data class UamVerificationWebRequest(
     val url: String,
     val userAgent: String,
-    val challengeScript: String,
     val cookies: List<VerificationCookie>,
 )
 
@@ -24,4 +23,5 @@ interface VerificationWebRepository {
     suspend fun solveUam(request: UamVerificationWebRequest): UamVerificationWebResult
     fun exportCookies(cookies: List<VerificationCookie>): Boolean
     fun importCookies(url: String): String?
+    fun clearCookie(cookie: VerificationCookie)
 }

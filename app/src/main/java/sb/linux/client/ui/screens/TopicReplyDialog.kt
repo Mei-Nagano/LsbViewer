@@ -198,7 +198,7 @@ fun ReplyDialog(
                         captcha = captcha,
                         answer = answer,
                         onAnswerChange = {
-                            if (captcha is sb.linux.client.domain.account.LoginVerification.Cap || it.length <= 8) answer = it
+                            if (captcha !is sb.linux.client.domain.account.LoginVerification.Native || it.length <= 8) answer = it
                         },
                         onRefresh = onRefreshCaptcha,
                         topPadding = 10.dp,

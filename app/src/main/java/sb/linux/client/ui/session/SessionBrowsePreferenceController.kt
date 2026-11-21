@@ -55,6 +55,7 @@ internal class SessionBrowsePreferenceController(
         session.tableDisplayMode = settings.tableDisplayMode
         session.hideTopicTags = settings.hideTopicTags
         session.topicCardAvatarMetadataRow = settings.topicCardAvatarMetadataRow
+        session.avatarInfoCardEnabled = settings.avatarInfoCardEnabled
         session.showUid = settings.showUid
         session.smartDecodeEnabled = settings.smartDecodeEnabled
         session.showOnlineUsers = settings.sidebarShowOnlineUsers

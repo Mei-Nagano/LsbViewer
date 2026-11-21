@@ -30,20 +30,23 @@ object WebViewDoh {
         networkRepository = repository
     }
 
-    fun load(view: WebView, url: String) {
+    fun load(view: WebView, url: String): kotlinx.coroutines.Job {
         context = view.context.applicationContext
-        scope.launch {
+        return scope.launch {
             if (prepareSafely()) view.loadUrl(url)
             else view.loadData("<html><meta charset='utf-8'><body>网页网络设置暂不可用，请更新系统 WebView 后重试，或关闭 DoH。</body></html>", "text/html", "utf-8")
         }
     }
 
     /** 在应用联网策略准备完成后加载内嵌页面，保留 base URL 供跨域组件校验来源。 */
-    fun loadHtml(view: WebView, baseUrl: String, html: String) {
+    fun loadHtml(view: WebView, baseUrl: String, html: String, onFailure: (() -> Unit)? = null): kotlinx.coroutines.Job {
         context = view.context.applicationContext
-        scope.launch {
+        return scope.launch {
             if (prepareSafely()) view.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", baseUrl)
-            else view.loadData("<html><meta charset='utf-8'><body>网页网络设置暂不可用，请更新系统 WebView 后重试，或关闭 DoH。</body></html>", "text/html", "utf-8")
+            else {
+                view.loadData("<html><meta charset='utf-8'><body>网页网络设置暂不可用，请更新系统 WebView 后重试，或关闭 DoH。</body></html>", "text/html", "utf-8")
+                onFailure?.invoke()
+            }
         }
     }
 

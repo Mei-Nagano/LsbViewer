@@ -100,9 +100,13 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                 Text("记住密码", style = MaterialTheme.typography.bodyMedium)
             }
 
-            // 人机验证：新源站使用 CAP Web Component，旧数学题保留兼容。
+            // 按登录页实际声明的协议显示验证组件。
             val cap = state.captcha
             when (cap) {
+                is sb.linux.client.domain.account.LoginVerification.Pow -> {
+                    Spacer(Modifier.height(6.dp))
+                    PowVerificationWidget(cap, session.accountVerificationGateway, viewModel::updateCaptchaAnswer, viewModel::loadChallenge, state.captchaRevision)
+                }
                 is sb.linux.client.domain.account.LoginVerification.Native -> {
                     Spacer(Modifier.height(6.dp))
                     OutlinedTextField(
@@ -125,7 +129,7 @@ fun LoginScreen(session: Session, nav: NavHostController) {
                     CapVerificationWidget(
                         verification = cap,
                         revision = state.captchaRevision,
-                        gateway = session.capVerificationGateway,
+                        gateway = session.accountVerificationGateway,
                         onToken = viewModel::updateCaptchaAnswer,
                         onStatus = viewModel::updateStatus,
                         onError = viewModel::showCaptchaError,

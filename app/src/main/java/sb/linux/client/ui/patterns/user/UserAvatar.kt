@@ -20,12 +20,13 @@ internal val LocalUserBlockChanged = staticCompositionLocalOf<() -> Unit> { {} }
 
 internal val LocalUserSummaryRepository = staticCompositionLocalOf<UserSummaryRepository?> { null }
 internal val LocalAvatarUserLookupRepository = staticCompositionLocalOf<UserLookupRepository?> { null }
+internal val LocalAvatarInfoCardEnabled = staticCompositionLocalOf { true }
 internal val LocalAvatarAccountId = staticCompositionLocalOf { 0L }
 internal val LocalAvatarAccountVersion = staticCompositionLocalOf { 0L }
 internal val LocalUserFollowChanged = staticCompositionLocalOf<() -> Unit> { {} }
 
 /**
- * Avatar taps open a compact card; its home action opens the full profile.
+ * 根据阅读设置打开用户信息卡或直接进入主页。
  *
  * [minTouchTarget] 为 true 时，一个 48dp 的独立触区包住视觉头像（列表 40dp、评论 32dp），
  * 辅助技术只看到一个操作节点；视觉尺寸不变。
@@ -45,6 +46,8 @@ fun UserAvatar(
     val repository = LocalUserSummaryRepository.current
     val lookup = LocalAvatarUserLookupRepository.current
     val openLink = LocalLinkHandler.current
+    val infoCardEnabled = LocalAvatarInfoCardEnabled.current
+    val currentInfoCardEnabled by rememberUpdatedState(infoCardEnabled)
     val accountId = LocalAvatarAccountId.current
     val accountVersion = LocalAvatarAccountVersion.current
     val currentVersion by rememberUpdatedState(accountVersion)
@@ -52,9 +55,9 @@ fun UserAvatar(
     var resolvedId by remember(userId, username, accountVersion) { mutableLongStateOf(userId) }
     var resolving by remember(userId, username, accountVersion) { mutableStateOf(false) }
     var failure by remember(userId, username, accountVersion) { mutableStateOf<String?>(null) }
-    var expanded by remember(userId, username, accountId, accountVersion) { mutableStateOf(false) }
+    var expanded by remember(userId, username, accountId, accountVersion, infoCardEnabled) { mutableStateOf(false) }
     fun showUser(targetId: Long) {
-        if (repository != null && targetId != accountId) expanded = true
+        if (currentInfoCardEnabled && repository != null && targetId != accountId) expanded = true
         else if (onProfile != null) onProfile() else openLink?.invoke("/user/$targetId")
     }
     val slot = if (minTouchTarget) maxOf(48, size + 8).dp else size.dp
@@ -63,7 +66,10 @@ fun UserAvatar(
             Modifier.size(slot).clickable(enabled = !resolving &&
                 (resolvedId > 0 || username.isNotBlank() && lookup != null)) {
                 if (resolvedId > 0) showUser(resolvedId)
-                else {
+                else if (!infoCardEnabled) {
+                    if (onProfile != null) onProfile()
+                    else openLink?.invoke("/user?username=${android.net.Uri.encode(username)}")
+                } else {
                     resolving = true
                     failure = null
                     scope.launch {

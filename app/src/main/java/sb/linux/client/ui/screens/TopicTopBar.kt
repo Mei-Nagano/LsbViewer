@@ -37,7 +37,7 @@ internal fun TopicTopBar(
     onCopyLink: () -> Unit,
     onToggleDanmaku: () -> Unit,
     onExport: () -> Unit,
-    onCollections: () -> Unit,
+    onManageNodes: () -> Unit,
     onRefresh: () -> Unit,
     onToggleScrollMode: () -> Unit,
     onFavorite: () -> Unit,
@@ -94,9 +94,9 @@ internal fun TopicTopBar(
                         onClick = { onMenuExpandedChange(false); onExport() },
                     )
                     DropdownMenuItem(
-                        text = { Text("收录到淘帖") },
+                        text = { Text("管理帖子节点") },
                         leadingIcon = { Icon(Icons.Filled.CollectionsBookmark, null) },
-                        onClick = { onMenuExpandedChange(false); onCollections() },
+                        onClick = { onMenuExpandedChange(false); onManageNodes() },
                     )
                     DropdownMenuItem(
                         text = { Text(if (infiniteScroll) "切换为翻页模式" else "切换为无限滚动") },

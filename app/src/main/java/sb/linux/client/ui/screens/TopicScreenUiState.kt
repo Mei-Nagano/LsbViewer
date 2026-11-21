@@ -15,7 +15,29 @@ import sb.linux.client.ui.session.Session
 internal class TopicScreenUiState(
     session: Session,
     favoriteCommentIds: Set<Long>,
-) {
+) : androidx.lifecycle.ViewModel() {
+    val listState = androidx.compose.foundation.lazy.LazyListState()
+    var sourceBrowser: SourceContentWebView? = null
+    var sourceLoadedShell by mutableStateOf<String?>(null)
+    var sourceReady by mutableStateOf(false)
+    var sourceLoadError by mutableStateOf(false)
+    var sourceSlotHeight by mutableFloatStateOf(0f)
+    var consumedBlockRefresh by mutableStateOf(session.homeBrowse.refreshRequest)
+    var lastLoggedIn by mutableStateOf(session.account.loginState.loggedIn)
+    var danmakuInitialized = false
+    var donationEntryHandled = false
+
+    override fun onCleared() {
+        sourceBrowser?.let { web ->
+            (web.parent as? android.view.ViewGroup)?.removeView(web)
+            web.stopLoading()
+            web.webChromeClient = null
+            web.webViewClient = android.webkit.WebViewClient()
+            web.destroy()
+        }
+        sourceBrowser = null
+    }
+
     var showReply by mutableStateOf(false)
     var quoteText by mutableStateOf("")
     val captchaOverride: MutableState<LoginVerification?> = mutableStateOf(null)
@@ -35,7 +57,6 @@ internal class TopicScreenUiState(
     var showExportDialog by mutableStateOf(false)
     var exportBusy by mutableStateOf<String?>(null)
     var showDonate by mutableStateOf(false)
-    var showCollectionSheet by mutableStateOf(false)
     var pollBusy by mutableStateOf(false)
     var pollViewBusy by mutableStateOf(false)
     var favoriteBusy by mutableStateOf(false)

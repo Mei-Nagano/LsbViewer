@@ -30,7 +30,7 @@ internal fun TopicForumMoveAction() {
         onDismissRequest = { expanded = false },
         title = { Text("移动板块") },
         text = {
-            CompositionLocalProvider(LocalAccountVerificationGateway provides session.capVerificationGateway) {
+            CompositionLocalProvider(LocalAccountVerificationGateway provides session.accountVerificationGateway) {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(spacing.item)) {
                 if (move.note.isNotBlank()) Text(move.note, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)

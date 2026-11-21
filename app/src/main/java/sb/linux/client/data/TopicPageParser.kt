@@ -3,6 +3,7 @@ import sb.linux.client.common.network.Endpoints
 import sb.linux.client.domain.gacha.SourceFormProtocol
 import org.jsoup.Jsoup
 import org.jsoup.nodes.TextNode
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import sb.linux.client.data.parser.LoginVerificationParser
 import sb.linux.client.util.TimeFormat
 import sb.linux.client.domain.topic.PostEntry
@@ -14,6 +15,11 @@ internal object TopicPageParser {
         val csrf = d.selectFirst("input[name=_csrf]")?.attr("value") ?: ""
         val replyCaptcha = LoginVerificationParser.parse(html, Endpoints.abs("/topic/$fallbackId"))
         val realTitle = TopicTitleParser.parse(d)
+        val nodes = d.select(".node-topic-tags a.node-topic-tag[href]").mapNotNull { link ->
+            val url = link.absUrl("href").toHttpUrlOrNull() ?: return@mapNotNull null
+            if (Endpoints.isForumHost(url.host) && Regex("/node/[0-9]+").matches(url.encodedPath))
+                sb.linux.client.domain.community.NodeLink(link.text(), Endpoints.abs(url.toString())) else null
+        }.distinctBy { it.url }
         // Read topic panels before reply parsing; reply cleanup removes these nodes.
         val lottery = TopicLotteryParser.parse(d)
         val card = TopicVirtualCardParser.parse(d)
@@ -115,7 +121,7 @@ internal object TopicPageParser {
                         // 应用已有独立淘帖入口和帖子菜单，这些不属于 Markdown 正文。
                         + ", [class*=topic-collection], [data-topic-collection], "
                         + "form[action*=topic_collection], form[action*=topic_collections]"
-                        + ", .topic-essence-review-reply-label"
+                        + ", .node-topic-tags, .topic-essence-review-reply-label"
                         + ", [id$=-topic_forum_move], [data-topic-footer-action], .topic-footer-actions"
                         + ", a[href$=-topic_forum_move], [data-target$=-topic_forum_move]"
                         + ", form[action*=topic_forum_move]"
@@ -253,6 +259,7 @@ internal object TopicPageParser {
             resourceVote = resourceVote,
             forumMove = forumMove,
             contentStyles = SourceTopicMarkup.styles(d),
+            nodes = nodes,
         )
     }
 

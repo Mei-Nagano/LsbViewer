@@ -17,7 +17,10 @@ internal class ClientImageLoader(
     private val hasChallenge: (String) -> Boolean,
     private val userAgent: String,
 ) {
-    private val avatarMemoryCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+    private data class CachedImage(val bytes: ByteArray, val fetchedAt: Long) {
+        fun isFresh(now: Long): Boolean = now - fetchedAt in 0 until 60_000L
+    }
+    private val avatarMemoryCache = java.util.concurrent.ConcurrentHashMap<String, CachedImage>()
     private val avatarInFlight = java.util.concurrent.ConcurrentHashMap<Pair<Long, String>, CompletableDeferred<ByteArray>>()
     private val cacheLock = Any()
     private var cacheGeneration = 0L
@@ -30,7 +33,7 @@ internal class ClientImageLoader(
      */
     /** 同步窥探头像内存缓存（无网络/磁盘 IO）：列表滚动时缓存命中的头像首帧直接出图，
      *  免去 IO 协程调度与占位符→图片的跳变（快滑掉帧与头像闪现的主因） */
-    fun peekAvatarBytes(url: String): ByteArray? = avatarMemoryCache[url]
+    fun peekAvatarBytes(url: String): ByteArray? = avatarMemoryCache[url]?.bytes
 
     fun cacheSize(): Long = synchronized(cacheLock) {
         avatarCacheDir.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
@@ -45,17 +48,18 @@ internal class ClientImageLoader(
     }
 
     suspend fun fetchBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
-        // v2 前缀：读取时校验魔数；旧版（未校验内容即写入）残留的验证页 HTML 等坏文件在此自愈删除
-        val cacheFile = File(avatarCacheDir, "v2_${url.hashCode().toString(16)}.dat")
+        // v3 不继承旧版忽略版本参数写入的永久缓存。
+        val cacheFile = File(avatarCacheDir, "v3_${url.hashCode().toString(16)}.dat")
         val generation = synchronized(cacheLock) {
-            avatarMemoryCache[url]?.let { return@withContext it }
-            if (cacheFile.exists()) {
+            val now = System.currentTimeMillis()
+            avatarMemoryCache[url]?.takeIf { it.isFresh(now) }?.let { return@withContext it.bytes }
+            if (avatarMemoryCache[url] == null && cacheFile.exists()) {
                 val cached = runCatching { cacheFile.readBytes() }.getOrDefault(ByteArray(0))
                 if (isValidImage(cached)) {
-                    avatarMemoryCache[url] = cached
-                    return@withContext cached
-                }
-                runCatching { cacheFile.delete() } // 坏缓存：删除后重新拉取
+                    val entry = CachedImage(cached, cacheFile.lastModified())
+                    avatarMemoryCache[url] = entry
+                    if (entry.isFresh(now)) return@withContext cached
+                } else runCatching { cacheFile.delete() }
             }
             cacheGeneration
         }
@@ -68,7 +72,7 @@ internal class ClientImageLoader(
             val bytes = fetchImageBytes(url)
             synchronized(cacheLock) {
                 if (generation == cacheGeneration) {
-                    avatarMemoryCache[url] = bytes
+                    avatarMemoryCache[url] = CachedImage(bytes, System.currentTimeMillis())
                     runCatching { cacheFile.writeBytes(bytes) }
                 }
             }
@@ -87,17 +91,15 @@ internal class ClientImageLoader(
 
     /** 图片网络拉取：魔数校验为准（不信任 Content-Type）；?v= 参数 504 时去参重试；验证页触发 solveUam 后重试 */
     private suspend fun fetchImageBytes(url: String): ByteArray {
-        // 去参 URL 优先：?v= 时间戳只是缓存穿透参数，去掉不影响内容，还规避网关对带参 URL 的 504
-        val candidates = if (url.contains('?')) listOf(url.substringBefore('?'), url) else listOf(url)
+        // 保留源站版本参数；只有原地址失败才使用历史网关兼容路径。
+        val candidates = if (url.contains('?')) listOf(url, url.substringBefore('?')) else listOf(url)
 
         var result: ByteArray? = null
         for (candidate in candidates) {
             val req = Request.Builder().url(candidate)
                 .header("User-Agent", userAgent)
                 .header("Accept", "image/avif,image/webp,image/svg+xml,image/*,*/*;q=0.8")
-                // 标记为图片流量：LsbClient 的请求头拦截器只在没有该标记时才补
-                // Cache-Control: max-age=0。头像走的是本类而不是 Coil，此前漏了标记，
-                // 于是每个头像请求都要求源站不复用缓存，与 LsbApp 中图片链路的既有意图相反。
+                .header("Cache-Control", "max-age=0")
                 .tag(ImageTraffic::class.java, ImageTraffic)
                 .build()
             run attempt@{

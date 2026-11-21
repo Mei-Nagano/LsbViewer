@@ -50,6 +50,7 @@ internal interface SessionState {
     var tableDisplayMode: Int
     var hideTopicTags: Boolean
     var topicCardAvatarMetadataRow: Boolean
+    var avatarInfoCardEnabled: Boolean
     var showUid: Boolean
     var smartDecodeEnabled: Boolean
     var tabletMode: Boolean

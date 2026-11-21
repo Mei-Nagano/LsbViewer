@@ -29,6 +29,7 @@ internal fun AppSettings.importBackupJson(
             if (o.has("table_display_mode")) p.putInt("table_display_mode", o.optInt("table_display_mode", 1).coerceIn(0, 1))
             if (o.has("hide_topic_tags")) p.putBoolean("hide_topic_tags", o.getBoolean("hide_topic_tags"))
             if (o.has("topic_card_avatar_metadata_row")) p.putBoolean("topic_card_avatar_metadata_row", o.getBoolean("topic_card_avatar_metadata_row"))
+            if (o.has("avatar_info_card_enabled")) p.putBoolean("avatar_info_card_enabled", o.getBoolean("avatar_info_card_enabled"))
             if (o.has("show_uid")) p.putBoolean("show_uid", o.getBoolean("show_uid"))
             if (o.has("smart_decode_enabled")) p.putBoolean("smart_decode_enabled", o.getBoolean("smart_decode_enabled"))
             if (o.has("auto_clear_items")) {
@@ -81,9 +82,11 @@ internal fun AppSettings.importBackupJson(
                     "directMessages" to "messages",
                     "directMessagesRoot" to "messages",
                     "notifications" to "messages",
-                    "topicCollectionsRoot" to "topicCollections",
+                    "topicCollectionsRoot" to "nodes",
+                    "topicCollections" to "nodes",
+                    "nodesRoot" to "nodes",
                 )
-                val allowed = setOf("home", "forums", "topicCollections", "messages", "me")
+                val allowed = setOf("home", "forums", "nodes", "messages", "me")
                 val items = (0 until arr.length())
                     .map { aliases[arr.getString(it)] ?: arr.getString(it) }
                     .filter { it in allowed }

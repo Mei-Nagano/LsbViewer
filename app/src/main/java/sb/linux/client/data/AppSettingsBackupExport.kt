@@ -25,6 +25,7 @@ internal fun AppSettings.exportBackupJson(
         o.put("table_display_mode", tableDisplayMode)
         o.put("hide_topic_tags", hideTopicTags)
         o.put("topic_card_avatar_metadata_row", topicCardAvatarMetadataRow)
+        o.put("avatar_info_card_enabled", avatarInfoCardEnabled)
         o.put("show_uid", showUid)
         o.put("smart_decode_enabled", smartDecodeEnabled)
         o.put("auto_clear_items", JSONArray(autoClearItems.toList()))

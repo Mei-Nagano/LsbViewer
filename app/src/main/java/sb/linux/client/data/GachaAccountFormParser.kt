@@ -37,7 +37,7 @@ internal object GachaAccountFormParser {
         } else select?.attr("disabled", "disabled")
         template.selectFirst(".gacha-gift-instance")?.let { if (ur) it.removeAttr("hidden") else it.attr("hidden", "hidden") }
         val form = AccountManagementParser.parseForm(template, base).copy(verification =
-            sb.linux.client.data.parser.LoginVerificationParser.parse(template.outerHtml(), base))
+            sb.linux.client.data.parser.LoginVerificationParser.parse(template, base, root.ownerDocument() ?: root))
         return form.copy(id = "gift:$id", notes = listOf("赠送称号：${data.optString("name")}") + form.notes)
     }
 }

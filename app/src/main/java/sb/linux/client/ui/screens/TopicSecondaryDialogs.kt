@@ -2,13 +2,11 @@ package sb.linux.client.ui.screens
 
 import androidx.compose.runtime.Composable
 import sb.linux.client.domain.topic.PostEntry
-import sb.linux.client.ui.session.Session
 import sb.linux.client.domain.topic.TopicPageData
 import sb.linux.client.ui.feature.topic.TopicInteractionViewModel
 
 @Composable
 internal fun TopicSecondaryDialogs(
-    session: Session,
     topicId: Long,
     interactionViewModel: TopicInteractionViewModel,
     page: TopicPageData?,
@@ -28,8 +26,6 @@ internal fun TopicSecondaryDialogs(
     onLoadAll: () -> Unit,
     onExportDismiss: () -> Unit,
     onExport: (String, String, Int, Int, Boolean, Set<Long>) -> Unit,
-    collectionOpen: Boolean,
-    onCollectionDismiss: () -> Unit,
     donateOpen: Boolean,
     onDonateDismiss: () -> Unit,
     onDonateSuccess: () -> Unit,
@@ -66,14 +62,6 @@ internal fun TopicSecondaryDialogs(
             allLoaded = allLoaded,
             onDismiss = onExportDismiss,
             onExport = onExport,
-        )
-    }
-
-    if (collectionOpen) {
-        TopicCollectionSheet(
-            session = session,
-            topicPath = "/topic/$topicId",
-            onDismiss = onCollectionDismiss,
         )
     }
 

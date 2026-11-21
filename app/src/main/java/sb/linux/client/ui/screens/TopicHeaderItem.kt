@@ -31,6 +31,7 @@ internal fun LazyListScope.topicHeaderItem(
     onDismissAi: () -> Unit,
     onJoinReply: () -> Unit,
     onRefresh: () -> Unit,
+    onManageNodes: () -> Unit,
     onTitleBottomInRoot: (Float) -> Unit,
 ) {
 item(key = "header") {
@@ -69,6 +70,7 @@ item(key = "header") {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             )
+                            TopicNodeLinks(d.nodes, session.account.loginState.loggedIn, onManageNodes)
                             // AI 总结：开启总开关后显示入口，默认等用户点按钮才请求
                             if (aiSettings.enabled) {
                                 AiSummaryCard(

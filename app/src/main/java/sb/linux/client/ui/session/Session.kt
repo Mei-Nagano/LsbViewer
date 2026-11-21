@@ -40,7 +40,7 @@ import sb.linux.client.domain.community.HomeBrowseCache
 import sb.linux.client.domain.community.ForumRepository
 import sb.linux.client.domain.search.SearchCache
 import sb.linux.client.domain.search.SearchRepository
-import sb.linux.client.platform.verification.CapVerificationGateway
+import sb.linux.client.platform.verification.AccountVerificationGateway
 import sb.linux.client.domain.topic.NewTopicDraftRepository
 import sb.linux.client.domain.topic.TopicDanmakuCacheRepository
 import sb.linux.client.domain.topic.TopicPageCacheRepository
@@ -105,7 +105,9 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     internal val checkinRepository get() = repositories.checkinRepository
     internal val checkinSummaryRepository: CheckinSummaryRepository
         get() = repositories.checkinSummaryRepository
-    internal val capVerificationGateway: CapVerificationGateway get() = repositories.capVerificationGateway
+    internal val nodeRepository get() = repositories.nodeRepository
+    internal val sourceTopicResourceRepository get() = repositories.sourceTopicResourceRepository
+    internal val accountVerificationGateway: AccountVerificationGateway get() = repositories.accountVerificationGateway
     internal val cardRedemptionsRepository get() = repositories.cardRedemptionsRepository
     internal val homeBrowseCache: HomeBrowseCache get() = cache.homeBrowseCache
     internal val topicPageCacheRepository: TopicPageCacheRepository get() = cache.topicPageCacheRepository
@@ -176,10 +178,12 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     suspend fun verifyWithUi(url: String, challengeHtml: String): Boolean = withContext(Dispatchers.Main) {
         val deferred = CompletableDeferred<Boolean>()
         setPendingVerification(PendingVerification(url, challengeHtml, deferred))
-        // 超时给足时间完成 CF Turnstile / 手动答题，超时才让上层重试
-        val ok = withTimeoutOrNull(150_000) { deferred.await() } ?: false
-        if (pendingVerification?.deferred === deferred) setPendingVerification(null)
-        ok
+        try {
+            // 给足时间完成安全验证，取消等待时仍要移除本次对话框。
+            withTimeoutOrNull(150_000) { deferred.await() } ?: false
+        } finally {
+            if (pendingVerification?.deferred === deferred) setPendingVerification(null)
+        }
     }
 
     fun completeVerification(request: PendingVerification, result: Boolean) {

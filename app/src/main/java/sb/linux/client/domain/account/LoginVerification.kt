@@ -3,6 +3,12 @@ package sb.linux.client.domain.account
 sealed interface LoginVerification {
     val csrf: String
 
+    data class Pow(
+        override val csrf: String,
+        val pageUrl: String,
+        val pageHtml: String,
+    ) : LoginVerification
+
     data class Native(
         override val csrf: String,
         val question: String,

@@ -209,6 +209,7 @@ internal class AppSettingsGeneralStore(private val prefs: SharedPreferences) {
         .remove("table_display_mode")
         .remove("hide_topic_tags")
         .remove("topic_card_avatar_metadata_row")
+        .remove("avatar_info_card_enabled")
         .remove("show_uid")
         .remove("smart_decode_enabled")
         .remove("selection_menu_items")

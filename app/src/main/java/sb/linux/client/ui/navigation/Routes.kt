@@ -15,6 +15,7 @@ import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.components.feedback.EmptyBox
 import sb.linux.client.ui.feature.forum.ForumListScreen
 import sb.linux.client.ui.feature.forum.ForumScreen
+import sb.linux.client.ui.feature.forum.NodeScreen
 import sb.linux.client.ui.feature.search.SearchScreen
 import sb.linux.client.ui.screens.*
 
@@ -28,7 +29,8 @@ val LocalMasterNav = staticCompositionLocalOf<NavHostController?> { null }
 fun NavGraphBuilder.masterRoutes(session: Session, nav: NavHostController, homeDrawerState: DrawerState) {
     composable("home") { HomeScreen(session, nav, homeDrawerState) }
     composable("forums") { ForumListScreen(session, nav) }
-    composable("topicCollectionsRoot") { TopicCollectionsScreen(session, nav, initialMine = false, showBack = false) }
+    composable("nodesRoot") { NodeScreen(session, nav, "/nodes?tab=popular", showBack = false) }
+    composable("topicCollectionsRoot") { NodeScreen(session, nav, "/nodes?tab=popular", showBack = false) }
     composable(
         "messages?section={section}",
         arguments = listOf(navArgument("section") { type = NavType.StringType; defaultValue = "dm" }),
@@ -78,6 +80,10 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
         ),
     ) { entry -> SearchScreen(session, nav, entry) }
     composable("login") { LoginScreen(session, nav) }
+    composable("nodes?url={url}", arguments = listOf(
+        navArgument("url") { type = NavType.StringType; defaultValue = "/nodes?tab=popular" },
+    )) { entry -> sb.linux.client.ui.feature.forum.NodeScreen(session, nav,
+        entry.arguments?.getString("url") ?: "/nodes?tab=popular") }
     composable(
         "forum/{id}?p={p}",
         arguments = listOf(
@@ -94,10 +100,14 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
             navArgument("replyid") { type = NavType.LongType; defaultValue = 0L },
             navArgument("donate") { type = NavType.BoolType; defaultValue = false },
         ),
-    ) { TopicScreen(session, nav) }
+    ) { entry -> TopicScreen(session, nav, entry) }
     composable("pollPage?url={url}", arguments = listOf(navArgument("url") { type = NavType.StringType })) { entry ->
         SourcePollScreen(session, nav, entry.arguments?.getString("url").orEmpty())
     }
+    composable("nodeTopicActions?tid={tid}", arguments = listOf(
+        navArgument("tid") { type = NavType.LongType },
+    )) { entry -> WebScreen(session, nav, sourceUrl = "/topic/${entry.arguments?.getLong("tid")}",
+        title = "管理帖子节点", initialContentSelector = "[data-node-open], .node-topic-tags, .post-content") }
     composable("newTopic") { SourceEditorScreen(session, nav) }
     composable("editorPage?url={url}&tid={tid}", arguments = listOf(
         navArgument("url") { type = NavType.StringType }, navArgument("tid") { type = NavType.LongType; defaultValue = 0L },
@@ -183,7 +193,7 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
     composable(
         "topicCollections?tab={tab}",
         arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "everyone" }),
-    ) { TopicCollectionsScreen(session, nav, initialMine = it.arguments?.getString("tab") == "mine") }
+    ) { NodeScreen(session, nav, if (it.arguments?.getString("tab") == "mine") "/nodes?tab=mine" else "/nodes?tab=popular") }
     composable("directMessagesRoot") { DirectMessagesScreen(session, nav, showBack = false) }
     composable(
         "messages?section={section}",
@@ -192,9 +202,9 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
         if (entry.arguments?.getString("section") == "notifications") NotificationsScreen(session, nav)
         else DirectMessagesScreen(session, nav, showBack = false)
     }
-    composable("topicCollectionsRoot") { TopicCollectionsScreen(session, nav, initialMine = false, showBack = false) }
-    composable("collectionActions?path={path}") { CollectionDetailScreen(session, nav) }
-    composable("topicCollectionManage?path={path}") { TopicCollectionManageScreen(session, nav) }
+    composable("topicCollectionsRoot") { NodeScreen(session, nav, "/nodes?tab=popular", showBack = false) }
+    composable("collectionActions?path={path}") { NodeScreen(session, nav, "/nodes?tab=popular") }
+    composable("topicCollectionManage?path={path}") { NodeScreen(session, nav, "/nodes?tab=mine") }
     composable("footprint") { FootprintScreen(session, nav) }
     composable("favorites") { FavoritesScreen(session, nav) }
     composable(

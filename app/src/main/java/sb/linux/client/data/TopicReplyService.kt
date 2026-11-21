@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import sb.linux.client.domain.topic.TopicReplyRepository
 import sb.linux.client.domain.topic.TopicReplySubmission
 import sb.linux.client.domain.account.LoginVerification
+import sb.linux.client.domain.account.fields
 import sb.linux.client.domain.topic.TopicPageData
 
 internal class TopicReplyService(private val client: LsbClient) : TopicReplyRepository {
@@ -30,6 +31,7 @@ internal class TopicReplyService(private val client: LsbClient) : TopicReplyRepo
             put("topic_id", topicId.toString())
             put(protocol.bodyName, body)
             when (captcha) {
+                is LoginVerification.Pow -> putAll(captcha.fields(captchaAnswer))
                 is sb.linux.client.domain.account.LoginVerification.Native -> {
                     put("native_captcha_token", captcha.token)
                     put("native_captcha_answer", captchaAnswer)
@@ -58,6 +60,7 @@ internal class TopicReplyService(private val client: LsbClient) : TopicReplyRepo
         val submittedPage = runCatching {
             Uri.parse(response.url).getQueryParameter("p")?.toIntOrNull()
         }.getOrNull() ?: (page?.totalPages ?: 1)
-        return TopicReplySubmission(true, "回复成功", submittedPage)
+        val reward = client.consumePostReward(response)
+        return TopicReplySubmission(true, reward ?: "回复成功", submittedPage)
     }
 }

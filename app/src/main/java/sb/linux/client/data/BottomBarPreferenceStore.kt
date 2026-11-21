@@ -32,7 +32,7 @@ internal class BottomBarPreferenceStore(private val prefs: SharedPreferences) {
         .map { token ->
             when (token) {
                 "directMessages", "directMessagesRoot", "notifications" -> "messages"
-                "topicCollectionsRoot" -> "topicCollections"
+                "topicCollections", "topicCollectionsRoot", "nodesRoot" -> "nodes"
                 else -> token
             }
         }
@@ -55,7 +55,7 @@ internal class BottomBarPreferenceStore(private val prefs: SharedPreferences) {
         const val KEY_ITEMS = "bottom_bar_items"
         const val KEY_LEGACY = "bottom_bar_items_pre_v3"
         const val KEY_VERSION = "bottom_navigation_version"
-        const val VERSION = 3
-        const val DEFAULT_ITEMS = "home,topicCollections,messages,me"
+        const val VERSION = 4
+        const val DEFAULT_ITEMS = "home,nodes,messages,me"
     }
 }

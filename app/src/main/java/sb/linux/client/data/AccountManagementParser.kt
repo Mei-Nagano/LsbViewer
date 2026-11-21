@@ -17,6 +17,11 @@ internal object AccountManagementParser {
         ) ?: doc.selectFirst(".forum-main > .main-panel, .main-panel")
             ?: error("未解析到账号管理内容，源站结构可能已变化")
         val copy = root.clone()
+        // 原生表单内的验证组件仍需要所属页面的样式和脚本。
+        org.jsoup.nodes.Document.createShell(response.url).apply {
+            head().html(doc.head().html())
+            body().appendChild(copy)
+        }
         val header = root.selectFirst(".gacha-center-header")?.let {
             AccountTitleHeader(it.selectFirst(".gacha-header-title")?.text().orEmpty(),
                 it.selectFirst("p")?.text().orEmpty(), it.selectFirst(".gacha-center-stat")?.text().orEmpty())
@@ -152,7 +157,7 @@ internal object AccountManagementParser {
             recipientLookup = resolve(base, form.attr("data-gacha-recipient-url")),
             imageUpload = resolve(base, form.selectFirst("[data-sidebar-promotions-image-tools]")?.attr("data-upload-url").orEmpty()),
             confirmation = form.attr("data-confirm"),
-            verification = sb.linux.client.data.parser.LoginVerificationParser.parse(form.outerHtml(), base),
+            verification = sb.linux.client.data.parser.LoginVerificationParser.parse(form, base),
         )
     }
 

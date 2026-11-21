@@ -76,7 +76,7 @@ internal fun DohSettingsContent(session: Session) {
         // 与应用设置共用 GroupCard/SwitchRow，避免这一页的开关和别处长得不一样
         GroupCard {
             SwitchRow("启用 DoH", "使用 HTTPS 加密域名解析；应用代理生效时自动暂停", configuration.enabled, onCheckedChange = dohViewModel::setEnabled)
-            SwitchRow("对应用内打开的网站生效", "将 DoH 同时用于应用内浏览的外部网站；关闭后仅源站使用", configuration.forWebsites,
+            SwitchRow("对应用内打开的网站生效", "将 DoH 同时用于应用内浏览的外部网站；关闭后仍用于源站及安全验证", configuration.forWebsites,
                 onCheckedChange = dohViewModel::setForWebsites)
             Text(
                 "当前选择：${servers.find { it.url == selectedUrl }?.name ?: selectedUrl}",
@@ -122,7 +122,7 @@ internal fun DohSettingsContent(session: Session) {
                 }
             }
         }
-        Text("DoH 开启且未被代理或 VPN 暂停时，主站、备用域名及源站子域名使用加密解析。外部浏览器使用自身网络设置。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("DoH 只负责域名解析，网页仍通过 HTTPS 加载。启用且未被代理或 VPN 暂停时，源站及 Cloudflare 安全验证使用加密解析；外部浏览器使用自身网络设置。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

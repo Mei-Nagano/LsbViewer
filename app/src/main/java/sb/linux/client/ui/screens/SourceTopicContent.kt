@@ -28,7 +28,7 @@ internal fun SourceTopicContent(page: TopicPageData, session: Session, nav: NavH
     val scope = rememberCoroutineScope()
     val linkHandler = LocalLinkHandler.current
     var image by remember(page.topicId) { mutableStateOf<String?>(null) }
-    var user by remember(page.topicId) { mutableStateOf<Long?>(null) }
+    var user by remember(page.topicId, session.avatarInfoCardEnabled) { mutableStateOf<Long?>(null) }
     var sourceActions by remember(page.topicId) { mutableStateOf<PostEntry?>(null) }
     fun scroll(top: Float) {
         scope.launch { listState.animateScrollToItem(topicMainItemIndex(page), top.toInt().coerceAtLeast(0)) }
@@ -36,7 +36,7 @@ internal fun SourceTopicContent(page: TopicPageData, session: Session, nav: NavH
     fun login(action: () -> Unit) {
         if (session.account.loginState.loggedIn) action() else nav.navigate("login")
     }
-    SourceTopicWebView(page, view, ui, session.account.loginState.loggedIn, onAction = { raw ->
+    SourceTopicWebView(page, view, ui, session.account.loginState.loggedIn, session.sourceTopicResourceRepository, onAction = { raw ->
         val uri = Uri.parse(raw)
         if (uri.scheme == "lsb-action") {
             val id = uri.lastPathSegment?.toLongOrNull()
@@ -44,7 +44,9 @@ internal fun SourceTopicContent(page: TopicPageData, session: Session, nav: NavH
             when (uri.host) {
                 "image" -> uri.getQueryParameter("url")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }?.let { image = it }
                 "anchor" -> uri.getQueryParameter("top")?.toFloatOrNull()?.let { scroll(it * ui.sourceGeometry.pixelsPerCss) }
-                "user" -> id?.takeIf { it > 0 }?.let { user = it }
+                "user" -> id?.takeIf { it > 0 }?.let {
+                    if (session.avatarInfoCardEnabled) user = it else nav.navigate("user/$it")
+                }
                 "floor" -> id?.let { actions.jumpToFloor(it.toInt(), view.sortedPosts) }
                 "like" -> post?.let { login { actions.react(it, 0) } }
                 "coin" -> post?.let { login { ui.coinTarget = it } }

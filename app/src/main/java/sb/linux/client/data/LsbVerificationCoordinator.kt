@@ -18,7 +18,6 @@ internal class LsbVerificationCoordinator(
     private val isUamChallenge: (String) -> Boolean,
     private val uamNonce: (String) -> Int,
     private val uamSum: (String, Int) -> Long,
-    private val challengeScript: String,
     private val userAgent: String,
     private val webRepository: VerificationWebRepository,
 ) {
@@ -38,15 +37,17 @@ internal class LsbVerificationCoordinator(
                 // 手动求解失败（如缺 fl_ua_p cookie）→ 回退到 WebView/UI
             }
         }
-        // 2) Cloudflare Turnstile / 手动求解失败：交给 WebView + 交互对话框。
-        //    UI 会先把挑战响应保存的 Cookie 注入 WebView，完成后再统一回传新 Cookie。
+        // 2) Cloudflare / 手动求解失败：用浏览器完整导航到源站首页。
+        //    原请求可能是图片或 POST 接口，验证结束后由调用方重试该请求。
+        //    UI 注入当前 Cookie，浏览器获取最新挑战，完成后再统一回传新 Cookie。
+        val pageUrl = sb.linux.client.common.network.Endpoints.abs("/")
         val ui = verificationUi()
         if (ui != null) {
             // 取消与超时都会拿到 false，如实上报由调用方终止重试
-            return@withLock runCatching { ui(url, challengeHtml) }.getOrDefault(false)
+            return@withLock runCatching { ui(pageUrl, challengeHtml) }.getOrDefault(false)
         }
         // 3) 未配置 UI：隐藏 WebView 兜底。
-        solveUamWithWebView(url)
+        solveUamWithWebView(pageUrl)
     }
 
     /** 验证页通过后，把 WebView 中的 Cookie 同步回 OkHttp */
@@ -95,7 +96,7 @@ internal class LsbVerificationCoordinator(
             VerificationCookie(cookie.domain, cookie.path, cookie.name, cookie.value)
         }
         val result = webRepository.solveUam(
-            UamVerificationWebRequest(url, userAgent, challengeScript, cookies),
+            UamVerificationWebRequest(url, userAgent, cookies),
         )
         result.cookies?.takeIf(String::isNotBlank)?.let { cookieJar.saveRawCookies(url, it) }
         return result.passed

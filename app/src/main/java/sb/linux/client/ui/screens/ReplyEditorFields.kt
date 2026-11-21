@@ -51,7 +51,7 @@ internal fun ReplyToolbar(
     )
 }
 
-/** 抽奖回复验证：新版显示 CAP 组件，旧版保留数学题输入与换题按钮。 */
+/** 按源站协议显示 PoW、CAP 或旧版问答验证。 */
 @Composable
 internal fun ReplyCaptchaField(
     session: Session,
@@ -66,6 +66,7 @@ internal fun ReplyCaptchaField(
     if (captcha == null) return
     Spacer(Modifier.height(topPadding))
     when (captcha) {
+        is LoginVerification.Pow -> PowVerificationWidget(captcha, session.accountVerificationGateway, onAnswerChange, onRefresh, revision)
         is sb.linux.client.domain.account.LoginVerification.Native -> OutlinedTextField(
             value = answer,
             onValueChange = onAnswerChange,
@@ -86,7 +87,7 @@ internal fun ReplyCaptchaField(
             CapVerificationWidget(
                 verification = captcha,
                 revision = revision,
-                gateway = session.capVerificationGateway,
+                gateway = session.accountVerificationGateway,
                 onToken = onAnswerChange,
                 onStatus = {},
                 onError = { capError = it; onAnswerChange("") },

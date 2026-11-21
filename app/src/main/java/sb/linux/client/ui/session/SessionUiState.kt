@@ -58,6 +58,7 @@ internal class SessionUiState : SessionState {
     override var tableDisplayMode by preferenceState::tableDisplayMode
     override var hideTopicTags by preferenceState::hideTopicTags
     override var topicCardAvatarMetadataRow by preferenceState::topicCardAvatarMetadataRow
+    override var avatarInfoCardEnabled by preferenceState::avatarInfoCardEnabled
     override var showUid by preferenceState::showUid
     override var smartDecodeEnabled by preferenceState::smartDecodeEnabled
     override var tabletMode by preferenceState::tabletMode

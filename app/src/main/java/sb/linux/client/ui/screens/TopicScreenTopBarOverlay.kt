@@ -70,7 +70,7 @@ internal fun BoxScope.TopicScreenTopBarOverlay(
             session.preferences.saveDanmaku(ui.danmakuLocalOn)
         },
         onExport = { ui.showExportDialog = true },
-        onCollections = { ui.showCollectionSheet = true },
+        onManageNodes = { nav.navigate("nodeTopicActions?tid=$topicId") },
         onRefresh = {
             if (!paging.loading.value && !paging.loadingMore.value) {
                 actions.load(paging.page.value?.page ?: 1, force = true)

@@ -31,6 +31,14 @@ internal fun NativeAccountForm(
     var captchaAnswer by remember(form) { mutableStateOf("") }
     var captchaRevision by remember(form) { mutableIntStateOf(0) }
     val verification = form.verification
+    var wasEnabled by remember(form) { mutableStateOf(enabled) }
+    LaunchedEffect(enabled) {
+        if (enabled && !wasEnabled && verification is LoginVerification.Pow) {
+            captchaAnswer = ""
+            captchaRevision++
+        }
+        wasEnabled = enabled
+    }
     val verificationGateway = LocalAccountVerificationGateway.current
     val extraPrizes = remember(form.id, form.action) { mutableStateListOf<AccountField>() }
     val removedPrizes = remember(form.id, form.action) { mutableStateListOf<Int>() }
@@ -107,12 +115,19 @@ internal fun NativeAccountForm(
             if (button.name.isNotBlank()) add(button.name to button.value)
         }
         if (verification != null && captchaAnswer.isBlank()) { failure = "请先完成人机验证"; return }
-        val verifiedPairs = pairs.filterNot { it.first == (verification as? LoginVerification.Cap)?.fieldName } +
-            when (verification) {
-                is LoginVerification.Cap -> listOf(verification.fieldName to captchaAnswer)
-                is LoginVerification.Native -> listOf("native_captcha_token" to verification.token, "native_captcha_answer" to captchaAnswer)
-                else -> emptyList()
-            }
+        val verificationPairs = try { when (verification) {
+            is LoginVerification.Pow -> verification.fields(captchaAnswer).toList()
+            is LoginVerification.Cap -> listOf(verification.fieldName to captchaAnswer)
+            is LoginVerification.Native -> listOf("native_captcha_token" to verification.token, "native_captcha_answer" to captchaAnswer)
+            null -> emptyList()
+        } } catch (error: sb.linux.client.common.error.LsbException) {
+            failure = error.message
+            captchaAnswer = ""
+            captchaRevision++
+            return
+        }
+        val verificationNames = verificationPairs.map { it.first }.toSet()
+        val verifiedPairs = pairs.filterNot { it.first in verificationNames } + verificationPairs
         failure = validateAccountForm(form.copy(fields = allFields.filterIndexed { index, field -> index !in removedIndices && included(field) }), pairs)
         if (failure == null) {
             if (form.method == "post" && (form.confirmation.isNotBlank() || Regex("支付|购买|扩容|赠送|删除|回收|熔炼|合成|屏蔽|抽|托管").containsMatchIn(button.label))) confirm = button to verifiedPairs
@@ -200,7 +215,10 @@ internal fun NativeAccountForm(
                 CapVerificationWidget(verification, captchaRevision, verificationGateway,
                     onToken = { captchaAnswer = it }, onStatus = {}, onError = { failure = it; captchaAnswer = "" })
                 TextButton(onClick = { captchaAnswer = ""; captchaRevision++ }) { Text("重新加载验证") }
-            } else if (verification is LoginVerification.Native) OutlinedTextField(captchaAnswer, { captchaAnswer = it }, label = { Text(verification.question) })
+            } else if (verification is LoginVerification.Pow && verificationGateway != null) {
+                PowVerificationWidget(verification, verificationGateway, { captchaAnswer = it }, revision = captchaRevision)
+            }
+            else if (verification is LoginVerification.Native) OutlinedTextField(captchaAnswer, { captchaAnswer = it }, label = { Text(verification.question) })
             else if (verification != null) Text("人机验证暂不可用，请重新打开页面", color = MaterialTheme.colorScheme.error)
             form.notes.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             failure?.let { Text(it, color = MaterialTheme.colorScheme.error) }

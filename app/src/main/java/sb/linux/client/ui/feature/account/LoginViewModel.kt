@@ -62,7 +62,7 @@ class LoginViewModel(
         val validation = when {
             current.username.isBlank() || current.password.isBlank() -> "请输入用户名和密码"
             challenge == null -> "验证码未加载，请稍候"
-            current.captchaAnswer.isBlank() -> if (challenge is sb.linux.client.domain.account.LoginVerification.Cap) "请先完成人机验证" else "请填写人机验证答案"
+            current.captchaAnswer.isBlank() -> if (challenge is LoginVerification.Native) "请填写人机验证答案" else "请先完成人机验证"
             else -> null
         }
         if (validation != null) {

@@ -97,27 +97,30 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
         // 把上一个头像的字节一直显示下去。这里按当前 target 重新求值——先同步窥探
         // 内存缓存（命中即无占位符闪烁），未命中才置空并走 IO。
         val peeked = if (target.isEmpty()) ByteArray(0) else app.client.peekAvatarBytes(target)
-        if (peeked != null) {
-            value = peeked
-            return@produceState
-        }
-        value = null
-        value = withContext(Dispatchers.IO) {
-            runCatching { app.client.fetchBytes(target) }.getOrNull() ?: ByteArray(0)
+        value = peeked
+        if (target.isEmpty()) return@produceState
+        try {
+            val updated = app.client.fetchBytes(target)
+            if (value?.contentEquals(updated) != true) value = updated
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            if (value == null) value = ByteArray(0)
         }
     }
     val b = fetch
+    val contentKey = remember(target, b) { "$target#${b?.contentHashCode()}" }
     // SVG 头像：直接用 resvg 渲染成 Bitmap，不走 Coil；非 SVG / 未就绪为 null
     // 初始值同步查渲染缓存：滚回视野的 SVG 头像首帧直接出图
     val svgBitmap by produceState<Bitmap?>(
         initialValue = run {
-            val key = "$target#$px"
+            val key = "$contentKey#$px"
             if (b != null && b.isNotEmpty() && isSvgContents(b)) svgBitmapCache.get(key) else null
         },
         target, b, px,
     ) {
         value = if (b != null && b.isNotEmpty() && isSvgContents(b)) {
-            val key = "$target#$px"
+            val key = "$contentKey#$px"
             val generation = synchronized(svgBitmapCache) { svgCacheGeneration }
             svgBitmapCache.get(key) ?: withContext(Dispatchers.IO) {
                 renderSvgToBitmap(b, px)
@@ -133,11 +136,10 @@ fun Avatar(url: String, size: Int = 40, modifier: Modifier = Modifier, online: B
         else coil.request.ImageRequest.Builder(context)
             .data(
                 if (b.isNotEmpty()) b
-                else if (target.contains('?')) target.substringBefore('?')
                 else target
             )
             .size(px)
-            .memoryCacheKey(target)
+            .memoryCacheKey("$contentKey#$px")
             .diskCachePolicy(coil.request.CachePolicy.DISABLED)
             .crossfade(180)
             .build()

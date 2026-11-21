@@ -38,7 +38,7 @@ import sb.linux.client.domain.account.LoginVerification
 import sb.linux.client.platform.webview.WebViewDoh
 import sb.linux.client.common.network.ForumUserAgent
 import sb.linux.client.platform.verification.CapNetworkBridge
-import sb.linux.client.platform.verification.CapVerificationGateway
+import sb.linux.client.platform.verification.AccountVerificationGateway
 
 /** 组件页通过它回传真实状态，避免只靠 `lsbcap://` 跳转判断是否加载成功。 */
 private class CapStatusBridge(
@@ -62,7 +62,7 @@ private class CapStatusBridge(
 internal fun CapVerificationWidget(
     verification: sb.linux.client.domain.account.LoginVerification.Cap,
     revision: Int,
-    gateway: CapVerificationGateway,
+    gateway: AccountVerificationGateway,
     onToken: (String) -> Unit,
     onStatus: (String) -> Unit,
     onError: (String) -> Unit,

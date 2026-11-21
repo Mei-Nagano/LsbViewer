@@ -129,7 +129,7 @@ internal fun meAccountCategories(userId: Long) = listOf(
     SettingsCategory("通知", "查看我的通知", "notifications", settingsRowIcon("通知")),
     SettingsCategory("隐私", "管理我的隐私", "userPrivacy", settingsRowIcon("隐私")),
     SettingsCategory("收藏", "打开我的收藏", "favorites", settingsRowIcon("收藏")),
-    SettingsCategory("淘贴", "打开我的淘贴", "topicCollections?tab=mine", settingsRowIcon("淘贴")),
+    SettingsCategory("节点", "打开我的节点", "nodes?url=${android.net.Uri.encode("/nodes?tab=mine")}", settingsRowIcon("节点")),
     SettingsCategory("签名", "管理个人签名", "personalSignature", settingsRowIcon("签名")),
     SettingsCategory("活跃度", "查看个人社区活跃度", "communityActivity", settingsRowIcon("活跃度")),
     SettingsCategory("附件", "管理我的附件", "attachments", settingsRowIcon("附件")),

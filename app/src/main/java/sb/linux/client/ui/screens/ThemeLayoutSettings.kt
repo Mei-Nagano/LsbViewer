@@ -17,7 +17,7 @@ import sb.linux.client.ui.patterns.settings.settingsRowIcon
 import sb.linux.client.ui.patterns.settings.SettingsListRow
 
 private val BOTTOM_OPTIONS = listOf(
-    "home" to "社区", "forums" to "版块", "topicCollections" to "淘帖",
+    "home" to "社区", "forums" to "版块", "nodes" to "节点",
     "messages" to "私信", "me" to "我的",
 )
 

@@ -82,8 +82,10 @@ internal class LocalDnsTunnel(private val dns: Dns) : WebViewDohTunnel {
     }
 
     private fun connect(host: String, port: Int): Socket {
+        // DoH 解析可能切换备用服务器；取得地址后才开始计算 TCP 连接预算。
+        val addresses = dns.lookup(host)
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
-        for (address in dns.lookup(host)) {
+        for (address in addresses) {
             val remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()).toInt()
             if (remaining <= 0) break
             val socket = Socket(Proxy.NO_PROXY)

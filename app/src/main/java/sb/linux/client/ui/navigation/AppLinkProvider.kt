@@ -173,6 +173,7 @@ internal fun AppLinkProvider(
         sb.linux.client.ui.patterns.user.LocalUserBlockChanged provides session::onUserSummaryBlockChanged,
         sb.linux.client.ui.patterns.user.LocalUserSummaryRepository provides session.userSummaryRepository,
         sb.linux.client.ui.patterns.user.LocalAvatarUserLookupRepository provides session.userLookupRepository,
+        sb.linux.client.ui.patterns.user.LocalAvatarInfoCardEnabled provides session.avatarInfoCardEnabled,
         sb.linux.client.ui.patterns.user.LocalAvatarAccountId provides session.account.loginState.userId,
         sb.linux.client.ui.patterns.user.LocalAvatarAccountVersion provides session.accountIdentityVersion,
         sb.linux.client.ui.patterns.user.LocalUserFollowChanged provides session::onUserSummaryFollowChanged,

@@ -39,7 +39,9 @@ fun ForumListScreen(session: Session, nav: NavHostController) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(viewModel) { viewModel.load() }
 
-    AppPageScaffold(title = "板块导航", onBack = null, primaryPage = true) { pad ->
+    AppPageScaffold(title = "板块导航", onBack = null, primaryPage = true, actions = {
+        TextButton(onClick = { nav.navigate("nodes") }) { Text("节点中心") }
+    }) { pad ->
         val spacing = LocalAppSpacing.current
         Box(Modifier.padding(pad)) {
             when {

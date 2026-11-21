@@ -79,7 +79,6 @@ fun AppRoot(session: Session) {
     if (verification != null) {
         VerificationDialog(
             url = verification.url,
-            initialHtml = verification.html,
             prepareCookies = { session.accountAuthenticationRepository.exportWebCookies() },
             onSucceeded = {
                 session.accountAuthenticationRepository.importWebCookies(verification.url)

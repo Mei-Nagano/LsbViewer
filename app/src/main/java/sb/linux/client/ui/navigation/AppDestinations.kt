@@ -29,8 +29,8 @@ internal data class AppDestination(
 
 internal object AppDestinations {
     val home = AppDestination("home", "社区", "home", Icons.Filled.Home, Icons.Outlined.Home)
-    val collections = AppDestination(
-        "topicCollections", "淘帖", "topicCollectionsRoot",
+    val nodes = AppDestination(
+        "nodes", "节点", "nodesRoot",
         Icons.Filled.CollectionsBookmark, Icons.Outlined.CollectionsBookmark,
     )
     val messages = AppDestination(
@@ -40,11 +40,11 @@ internal object AppDestinations {
     val me = AppDestination("me", "我的", "me", Icons.Filled.Person, Icons.Outlined.Person)
     val forums = AppDestination("forums", "版块", "forums", Icons.Filled.ViewList, Icons.Outlined.ViewList)
 
-    /** 新安装默认四项：社区 / 淘帖 / 私信 / 我的。 */
-    val defaults: List<AppDestination> = listOf(home, collections, messages, me)
+    /** 新安装默认四项：社区 / 节点 / 私信 / 我的。 */
+    val defaults: List<AppDestination> = listOf(home, nodes, messages, me)
 
     /** 允许出现在自定义根导航里的全部目的地（最多 5 项）。 */
-    val all: List<AppDestination> = listOf(home, collections, messages, me, forums)
+    val all: List<AppDestination> = listOf(home, nodes, messages, me, forums)
 
     const val ACTION_NEW_TOPIC = "newTopic"
 
@@ -64,7 +64,7 @@ internal object AppDestinations {
 /** route（含参数）→ 稳定目的地 ID；用于选中态与根切换判定。 */
 internal object AppDestinationId {
     fun canonical(route: String): String = when (val raw = route.substringBefore("?")) {
-        "topicCollectionsRoot" -> AppDestinations.collections.id
+        "nodesRoot", "topicCollections", "topicCollectionsRoot" -> AppDestinations.nodes.id
         "directMessagesRoot", "directMessages", "notifications" -> AppDestinations.messages.id
         else -> raw
     }

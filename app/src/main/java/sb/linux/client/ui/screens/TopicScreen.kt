@@ -1,6 +1,5 @@
 package sb.linux.client.ui.screens
 
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -18,8 +17,7 @@ import sb.linux.client.ui.feature.topic.TopicReplyViewModelFactory
 internal const val FLOOR_PILL_ENABLED = false
 
 @Composable
-fun TopicScreen(session: Session, nav: NavHostController) {
-    val entry = nav.currentBackStackEntry ?: return
+fun TopicScreen(session: Session, nav: NavHostController, entry: androidx.navigation.NavBackStackEntry) {
     val topicId = entry.arguments?.getLong("tid") ?: return
     val requestedPage = entry.arguments?.getInt("p") ?: 0
     val initialPage = requestedPage.coerceAtLeast(1)
@@ -56,12 +54,15 @@ fun TopicScreen(session: Session, nav: NavHostController) {
         key = "topic-ai-$topicId",
     )
     val aiSettings = aiViewModel.topicSettings()
-    val ui = remember(topicId) { TopicScreenUiState(session, interactions.favoriteCommentIds()) }
+    val ui: TopicScreenUiState = viewModel(viewModelStoreOwner = entry, key = "topic-ui-$topicId") {
+        TopicScreenUiState(session, interactions.favoriteCommentIds())
+    }
     androidx.compose.runtime.LaunchedEffect(entry) {
-        if (entry.arguments?.getBoolean("donate") == true) ui.showDonate = true
+        if (!ui.donationEntryHandled && entry.arguments?.getBoolean("donate") == true) ui.showDonate = true
+        ui.donationEntryHandled = true
     }
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    val listState = ui.listState
     val pageCoordinatorFactory = remember(
         topicId, source, floorLoader, session.topicPageCacheRepository,
         session.browseSettingsRepository, session.readingPositionRepository,

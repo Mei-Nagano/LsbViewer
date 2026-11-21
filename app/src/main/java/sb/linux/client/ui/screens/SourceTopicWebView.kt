@@ -34,7 +34,8 @@ import kotlin.math.roundToInt
 
 @Composable
 internal fun SourceTopicWebView(page: TopicPageData, view: TopicScreenViewState, ui: TopicScreenUiState,
-    loggedIn: Boolean, onAction: (String) -> Unit, nativePanels: @Composable () -> Unit) {
+    loggedIn: Boolean, resources: sb.linux.client.domain.topic.SourceTopicResourceRepository,
+    onAction: (String) -> Unit, nativePanels: @Composable () -> Unit) {
     val density = LocalDensity.current
     val colors = MaterialTheme.colorScheme
     val screenHeight = LocalConfiguration.current.screenHeightDp
@@ -58,27 +59,23 @@ internal fun SourceTopicWebView(page: TopicPageData, view: TopicScreenViewState,
     }
     val showUid = LocalShowUid.current
     var hideTarget by remember(page.topicId) { mutableStateOf<Long?>(null) }
-    var slotHeight by remember(page.topicId) { mutableFloatStateOf(0f) }
-    var browser by remember { mutableStateOf<WebView?>(null) }
-    var ready by remember { mutableStateOf(false) }
-    var loadedShell by remember { mutableStateOf<String?>(null) }
-    var loadError by remember { mutableStateOf(false) }
+    var browser by remember { mutableStateOf<WebView?>(ui.sourceBrowser) }
     val windows = rememberSourceWebWindows()
     val chooseFiles = rememberWebFileChooser()
     val currentAction by rememberUpdatedState(onAction)
     val update = remember(page, view.mainPost, view.reply.flatTree, view.reply.pagedReplies,
         view.threadEnabled, ui.topicSearchOpen, ui.topicSearchQuery, ui.favoriteCommentIds, ui.isFav,
-        ui.collapsedReplyIds, loggedIn, allHidden, ui.sourceHiddenSignatures, slotHeight, geometry.pixelsPerCss, showUid) {
+        ui.collapsedReplyIds, loggedIn, allHidden, ui.sourceHiddenSignatures, ui.sourceSlotHeight, geometry.pixelsPerCss, showUid) {
         SourceTopicDocument.update(page, view, ui, loggedIn, allHidden, ui.sourceHiddenSignatures,
-            slotHeight / geometry.pixelsPerCss, showUid)
+            ui.sourceSlotHeight / geometry.pixelsPerCss, showUid)
     }
     val currentUpdate by rememberUpdatedState(update)
     fun collectMetrics(web: WebView) {
         web.evaluateJavascript("JSON.stringify(window.lsbContent?window.lsbContent.metrics():null)") { result ->
             runCatching {
                 val encoded = org.json.JSONTokener(result).nextValue() as? String
-                if (encoded == null || encoded == "null") { loadError = true; return@runCatching }
-                loadError = false
+                if (encoded == null || encoded == "null") { ui.sourceLoadError = true; return@runCatching }
+                ui.sourceLoadError = false
                 geometry.update(JSONObject(encoded), web.width)
             }
         }
@@ -92,7 +89,13 @@ internal fun SourceTopicWebView(page: TopicPageData, view: TopicScreenViewState,
             } }
         }) {
         AndroidView(modifier = Modifier.fillMaxWidth().height(with(density) { geometry.height.toDp() }.coerceAtLeast(1.dp)),
-            factory = { context -> SourceContentWebView(context).apply {
+            factory = { context ->
+                val retained = ui.sourceBrowser ?: SourceContentWebView(
+                    android.content.MutableContextWrapper(context.applicationContext),
+                ).also { ui.sourceBrowser = it }
+                (retained.parent as? android.view.ViewGroup)?.removeView(retained)
+                (retained.context as android.content.MutableContextWrapper).baseContext = context
+                retained.apply {
                 browser = this
                 setBackgroundColor(AndroidColor.TRANSPARENT)
                 isVerticalScrollBarEnabled = false
@@ -116,7 +119,19 @@ internal fun SourceTopicWebView(page: TopicPageData, view: TopicScreenViewState,
                 webViewClient = object : WebViewClient() {
                     override fun shouldInterceptRequest(web: WebView, request: WebResourceRequest): WebResourceResponse? {
                         val url = request.url.toString()
-                        if (!url.startsWith(SOURCE_TOPIC_ASSET)) return null
+                        if (!url.startsWith(SOURCE_TOPIC_ASSET)) {
+                            if (request.isForMainFrame || request.method != "GET" ||
+                                request.url.scheme != "https" || !Endpoints.isForumHost(request.url.host) ||
+                                request.url.path?.startsWith("/app/") != true) return null
+                            return try {
+                                val resource = resources.load(url, request.requestHeaders)
+                                WebResourceResponse(resource.mimeType, resource.encoding, resource.status,
+                                    resource.reason, resource.headers, resource.body)
+                            } catch (_: java.io.IOException) {
+                                WebResourceResponse("text/plain", "UTF-8", 502, "Resource unavailable",
+                                    emptyMap(), ByteArrayInputStream(ByteArray(0)))
+                            }
+                        }
                         val path = url.removePrefix(SOURCE_TOPIC_ASSET).substringBefore('?')
                         if (path.contains("..")) return WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(ByteArray(0)))
                         val asset = if (path.startsWith("katex/")) path else "source-topic/$path"
@@ -136,24 +151,34 @@ internal fun SourceTopicWebView(page: TopicPageData, view: TopicScreenViewState,
                         return true
                     }
                     override fun onPageFinished(web: WebView, url: String) {
-                        ready = true
+                        ui.sourceReady = true
                         web.tag = currentUpdate
                         web.evaluateJavascript(currentUpdate) { collectMetrics(web) }
                     }
                 }
-                loadedShell = shell
-                WebViewDoh.loadHtml(this, Endpoints.abs("/topic/${page.topicId}"), shell)
+                onResume()
+                if (ui.sourceLoadedShell != shell || !ui.sourceReady) {
+                    ui.sourceLoadedShell = shell
+                    WebViewDoh.loadHtml(this, Endpoints.abs("/topic/${page.topicId}"), shell)
+                }
             } },
             update = { web ->
                 val textZoom = (100 * density.fontScale * density.density / web.resources.displayMetrics.density).roundToInt()
                 if (web.settings.textZoom != textZoom) web.settings.textZoom = textZoom
-                if (loadedShell != shell) {
-                    loadedShell = shell; ready = false; geometry.ready = false; loadError = false
+                if (ui.sourceLoadedShell != shell) {
+                    ui.sourceLoadedShell = shell; ui.sourceReady = false; geometry.ready = false; ui.sourceLoadError = false
                     WebViewDoh.loadHtml(web, Endpoints.abs("/topic/${page.topicId}"), shell)
-                } else if (ready && web.tag != update) { geometry.ready = false; web.tag = update; web.evaluateJavascript(update) { collectMetrics(web) } }
-            }, onRelease = { windows.close(it); ready = false; browser = null; it.stopLoading(); it.destroy() })
+                } else if (ui.sourceReady && web.tag != update) { geometry.ready = false; web.tag = update; web.evaluateJavascript(update) { collectMetrics(web) } }
+            }, onRelease = { web ->
+                windows.close(web)
+                browser = null
+                web.onPause()
+                web.webChromeClient = null
+                web.webViewClient = WebViewClient()
+                (web.context as android.content.MutableContextWrapper).baseContext = web.context.applicationContext
+            })
         Box(Modifier.fillMaxWidth().offset { IntOffset(0, geometry.slotTop.roundToInt()) }
-            .onSizeChanged { slotHeight = it.height.toFloat() }) { nativePanels() }
+            .onSizeChanged { ui.sourceSlotHeight = it.height.toFloat() }) { nativePanels() }
     }
     if (hideTarget != null) androidx.compose.material3.AlertDialog(
         onDismissRequest = { hideTarget = null }, title = { androidx.compose.material3.Text("隐藏所有签名？") },
@@ -161,8 +186,8 @@ internal fun SourceTopicWebView(page: TopicPageData, view: TopicScreenViewState,
         confirmButton = { androidx.compose.material3.TextButton(onClick = { allHiddenState.value = true; hideTarget = null }) { androidx.compose.material3.Text("隐藏所有") } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = { ui.sourceHiddenSignatures = ui.sourceHiddenSignatures + hideTarget!!; hideTarget = null }) { androidx.compose.material3.Text("仅隐藏此条") } })
     windows.Content()
-    if (loadError) sb.linux.client.ui.components.feedback.ErrorBox("正文网页加载失败，请检查网络设置后重试") {
-        browser?.let { web -> ready = false; loadError = false; WebViewDoh.loadHtml(web, Endpoints.abs("/topic/${page.topicId}"), shell) }
+    if (ui.sourceLoadError) sb.linux.client.ui.components.feedback.ErrorBox("正文网页加载失败，请检查网络设置后重试") {
+        browser?.let { web -> ui.sourceReady = false; ui.sourceLoadError = false; WebViewDoh.loadHtml(web, Endpoints.abs("/topic/${page.topicId}"), shell) }
     }
     LaunchedEffect(ui.highlightPostId) {
         ui.highlightPostId?.let { browser?.evaluateJavascript("window.lsbContent&&window.lsbContent.highlightPost('$it')", null) }

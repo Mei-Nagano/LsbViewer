@@ -5,9 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import sb.linux.client.domain.topic.PostEntry
 import sb.linux.client.ui.session.Session
 
@@ -30,11 +28,10 @@ internal fun TopicScreenEffects(
     repliesPerPage: Int,
     searchHits: List<TopicSearchHit>,
 ) {
-    var consumedBlockRefresh by remember(topicId) { mutableStateOf(session.homeBrowse.refreshRequest) }
     LaunchedEffect(session.homeBrowse.refreshRequest) {
         val request = session.homeBrowse.refreshRequest
-        if (request != consumedBlockRefresh) {
-            consumedBlockRefresh = request
+        if (request != ui.consumedBlockRefresh) {
+            ui.consumedBlockRefresh = request
             actions.load(paging.page.value?.page ?: initialPage, force = true)
         }
     }
@@ -91,10 +88,9 @@ internal fun TopicScreenEffects(
         ui = ui,
         actions = actions,
     )
-    var lastLoggedIn by remember { mutableStateOf(session.account.loginState.loggedIn) }
     LaunchedEffect(session.account.loginState.loggedIn) {
-        if (session.account.loginState.loggedIn != lastLoggedIn) {
-            lastLoggedIn = session.account.loginState.loggedIn
+        if (session.account.loginState.loggedIn != ui.lastLoggedIn) {
+            ui.lastLoggedIn = session.account.loginState.loggedIn
             actions.load(paging.page.value?.page ?: initialPage)
             actions.loadDanmaku()
         }
@@ -159,6 +155,9 @@ private fun TopicInitialLoadEffect(
                 if (target != null) ui.pendingSearchPost = target
             }
         }
-        actions.loadDanmaku()
+        if (!ui.danmakuInitialized) {
+            ui.danmakuInitialized = true
+            actions.loadDanmaku()
+        }
     }
 }

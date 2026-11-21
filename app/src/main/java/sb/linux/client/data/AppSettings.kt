@@ -56,6 +56,7 @@ class AppSettings(context: Context) {
     var tableDisplayMode by browse::tableDisplayMode
     var hideTopicTags by browse::hideTopicTags
     var topicCardAvatarMetadataRow by browse::topicCardAvatarMetadataRow
+    var avatarInfoCardEnabled by browse::avatarInfoCardEnabled
     var showUid by browse::showUid
     var smartDecodeEnabled by browse::smartDecodeEnabled
     var autoClearItems by browse::autoClearItems

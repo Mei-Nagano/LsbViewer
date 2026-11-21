@@ -9,9 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.account.*
-import sb.linux.client.platform.verification.CapVerificationGateway
+import sb.linux.client.platform.verification.AccountVerificationGateway
 
-internal val LocalAccountVerificationGateway = staticCompositionLocalOf<CapVerificationGateway?> { null }
+internal val LocalAccountVerificationGateway = staticCompositionLocalOf<AccountVerificationGateway?> { null }
 private val titleControlShape = RoundedCornerShape(12.dp)
 private val titleInlineMeta = Regex("×\\s*\\d+|#[0-9]+|(?:(?:数量[：:]?|共|拥有)\\s*)?\\d+\\s*(?:个|份)")
 

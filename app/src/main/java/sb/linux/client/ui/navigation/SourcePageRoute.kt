@@ -19,6 +19,7 @@ internal fun sourcePageRoute(url: String, accountId: Long): String? {
     when (path) {
         "/login" -> return "login"
         "/forum_list" -> return "forums"
+        "/nodes" -> return "nodes?url=${encoded(nativeUrl)}"
         "/direct_messages" -> return "directMessages"
         "/notifications" -> return "notifications"
         "/invite_center" -> return "inviteCenter"
@@ -30,12 +31,13 @@ internal fun sourcePageRoute(url: String, accountId: Long): String? {
         "/gacha_profile" -> return "gachaPage?url=${encoded(nativeUrl)}"
         "/community_activity" -> return accountPage("活跃度")
         "/identity_center" -> return "identityCenter"
-        "/topic_collections" -> return "topicCollections?tab=${if (query("tab") == "everyone") "everyone" else "mine"}"
+        "/topic_collections" -> return "nodes?url=${encoded(if (query("tab") == "everyone") "/nodes?tab=popular" else "/nodes?tab=mine")}"
         "/topic_edit" -> return "editorPage?url=${encoded(nativeUrl)}&tid=${query("topic_id", query("id", "0")).toLongOrNull() ?: 0}"
         "/donate" -> query("topic_id").toLongOrNull()?.takeIf { it > 0 }?.let { return "topic/$it?donate=true" }
         "/content_report" -> query("target_id").toLongOrNull()?.let { return "report/${encoded(query("type", "topic"))}/$it" }
         "/leaderboard" -> return "leaderboard?type=${encoded(query("type", "points"))}"
-        "/search" -> return "search?q=${encoded(query("q", query("keyword")))}&scope=${encoded(query("scope", query("field", "all")))}&sort=${encoded(query("sort", "relevance"))}"
+        "/search" -> return if (query("scope") == "node") "web?url=${encoded(nativeUrl)}&inApp=true"
+            else "search?q=${encoded(query("q", query("keyword")))}&scope=${encoded(query("scope", query("field", "all")))}&sort=${encoded(query("sort", "relevance"))}"
         "/index.php" -> {
             if (query("a") == "user_block") return "userBlock?url=${encoded(nativeUrl)}"
             if (query("sort") == "following" && query("follow_view") in setOf("following", "followers"))
@@ -48,13 +50,14 @@ internal fun sourcePageRoute(url: String, accountId: Long): String? {
             if (query("username").isNotBlank()) return "userByName?name=${encoded(query("username"))}&tab=${encoded(tab)}"
         }
     }
+    if (Regex("/node/[0-9]+").matches(path)) return "nodes?url=${encoded(nativeUrl)}"
     if (path == "/gacha" || path.startsWith("/gacha_")) return "gachaPage?url=${encoded(nativeUrl)}"
     Regex("^/topic_edit/(\\d+)$").find(path)?.let { return "editorPage?url=${encoded(nativeUrl)}&tid=${it.groupValues[1]}" }
     Regex("^/community_activity/\\d+$").takeIf { it.matches(path) }?.let { return accountPage("活跃度") }
     Regex("^/content_report/(\\d+)$").find(path)?.let { return "report/${encoded(query("type", "topic"))}/${it.groupValues[1]}" }
     Regex("^/direct_messages/(\\d+)$").find(path)?.let { return "chat/${it.groupValues[1]}" }
-    Regex("^/topic_collection/\\d+$").takeIf { it.matches(path) }?.let { return "collectionActions?path=${encoded(nativeUrl)}" }
-    Regex("^/topic_collection_manage(?:/\\d+)?$").takeIf { it.matches(path) }?.let { return "topicCollectionManage?path=${encoded(nativeUrl)}" }
+    Regex("^/topic_collection/\\d+$").takeIf { it.matches(path) }?.let { return "nodes?url=${encoded("/nodes?tab=popular")}" }
+    Regex("^/topic_collection_manage(?:/\\d+)?$").takeIf { it.matches(path) }?.let { return "nodes?url=${encoded("/nodes?tab=mine")}" }
     Regex("^/forum/(\\d+)$").find(path)?.let { return "forum/${it.groupValues[1]}?p=${query("p", "1").toIntOrNull()?.coerceAtLeast(1) ?: 1}" }
     Regex("^/user/(\\d+)$").find(path)?.let { return userRoute(it.groupValues[1].toLong(), query("tab", "topics"), nativeUrl, accountId) }
     Regex("^/topic/(\\d+)$").find(path)?.let {

@@ -51,7 +51,6 @@ internal fun TopicScreenDialogs(
         },
     )
     TopicSecondaryDialogs(
-        session = session,
         topicId = topicId,
         interactionViewModel = actions.interactionViewModel,
         page = paging.page.value,
@@ -83,8 +82,6 @@ internal fun TopicScreenDialogs(
             ui.showExportDialog = false
             actions.export(kind, scope, from, to, multiPage, selectedIds, exportColors)
         },
-        collectionOpen = ui.showCollectionSheet,
-        onCollectionDismiss = { ui.showCollectionSheet = false },
         donateOpen = ui.showDonate,
         onDonateDismiss = { ui.showDonate = false },
         onDonateSuccess = {

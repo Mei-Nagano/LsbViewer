@@ -25,6 +25,7 @@ internal class AppSettingsBrowseSettingsRepository(
         settings.smartDecodeEnabled,
         settings.topicCardAvatarMetadataRow,
         settings.hideTopicTags,
+        settings.avatarInfoCardEnabled,
     )
 
     override fun reset() = settings.resetBrowse()
@@ -43,6 +44,7 @@ internal class AppSettingsBrowseSettingsRepository(
     override fun saveTableDisplayMode(value: Int) { settings.tableDisplayMode = value }
     override fun saveHideTopicTags(value: Boolean) { settings.hideTopicTags = value }
     override fun saveTopicCardAvatarMetadataRow(value: Boolean) { settings.topicCardAvatarMetadataRow = value }
+    override fun saveAvatarInfoCardEnabled(value: Boolean) { settings.avatarInfoCardEnabled = value }
     override fun saveShowUid(value: Boolean) { settings.showUid = value }
     override fun saveSmartDecodeEnabled(value: Boolean) { settings.smartDecodeEnabled = value }
     override fun saveThreadDialogEnabled(value: Boolean) { settings.threadDialogEnabled = value }

@@ -61,7 +61,7 @@ data class TopicPageData(
     val redPacket: RedPacketPanel? = null,
     val lottery: LotteryPanel? = null,      // 抽奖帖面板
     val poll: TopicPoll? = null,            // 源站投票表单/结果
-    val replyCaptcha: LoginVerification? = null, // 回复表单人机验证（CAP / 旧版数学题）
+    val replyCaptcha: LoginVerification? = null, // 回复表单人机验证（PoW / CAP / 旧版数学题）
     val essenceApplication: EssenceApplication? = null,
     val essenceReview: EssenceReview? = null,
     val replyForm: TopicReplyForm? = null,
@@ -71,6 +71,7 @@ data class TopicPageData(
     val styledTags: List<SourceTopicTag> = emptyList(),
     val footerPanels: List<sb.linux.client.domain.account.AccountNode.Link> = emptyList(),
     val contentStyles: List<String> = emptyList(),
+    val nodes: List<sb.linux.client.domain.community.NodeLink> = emptyList(),
 )
 
 data class TopicForumMove(val note: String, val form: sb.linux.client.domain.account.AccountForm? = null,

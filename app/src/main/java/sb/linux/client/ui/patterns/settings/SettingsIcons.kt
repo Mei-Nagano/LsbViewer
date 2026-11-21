@@ -63,7 +63,7 @@ internal fun settingsRowIcon(title: String): ImageVector = with(SettingsIconAsse
         "头像" -> Profile
         "版本更新", "检查更新时机", "检查间隔（1 - 720 小时）", "立即检查更新" -> Update
         "关于应用", "关于", "开源协议" -> Info
-        "我的内容", "淘帖", "收藏", "淘贴" -> Folders
+        "我的内容", "节点", "收藏" -> Folders
         "附件管理", "附件" -> Attachment
         "发卡兑换记录", "抽奖奖品记录" -> Gift
         "我的隐私", "隐私" -> Shield

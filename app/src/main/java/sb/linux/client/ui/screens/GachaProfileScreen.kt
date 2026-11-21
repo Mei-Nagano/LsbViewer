@@ -128,7 +128,7 @@ fun GachaProfileScreen(session: Session, nav: NavHostController, sectionUrl: Str
                 else -> {
                     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     key(active, state.revision) {
-                        CompositionLocalProvider(LocalAccountVerificationGateway provides session.capVerificationGateway,
+                        CompositionLocalProvider(LocalAccountVerificationGateway provides session.accountVerificationGateway,
                             LocalGachaForgeAll provides section::forgeAll) {
                             AccountNodes(state.page!!.nodes, session.accountManagementRepository, !busy,
                                 onLink = ::requestLink, onDirty = { dirty = true }, onSubmit = active::submit)

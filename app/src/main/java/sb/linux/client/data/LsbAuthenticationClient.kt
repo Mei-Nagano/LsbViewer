@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 import sb.linux.client.common.error.LsbException
 import sb.linux.client.data.parser.LoginVerificationParser
 import sb.linux.client.domain.account.LoginVerification
+import sb.linux.client.domain.account.fields
 
 internal class LsbAuthenticationClient(
     private val http: OkHttpClient,
@@ -39,6 +40,7 @@ internal class LsbAuthenticationClient(
         if (verification.csrf.isBlank()) {
             val token = runCatching { csrf() }.getOrDefault("")
             when (verification) {
+                is LoginVerification.Pow -> verification.copy(csrf = token)
                 is sb.linux.client.domain.account.LoginVerification.Native ->
                     verification.copy(csrf = token)
                 is sb.linux.client.domain.account.LoginVerification.Cap ->
@@ -62,7 +64,7 @@ internal class LsbAuthenticationClient(
     /**
      * 登录：旧版验证码由用户填写答案并自动计算 PoW；CAP 使用组件产生的一次性令牌。
      * @param captcha 先前 fetchLoginCaptcha() 获取的验证码信息。
-     * @param answer 旧版验证码答案或 CAP 令牌。
+     * @param answer 旧版验证码答案、CAP 令牌或源站 PoW 组件返回的 challenge/proof。
      */
     suspend fun login(
         username: String,
@@ -72,6 +74,10 @@ internal class LsbAuthenticationClient(
         onStatus: (String) -> Unit,
     ): String = withContext(Dispatchers.IO) {
         val fields = when (captcha) {
+            is LoginVerification.Pow -> {
+                onStatus("正在提交登录…")
+                mapOf("_csrf" to captcha.csrf, "username" to username, "password" to password) + captcha.fields(answer)
+            }
             is sb.linux.client.domain.account.LoginVerification.Native -> {
                 onStatus("正在计算工作量证明…")
                 val startedAt = System.currentTimeMillis()

@@ -55,6 +55,7 @@ internal fun TopicScreenPostList(
             onDismissAi = { ui.aiSummary = null; ui.aiError = null },
             onJoinReply = { ui.quoteText = ""; ui.showReply = true },
             onRefresh = { actions.load(page.page, force = true) },
+            onManageNodes = { nav.navigate("nodeTopicActions?tid=${page.topicId}") },
             onTitleBottomInRoot = { ui.titleBottomInRoot = it },
         )
         item(key = "source-content") {

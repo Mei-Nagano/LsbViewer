@@ -65,6 +65,11 @@ internal class AppSettingsBrowseStore(private val prefs: SharedPreferences) {
         get() = prefs.getInt("table_display_mode", 1).coerceIn(0, 1)
         set(v) = prefs.edit().putInt("table_display_mode", v.coerceIn(0, 1)).apply()
 
+    /** 点击头像显示个人信息卡，关闭后直接进入主页。 */
+    var avatarInfoCardEnabled: Boolean
+        get() = prefs.getBoolean("avatar_info_card_enabled", true)
+        set(v) = prefs.edit().putBoolean("avatar_info_card_enabled", v).apply()
+
     /** 帖内头像下方显示纯数字 UID */
     var showUid: Boolean
         get() = prefs.getBoolean("show_uid", true)
