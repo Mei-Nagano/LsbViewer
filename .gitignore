@@ -61,6 +61,8 @@ __pycache__/
 .claude/
 .codeartsdoer/
 .codegraph/
+
+# Local agent notes and metadata; keep code notes out of Git
 /.agents/
 
 # OS and temporary files
