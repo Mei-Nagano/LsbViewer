@@ -227,7 +227,7 @@ internal class SessionRepositories(
     internal val topicFloorPageRepository: TopicFloorPageRepository get() = topicFloorPageLoader
     internal val topicLinkRepository by lazy { sb.linux.client.data.TopicLinkService(client) }
     internal val accountAuthenticationService by lazy {
-        AccountAuthenticationService(client, settings, session::refreshSession)
+        AccountAuthenticationService(client, settings, session::completeLogin)
     }
     internal val accountAuthenticationRepository: AccountAuthenticationRepository
         get() = accountAuthenticationService

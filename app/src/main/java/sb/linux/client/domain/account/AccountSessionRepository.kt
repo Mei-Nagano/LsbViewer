@@ -12,7 +12,7 @@ interface AccountSessionRepository {
 
 interface AccountSessionRecovery {
     val version: Long
-    fun refresh()
+    fun refresh(snapshot: SessionSnapshot? = null)
     fun recover(networkChanged: Boolean = false)
     fun accept(snapshot: SessionSnapshot, expectedVersion: Long)
     fun stop()

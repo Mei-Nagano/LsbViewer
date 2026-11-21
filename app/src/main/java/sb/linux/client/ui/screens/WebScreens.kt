@@ -53,6 +53,10 @@ fun WebScreen(
     val chooseFiles = rememberWebFileChooser()
     val windows = rememberSourceWebWindows()
     var initialLoadFinished by remember(url) { mutableStateOf(false) }
+    var sourceSessionLoaded by remember(url) { mutableStateOf(false) }
+    DisposableEffect(session, url) {
+        onDispose { if (sourceSessionLoaded) session.refreshSession() }
+    }
     androidx.activity.compose.BackHandler(enabled = canGoBack) { webView?.goBack() }
 
     WebPageScaffold(
@@ -131,6 +135,8 @@ fun WebScreen(
                             onLoaded?.invoke(view, url)
                             val origin = android.net.Uri.parse(url)
                             if (origin.scheme == "https" && Endpoints.isForumHost(origin.host)) {
+                                session.accountAuthenticationRepository.importWebCookies(url)
+                                sourceSessionLoaded = true
                                 view.evaluateJavascript(sourceRewardToastScript, null)
                             }
                             val firstLoad = !initialLoadFinished

@@ -14,6 +14,7 @@ import java.io.File
 import sb.linux.client.common.error.LsbException
 import sb.linux.client.domain.account.VerificationWebRepository
 import sb.linux.client.domain.account.LoginVerification
+import sb.linux.client.domain.account.SessionSnapshot
 import sb.linux.client.domain.topic.DanmakuItem
 
 /**
@@ -268,9 +269,8 @@ class LsbClient(
         captcha: LoginVerification,
         answer: String,
         onStatus: (String) -> Unit,
-    ): String = authentication.login(username, password, captcha, answer, onStatus)
+    ): SessionSnapshot = authentication.login(username, password, captcha, answer, onStatus)
 
     suspend fun logout() = authentication.logout()
 
-    fun hasAuthCookie(): Boolean = authentication.hasAuthCookie()
 }

@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 import sb.linux.client.common.error.LsbException
 import sb.linux.client.data.parser.LoginVerificationParser
 import sb.linux.client.domain.account.LoginVerification
+import sb.linux.client.domain.account.SessionSnapshot
 import sb.linux.client.domain.account.fields
 
 internal class LsbAuthenticationClient(
@@ -72,7 +73,7 @@ internal class LsbAuthenticationClient(
         captcha: LoginVerification,
         answer: String,
         onStatus: (String) -> Unit,
-    ): String = withContext(Dispatchers.IO) {
+    ): SessionSnapshot = withContext(Dispatchers.IO) {
         val fields = when (captcha) {
             is LoginVerification.Pow -> {
                 onStatus("正在提交登录…")
@@ -108,17 +109,20 @@ internal class LsbAuthenticationClient(
             }
         }
         val resp = postForm("/login", fields)
-        if (resp.url.contains("form_error") || resp.url.substringBefore('?').endsWith("/login")) {
+        if (resp.code !in 200..299 || resp.url.contains("form_error") ||
+            resp.url.substringBefore('?').trimEnd('/').endsWith("/login")) {
             throw LsbException(HtmlTextParser.extractError(resp.html).ifBlank { "登录被拒绝，验证码可能已失效" })
         }
-        // 成功判定：实测源站登录成功 302 → 首页，失败（密码错/验证码错）→ /form_error，非 form_error 即成功。
-        // 此前用 contains(username) 兜底判定：邮箱登录时页面只显示用户名而非邮箱，导致实际登录
-        // 成功却误报"用户名或密码错误"（cookie 已写入，再次刷新验证码还会因已登录 302 首页而静默失败）
-        // 登录成功后会话 Cookie 已换新，旧 CSRF 令牌随之失效，必须丢弃缓存——否则
-        // 登录前取过令牌的话（搜索/签到等路径都会取），之后发帖回帖会一直拿游客期
-        // 的旧令牌去提交并被源站拒绝，且整个进程生命周期内都无法恢复
+        // 重定向本身不是认证证据；邮箱登录同样以源站确认的账号为准。
         invalidateCsrf()
-        "登录成功"
+        onStatus("正在确认登录状态…")
+        val snapshot = sessionSnapshot(resp.html, resp.code)?.takeIf { it.login.loggedIn }
+            ?: get("/").let { sessionSnapshot(it.html, it.code) }
+        if (snapshot?.login?.loggedIn != true) {
+            throw LsbException(if (snapshot != null) "源站仍返回未登录状态，请重新登录"
+                else "无法确认登录状态，请稍后刷新首页")
+        }
+        snapshot
     }
 
     suspend fun logout() {
@@ -133,11 +137,4 @@ internal class LsbAuthenticationClient(
         cookieJar.clear()
     }
 
-    /**
-     * 登录态来自可信源站域名的有效 Cookie，兼容备用入口转发到主域名的情况。
-     */
-    fun hasAuthCookie(): Boolean {
-        return sb.linux.client.common.network.Endpoints.sourceHosts.any {
-            cookieJar.value("bbs_auth", "https://$it/") != null
-        }
-    }}
+}

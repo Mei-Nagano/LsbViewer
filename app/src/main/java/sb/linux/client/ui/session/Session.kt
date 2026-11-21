@@ -197,6 +197,10 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
         account.refresh()
     }
 
+    internal fun completeLogin(snapshot: sb.linux.client.domain.account.SessionSnapshot) {
+        account.refresh(snapshot)
+    }
+
     private val checkinCoordinator by lazy {
         SessionCheckinCoordinator(this, viewModelScope)
     }

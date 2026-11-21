@@ -16,7 +16,7 @@ import sb.linux.client.domain.account.SessionSnapshot
 import sb.linux.client.domain.community.HomeSessionObservation
 
 /** 无用户卡不等于退出：错误页/验证页/残缺 HTML 都不能作为登出证据。 */
-private fun sessionSnapshot(html: String, code: Int): SessionSnapshot? {
+internal fun sessionSnapshot(html: String, code: Int): SessionSnapshot? {
     if (code !in 200..299) return null
     val parsed = UserAccountHtmlParser.parseMySidebar(html)
     if (parsed.loggedIn) return SessionSnapshot(parsed, NotificationHtmlParser.parseNotifyBadgeCount(html))
@@ -43,18 +43,23 @@ internal class SessionRecovery(
     private var stopped = false
     private var needsRecovery = true
 
-    override fun refresh() {
+    override fun refresh(snapshot: SessionSnapshot?) {
         version++
         job?.cancel()
         stopped = false
-        needsRecovery = true
-        start()
+        needsRecovery = snapshot == null
+        if (snapshot != null) {
+            apply(snapshot)
+            settled()
+        } else {
+            start()
+        }
     }
 
     override fun recover(networkChanged: Boolean) {
         if (stopped) return
         if (networkChanged) needsRecovery = true
-        if (needsRecovery && client.hasAuthCookie() && job?.isActive != true) start()
+        if (needsRecovery && job?.isActive != true) start()
     }
 
     override fun accept(snapshot: SessionSnapshot, expectedVersion: Long) {
@@ -78,15 +83,6 @@ internal class SessionRecovery(
         val requestVersion = version
         job = scope.launch(start = CoroutineStart.LAZY) {
             try {
-                if (!client.hasAuthCookie()) {
-                    if (version == requestVersion && !stopped) {
-                        needsRecovery = false
-                        version++
-                        apply(SessionSnapshot(LoginState()))
-                        settled()
-                    }
-                    return@launch
-                }
                 for (attempt in 0..retryDelays.size) {
                     if (attempt > 0) delay(retryDelays[attempt - 1])
                     val snapshot = try { fetchSnapshot() }

@@ -1,5 +1,7 @@
 package sb.linux.client.data
 
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import sb.linux.client.common.network.Endpoints
 import sb.linux.client.domain.account.LoginState
 import sb.linux.client.domain.account.UserProfile
 
@@ -68,8 +70,12 @@ object UserAccountHtmlParser {
 
     fun parseMySidebar(html: String): LoginState {
         val d = SourceHtmlSupport.sourceDocument(html)
-        val card = d.selectFirst(".user-card")
-        val nameEl = card?.selectFirst("a.user-name")
+        val nameEl = d.select(".user-card a.user-name[href]").firstOrNull { element ->
+            val url = element.absUrl("href").toHttpUrlOrNull()
+            url != null && Endpoints.isForumHost(url.host) &&
+                Regex("""/user/[1-9]\d*/?""").matches(url.encodedPath)
+        }
+        val card = nameEl?.parents()?.firstOrNull { it.hasClass("user-card") }
         val rank = rankWithoutUid(card?.selectFirst(".user-rank"))
         val points = accountStat(card, "points").ifBlank {
             Regex("""积分\s*([\d.,kw万]+)""", RegexOption.IGNORE_CASE).find(rank)?.groupValues?.get(1) ?: ""

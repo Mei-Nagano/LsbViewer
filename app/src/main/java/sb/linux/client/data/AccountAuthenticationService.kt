@@ -1,14 +1,17 @@
 package sb.linux.client.data
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import sb.linux.client.domain.account.AccountAuthenticationRepository
 import sb.linux.client.domain.account.LoginVerification
 import sb.linux.client.domain.account.SavedLoginCredentials
+import sb.linux.client.domain.account.SessionSnapshot
 
 /** Coordinates source authentication with the locally selected credential policy. */
 internal class AccountAuthenticationService(
     private val client: LsbClient,
     private val settings: AppSettings,
-    private val refreshSession: () -> Unit,
+    private val applyLoginSession: (SessionSnapshot) -> Unit,
 ) : AccountAuthenticationRepository {
     override fun savedCredentials() = SavedLoginCredentials(
         settings.savedUsername, settings.savedPassword, settings.rememberPassword,
@@ -31,11 +34,11 @@ internal class AccountAuthenticationService(
         rememberPassword: Boolean,
         onStatus: (String) -> Unit,
     ): String {
-        val result = client.login(username, password, challenge, answer, onStatus)
+        val snapshot = client.login(username, password, challenge, answer, onStatus)
         settings.rememberPassword = rememberPassword
         settings.savedUsername = if (rememberPassword) username else ""
         settings.savedPassword = if (rememberPassword) password else ""
-        refreshSession()
-        return result
+        withContext(Dispatchers.Main.immediate) { applyLoginSession(snapshot) }
+        return "登录成功"
     }
 }

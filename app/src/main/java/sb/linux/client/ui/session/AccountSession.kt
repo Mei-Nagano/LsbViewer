@@ -28,7 +28,7 @@ internal class AccountSession(
 
     val version: Long get() = recovery.version
 
-    fun refresh() = recovery.refresh()
+    fun refresh(snapshot: SessionSnapshot? = null) = recovery.refresh(snapshot)
 
     fun recover(networkChanged: Boolean = false) = recovery.recover(networkChanged)
 
