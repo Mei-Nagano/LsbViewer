@@ -1,6 +1,6 @@
 /* 适配应用宿主与主题强调色；正文排版及业务徽章由源站 CSS 决定。 */
 html,body.lsb-content{margin:0!important;padding:0!important;min-height:0!important;height:auto!important;background:transparent!important;color:var(--text);overflow-x:hidden}
-#lsb-posts{list-style:none!important;margin:0!important;padding:0!important;width:100%!important}
+#lsb-posts{display:flow-root!important;list-style:none!important;margin:0!important;padding:0!important;width:100%!important}
 #lsb-posts>.post-entry{position:relative;padding:14px 16px!important;margin-top:0!important;margin-bottom:0!important;box-sizing:border-box;background:transparent!important;border-radius:0!important;border-bottom:1px solid var(--lsb-line);content-visibility:visible!important;contain:none!important;min-width:0}
 #lsb-posts>.lsb-thread-child{grid-template-columns:26px minmax(0,1fr)}
 #lsb-posts>.lsb-thread-child>.post-avatar{width:26px;height:26px;transform:none}
