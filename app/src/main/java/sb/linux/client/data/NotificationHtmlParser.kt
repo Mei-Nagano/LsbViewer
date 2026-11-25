@@ -3,8 +3,11 @@ import sb.linux.client.domain.community.NotificationItem
 
 
 object NotificationHtmlParser {
-    fun parseNotifications(html: String): List<NotificationItem> {
-        val d = SourceHtmlSupport.sourceDocument(html)
+    fun parseNotifications(html: String): List<NotificationItem> =
+        parseNotifications(SourceHtmlSupport.sourceDocument(html))
+
+    /** 分页遍历已经解析过同一份文档，直接复用以免整页 HTML 再解一次。 */
+    fun parseNotifications(d: org.jsoup.nodes.Document): List<NotificationItem> {
         return d.select("li.notification-item").map { li ->
             val typeText = li.selectFirst(".notification-kind")?.text() ?: "通知"
             // 私信回复结构：<blockquote>对方引用的我方消息</blockquote><p>正文</p>。

@@ -19,6 +19,8 @@ data class UserPageContent(
 interface UserPageRepository {
     suspend fun load(userId: Long, tab: String, forceRefresh: Boolean = false): UserPageContent
     fun cached(userId: Long, tab: String): UserPageContent? = null
+    /** 切换账号或退出登录时丢弃本账号相关的页面快照。 */
+    fun clearAll() = Unit
     fun loadIncrementally(userId: Long, tab: String, forceRefresh: Boolean = false): kotlinx.coroutines.flow.Flow<UserPageContent> =
         kotlinx.coroutines.flow.flow { emit(load(userId, tab, forceRefresh)) }
 }

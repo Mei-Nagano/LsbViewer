@@ -21,4 +21,8 @@ data class NotificationItem(
 interface NotificationRepository {
     suspend fun loadNotifications(userId: Long, forceRefresh: Boolean = false): List<NotificationItem>
     fun cachedNotifications(userId: Long): List<NotificationItem>? = null
+
+    /** 逐页上屏：先给出已经有的一页，再继续读完剩余历史。 */
+    fun loadNotificationsIncrementally(userId: Long, forceRefresh: Boolean = false): kotlinx.coroutines.flow.Flow<List<NotificationItem>> =
+        kotlinx.coroutines.flow.flow { emit(loadNotifications(userId, forceRefresh)) }
 }

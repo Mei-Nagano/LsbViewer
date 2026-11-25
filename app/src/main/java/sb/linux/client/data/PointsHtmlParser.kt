@@ -2,8 +2,11 @@ package sb.linux.client.data
 import sb.linux.client.domain.community.PointRow
 
 object PointsHtmlParser {
-    fun parsePointRows(html: String): List<PointRow> {
-        val d = SourceHtmlSupport.sourceDocument(html)
+    fun parsePointRows(html: String): List<PointRow> =
+        parsePointRows(SourceHtmlSupport.sourceDocument(html))
+
+    /** 分页遍历已经解析过同一份文档，直接复用以免整页 HTML 再解一次。 */
+    fun parsePointRows(d: org.jsoup.nodes.Document): List<PointRow> {
         return d.select("li.points-rewards-detail").map { li ->
             val raw = li.selectFirst(".points-rewards-change-value b")?.text().orEmpty()
                 .replace(",", "").replace("−", "-").trim()

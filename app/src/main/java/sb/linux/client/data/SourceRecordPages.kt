@@ -6,8 +6,10 @@ import sb.linux.client.common.network.Endpoints
 
 /** 只跟随源站提供的同用户、同标签分页；相同内容的不同记录不去重。 */
 internal class SourceRecordPages(private val client: LsbClient, private val identity: () -> Long) {
+    /** [onPage] 直接拿到已解析的文档，避免调用方为了取一条记录再解析一遍整页 HTML。 */
     suspend fun load(userId: Long, tab: String,
-        onPage: suspend (LsbClient.Resp, Int, Int) -> Boolean = { _, _, _ -> true }): List<LsbClient.Resp> {
+        onPage: suspend (LsbClient.Resp, org.jsoup.nodes.Document, Int, Int) -> Boolean =
+            { _, _, _, _ -> true }): List<LsbClient.Resp> {
         require(userId > 0 && tab in setOf("points_rewards", "notifications"))
         val version = identity()
         val path = "/user/$userId"
@@ -32,8 +34,9 @@ internal class SourceRecordPages(private val client: LsbClient, private val iden
                 "记录页面不可访问，请确认登录状态与隐私设置"
             }
             val doc = SourceHtmlSupport.sourceDocument(response.html)
+            val pagination = TopicListParser.parsePagination(doc)
             if (doc.selectFirst(".pagination-bar") != null) {
-                check(TopicListParser.parsePagination(doc).first == page) { "源站记录分页未正确切换，请重试" }
+                check(pagination.first == page) { "源站记录分页未正确切换，请重试" }
             }
             responses += response
             doc.select(".pagination-bar a[href], .pagination a[href], a[rel=next][href]").forEach { link ->
@@ -43,8 +46,8 @@ internal class SourceRecordPages(private val client: LsbClient, private val iden
                 if (uri.scheme == "https" && Endpoints.isInternal(uri.host) && uri.path.trimEnd('/') == path &&
                     fields["tab"] == tab && number > 0 && number !in visited) pending[number] = uri.toString()
             }
-            val totalPages = maxOf(TopicListParser.parsePagination(doc).second, page, pending.keys.maxOrNull() ?: page)
-            if (!onPage(response, page, totalPages)) break
+            val totalPages = maxOf(pagination.second, page, pending.keys.maxOrNull() ?: page)
+            if (!onPage(response, doc, page, totalPages)) break
             check(pending.isNotEmpty() || page >= totalPages) { "源站记录分页缺失，请重试" }
         }
         return responses

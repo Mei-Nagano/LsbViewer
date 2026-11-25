@@ -40,8 +40,8 @@ class UserPageViewModel(
         val version = ++requestVersion
         requestJob?.cancel()
         val tab = mutableState.value.tab
-        mutableState.update { it.copy(loading = true, error = null,
-            content = it.content?.copy(loadedPages = 0)) }
+        // 保留已有的旧数据与页数进度：落盘快照/会话缓存会立刻回填，不要先清空再等
+        mutableState.update { it.copy(loading = true, error = null) }
         requestJob = viewModelScope.launch {
             try {
                 repository.loadIncrementally(userId, tab, forceRefresh).collect { content ->

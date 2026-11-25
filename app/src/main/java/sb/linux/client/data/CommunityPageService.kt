@@ -13,7 +13,6 @@ import sb.linux.client.domain.community.NotificationItem
 
 internal class CommunityPageService(
     private val client: LsbClient,
-    private val updateUnread: (Int) -> Unit,
     private val userPages: sb.linux.client.domain.account.UserPageRepository,
 ) : NotificationRepository, IdentityRepository, InviteRepository, LeaderboardRepository, ReportRepository {
     private val reportSubmissionData = mutableMapOf<Pair<Long, String>, ReportFormParseResult>()
@@ -28,11 +27,16 @@ internal class CommunityPageService(
 
     override fun cachedNotifications(userId: Long) = userPages.cached(userId, "notifications")?.notifications
 
-    override suspend fun loadNotifications(userId: Long, forceRefresh: Boolean): List<NotificationItem> {
-        val items = userPages.load(userId, "notifications", forceRefresh).notifications
-        updateUnread(0)
-        return items
-    }
+    override suspend fun loadNotifications(userId: Long, forceRefresh: Boolean): List<NotificationItem> =
+        userPages.load(userId, "notifications", forceRefresh).notifications
+
+    // 未读角标由 UserPageService 在真正拿到源站通知页后清零：只回放本地快照时不能算已读
+    override fun loadNotificationsIncrementally(userId: Long, forceRefresh: Boolean): kotlinx.coroutines.flow.Flow<List<NotificationItem>> =
+        kotlinx.coroutines.flow.flow {
+            userPages.loadIncrementally(userId, "notifications", forceRefresh).collect { content ->
+                emit(content.notifications)
+            }
+        }
 
     override suspend fun loadReport(reportId: Long, type: String): ReportForm {
         val parsed = ReportHtmlParser.parseReport(

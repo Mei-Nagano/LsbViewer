@@ -43,5 +43,7 @@ internal class SessionAccountLifecycleCoordinator(private val session: Session) 
         session.homeBrowse.followingView = sb.linux.client.domain.community.FollowingView.TOPICS
         if (session.homeBrowse.homeCombo == 0 && session.homeBrowse.homeTabIndex >= 4)
             session.homeBrowse.homeTabIndex = 0
+        // 积分明细与通知历史的快照属于上一个身份，换号后不能再被回显
+        session.userPageRepository.clearAll()
     }
 }

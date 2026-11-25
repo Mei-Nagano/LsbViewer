@@ -193,12 +193,20 @@ internal class SessionRepositories(
     internal val favoritesRepository: FavoritesRepository by lazy {
         LocalFavoritesRepository(settings, favoriteSourceService)
     }
-    internal val userPageService by lazy { UserPageService(client) { session.accountIdentityVersion } }
+    internal val userPageService by lazy {
+        UserPageService(
+            client,
+            { session.accountIdentityVersion },
+            sb.linux.client.data.UserRecordCacheStore(session.getApplication<android.app.Application>()),
+            session.viewModelScope,
+            onNotificationsRead = { session.updateNotifUnread(0) },
+        )
+    }
     internal val userPageRepository: UserPageRepository get() = userPageService
     internal val userByNameService by lazy { UserByNameService(client) }
     internal val userLookupRepository: UserLookupRepository get() = userByNameService
     internal val communityPageService by lazy {
-        CommunityPageService(client, session::updateNotifUnread, userPageRepository)
+        CommunityPageService(client, userPageRepository)
     }
     internal val notificationRepository: NotificationRepository get() = communityPageService
     internal val identityRepository: IdentityRepository get() = communityPageService
