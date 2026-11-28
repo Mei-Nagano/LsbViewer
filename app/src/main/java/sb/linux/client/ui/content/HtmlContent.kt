@@ -153,6 +153,17 @@ fun HtmlContent(
                     EmbeddedVideoPlayer(b.embeddedVideo, Modifier.padding(vertical = 4.dp))
                 }
                 b.imageUrls.size > 1 -> ImagePager(b.imageUrls, anchorModifier.padding(vertical = 4.dp)) { viewer = b.imageUrls to it }
+                b.imageUrl != null && b.stickerWidthDp != null -> {
+                    StickerAsyncImage(
+                        url = b.imageUrl,
+                        contentDescription = "表情",
+                        modifier = anchorModifier
+                            .padding(vertical = 4.dp)
+                            .widthIn(max = b.stickerWidthDp.dp)
+                            .heightIn(max = (b.stickerWidthDp * 2).dp)
+                            .clickable { viewer = listOf(b.imageUrl) to 0 },
+                    )
+                }
                 b.imageUrl != null -> {
                     BodyImage(b.imageUrl, anchorModifier.padding(vertical = 4.dp)) { viewer = listOf(b.imageUrl) to 0 }
                 }

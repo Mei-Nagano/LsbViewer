@@ -39,6 +39,7 @@ internal object SourceTopicDocument {
             .put("comments", view.reply.replies.isNotEmpty() || page.loginVisibleReplies >= 0)
             .put("count", page.repliesText.ifBlank { view.reply.replies.size.toString() })
             .put("slotHeight", slotHeight).put("query", ui.topicSearchQuery.takeIf { ui.topicSearchOpen }.orEmpty())
+            .put("canCollectSticker", page.stickerCollect?.enabled == true)
         return "window.lsbContent&&window.lsbContent.update(${options.toString().replace("<", "\\u003c")});"
     }
 

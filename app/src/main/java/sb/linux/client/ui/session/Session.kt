@@ -102,6 +102,8 @@ class Session(app: Application) : AndroidViewModel(app), SessionState by Session
     internal val backupSettingsRepository: BackupSettingsRepository get() = repositories.backupSettingsRepository
 
     internal val privateMessageRepository get() = repositories.privateMessageRepository
+    internal val stickerPackRepository get() = repositories.stickerPackRepository
+    internal val inviteRelayRepository get() = repositories.inviteRelayRepository
     internal val checkinRepository get() = repositories.checkinRepository
     internal val checkinSummaryRepository: CheckinSummaryRepository
         get() = repositories.checkinSummaryRepository

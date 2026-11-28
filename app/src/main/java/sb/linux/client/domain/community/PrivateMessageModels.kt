@@ -6,6 +6,8 @@ data class PmMessage(
     val avatarUrl: String = "",
     val incoming: Boolean,
     val content: String,
+    val contentHtml: String = "",
+    val imageUrl: String = "",
     val timeText: String,
     val ts: Long = 0L,
     val seq: Long = 0L,
@@ -29,6 +31,9 @@ data class DirectMessageThread(
     val messages: List<PmMessage> = emptyList(),
     val canSend: Boolean = true,
     val blockLabel: String = "",
+    val maxLength: Int = 500,
+    val stickerPicker: sb.linux.client.domain.sticker.StickerPickerConfig? = null,
+    val stickerCollect: sb.linux.client.domain.sticker.StickerCollectConfig? = null,
 )
 
 interface PrivateMessageRepository {

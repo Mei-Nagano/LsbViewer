@@ -11,11 +11,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.account.UserGroupBadge
+import sb.linux.client.ui.theme.LocalDarkTheme
 
 /** 源站身份组的日夜调色与胶囊形状；称号继续使用独立的 TitleBadgeView。 */
 @Composable
 internal fun SourceUserGroupBadge(badge: UserGroupBadge, modifier: Modifier = Modifier) {
-    val dark = MaterialTheme.colorScheme.background.let { it.red + it.green + it.blue < 1.5f }
+    val dark = LocalDarkTheme.current
     val colors = when (badge.palette) {
         "ocean" -> if (dark) "#82c8ff" to "#123a59" else "#1769aa" to "#e6f3ff"
         "violet" -> if (dark) "#cbb3ff" to "#382760" else "#7652b8" to "#f0eaff"

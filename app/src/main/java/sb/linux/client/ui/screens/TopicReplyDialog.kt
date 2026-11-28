@@ -47,6 +47,7 @@ fun ReplyDialog(
     previewUrl: String = "", previewCsrf: String = "", previewTopicId: Long = 0,
     editorMedia: sb.linux.client.domain.topic.SourceEditorMedia = sb.linux.client.domain.topic.SourceEditorMedia(),
     maxBodyLength: Int = Int.MAX_VALUE,
+    stickerPicker: sb.linux.client.domain.sticker.StickerPickerConfig? = null,
 ) {
     val context = LocalContext.current
     val draftStore = remember(context) { sb.linux.client.data.SourceReplyDraftStore(context) }
@@ -75,6 +76,7 @@ fun ReplyDialog(
     var expanded by remember { mutableStateOf(false) }
     var previewReply by remember { mutableStateOf(false) }
     var tool by remember { mutableStateOf<String?>(null) }
+    var stickerOpen by remember { mutableStateOf(false) }
     var previewHtml by remember { mutableStateOf("") }
     var previewError by remember { mutableStateOf<String?>(null) }
     var previewLoading by remember { mutableStateOf(false) }
@@ -92,6 +94,23 @@ fun ReplyDialog(
     tool?.let { action ->
         SourceEditorInsertDialog(action, body.text.substring(body.selection.min, body.selection.max), onDismiss = { tool = null },
             onInsert = { body = replaceReplySelection(body, it); tool = null }, onVideo = { tool = null })
+    }
+    val activeStickerPicker = stickerPicker?.takeIf { it.enabled }
+    if (stickerOpen && activeStickerPicker != null) {
+        StickerPickerDialog(
+            session = session,
+            config = activeStickerPicker,
+            onDismiss = { stickerOpen = false },
+            onInsert = { item ->
+                val selectedLen = body.selection.max - body.selection.min
+                if (maxBodyLength < Int.MAX_VALUE && body.text.length - selectedLen + item.markdown.length > maxBodyLength) {
+                    "回复最多 $maxBodyLength 字"
+                } else {
+                    body = replaceReplySelection(body, item.markdown)
+                    null
+                }
+            },
+        )
     }
     val imageUpload = rememberEditorImageUpload(session) { body = insertReplyImage(body, it) }
     val media = rememberEditorMedia(session, editorMedia,
@@ -171,6 +190,7 @@ fun ReplyDialog(
                         onUploadImage = ::chooseImage,
                         imageUploadBusy = imageUploadBusy,
                         onAdvanced = { tool = it },
+                        onSticker = activeStickerPicker?.let { { stickerOpen = true } },
                     )
                     Spacer(Modifier.height(8.dp))
                     if (showToolbar) SourceEditorMediaControls(media, editorMedia, !busy && !imageUpload.uploading)
@@ -243,6 +263,7 @@ fun ReplyDialog(
                 onUploadImage = ::chooseImage,
                 imageUploadBusy = imageUploadBusy,
                 onAdvanced = { tool = it },
+                onSticker = activeStickerPicker?.let { { stickerOpen = true } },
             )
             Spacer(Modifier.height(8.dp))
             if (showToolbar) SourceEditorMediaControls(media, editorMedia, !busy && !imageUpload.uploading)

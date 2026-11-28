@@ -29,6 +29,7 @@ internal fun sourcePageRoute(url: String, accountId: Long): String? {
         "/user_privacy" -> return "userPrivacy"
         "/user_block" -> return "userBlock?url=${encoded(nativeUrl)}"
         "/gacha_profile" -> return "gachaPage?url=${encoded(nativeUrl)}"
+        "/sticker_pack_mine" -> return "stickerManage?url=${encoded(nativeUrl)}"
         "/community_activity" -> return accountPage("活跃度")
         "/identity_center" -> return "identityCenter"
         "/topic_collections" -> return "nodes?url=${encoded(if (query("tab") == "everyone") "/nodes?tab=popular" else "/nodes?tab=mine")}"
@@ -51,6 +52,7 @@ internal fun sourcePageRoute(url: String, accountId: Long): String? {
         }
     }
     if (Regex("/node/[0-9]+").matches(path)) return "nodes?url=${encoded(nativeUrl)}"
+    if (path == "/invite_relay" || path.startsWith("/invite_relay/")) return "inviteRelay?url=${encoded(nativeUrl)}"
     if (path == "/gacha" || path.startsWith("/gacha_")) return "gachaPage?url=${encoded(nativeUrl)}"
     Regex("^/topic_edit/(\\d+)$").find(path)?.let { return "editorPage?url=${encoded(nativeUrl)}&tid=${it.groupValues[1]}" }
     Regex("^/community_activity/\\d+$").takeIf { it.matches(path) }?.let { return accountPage("活跃度") }

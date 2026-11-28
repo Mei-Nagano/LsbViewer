@@ -22,6 +22,7 @@ internal data class ContentBlock(
     val formulaDisplay: Boolean = false,
     val imageUrl: String? = null,
     val imageUrls: List<String> = emptyList(), // 连续多图：合并为一个翻页块
+    val stickerWidthDp: Int? = null,
     val embeddedVideo: EmbeddedVideo? = null,
     val isQuote: Boolean = false,
     val quoteDepth: Int = 0,

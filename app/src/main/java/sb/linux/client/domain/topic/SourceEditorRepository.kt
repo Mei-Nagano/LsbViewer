@@ -7,7 +7,8 @@ data class SourceEditorExtension(val label: String, val toggle: Pair<String, Str
 data class SourceEditorPage(val url: String, val form: AccountForm,
     val extensions: List<SourceEditorExtension>, val mentionUrl: String, val uploadUrl: String,
     val maxUploadBytes: Long, val acceptedFiles: String, val previewUrl: String = "",
-    val videoUrl: String = "", val editorKind: String = "topic", val topicId: String = "0", val remoteImageUrl: String = "") {
+    val videoUrl: String = "", val editorKind: String = "topic", val topicId: String = "0", val remoteImageUrl: String = "",
+    val stickerPicker: sb.linux.client.domain.sticker.StickerPickerConfig? = null) {
     val media: SourceEditorMedia get() = SourceEditorMedia(uploadUrl,
         form.hidden.firstOrNull { it.first == "_csrf" }?.second.orEmpty(), maxUploadBytes, acceptedFiles, remoteImageUrl)
 }

@@ -17,8 +17,9 @@ private data class EditorTool(val icon: ImageVector, val label: String, val befo
 
 @Composable
 fun MarkdownEditorTools(onInsert: (String, String, String) -> Unit, onUpload: () -> Unit, uploading: Boolean = false,
-    onAdvanced: ((String) -> Unit)? = null, topic: Boolean = true) {
+    onAdvanced: ((String) -> Unit)? = null, topic: Boolean = true, onSticker: (() -> Unit)? = null) {
     val tools = listOf(
+        EditorTool(Icons.Filled.SentimentSatisfied, "表情", "").takeIf { onSticker != null },
         EditorTool(Icons.Filled.FormatBold, "粗体", "**", "**", "粗体"),
         EditorTool(Icons.Filled.FormatItalic, "斜体", "*", "*", "斜体"),
         EditorTool(Icons.Filled.FormatStrikethrough, "删除线", "~~", "~~", "删除线"),
@@ -43,7 +44,8 @@ fun MarkdownEditorTools(onInsert: (String, String, String) -> Unit, onUpload: ()
                 Row {
                     row.forEach { tool ->
                         IconButton(onClick = {
-                            if (tool.label == "上传图片") onUpload()
+                            if (tool.label == "表情") onSticker?.invoke()
+                            else if (tool.label == "上传图片") onUpload()
                             else if (onAdvanced != null && tool.label in setOf("链接", "插入图片", "插入视频", "插入公式", "表格", "回复可见")) onAdvanced(tool.label)
                             else onInsert(tool.before, tool.after, tool.placeholder)
                         }, enabled = tool.label != "上传图片" || !uploading) {

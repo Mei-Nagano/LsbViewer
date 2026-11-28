@@ -29,6 +29,7 @@ internal object TopicPageParser {
         val poll = TopicPollParser.parse(d, essencePanel, essenceApplication)
         val treasurePool = TopicSpecialPanelParser.treasure(d)
         val resourceVote = TopicSpecialPanelParser.resource(d)
+        val inviteRelay = InviteRelayHtmlParser.parsePanel(d, fallbackId)
         val forumMove = TopicForumMoveParser.parse(d)
 
         val postElements = d.select("ul.topic-post-list li.post-entry, ul.post-list.topic-post-list li.post-entry")
@@ -116,7 +117,7 @@ internal object TopicPageParser {
                         ".community-lottery-readonly-prize, .community-lottery-prize-row, " +
                         ".red-packet-card, .donate-area, [data-donate-area], .quick-reply-main-action, .virtual-card-box"
                         + ", .topic-poll, .poll-card, form[class*=poll]"
-                        + ", .jubaopen-card, .resource_vote-card"
+                        + ", .jubaopen-card, .resource_vote-card, .invite-relay-panel, [data-invite-relay-panel]"
                         // 淘帖插件会把所属专辑、收录/移除表单插进 post-content；
                         // 应用已有独立淘帖入口和帖子菜单，这些不属于 Markdown 正文。
                         + ", [class*=topic-collection], [data-topic-collection], "
@@ -224,6 +225,7 @@ internal object TopicPageParser {
                 maxUploadBytes = (replyUpload?.attr("data-upload-max-mb")?.toLongOrNull() ?: 20) * 1024 * 1024,
                 acceptedFiles = replyUpload?.selectFirst("input[type=file]")?.attr("accept").orEmpty(),
                 remoteImageUrl = replyFormElement.selectFirst("[data-nb-editor-remote-url]")?.attr("data-nb-editor-remote-url").orEmpty()),
+            stickerPicker = StickerPackHtmlParser.parsePicker(replyFormElement, csrf),
         ) else null
 
         return TopicPageData(
@@ -257,9 +259,11 @@ internal object TopicPageParser {
             essenceReview = essenceReview,
             treasurePool = treasurePool,
             resourceVote = resourceVote,
+            inviteRelay = inviteRelay,
             forumMove = forumMove,
             contentStyles = SourceTopicMarkup.styles(d),
             nodes = nodes,
+            stickerCollect = StickerPackHtmlParser.parseCollect(d),
         )
     }
 

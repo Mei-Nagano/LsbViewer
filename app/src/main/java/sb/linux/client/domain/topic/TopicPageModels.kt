@@ -67,11 +67,13 @@ data class TopicPageData(
     val replyForm: TopicReplyForm? = null,
     val treasurePool: TreasurePoolPanel? = null,
     val resourceVote: ResourceVotePanel? = null,
+    val inviteRelay: InviteRelayPanel? = null,
     val forumMove: TopicForumMove? = null,
     val styledTags: List<SourceTopicTag> = emptyList(),
     val footerPanels: List<sb.linux.client.domain.account.AccountNode.Link> = emptyList(),
     val contentStyles: List<String> = emptyList(),
     val nodes: List<sb.linux.client.domain.community.NodeLink> = emptyList(),
+    val stickerCollect: sb.linux.client.domain.sticker.StickerCollectConfig? = null,
 )
 
 data class TopicForumMove(val note: String, val form: sb.linux.client.domain.account.AccountForm? = null,
@@ -80,7 +82,8 @@ data class TopicForumMove(val note: String, val form: sb.linux.client.domain.acc
 data class TopicReplyForm(val action: String, val fields: Map<String, String>,
     val bodyName: String, val required: Boolean, val maxLength: Int, val mentionUrl: String,
     val submitLabel: String = "发布", val submissionNotice: String = "", val previewUrl: String = "",
-    val media: SourceEditorMedia = SourceEditorMedia())
+    val media: SourceEditorMedia = SourceEditorMedia(),
+    val stickerPicker: sb.linux.client.domain.sticker.StickerPickerConfig? = null)
 
 /** 未申请状态与可用操作均来自源站，不在客户端猜测字数、权限或冷却规则。 */
 data class EssenceApplication(

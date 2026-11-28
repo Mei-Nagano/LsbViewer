@@ -22,7 +22,8 @@ internal fun settingsRowIcon(title: String): ImageVector = with(SettingsIconAsse
         "版块" -> Grid
         "私信" -> Mail
         "侧边栏", "侧边栏双列显示" -> Sidebar
-        "侧边栏展示在线用户", "社区活跃度", "活跃度" -> Groups
+        "侧边栏展示在线用户" -> Groups
+        "社区活跃度", "活跃度" -> Activity
         "屏蔽规则", "用户屏蔽名单", "常用关键词", "自定义屏蔽词", "新屏蔽词", "屏蔽版块" -> Block
         "网络与链接", "源站域名" -> Globe
         "应用代理", "代理类型", "代理主机", "代理端口" -> Shield
@@ -44,13 +45,13 @@ internal fun settingsRowIcon(title: String): ImageVector = with(SettingsIconAsse
         "自定义背景色", "禁止页面染色" -> Palette
         "导航设置", "导航栏", "宽屏列表与详情" -> Layout
         "隐藏状态栏" -> Expand
-        "AI 助手", "总结行为", "开启 AI 总结", "打开帖子自动总结" -> Sparkles
+        "AI 助手", "总结行为", "开启 AI 总结", "打开帖子自动总结", "AI 总结历史" -> Sparkles
         "接口与配置方案", "模型", "获取模型列表" -> Robot
         "API 密钥", "访问令牌（可选）", "密码 / 应用密码" -> Key
         "温度 (0 - 2)" -> Temperature
         "方案名称", "文件字段名", "保存当前配置为方案", "保存代理设置", "保存自定义图床" -> Tune
-        "总结历史", "AI 总结历史", "浏览历史", "浏览历史与阅读位置", "阅读位置" -> History
-        "只显示已收藏的总结", "取消收藏确认", "我的收藏", "本地收藏", "评论收藏", "帖子与评论收藏" -> Bookmark
+        "总结历史", "浏览历史", "浏览历史与阅读位置", "阅读位置" -> History
+        "只显示已收藏的总结", "取消收藏确认", "我的收藏", "本地收藏", "评论收藏", "帖子与评论收藏", "收藏" -> Bookmark
         "发帖与图片上传", "默认上传方式", "图床服务" -> Upload
         "存储与备份", "空间占用", "首页与侧边栏缓存", "帖子与阅读量缓存", "链接预览缓存" -> Storage
         "图片缓存", "帖子与其他图片" -> Image
@@ -59,13 +60,21 @@ internal fun settingsRowIcon(title: String): ImageVector = with(SettingsIconAsse
         "导出设置", "从 WebDAV 恢复", "已导出的帖子" -> Download
         "导入设置" -> Upload
         "自动清理", "退出时自动清理", "立即清理", "清理所选项", "清理所选图片缓存", "移除图片", "删除" -> Trash
-        "应用与账号", "个人资料与账号", "账号", "我的", "资料" -> Accounts
+        "应用与账号", "个人资料与账号", "账号", "我的" -> Accounts
+        "资料" -> ProfileCard
         "头像" -> Profile
         "版本更新", "检查更新时机", "检查间隔（1 - 720 小时）", "立即检查更新" -> Update
         "关于应用", "关于", "开源协议" -> Info
-        "我的内容", "节点", "收藏" -> Folders
+        "我的内容" -> Folders
+        "节点" -> Sitemap
         "附件管理", "附件" -> Attachment
-        "发卡兑换记录", "抽奖奖品记录" -> Gift
+        "表情", "我的表情", "管理我的表情" -> Sticker
+        "邀请", "邀请中心" -> Invite
+        "烧饼", "我的烧饼" -> Shaobing
+        "称号", "我的称号" -> Crown
+        "广告", "我的广告" -> Billboard
+        "发卡兑换记录" -> Ticket
+        "抽奖奖品记录" -> Gift
         "我的隐私", "隐私" -> Shield
         "原站广告" -> Campaign
         "通知" -> Notifications

@@ -182,6 +182,16 @@ class LsbClient(
     suspend fun postMultipart(path: String, fields: Map<String, String>, fileField: String, file: File, mime: String, ajax: Boolean = false): Resp =
         requestExecutor.postMultipart(path, fields, fileField, file, mime, ajax)
 
+    suspend fun postMultipartBytes(
+        path: String,
+        fields: Map<String, String>,
+        fileField: String,
+        fileName: String,
+        bytes: ByteArray,
+        mime: String,
+        ajax: Boolean = false,
+    ): Resp = requestExecutor.postMultipartBytes(path, fields, fileField, fileName, bytes, mime, ajax)
+
     internal suspend fun getAjaxJsonForRepository(path: String): JSONObject = requestExecutor.getAjaxJson(path)
 
     suspend fun getDonateFeed(topicId: Long): List<DanmakuItem> = requestExecutor.getDonateFeed(topicId)

@@ -3,6 +3,82 @@
     const list = document.getElementById('lsb-posts');
     let options = {}, query = '', scheduled = false;
     const saved = new Map();
+    let popover = null, popoverBtn = null, popoverUrl = '', suppressClickUntil = 0, pressTimer = null, pressStart = null;
+    const closePopover = () => {
+        if (popover) { popover.remove(); popover = null; popoverBtn = null; popoverUrl = ''; }
+    };
+    const showStickerPopover = (wrap, img) => {
+        if (!options.canCollectSticker || !isCollectEligible(img)) return;
+        closePopover();
+        const rawUrl = imageSource(img);
+        const alt = (img.alt || img.title || '').trim();
+        const rect = wrap.getBoundingClientRect();
+        const box = document.createElement('div');
+        box.className = 'lsb-sticker-popover';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = '加入我的表情';
+        btn.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn.disabled) return;
+            btn.disabled = true;
+            btn.textContent = '正在添加…';
+            location.href = 'lsb-action://collect-sticker/?url=' + encodeURIComponent(rawUrl) + '&alt=' + encodeURIComponent(alt);
+        });
+        box.append(btn);
+        document.body.append(box);
+        const bw = box.offsetWidth || 120, bh = box.offsetHeight || 36;
+        const vw = document.documentElement.clientWidth || window.innerWidth;
+        const docTop = rect.top + window.scrollY;
+        const docBottom = rect.bottom + window.scrollY;
+        const centerX = Math.max(bw / 2 + 8, Math.min(vw - bw / 2 - 8, rect.left + rect.width / 2));
+        const aboveTop = docTop - bh - 8;
+        const top = aboveTop >= 8 ? aboveTop : docBottom + 8;
+        box.style.left = centerX + 'px';
+        box.style.top = Math.max(8, top) + 'px';
+        popover = box;
+        popoverBtn = btn;
+        popoverUrl = rawUrl;
+    };
+    const clearPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } pressStart = null; };
+    document.addEventListener('touchstart', e => {
+        const wrap = e.target.closest('.lsb-image.is-sticker');
+        if (!wrap || e.touches.length !== 1) {
+            if (!e.target.closest('.lsb-sticker-popover')) closePopover();
+            clearPress();
+            return;
+        }
+        if (!options.canCollectSticker) return;
+        const img = wrap.querySelector('img');
+        if (!img || !isCollectEligible(img)) return;
+        const t = e.touches[0];
+        pressStart = {x: t.clientX, y: t.clientY};
+        clearTimeout(pressTimer);
+        pressTimer = setTimeout(() => {
+            pressTimer = null;
+            suppressClickUntil = Date.now() + 700;
+            showStickerPopover(wrap, img);
+        }, 420);
+    }, {passive: true});
+    document.addEventListener('touchmove', e => {
+        if (!pressStart || !pressTimer || e.touches.length !== 1) return;
+        const t = e.touches[0];
+        if (Math.hypot(t.clientX - pressStart.x, t.clientY - pressStart.y) > 10) clearPress();
+    }, {passive: true});
+    document.addEventListener('touchend', clearPress, {passive: true});
+    document.addEventListener('touchcancel', clearPress, {passive: true});
+    document.addEventListener('contextmenu', e => {
+        const wrap = e.target.closest('.lsb-image.is-sticker');
+        if (!wrap || !options.canCollectSticker) return;
+        const img = wrap.querySelector('img');
+        if (!img || !isCollectEligible(img)) return;
+        e.preventDefault();
+        clearPress();
+        suppressClickUntil = Date.now() + 700;
+        showStickerPopover(wrap, img);
+    });
+    window.addEventListener('scroll', closePopover, {passive: true});
     const notify = () => {
         if (scheduled) return;
         scheduled = true;
@@ -10,6 +86,18 @@
     };
     const resize = new ResizeObserver(notify);
     resize.observe(list);
+    const isStickerImg = img => /\/app\/upload\/sticker_pack\//i.test(img.getAttribute('src') || img.src || '');
+    const isRasterUrl = source => !!source && !/(?:^data:image\/svg\+xml|\.svg(?:$|[?#]))/i.test(source)
+        && /\.(?:avif|bmp|gif|jpe?g|png|webp)(?:$|[?#])/i.test(source);
+    const imageSource = img => {
+        const linked = img.closest('a[href]')?.href || '';
+        return isRasterUrl(linked) ? linked : (img.currentSrc || img.src || '');
+    };
+    const isCollectEligible = img => {
+        if (img.closest('.post-avatar,.avatar-profile-link') || img.matches('.avatar-img,.emoji,.emoticon')) return false;
+        const src = imageSource(img);
+        return !/\/(?:avatar|avatar_upload)(?:[\/_-]|$)/i.test(src) && isRasterUrl(src);
+    };
     const prep = root => {
         root.querySelectorAll('[data-nb-editor-math]').forEach(el => {
             if (!window.katex) return;
@@ -19,9 +107,11 @@
         });
         root.querySelectorAll('pre code').forEach(el => { if (window.hljs) hljs.highlightElement(el); });
         root.querySelectorAll('[data-body] img').forEach(img => {
+            const sticker = isStickerImg(img);
             const wrap = document.createElement('span');
-            wrap.className = 'lsb-image is-loading'; img.replaceWith(wrap); wrap.append(img);
-            img.classList.add('image-lightbox-clickable');
+            wrap.className = sticker ? 'lsb-image is-sticker is-loading' : 'lsb-image is-loading';
+            img.replaceWith(wrap); wrap.append(img);
+            if (!sticker) img.classList.add('image-lightbox-clickable');
             img.loading = 'eager';
             const done = () => {wrap.classList.remove('is-loading', 'is-error'); notify();};
             const fail = () => {wrap.classList.remove('is-loading'); wrap.classList.add('is-error'); notify();};
@@ -92,14 +182,34 @@
         highlightPost(id) {
             list.querySelectorAll('.lsb-floor-highlight').forEach(el=>el.classList.remove('lsb-floor-highlight'));
             const el=list.querySelector(`[data-post-id="${id}"]`);if(el){el.classList.add('lsb-floor-highlight');setTimeout(()=>el.classList.remove('lsb-floor-highlight'),1800);}
+        },
+        stickerCollectResult(url, ok) {
+            if (!popover || !popoverBtn || popoverUrl !== url) return;
+            if (ok) {
+                popoverBtn.textContent = '已加入我的表情';
+                popoverBtn.disabled = true;
+                setTimeout(closePopover, 800);
+            } else {
+                popoverBtn.textContent = '加入我的表情';
+                popoverBtn.disabled = false;
+            }
         }
     };
     document.addEventListener('click',event=>{
+        if (event.target.closest('.lsb-sticker-popover')) return;
+        if (Date.now() < suppressClickUntil) { event.preventDefault(); return; }
+        if (popover) closePopover();
         const image=event.target.closest('.lsb-image');
         if(image){
             event.preventDefault();const img=image.querySelector('img');
-            if(image.classList.contains('is-error')){image.className='lsb-image is-loading';const src=img.src;img.removeAttribute('src');img.src=src;return;}
-            location.href='lsb-action://image/?url='+encodeURIComponent(img.currentSrc || img.src);return;
+            if(image.classList.contains('is-error')){
+                image.className=image.classList.contains('is-sticker')?'lsb-image is-sticker is-loading':'lsb-image is-loading';
+                const src=img.src;img.removeAttribute('src');img.src=src;return;
+            }
+            const rawUrl=imageSource(img);
+            const alt=(img.alt || img.title || '').trim();
+            const eligible=isCollectEligible(img)?'1':'0';
+            location.href='lsb-action://image/?url='+encodeURIComponent(rawUrl)+'&alt='+encodeURIComponent(alt)+'&eligible='+eligible;return;
         }
         const link=event.target.closest('a[href]');
         if(link){

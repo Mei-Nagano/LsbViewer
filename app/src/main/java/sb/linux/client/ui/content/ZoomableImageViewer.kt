@@ -81,15 +81,12 @@ internal fun ZoomableImage(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // 无位图时回退网络 URL 直载
-            AsyncImage(
-                model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(url)
-                    .crossfade(true)
-                    .build(),
+            // 无位图时回退网络 URL 直载（支持 GIF / 动态 WebP 播放）
+            StickerAsyncImage(
+                url = url,
                 contentDescription = "放大图片",
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }

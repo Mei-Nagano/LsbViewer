@@ -15,6 +15,7 @@ import sb.linux.client.common.network.Endpoints
 import sb.linux.client.domain.topic.PostEntry
 import sb.linux.client.domain.topic.TopicPageData
 import sb.linux.client.ui.LocalLinkHandler
+import sb.linux.client.ui.content.ViewerImage
 import sb.linux.client.ui.content.ZoomImageViewer
 import sb.linux.client.ui.patterns.user.UserSummaryContent
 import sb.linux.client.ui.session.Session
@@ -27,9 +28,11 @@ internal fun SourceTopicContent(page: TopicPageData, session: Session, nav: NavH
     actions: TopicScreenActions) {
     val scope = rememberCoroutineScope()
     val linkHandler = LocalLinkHandler.current
-    var image by remember(page.topicId) { mutableStateOf<String?>(null) }
+    var image by remember(page.topicId) { mutableStateOf<ViewerImage?>(null) }
     var user by remember(page.topicId, session.avatarInfoCardEnabled) { mutableStateOf<Long?>(null) }
     var sourceActions by remember(page.topicId) { mutableStateOf<PostEntry?>(null) }
+    var displayedInviteRelay by remember(page) { mutableStateOf(page.inviteRelay) }
+    var inviteRelayDialogUrl by remember(page.topicId) { mutableStateOf<String?>(null) }
     fun scroll(top: Float) {
         scope.launch { listState.animateScrollToItem(topicMainItemIndex(page), top.toInt().coerceAtLeast(0)) }
     }
@@ -42,7 +45,30 @@ internal fun SourceTopicContent(page: TopicPageData, session: Session, nav: NavH
             val id = uri.lastPathSegment?.toLongOrNull()
             val post = page.posts.firstOrNull { it.id == id }
             when (uri.host) {
-                "image" -> uri.getQueryParameter("url")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }?.let { image = it }
+                "image" -> uri.getQueryParameter("url")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }?.let { url ->
+                    val eligible = uri.getQueryParameter("eligible") == "1" &&
+                        sb.linux.client.data.StickerPackHtmlParser.isCollectableImageUrl(url)
+                    image = ViewerImage(
+                        url = url,
+                        caption = uri.getQueryParameter("alt").orEmpty().trim(),
+                        collectable = eligible,
+                    )
+                }
+                "collect-sticker" -> {
+                    val url = uri.getQueryParameter("url")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+                    val alt = uri.getQueryParameter("alt").orEmpty().trim()
+                    val collectConfig = page.stickerCollect?.takeIf { it.enabled }
+                    if (url != null && collectConfig != null) {
+                        scope.launch {
+                            val result = session.stickerPackRepository.collectImage(collectConfig, url, alt)
+                            session.showToast(result.message)
+                            ui.sourceBrowser?.evaluateJavascript(
+                                "window.lsbContent&&window.lsbContent.stickerCollectResult(${org.json.JSONObject.quote(url)},${result.ok})",
+                                null,
+                            )
+                        }
+                    }
+                }
                 "anchor" -> uri.getQueryParameter("top")?.toFloatOrNull()?.let { scroll(it * ui.sourceGeometry.pixelsPerCss) }
                 "user" -> id?.takeIf { it > 0 }?.let {
                     if (session.avatarInfoCardEnabled) user = it else nav.navigate("user/$it")
@@ -72,6 +98,15 @@ internal fun SourceTopicContent(page: TopicPageData, session: Session, nav: NavH
         Column {
             page.redPacket?.let { RedPacketCard(it) }
             page.treasurePool?.let { TreasurePoolCard(it) }
+            displayedInviteRelay?.let { relay ->
+                InviteRelayCard(
+                    panel = relay,
+                    loggedIn = session.account.loginState.loggedIn,
+                    onLogin = { nav.navigate("login") },
+                    onOpenDialog = { url -> inviteRelayDialogUrl = url },
+                    onOpenLink = { url -> linkHandler?.invoke(Endpoints.abs(url)) },
+                )
+            }
             if (page.poll != null || page.essenceReview != null || page.essenceApplication != null || page.resourceVote != null || page.footerPanels.isNotEmpty()) {
                 TopicInteractivePanels(page, session, actions, ui, onLogin = { nav.navigate("login") },
                     onRefresh = { actions.load(page.page, force = true) })
@@ -79,7 +114,28 @@ internal fun SourceTopicContent(page: TopicPageData, session: Session, nav: NavH
             if (ui.danmakuLocalOn && ui.danmaku.isNotEmpty()) DanmakuBar(ui.danmaku)
         }
     }
-    image?.let { ZoomImageViewer(listOf(it), 0) { image = null } }
+    inviteRelayDialogUrl?.let { url ->
+        InviteRelayDialog(
+            session = session,
+            initialUrl = url,
+            onDismiss = { inviteRelayDialogUrl = null },
+            onPanelUpdated = { updated ->
+                displayedInviteRelay = updated
+                session.topicPageCacheRepository.clearTopic(page.topicId)
+            },
+        )
+    }
+    image?.let { target ->
+        val collectConfig = page.stickerCollect?.takeIf { it.enabled }
+        ZoomImageViewer(
+            images = listOf(target),
+            initialIndex = 0,
+            onCollectSticker = collectConfig?.let { config ->
+                { item -> session.stickerPackRepository.collectImage(config, item.url, item.caption) }
+            },
+            onDismiss = { image = null },
+        )
+    }
     user?.let { id -> Dialog(onDismissRequest = { user = null }) {
         Surface(shape = MaterialTheme.shapes.extraLarge) {
             UserSummaryContent(id, session.userSummaryRepository, { user = null }) { raw ->

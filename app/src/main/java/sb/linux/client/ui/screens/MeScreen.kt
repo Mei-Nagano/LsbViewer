@@ -133,6 +133,7 @@ internal fun meAccountCategories(userId: Long) = listOf(
     SettingsCategory("签名", "管理个人签名", "personalSignature", settingsRowIcon("签名")),
     SettingsCategory("活跃度", "查看个人社区活跃度", "communityActivity", settingsRowIcon("活跃度")),
     SettingsCategory("附件", "管理我的附件", "attachments", settingsRowIcon("附件")),
+    SettingsCategory("表情", "管理我的表情", "stickerManage", settingsRowIcon("表情")),
     SettingsCategory("资料", "在应用内打开个人资料", "settings", settingsRowIcon("资料")),
     SettingsCategory("邀请", "打开邀请中心", "inviteCenter", settingsRowIcon("邀请")),
     SettingsCategory("烧饼", "打开我的烧饼", "communityWallet", settingsRowIcon("烧饼")),

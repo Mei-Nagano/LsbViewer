@@ -28,6 +28,9 @@ import com.materialkolor.rememberDynamicColorScheme
 /** 全局表面不透明度（背景图模式下由设置决定，其余为 1f）。 */
 val LocalSurfaceOpacity = androidx.compose.runtime.staticCompositionLocalOf { 1f }
 
+/** 当前是否为深色模式（与壁纸透明背景或自定义背景色无关）。 */
+val LocalDarkTheme = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 /**
  * 主题入口：颜色、字阶、形状与产品角色只在根部解析一次。
  *
@@ -154,6 +157,7 @@ fun LsbTheme(
             LocalDensity provides contentDensity,
             LocalTonalElevationEnabled provides false,
             LocalSurfaceOpacity provides if (wallpaper == null) 1f else surfaceOpacity,
+            LocalDarkTheme provides darkTheme,
             LocalAppSpacing provides appSpacing,
             LocalAppSizes provides appSizes,
             LocalReadingType provides readingType,

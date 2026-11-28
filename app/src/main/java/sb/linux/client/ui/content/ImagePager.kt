@@ -2,21 +2,29 @@ package sb.linux.client.ui.content
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextOverflow
+import sb.linux.client.domain.sticker.StickerCollectResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -90,17 +98,49 @@ internal fun ImagePager(urls: List<String>, modifier: Modifier = Modifier, onCli
     }
 }
 
+internal data class ViewerImage(
+    val url: String,
+    val caption: String = "",
+    val collectable: Boolean = false,
+)
+
 /**
- * 全屏图片查看器：黑底，可左右翻页、双指缩放、单击关闭、双击放大、长按保存到本地。
+ * 全屏图片查看器：黑底，可左右翻页、双指缩放、单击关闭、双击放大、长按保存到本地，
+ * 并在源站允许时提供「添加到我的表情」。
  */
 @Composable
 internal fun ZoomImageViewer(urls: List<String>, initialIndex: Int, onDismiss: () -> Unit) {
-    val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = initialIndex) { urls.size }
+    ZoomImageViewer(
+        images = urls.map { ViewerImage(it) },
+        initialIndex = initialIndex,
+        onCollectSticker = null,
+        onDismiss = onDismiss,
+    )
+}
+
+@Composable
+internal fun ZoomImageViewer(
+    images: List<ViewerImage>,
+    initialIndex: Int,
+    onCollectSticker: (suspend (ViewerImage) -> StickerCollectResult)? = null,
+    onDismiss: () -> Unit,
+) {
+    if (images.isEmpty()) return
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+        initialPage = initialIndex.coerceIn(0, images.lastIndex),
+    ) { images.size }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     // 长按图片 → 保存确认弹窗
     var saveTarget by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var collecting by remember { mutableStateOf(false) }
+    var collectStatus by remember { mutableStateOf<String?>(null) }
+    val collectedUrls = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+    val currentImage = images[pagerState.currentPage]
+    LaunchedEffect(pagerState.currentPage) {
+        collectStatus = null
+    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -115,7 +155,7 @@ internal fun ZoomImageViewer(urls: List<String>, initialIndex: Int, onDismiss: (
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
-                ZoomableImage(urls[page], onSingleTap = onDismiss, onLongPress = { saveTarget = urls[page] })
+                ZoomableImage(images[page].url, onSingleTap = onDismiss, onLongPress = { saveTarget = images[page].url })
             }
             // 顶部关闭按钮
             Surface(
@@ -129,21 +169,84 @@ internal fun ZoomImageViewer(urls: List<String>, initialIndex: Int, onDismiss: (
                     Icon(Icons.Filled.Close, "关闭", tint = Color.White)
                 }
             }
-            // 底部页码
-            if (urls.size > 1) {
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f),
+            val showCollect = onCollectSticker != null && currentImage.collectable
+            val showFooter = images.size > 1 || currentImage.caption.isNotBlank() || showCollect
+            if (showFooter) {
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(16.dp)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        "${pagerState.currentPage + 1} / ${urls.size}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
+                    if (currentImage.caption.isNotBlank()) {
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f),
+                        ) {
+                            Text(
+                                currentImage.caption,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 320.dp).padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                    if (showCollect) {
+                        val alreadyCollected = collectedUrls[currentImage.url] == true
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            FilledTonalButton(
+                                enabled = !collecting && !alreadyCollected,
+                                onClick = {
+                                    val target = currentImage
+                                    collecting = true
+                                    collectStatus = "正在添加…"
+                                    scope.launch {
+                                        val result = onCollectSticker(target)
+                                        if (images.getOrNull(pagerState.currentPage)?.url == target.url) {
+                                            collecting = false
+                                            if (result.ok) collectedUrls[target.url] = true
+                                            collectStatus = result.message
+                                        }
+                                    }
+                                },
+                            ) {
+                                Text(if (alreadyCollected) "已添加到我的表情" else "添加到我的表情")
+                            }
+                            collectStatus?.let { msg ->
+                                Surface(
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.7f),
+                                ) {
+                                    Text(
+                                        msg,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Color.White,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (images.size > 1) {
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f),
+                        ) {
+                            Text(
+                                "${pagerState.currentPage + 1} / ${images.size}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
             // 长按图片保存确认弹窗

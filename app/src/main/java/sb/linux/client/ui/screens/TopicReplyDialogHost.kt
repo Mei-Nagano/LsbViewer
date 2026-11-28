@@ -32,6 +32,7 @@ internal fun TopicReplyDialogHost(
             previewUrl = page?.replyForm?.previewUrl.orEmpty(), previewCsrf = page?.csrf.orEmpty(), previewTopicId = topicId,
             editorMedia = page?.replyForm?.media ?: sb.linux.client.domain.topic.SourceEditorMedia(),
             maxBodyLength = page?.replyForm?.maxLength ?: Int.MAX_VALUE,
+            stickerPicker = page?.replyForm?.stickerPicker,
             captcha = activeCaptcha,
             onRefreshCaptcha = {
                 viewModel.refreshCaptcha(topicId, page?.page ?: 1) { result ->

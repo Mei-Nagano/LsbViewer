@@ -21,11 +21,13 @@ import sb.linux.client.ui.session.Session
 
 @Composable
 internal fun SourceBodyField(session: Session, page: SourceEditorPage, text: String,
-    onChange: (String) -> Unit, enabled: Boolean, onBusy: (Boolean) -> Unit, onSubmit: () -> Unit = {}) {
+    onChange: (String) -> Unit, enabled: Boolean, onBusy: (Boolean) -> Unit, onSubmit: () -> Unit = {},
+    stickerPicker: sb.linux.client.domain.sticker.StickerPickerConfig? = page.stickerPicker) {
     var body by rememberSaveable(page.url, session.accountIdentityVersion, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue(text)) }
     var preview by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var tool by remember { mutableStateOf<String?>(null) }
+    var stickerOpen by remember { mutableStateOf(false) }
     var previewHtml by remember { mutableStateOf("") }
     var previewError by remember { mutableStateOf<String?>(null) }
     var previewLoading by remember { mutableStateOf(false) }
@@ -64,7 +66,8 @@ internal fun SourceBodyField(session: Session, page: SourceEditorPage, text: Str
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (enabled && !uploadBusy) MarkdownEditorTools(
                 onInsert = { before, after, placeholder -> update(applySourceEditorMarkup(body, before, after, placeholder)) },
-                onUpload = imageUpload.choose, onAdvanced = { tool = it })
+                onUpload = imageUpload.choose, onAdvanced = { tool = it },
+                onSticker = stickerPicker?.takeIf { it.enabled }?.let { { stickerOpen = true } })
             Row {
                 TextButton(onClick = { preview = !preview }, enabled = page.previewUrl.isNotBlank()) { Text(if (preview) "关闭预览" else "实时预览") }
                 TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "收起" else "全屏") }
@@ -89,6 +92,22 @@ internal fun SourceBodyField(session: Session, page: SourceEditorPage, text: Str
             Column(Modifier.fillMaxSize().imePadding().systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)) { editorContent() }
         }
     } else editorContent()
+    if (stickerOpen) {
+        val activePicker = stickerPicker?.takeIf { it.enabled }
+        if (activePicker != null) {
+            StickerPickerDialog(
+                session = session,
+                config = activePicker,
+                onDismiss = { stickerOpen = false },
+                onInsert = { item ->
+                    update(replaceReplySelection(body, item.markdown))
+                    null
+                },
+            )
+        } else {
+            stickerOpen = false
+        }
+    }
     tool?.let { action ->
         SourceEditorInsertDialog(action, body.text.substring(body.selection.min, body.selection.max), onDismiss = { tool = null },
             onInsert = { update(replaceReplySelection(body, it)); tool = null }, onVideo = { share ->

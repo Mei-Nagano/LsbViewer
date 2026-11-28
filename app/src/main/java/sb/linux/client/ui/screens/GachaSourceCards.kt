@@ -12,23 +12,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sb.linux.client.domain.account.AccountNode
 import sb.linux.client.domain.topic.TitleBadge
 import sb.linux.client.ui.theme.LocalAppSpacing
+import sb.linux.client.ui.theme.LocalDarkTheme
 import sb.linux.client.ui.theme.sourceTitleColor
+import sb.linux.client.ui.theme.sourceTitleSurface
 import sb.linux.client.ui.titleRarityColor
 
-/** 主信息为称号与操作；描述、数量、日期次之，颜色读取源站日夜变量和 M3 表面。 */
+/** 主信息为称号与操作；描述、数量、日期次之，颜色读取源站日夜变量，不跟随应用动态主题色。 */
 @Composable
 internal fun GachaSourceBadge(title: TitleBadge) {
     val colors = gachaBadgeColors(title)
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val dark = LocalDarkTheme.current
     val border = sourceTitleColor(title, if (dark) "dark-border" else "border", colors.first, dark)
-    val serialBg = if (title.rarity.startsWith("UR")) sourceTitleColor(title,
-        if (dark) "dark-serial-bg" else "serial-bg", colors.first, dark) else colors.first
+    val serialBg = (if (title.rarity.startsWith("UR")) sourceTitleColor(title,
+        if (dark) "dark-serial-bg" else "serial-bg", colors.first, dark) else colors.first)
+        .compositeOver(colors.second)
     Surface(shape = RoundedCornerShape(6.dp), color = colors.second, border = BorderStroke(1.dp, border)) {
         Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -36,7 +38,7 @@ internal fun GachaSourceBadge(title: TitleBadge) {
             Text(title.name, color = colors.first, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f, false))
             val serial = title.serial.ifBlank { title.rarity }
             Surface(color = serialBg, shape = RoundedCornerShape(4.dp)) {
-                Text(serial, Modifier.padding(horizontal = 4.dp), color = if (title.rarity.startsWith("UR")) colors.first else Color.White,
+                Text(serial, Modifier.padding(horizontal = 4.dp), color = if (title.rarity.startsWith("UR") && !dark) colors.first else Color.White,
                     style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             }
         }
@@ -45,18 +47,18 @@ internal fun GachaSourceBadge(title: TitleBadge) {
 
 @Composable
 private fun gachaBadgeColors(title: TitleBadge): Pair<Color, Color> {
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val dark = LocalDarkTheme.current
     val fallback = titleRarityColor(title.rarity, dark).first
     val fg = sourceTitleColor(title, if (dark) "dark-color" else "color", fallback, dark)
     val bg = sourceTitleColor(title, if (dark) "dark-bg" else "bg", fg.copy(alpha = 0.12f), dark)
-        .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+        .compositeOver(sourceTitleSurface(dark))
     return fg to bg
 }
 
 @Composable
 internal fun GachaSourceRarityStat(stat: AccountNode.RarityStat) {
     val colors = gachaBadgeColors(TitleBadge(name = stat.rarity, rarity = stat.rarity, sourceStyle = stat.style))
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val dark = LocalDarkTheme.current
     val border = sourceTitleColor(TitleBadge(name = stat.rarity, sourceStyle = stat.style), if (dark) "dark-border" else "border", colors.first, dark)
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = colors.second,
         border = BorderStroke(1.dp, border)) {

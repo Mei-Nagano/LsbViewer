@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -44,8 +43,9 @@ internal fun SourceTopicWebView(page: TopicPageData, view: TopicScreenViewState,
         "--lsb-panel:${css(colors.surface)};--lsb-bg:${css(colors.surfaceContainerLow)};--lsb-line:${css(colors.outlineVariant)};" +
         "--lsb-accent:${css(colors.primary)};--lsb-accent-soft:${css(colors.primaryContainer)};" +
         "--lsb-on-accent-soft:${css(colors.onPrimaryContainer)};--lsb-screen-height:${screenHeight}px;"
-    val shell = remember(page.contentStyles, theme) {
-        SourceTopicDocument.shell(page.contentStyles, colors.surface.luminance() < 0.5f, theme)
+    val dark = sb.linux.client.ui.theme.LocalDarkTheme.current
+    val shell = remember(page.contentStyles, dark, theme) {
+        SourceTopicDocument.shell(page.contentStyles, dark, theme)
     }
     val geometry = ui.sourceGeometry
     val allHiddenState = LocalAllSignaturesHidden.current
@@ -88,7 +88,12 @@ internal fun SourceTopicWebView(page: TopicPageData, view: TopicScreenViewState,
                 ui.bodyHeight = position.bodyHeight
             } }
         }) {
-        AndroidView(modifier = Modifier.fillMaxWidth().height(with(density) { geometry.height.toDp() }.coerceAtLeast(1.dp)),
+        AndroidView(modifier = Modifier.fillMaxWidth().height(with(density) { geometry.height.toDp() }.coerceAtLeast(1.dp))
+            .onSizeChanged { size ->
+                if (size.width > 0 && ui.sourceReady && !geometry.ready) {
+                    browser?.let { web -> web.post { collectMetrics(web) } }
+                }
+            },
             factory = { context ->
                 val retained = ui.sourceBrowser ?: SourceContentWebView(
                     android.content.MutableContextWrapper(context.applicationContext),

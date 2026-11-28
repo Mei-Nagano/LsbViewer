@@ -177,6 +177,12 @@ internal class SessionRepositories(
     }
     internal val privateMessageService by lazy { PrivateMessageService(client) }
     internal val privateMessageRepository: PrivateMessageRepository get() = privateMessageService
+    internal val stickerPackRepository: sb.linux.client.domain.sticker.StickerPackRepository by lazy {
+        sb.linux.client.data.StickerPackService(session.getApplication(), client)
+    }
+    internal val inviteRelayRepository: sb.linux.client.domain.topic.InviteRelayRepository by lazy {
+        sb.linux.client.data.InviteRelayService(client)
+    }
     internal val checkinRepository: CheckinRepository by lazy {
         CheckinPageService(client, session::applyCheckinInfoPublic)
     }

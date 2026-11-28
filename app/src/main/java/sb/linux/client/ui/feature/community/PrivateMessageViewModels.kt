@@ -65,6 +65,9 @@ data class ChatUiState(
     val canSend: Boolean = false,
     val blockLabel: String = "",
     val blocking: Boolean = false,
+    val maxLength: Int = 500,
+    val stickerPicker: sb.linux.client.domain.sticker.StickerPickerConfig? = null,
+    val stickerCollect: sb.linux.client.domain.sticker.StickerCollectConfig? = null,
 )
 
 class ChatViewModel(
@@ -100,6 +103,9 @@ class ChatViewModel(
                         messages = thread.messages,
                         canSend = thread.canSend,
                         blockLabel = thread.blockLabel,
+                        maxLength = thread.maxLength,
+                        stickerPicker = thread.stickerPicker,
+                        stickerCollect = thread.stickerCollect,
                         loading = false,
                     )
                 }
@@ -130,7 +136,7 @@ class ChatViewModel(
         val current = mutableState.value
         val body = current.draft.trim()
         if (body.isBlank() || partnerId <= 0 || current.sending || !current.canSend) return
-        if (body.codePointCount(0, body.length) > 500) { showToast("私信最多 500 字"); return }
+        if (body.codePointCount(0, body.length) > current.maxLength) { showToast("私信最多 ${current.maxLength} 字"); return }
         mutableState.update { it.copy(sending = true) }
         viewModelScope.launch {
             try {

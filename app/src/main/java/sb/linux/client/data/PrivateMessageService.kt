@@ -41,12 +41,14 @@ internal class PrivateMessageService(private val client: LsbClient) : PrivateMes
     }
 
     override suspend fun sendMessage(partnerId: Long, body: String): String? {
-        require(partnerId > 0 && body.isNotBlank() && body.codePointCount(0, body.length) <= 500) { "私信需要 1–500 字" }
+        require(partnerId > 0 && body.isNotBlank()) { "请填写私信内容" }
         val page = client.get("/direct_messages/$partnerId")
         check(!page.url.contains("login")) { "登录已失效" }
         val document = SourceHtmlSupport.sourceDocument(page.html)
         val form = document.select("form").firstOrNull { it.selectFirst("textarea[name=content]") != null }
             ?: error("原站当前不允许发送私信")
+        val maxLength = form.selectFirst("textarea[name=content]")?.attr("maxlength")?.toIntOrNull()?.takeIf { it > 0 } ?: 500
+        check(body.codePointCount(0, body.length) <= maxLength) { "私信最多 $maxLength 字" }
         val fields = form.select("input[type=hidden][name]").associate { it.attr("name") to it.attr("value") }.toMutableMap()
         check(!fields["_csrf"].isNullOrBlank()) { "发送表单已失效，请刷新重试" }
         fields["content"] = body

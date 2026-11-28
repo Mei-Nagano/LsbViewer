@@ -16,7 +16,8 @@ internal fun parseHtmlToBlocks(html: String, linkColor: Color, codeBg: Color, me
     val merged = mutableListOf<ContentBlock>()
     blocks.forEach { block ->
         val last = merged.lastOrNull()
-        if (mergeImages && block.imageUrl != null && last?.imageUrl != null &&
+        if (mergeImages && block.imageUrl != null && block.stickerWidthDp == null &&
+            last?.imageUrl != null && last.stickerWidthDp == null &&
             last.foldPath == block.foldPath && last.isQuote == block.isQuote && last.indent == block.indent) {
             merged[merged.lastIndex] = last.copy(imageUrls = last.imageUrls + block.imageUrl)
         } else merged += if (block.imageUrl != null) block.copy(imageUrls = listOf(block.imageUrl)) else block
@@ -72,7 +73,13 @@ private class HtmlBlockCollector(private val linkColor: Color, private val codeB
         }
         when (tag) {
             "pre", "hr" -> renderTopicBlock(element, linkColor, codeBg)?.let(blocks::add)
-            "img" -> blocks += ContentBlock(imageUrl = abs(element), anchorIds = anchorIds(element))
+            "img" -> {
+                val url = abs(element)
+                val stickerWidth = if (sb.linux.client.data.StickerPackHtmlParser.isStickerImageUrl(url)) {
+                    element.attr("width").toIntOrNull()?.coerceIn(24, 240) ?: 64
+                } else null
+                blocks += ContentBlock(imageUrl = url, stickerWidthDp = stickerWidth, anchorIds = anchorIds(element))
+            }
             "iframe" -> parseEmbeddedVideo(element)?.let { blocks += ContentBlock(embeddedVideo = it) }
             "table" -> parseTopicTable(element, linkColor, codeBg).takeIf { it.isNotEmpty() }
                 ?.let { blocks += ContentBlock(tableRows = it, anchorIds = anchorIds(element)) }

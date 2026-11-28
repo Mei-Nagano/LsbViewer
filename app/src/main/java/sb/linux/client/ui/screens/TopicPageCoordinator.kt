@@ -37,13 +37,15 @@ internal class TopicPageCoordinator(
 
     fun restoreCachedPages(maxPage: Int): TopicPageData? = runCatching {
         val pages = (state.loadedStartPage.value..maxPage).map { pageCache.get(topicId, it) ?: return null }
-        pages.drop(1).fold(pages.first()) { combined, page ->
-            combined.copy(
-                posts = (combined.posts + page.posts).distinctBy { it.id },
+        val combined = pages.drop(1).fold(pages.first()) { acc, page ->
+            acc.copy(
+                posts = (acc.posts + page.posts).distinctBy { it.id },
                 page = page.page,
                 totalPages = page.totalPages,
             )
         }
+        if (combined.posts.any { it.floor == 0 }) combined
+        else pageCache.get(topicId, 1)?.let { mergeMainPage(it, combined) } ?: combined
     }.getOrNull()
 
     fun commentsPerPage(): Int = browseSettings.current().commentsPerPage.coerceAtLeast(1)
@@ -66,12 +68,14 @@ internal class TopicPageCoordinator(
 
     fun loadFloor(floor: Int, replyId: Long = 0, onComplete: (Result<TopicFloorPage>) -> Unit) =
         runRequest({
-            floorPages.load(topicId, floor, replyId).also { loaded ->
-                pageCache.save(topicId, loaded.pageNumber, loaded.page)
-                recordTopicVisit(loaded.page)
-                redemptions.record(topicId, loaded.page.title, loaded.page.virtualCard)
-                loaded.page.viewsText.toIntOrNull()?.let { topicViews.save(topicId, it) }
-            }
+            val raw = floorPages.load(topicId, floor, replyId)
+            pageCache.save(topicId, raw.pageNumber, raw.page)
+            val withMain = ensureMainPost(raw.page)
+            val loaded = raw.copy(page = withMain)
+            recordTopicVisit(withMain)
+            redemptions.record(topicId, withMain.title, withMain.virtualCard)
+            withMain.viewsText.toIntOrNull()?.let { topicViews.save(topicId, it) }
+            loaded
         }, onComplete)
 
     fun loadThread(
@@ -98,7 +102,7 @@ internal class TopicPageCoordinator(
                         }
                     }
                 } else emptyList()
-                state.page.value = if (append && current != null) current.copy(
+                val resolved = if (append && current != null) current.copy(
                     posts = (current.posts + missing + loaded.posts).groupBy { it.id }.values.map { copies ->
                         copies.last().copy(pinned = copies.any { it.pinned })
                     },
@@ -108,19 +112,22 @@ internal class TopicPageCoordinator(
                     replyForm = loaded.replyForm,
                     treasurePool = loaded.treasurePool ?: current.treasurePool,
                     resourceVote = loaded.resourceVote ?: current.resourceVote,
-                ) else loaded
-                if (!append) redemptions.record(topicId, loaded.title, loaded.virtualCard)
+                    inviteRelay = loaded.inviteRelay ?: current.inviteRelay,
+                    stickerCollect = loaded.stickerCollect ?: current.stickerCollect,
+                ) else ensureMainPost(loaded)
+                state.page.value = resolved
+                if (!append) redemptions.record(topicId, resolved.title, resolved.virtualCard)
                 state.loadedMaxPage.value = if (append) {
-                    maxOf(state.loadedMaxPage.value, loaded.page.coerceAtLeast(1))
-                } else loaded.page.coerceAtLeast(1)
+                    maxOf(state.loadedMaxPage.value, resolved.page.coerceAtLeast(1))
+                } else resolved.page.coerceAtLeast(1)
                 if (!append) {
-                    state.loadedStartPage.value = loaded.page.coerceAtLeast(1)
+                    state.loadedStartPage.value = resolved.page.coerceAtLeast(1)
                     state.localReplyPage.value = 1
                     state.reverseStalledAtPage.value = 0
                     state.allSearchPagesLoaded.value = false
                 }
-                if (!append) loaded.viewsText.toIntOrNull()?.let { topicViews.save(topicId, it) }
-                if (!append) recordTopicVisit(loaded)
+                if (!append) resolved.viewsText.toIntOrNull()?.let { topicViews.save(topicId, it) }
+                if (!append) recordTopicVisit(resolved)
             } catch (error: Exception) {
                 if (!append) state.error.value = error.message ?: "加载失败"
                 if (append || state.page.value != null) showToast(error.message ?: "加载失败")
@@ -204,6 +211,41 @@ internal class TopicPageCoordinator(
                 state.loadingMore.value = false
             }
         }
+    }
+
+    /** 源站第 2 页及以上不返回主楼（floor == 0）；从带 ?p=N / ?floor=N / ?replyid=N 的链接进入时补齐第 1 页主楼与面板。 */
+    private suspend fun ensureMainPost(targetPage: TopicPageData): TopicPageData {
+        if (targetPage.posts.any { it.floor == 0 }) return targetPage
+        val firstPage = runCatching { source.load(topicId, 1) }.getOrNull() ?: return targetPage
+        return mergeMainPage(firstPage, targetPage)
+    }
+
+    private fun mergeMainPage(firstPage: TopicPageData, targetPage: TopicPageData): TopicPageData {
+        val mainPost = firstPage.posts.firstOrNull { it.floor == 0 } ?: return targetPage
+        val mergedPosts = listOf(mainPost) + targetPage.posts.filterNot { it.id == mainPost.id }
+        return targetPage.copy(
+            title = targetPage.title.ifBlank { firstPage.title },
+            titleTag = targetPage.titleTag.ifBlank { firstPage.titleTag },
+            posts = mergedPosts,
+            donateUrl = targetPage.donateUrl ?: firstPage.donateUrl,
+            virtualCard = targetPage.virtualCard ?: firstPage.virtualCard,
+            viewsText = targetPage.viewsText.ifBlank { firstPage.viewsText },
+            repliesText = targetPage.repliesText.ifBlank { firstPage.repliesText },
+            redPacket = targetPage.redPacket ?: firstPage.redPacket,
+            lottery = targetPage.lottery ?: firstPage.lottery,
+            poll = targetPage.poll ?: firstPage.poll,
+            essenceApplication = targetPage.essenceApplication ?: firstPage.essenceApplication,
+            essenceReview = targetPage.essenceReview ?: firstPage.essenceReview,
+            treasurePool = targetPage.treasurePool ?: firstPage.treasurePool,
+            resourceVote = targetPage.resourceVote ?: firstPage.resourceVote,
+            inviteRelay = targetPage.inviteRelay ?: firstPage.inviteRelay,
+            forumMove = targetPage.forumMove ?: firstPage.forumMove,
+            styledTags = targetPage.styledTags.ifEmpty { firstPage.styledTags },
+            footerPanels = targetPage.footerPanels.ifEmpty { firstPage.footerPanels },
+            contentStyles = targetPage.contentStyles.ifEmpty { firstPage.contentStyles },
+            nodes = targetPage.nodes.ifEmpty { firstPage.nodes },
+            stickerCollect = targetPage.stickerCollect ?: firstPage.stickerCollect,
+        )
     }
 
     private fun hasNextPage(): Boolean =

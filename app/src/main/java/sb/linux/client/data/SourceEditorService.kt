@@ -18,11 +18,16 @@ internal class SourceEditorService(private val client: LsbClient) : SourceEditor
             ?: error("源站没有提供发帖表单")
         val extensions = form.select("[data-topic-extension]").mapNotNull { panel ->
             val toggle = panel.selectFirst("[data-topic-extension-toggle][name]") ?: return@mapNotNull null
+            val extensionLabel = panel.selectFirst("summary")?.text()?.trim().orEmpty()
+                .ifBlank { panel.selectFirst("> strong")?.text()?.trim().orEmpty() }
+                .ifBlank { panel.selectFirst(".invite-relay-choice")?.text()?.trim().orEmpty() }
+                .ifBlank { panel.selectFirst("strong")?.text()?.trim().orEmpty() }
+                .ifBlank { "扩展选项" }
             val copy = panel.clone()
             copy.removeAttr("hidden")
             copy.select("[hidden]").forEach { it.removeAttr("hidden") }
             copy.select("[disabled]").forEach { it.removeAttr("disabled") }
-            copy.select("[data-topic-extension-toggle]").remove()
+            copy.select("[data-topic-extension-toggle], .invite-relay-choice").remove()
             val wrapper = Element("form").attr("method", "post").attr("action", response.url)
             wrapper.appendChild(copy)
             val parsed = AccountManagementParser.parseForm(wrapper, response.url)
@@ -39,7 +44,7 @@ internal class SourceEditorService(private val client: LsbClient) : SourceEditor
             val balance = walletGuard?.attr("data-lottery-wallet-balance")?.toLongOrNull()
             val unavailable = if (minimum != null && balance != null && balance < minimum)
                 "源站要求发布抽奖帖至少持有 $minimum ${walletGuard.attr("data-lottery-wallet-name")}，当前余额 $balance" else ""
-            SourceEditorExtension(panel.selectFirst("summary")?.text().orEmpty(),
+            SourceEditorExtension(extensionLabel,
                 toggle.attr("name") to toggle.attr("value"), parsed.copy(fields = fields), toggle.hasAttr("checked"), unavailable)
         }
         val base = form.clone()
@@ -47,6 +52,7 @@ internal class SourceEditorService(private val client: LsbClient) : SourceEditor
         val parsed = AccountManagementParser.parseForm(base, response.url)
         val upload = form.selectFirst(".attachment-uploader")
         val editor = form.selectFirst("[data-nb-editor]")
+        val csrf = form.selectFirst("input[name=_csrf]")?.attr("value").orEmpty()
         return SourceEditorPage(response.url, parsed.copy(id = "topic-editor:$url"), extensions,
             AccountManagementParser.resolve(response.url, form.selectFirst("[data-nb-editor-mention-url]")?.attr("data-nb-editor-mention-url").orEmpty()),
             AccountManagementParser.resolve(response.url, upload?.attr("data-upload-url").orEmpty()),
@@ -56,7 +62,8 @@ internal class SourceEditorService(private val client: LsbClient) : SourceEditor
             AccountManagementParser.resolve(response.url, editor?.attr("data-nb-editor-video-url").orEmpty()),
             editor?.attr("data-nb-editor-kind").orEmpty().ifBlank { "topic" },
             editor?.attr("data-nb-editor-topic").orEmpty().ifBlank { "0" },
-            AccountManagementParser.resolve(response.url, editor?.attr("data-nb-editor-remote-url").orEmpty()))
+            AccountManagementParser.resolve(response.url, editor?.attr("data-nb-editor-remote-url").orEmpty()),
+            StickerPackHtmlParser.parsePicker(form, csrf))
     }
 
     override suspend fun submit(form: AccountForm, fields: List<Pair<String, String>>): Long {

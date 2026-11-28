@@ -26,6 +26,16 @@ html,body.lsb-content{margin:0!important;padding:0!important;min-height:0!import
 .lsb-image.is-loading>img{opacity:0}.lsb-image.is-loading::after{content:"";position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:lsb-spin 1s linear infinite;pointer-events:none}
 .lsb-image.is-error{min-height:100px;background:var(--bg);border-radius:var(--radius-sm)}
 .lsb-image.is-error>img{opacity:0}.lsb-image.is-error::after{content:"↻";position:absolute;inset:0;display:grid;place-items:center;font-size:28px;color:var(--text-muted);pointer-events:none}
+.lsb-image.is-sticker{display:inline-block;vertical-align:bottom;max-width:100%;overflow:visible}
+.lsb-image.is-sticker+.lsb-image.is-sticker{margin-inline-start:4px}
+.lsb-image.is-sticker.is-loading{min-height:24px;min-width:24px;background:transparent}
+.lsb-image.is-sticker.is-loading::after{width:14px;height:14px;margin:-7px}
+.lsb-image.is-sticker.is-error{min-height:24px;min-width:24px}
+.lsb-image.is-sticker.is-error::after{font-size:16px}
+.lsb-image.is-sticker>img{display:inline-block;vertical-align:bottom;max-height:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.lsb-sticker-popover{position:absolute;z-index:9999;display:inline-flex;align-items:center;padding:3px;border:1px solid var(--lsb-line);border-radius:999px;background:var(--lsb-panel);box-shadow:0 6px 20px rgba(0,0,0,.22);transform:translateX(-50%)}
+.lsb-sticker-popover button{margin:0;padding:6px 14px;border:0;border-radius:999px;background:var(--lsb-accent);color:#fff;font:inherit;font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap;cursor:pointer}
+.lsb-sticker-popover button:disabled{opacity:.7;cursor:default}
 @keyframes lsb-spin{to{transform:rotate(360deg)}}
 .lsb-search-hit{background:var(--warning-soft,#ffe49a);color:var(--text);padding:0}
 .lsb-floor-highlight{background:var(--lsb-accent-soft)!important}
@@ -34,6 +44,9 @@ html,body.lsb-content{margin:0!important;padding:0!important;min-height:0!import
 .post-content .image-lightbox-clickable{max-height:min(calc(var(--lsb-screen-height,900px)*.75),720px);object-fit:contain;object-position:left top}
 .lsb-avatar-online{position:relative}.lsb-avatar-online::after{content:"";position:absolute;right:-2px;bottom:-2px;width:7px;height:7px;border-radius:50%;background:var(--success,var(--brand));border:2px solid var(--panel);pointer-events:none}
 .lsb-content .topic-op-badge{color:var(--lsb-on-accent-soft);background:var(--lsb-accent-soft);border-color:color-mix(in srgb,var(--lsb-accent) 32%,transparent)}
+.lsb-content .gacha-title-badge{background:linear-gradient(var(--gacha-bg),var(--gacha-bg)) #fff;color:var(--gacha-color)}
+html[data-dark-mode-theme="dark"] .lsb-content .gacha-title-badge,html[data-themes-color-mode="dark"] .lsb-content .gacha-title-badge,html[data-color-scheme-dark-mode-theme="dark"] .lsb-content .gacha-title-badge{background:linear-gradient(var(--gacha-bg),var(--gacha-bg)) #171b27;color:var(--gacha-color)}
+html[data-dark-mode-theme="dark"] .lsb-content .gacha-title-badge.gacha-title-ur,html[data-themes-color-mode="dark"] .lsb-content .gacha-title-badge.gacha-title-ur,html[data-color-scheme-dark-mode-theme="dark"] .lsb-content .gacha-title-badge.gacha-title-ur{background:linear-gradient(var(--gacha-dark-bg),var(--gacha-dark-bg)) #171b27;color:var(--gacha-dark-color)}
 .lsb-content .post-content a:not(.post-mention),.lsb-content .nb-editor-post-content a:not(.post-mention),.lsb-content .lsb-blocked a{color:var(--lsb-accent)}
 .lsb-content .post-content a:not(.post-mention):hover,.lsb-content .nb-editor-post-content a:not(.post-mention):hover,.lsb-content .lsb-blocked a:hover{color:var(--lsb-accent);background:color-mix(in srgb,var(--lsb-accent) 12%,transparent)}
 .lsb-content .post-content a:not(.post-mention):active,.lsb-content .nb-editor-post-content a:not(.post-mention):active,.lsb-content .lsb-blocked a:active{color:var(--lsb-accent);background:color-mix(in srgb,var(--lsb-accent) 20%,transparent)}

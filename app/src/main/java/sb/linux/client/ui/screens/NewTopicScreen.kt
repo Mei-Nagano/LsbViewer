@@ -20,9 +20,9 @@ import sb.linux.client.ui.session.Session
 @Composable
 fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L, sourceUrl: String? = null) {
     val account = session.account.loginState
-    val path = sourceUrl ?: if (editId > 0) "/topic_edit/$editId" else "/topic_edit"
+    val path = sourceUrl?.takeIf { it.isNotBlank() } ?: if (editId > 0) "/topic_edit/$editId" else "/topic_edit"
     val identity = session.accountIdentityVersion
-    var page by remember(identity, editId) { mutableStateOf<SourceEditorPage?>(null) }
+    var page by remember(identity, editId, path) { mutableStateOf<SourceEditorPage?>(null) }
     var loading by remember(identity, editId) { mutableStateOf(true) }
     var error by remember(identity, editId) { mutableStateOf<String?>(null) }
     var busy by remember(identity, editId) { mutableStateOf(false) }
@@ -132,9 +132,18 @@ fun NewTopicScreen(session: Session, nav: NavHostController, editId: Long = 0L, 
                     val extension = source.extensions.getOrNull(selected)
                     val form = source.form.copy(fields = fields, hidden = source.form.hidden +
                         extension?.let { it.form.hidden + it.toggle }.orEmpty(), notes = source.form.notes + extension?.form?.notes.orEmpty())
+                    val selectedForumId = draftFields.firstOrNull { it.first == "forum_id" }?.second
+                        ?: fields.firstOrNull { it.name == "forum_id" }?.let { f ->
+                            f.options.firstOrNull { it.selected }?.value ?: f.options.firstOrNull { !it.disabled }?.value ?: f.value
+                        }.orEmpty()
+                    val activeStickerPicker = source.stickerPicker?.takeIf { picker ->
+                        picker.enabled && (picker.allowedForums.isEmpty() || selectedForumId in picker.allowedForums)
+                    }?.let { picker ->
+                        picker.copy(forumId = selectedForumId.ifBlank { picker.forumId })
+                    }
                     key(identity, editId, draftRevision) { NativeAccountForm(form, session.accountManagementRepository, !busy,
                         onDirty = { dirty = true }, hideDisabled = true,
-                        bodyEditor = { text, change, enabled, uploadBusy, submit -> SourceBodyField(session, source, text, change, enabled, uploadBusy, submit) },
+                        bodyEditor = { text, change, enabled, uploadBusy, submit -> SourceBodyField(session, source, text, change, enabled, uploadBusy, submit, activeStickerPicker) },
                         onValuesChange = { draftFields = it },
                         onSubmit = { submitted, pairs ->
                             busy = true

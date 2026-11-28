@@ -16,8 +16,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 发版前手动维护版本号；CI 读取这两行，不覆盖或自动写回。
         // versionCode 沿用 major*10000+minor*100+patch 编码（1.1.2 → 10102）。
-        versionCode = 10103
-        versionName = "1.1.3"
+        versionCode = 10104
+        versionName = "1.1.4"
     }
 
     // 4.1 CI 构建 armv8a / armv7a / 通用版三个 APK

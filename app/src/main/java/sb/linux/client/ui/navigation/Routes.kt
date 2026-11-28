@@ -108,15 +108,21 @@ fun NavGraphBuilder.detailRoutes(session: Session, nav: NavHostController) {
         navArgument("tid") { type = NavType.LongType },
     )) { entry -> WebScreen(session, nav, sourceUrl = "/topic/${entry.arguments?.getLong("tid")}",
         title = "管理帖子节点", initialContentSelector = "[data-node-open], .node-topic-tags, .post-content") }
-    composable("newTopic") { SourceEditorScreen(session, nav) }
+    composable("newTopic") { NewTopicScreen(session, nav) }
     composable("editorPage?url={url}&tid={tid}", arguments = listOf(
         navArgument("url") { type = NavType.StringType }, navArgument("tid") { type = NavType.LongType; defaultValue = 0L },
-    )) { entry -> SourceEditorScreen(session, nav, editId = entry.arguments?.getLong("tid") ?: 0L,
+    )) { entry -> NewTopicScreen(session, nav, editId = entry.arguments?.getLong("tid") ?: 0L,
         sourceUrl = entry.arguments?.getString("url")) }
     composable(
         "editTopic/{tid}",
         arguments = listOf(navArgument("tid") { type = NavType.LongType }),
-    ) { SourceEditorScreen(session, nav, editId = it.arguments?.getLong("tid") ?: 0L) }
+    ) { NewTopicScreen(session, nav, editId = it.arguments?.getLong("tid") ?: 0L) }
+    composable("stickerManage?url={url}", arguments = listOf(
+        navArgument("url") { type = NavType.StringType; defaultValue = "/sticker_pack_mine" },
+    )) { entry -> SourceStickerManageScreen(session, nav, entry.arguments?.getString("url") ?: "/sticker_pack_mine") }
+    composable("inviteRelay?url={url}", arguments = listOf(
+        navArgument("url") { type = NavType.StringType; defaultValue = "/invite_relay" },
+    )) { entry -> SourceInviteRelayScreen(session, nav, entry.arguments?.getString("url") ?: "/invite_relay") }
     composable(
         "user/{uid}?tab={tab}",
         arguments = listOf(

@@ -1,5 +1,8 @@
 package sb.linux.client.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,11 +17,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.TextNode
+import sb.linux.client.common.network.Endpoints
+import sb.linux.client.data.StickerPackHtmlParser
 import sb.linux.client.ui.session.Session
 import sb.linux.client.ui.*
 import sb.linux.client.ui.theme.*
@@ -52,8 +65,19 @@ fun ChatScreen(session: Session, nav: NavHostController) {
     val viewModel: ChatViewModel = viewModel(factory = factory, key = "chat-$partnerId")
     val state by viewModel.uiState.collectAsState()
     var emojiOpen by remember { mutableStateOf(false) }
+    var stickerOpen by remember { mutableStateOf(false) }
+    var draftField by remember(partnerId) { mutableStateOf(TextFieldValue(state.draft, TextRange(state.draft.length))) }
+    var viewerImage by remember(partnerId) { mutableStateOf<ViewerImage?>(null) }
+    LaunchedEffect(state.draft) {
+        if (draftField.text != state.draft) {
+            draftField = TextFieldValue(state.draft, TextRange(state.draft.length))
+        }
+    }
     val listState = rememberLazyListState()
     val spacing = LocalAppSpacing.current
+    val scope = rememberCoroutineScope()
+    val activeStickerPicker = state.stickerPicker?.takeIf { it.enabled }
+    val activeStickerCollect = state.stickerCollect?.takeIf { it.enabled }
 
     LaunchedEffect(viewModel) { viewModel.sync() }
     // 消息变化自动滚到底部
@@ -84,26 +108,50 @@ fun ChatScreen(session: Session, nav: NavHostController) {
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box {
-                        IconButton(onClick = { emojiOpen = true }) { Icon(Icons.Filled.SentimentSatisfied, "表情") }
+                        IconButton(
+                            onClick = {
+                                if (activeStickerPicker != null) stickerOpen = true
+                                else emojiOpen = true
+                            },
+                            enabled = state.canSend && !state.sending,
+                        ) { Icon(Icons.Filled.SentimentSatisfied, "表情") }
                         DropdownMenu(expanded = emojiOpen, onDismissRequest = { emojiOpen = false }) {
                             listOf("😀", "😂", "🥰", "😎", "🤔", "👍", "👏", "🎉", "❤️", "🙏").chunked(5).forEach { row ->
-                                Row { row.forEach { emoji -> TextButton(onClick = { viewModel.setDraft(state.draft + emoji); emojiOpen = false }) { Text(emoji) } } }
+                                Row {
+                                    row.forEach { emoji ->
+                                        TextButton(onClick = {
+                                            val updated = replaceReplySelection(draftField, emoji)
+                                            draftField = updated
+                                            viewModel.setDraft(updated.text)
+                                            emojiOpen = false
+                                        }) { Text(emoji) }
+                                    }
+                                }
                             }
                         }
                     }
                     OutlinedTextField(
                         enabled = state.canSend && !state.sending,
-                        value = state.draft, onValueChange = viewModel::setDraft,
-                        placeholder = { Text("输入私信内容（最多 500 字）") },
-                        supportingText = { Text("${state.draft.codePointCount(0, state.draft.length)}/500") },
-                        isError = state.draft.codePointCount(0, state.draft.length) > 500,
+                        value = draftField,
+                        onValueChange = { next ->
+                            draftField = next
+                            viewModel.setDraft(next.text)
+                        },
+                        placeholder = { Text("输入私信内容（最多 ${state.maxLength} 字）") },
+                        supportingText = { Text("${state.draft.codePointCount(0, state.draft.length)}/${state.maxLength}") },
+                        isError = state.draft.codePointCount(0, state.draft.length) > state.maxLength,
                         modifier = Modifier.weight(1f),
                         maxLines = 4,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = { viewModel.send() }),
                         shape = MaterialTheme.shapes.large,
                     )
-                    FilledIconButton(onClick = viewModel::send, enabled = state.draft.isNotBlank() && state.draft.codePointCount(0, state.draft.length) <= 500 && !state.sending && state.canSend && partnerId > 0) {
+                    FilledIconButton(
+                        onClick = viewModel::send,
+                        enabled = state.draft.isNotBlank() &&
+                            state.draft.codePointCount(0, state.draft.length) <= state.maxLength &&
+                            !state.sending && state.canSend && partnerId > 0,
+                    ) {
                         Icon(Icons.Filled.Send, "发送")
                     }
                 }
@@ -125,17 +173,118 @@ fun ChatScreen(session: Session, nav: NavHostController) {
             ) {
                 state.syncError?.let { message -> item { AppNotice(message, actionLabel = "重试同步", onAction = viewModel::sync) } }
                 items(state.messages) { m ->
-                    ChatBubble(m, onPartnerClick = { if (m.partnerId > 0) nav.navigate("user/${m.partnerId}") })
+                    ChatBubble(
+                        m = m,
+                        canCollectSticker = activeStickerCollect != null,
+                        onPartnerClick = { if (m.partnerId > 0) nav.navigate("user/${m.partnerId}") },
+                        onImageClick = { viewerImage = it },
+                        onQuickCollectSticker = { url, alt, onDone ->
+                            val config = activeStickerCollect
+                            if (config == null) {
+                                onDone(false)
+                            } else {
+                                scope.launch {
+                                    val result = session.stickerPackRepository.collectImage(config, url, alt)
+                                    session.showToast(result.message)
+                                    onDone(result.ok)
+                                }
+                            }
+                        },
+                    )
                 }
             }
         }
     }
+    if (stickerOpen && activeStickerPicker != null) {
+        StickerPickerDialog(
+            session = session,
+            config = activeStickerPicker,
+            onDismiss = { stickerOpen = false },
+            onInsert = { item ->
+                val start = draftField.selection.min.coerceIn(0, draftField.text.length)
+                val end = draftField.selection.max.coerceIn(0, draftField.text.length)
+                val candidate = draftField.text.replaceRange(start, end, item.markdown)
+                if (candidate.codePointCount(0, candidate.length) > state.maxLength) {
+                    "私信内容已达到字数上限"
+                } else {
+                    val updated = replaceReplySelection(draftField, item.markdown)
+                    draftField = updated
+                    viewModel.setDraft(updated.text)
+                    null
+                }
+            },
+        )
+    }
+    viewerImage?.let { target ->
+        val collectConfig = state.stickerCollect?.takeIf { it.enabled }
+        ZoomImageViewer(
+            images = listOf(target),
+            initialIndex = 0,
+            onCollectSticker = collectConfig?.let { config ->
+                { item -> session.stickerPackRepository.collectImage(config, item.url, item.caption) }
+            },
+            onDismiss = { viewerImage = null },
+        )
+    }
+}
+
+private sealed interface ChatContentPart {
+    data class TextPart(val text: String) : ChatContentPart
+    data class ImagePart(val url: String, val alt: String, val widthDp: Int, val isSticker: Boolean) : ChatContentPart
+}
+
+private fun parseChatContentParts(html: String, fallbackText: String): List<ChatContentPart> {
+    if (html.isBlank() || !html.contains("<img", ignoreCase = true)) {
+        return if (fallbackText.isNotBlank()) listOf(ChatContentPart.TextPart(fallbackText)) else emptyList()
+    }
+    val doc = Jsoup.parseBodyFragment(html, Endpoints.BASE).body()
+    val parts = mutableListOf<ChatContentPart>()
+    val textBuf = StringBuilder()
+    fun flushText() {
+        val t = textBuf.toString().trim('\n', '\r')
+        if (t.isNotBlank()) parts += ChatContentPart.TextPart(t)
+        textBuf.clear()
+    }
+    fun walk(node: org.jsoup.nodes.Node) {
+        when (node) {
+            is TextNode -> textBuf.append(node.wholeText)
+            is Element -> when (node.normalName()) {
+                "br" -> textBuf.append('\n')
+                "img" -> {
+                    val src = node.attr("src").trim()
+                    if (src.isNotBlank()) {
+                        flushText()
+                        val absUrl = Endpoints.abs(src)
+                        val isSticker = StickerPackHtmlParser.isStickerImageUrl(absUrl)
+                        val width = node.attr("width").toIntOrNull()?.coerceIn(24, 220) ?: if (isSticker) 64 else 180
+                        val alt = node.attr("alt").ifBlank { node.attr("title") }.trim()
+                        parts += ChatContentPart.ImagePart(absUrl, alt, width, isSticker)
+                    }
+                }
+                else -> {
+                    node.childNodes().forEach(::walk)
+                    if (node.normalName() in setOf("p", "div")) textBuf.append('\n')
+                }
+            }
+        }
+    }
+    doc.childNodes().forEach(::walk)
+    flushText()
+    return parts.ifEmpty { if (fallbackText.isNotBlank()) listOf(ChatContentPart.TextPart(fallbackText)) else emptyList() }
 }
 
 /** 单条气泡：对方靠左、头像打开用户面板，我方靠右无头像，气泡着色区分 */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
+private fun ChatBubble(
+    m: PmMessage,
+    canCollectSticker: Boolean = false,
+    onPartnerClick: () -> Unit = {},
+    onImageClick: (ViewerImage) -> Unit = {},
+    onQuickCollectSticker: (String, String, (Boolean) -> Unit) -> Unit = { _, _, done -> done(false) },
+) {
     val mine = !m.incoming
+    val parts = remember(m.contentHtml, m.content) { parseChatContentParts(m.contentHtml, m.content) }
     BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         // 气泡最宽为会话可用宽度的 80%，并限制在 480dp 内
         val bubbleMax = (maxWidth * 0.8f).coerceAtMost(480.dp)
@@ -157,7 +306,10 @@ private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
                 color = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier.widthIn(max = bubbleMax),
             ) {
-                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Column(
+                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     // 回复引用预览（QQ/微信式）：对方回复时引用的我方消息
                     if (m.quoteText.isNotBlank()) {
                         Text(
@@ -166,15 +318,113 @@ private fun ChatBubble(m: PmMessage, onPartnerClick: () -> Unit = {}) {
                             color = if (mine) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(bottom = 3.dp),
                         )
                     }
-                    Text(
-                        m.content,
-                        // 私信正文 bodyLarge 16/24，不照搬帖子长文 18sp
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (mine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                    )
+                    val textColor = if (mine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                    var idx = 0
+                    while (idx < parts.size) {
+                        val part = parts[idx]
+                        when (part) {
+                            is ChatContentPart.TextPart -> {
+                                Text(
+                                    part.text,
+                                    // 私信正文 bodyLarge 16/24，不照搬帖子长文 18sp
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = textColor,
+                                )
+                                idx++
+                            }
+                            is ChatContentPart.ImagePart -> {
+                                // 连续多个表情包横排展示，与源站 .direct-messages-content>img 风格一致
+                                val run = mutableListOf<ChatContentPart.ImagePart>()
+                                while (idx < parts.size && parts[idx] is ChatContentPart.ImagePart) {
+                                    run += parts[idx] as ChatContentPart.ImagePart
+                                    idx++
+                                }
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    run.forEach { img ->
+                                        val collectable = img.isSticker && canCollectSticker && StickerPackHtmlParser.isCollectableImageUrl(img.url)
+                                        var showAddMenu by remember(img.url) { mutableStateOf(false) }
+                                        var addingSticker by remember(img.url) { mutableStateOf(false) }
+                                        Box {
+                                            StickerAsyncImage(
+                                                url = img.url,
+                                                contentDescription = img.alt.ifBlank { "表情" },
+                                                contentScale = ContentScale.Fit,
+                                                modifier = Modifier
+                                                    .widthIn(max = img.widthDp.dp)
+                                                    .heightIn(max = if (img.isSticker) (img.widthDp * 2).dp else 240.dp)
+                                                    .clip(MaterialTheme.shapes.small)
+                                                    .combinedClickable(
+                                                        onClick = {
+                                                            onImageClick(
+                                                                ViewerImage(
+                                                                    url = img.url,
+                                                                    caption = img.alt,
+                                                                    collectable = StickerPackHtmlParser.isCollectableImageUrl(img.url),
+                                                                ),
+                                                            )
+                                                        },
+                                                        onLongClick = if (collectable) ({ showAddMenu = true }) else null,
+                                                    ),
+                                            )
+                                            if (showAddMenu) {
+                                                androidx.compose.ui.window.Popup(
+                                                    alignment = Alignment.TopCenter,
+                                                    offset = androidx.compose.ui.unit.IntOffset(0, -110),
+                                                    onDismissRequest = { if (!addingSticker) showAddMenu = false },
+                                                ) {
+                                                    Surface(
+                                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                                                        color = MaterialTheme.colorScheme.surface,
+                                                        shadowElevation = 6.dp,
+                                                        tonalElevation = 4.dp,
+                                                    ) {
+                                                        Button(
+                                                            enabled = !addingSticker,
+                                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                                                            onClick = {
+                                                                addingSticker = true
+                                                                onQuickCollectSticker(img.url, img.alt) { ok ->
+                                                                    addingSticker = false
+                                                                    if (ok) showAddMenu = false
+                                                                }
+                                                            },
+                                                        ) {
+                                                            Text(if (addingSticker) "正在添加…" else "加入我的表情", style = MaterialTheme.typography.labelMedium)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (m.imageUrl.isNotBlank()) {
+                        StickerAsyncImage(
+                            url = m.imageUrl,
+                            contentDescription = "私信图片",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .widthIn(max = 220.dp)
+                                .heightIn(max = 260.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable {
+                                    onImageClick(
+                                        ViewerImage(
+                                            url = m.imageUrl,
+                                            collectable = StickerPackHtmlParser.isCollectableImageUrl(m.imageUrl),
+                                        ),
+                                    )
+                                },
+                        )
+                    }
                 }
             }
             if (m.timeText.isNotBlank()) {

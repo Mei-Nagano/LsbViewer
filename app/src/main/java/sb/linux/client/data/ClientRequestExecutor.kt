@@ -120,10 +120,30 @@ internal class ClientRequestExecutor(
         fields.forEach { (k, v) -> b.addFormDataPart(k, v) }
         val media = mime.toMediaTypeOrNull() ?: "image/jpeg".toMediaType()
         b.addFormDataPart(fileField, file.name, okhttp3.RequestBody.create(media, file))
+        executeMultipart(path, b.build(), ajax)
+    }
+
+    suspend fun postMultipartBytes(
+        path: String,
+        fields: Map<String, String>,
+        fileField: String,
+        fileName: String,
+        bytes: ByteArray,
+        mime: String,
+        ajax: Boolean = false,
+    ): Resp = withContext(Dispatchers.IO) {
+        val b = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+        fields.forEach { (k, v) -> b.addFormDataPart(k, v) }
+        val media = mime.toMediaTypeOrNull() ?: "application/octet-stream".toMediaType()
+        b.addFormDataPart(fileField, fileName, okhttp3.RequestBody.create(media, bytes))
+        executeMultipart(path, b.build(), ajax)
+    }
+
+    private suspend fun executeMultipart(path: String, body: okhttp3.MultipartBody, ajax: Boolean): Resp {
         val req = Request.Builder().url(Endpoints.abs(path))
             .header("User-Agent", userAgent)
             .apply { if (ajax) { header("X-Requested-With", "XMLHttpRequest"); header("Accept", "application/json") } }
-            .post(b.build())
+            .post(body)
             .build()
         repeat(3) {
             http.newCall(req).execute().use { r ->
@@ -132,7 +152,7 @@ internal class ClientRequestExecutor(
                     // 取消/超时即放弃：否则同一个验证对话框会被 repeat(3) 连弹三次
                     if (!solveVerification(resp.url, resp.html)) throw LsbException("已取消人机验证")
                 } else {
-                    return@withContext resp
+                    return resp
                 }
             }
         }

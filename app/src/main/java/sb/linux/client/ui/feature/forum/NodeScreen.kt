@@ -105,7 +105,7 @@ internal fun NodeScreen(session: Session, nav: NavHostController, initialUrl: St
                                 }
                             }
                             items(topics, key = { "topic:" + it.topicId }) { topic ->
-                                TopicCardView(topic, onClick = { nav.navigate("topic/" + topic.topicId) },
+                                TopicCardView(topic, onClick = { nav.navigate("topic/${topic.topicId}?p=1") },
                                     onForumClick = { nav.navigate("forum/" + it) })
                             }
                             if (current.nodes.isEmpty() && topics.isEmpty()) item {

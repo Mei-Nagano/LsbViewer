@@ -17,12 +17,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sb.linux.client.domain.topic.TitleBadge
+import sb.linux.client.ui.theme.LocalDarkTheme
 import sb.linux.client.ui.theme.sourceTitleColor
+import sb.linux.client.ui.theme.sourceTitleSurface
 
 
 
@@ -66,11 +69,12 @@ fun titleRarityColor(rarity: String, dark: Boolean = false): Pair<Color, Color> 
 /** 按原站帖子称号徽章：浅底、无外边框、实心稀有度标签，隐藏图标。 */
 @Composable
 fun TitleBadgeView(title: TitleBadge, modifier: Modifier = Modifier, small: Boolean = false) {
-    val dark = MaterialTheme.colorScheme.background.let { it.red + it.green + it.blue < 1.5f }
+    val dark = LocalDarkTheme.current
+    val baseSurface = sourceTitleSurface(dark)
     val (fallback, soft) = titleRarityColor(title.rarity, dark)
     val fg = sourceTitleColor(title, if (dark) "dark-color" else "color", fallback, dark)
-    val bg = sourceTitleColor(title, if (dark) "dark-bg" else "bg", soft, dark)
-    val serialBg = sourceTitleColor(title, if (dark) "dark-serial-bg" else "color", fg, dark)
+    val bg = sourceTitleColor(title, if (dark) "dark-bg" else "bg", soft, dark).compositeOver(baseSurface)
+    val serialBg = sourceTitleColor(title, if (dark) "dark-serial-bg" else "color", fg, dark).compositeOver(bg)
     val openLink = LocalLinkHandler.current
     Surface(shape = MaterialTheme.shapes.extraSmall, color = bg,
         modifier = modifier.clickable(enabled = openLink != null) { openLink?.invoke(sb.linux.client.common.network.Endpoints.abs("/gacha")) }) {

@@ -28,7 +28,18 @@ object DirectMessageHtmlParser {
             ?: header?.attr("aria-label")?.substringBefore(" 私信")?.trim().orEmpty()
         val partnerAvatar = header?.let(SourceHtmlSupport::avatarOf).orEmpty().let(SourceHtmlSupport::absUrl)
         val messages = d.select("article.direct-messages-message").mapIndexedNotNull { index, article ->
-            val content = article.selectFirst(".direct-messages-content")?.wholeText()?.trim() ?: return@mapIndexedNotNull null
+            val contentEl = article.selectFirst(".direct-messages-content")
+            val imageEl = article.selectFirst(".direct-messages-image img[src]")
+            if (contentEl == null && imageEl == null) return@mapIndexedNotNull null
+            val clonedContent = contentEl?.clone()
+            val quoteText = clonedContent?.selectFirst(".direct-messages-quote")?.let { quote ->
+                val text = quote.text().trim()
+                quote.remove()
+                text
+            }.orEmpty()
+            val content = clonedContent?.wholeText()?.trim().orEmpty()
+            val contentHtml = clonedContent?.html()?.trim().orEmpty()
+            val imageUrl = imageEl?.attr("src")?.trim()?.takeIf { it.isNotBlank() }?.let(SourceHtmlSupport::absUrl).orEmpty()
             val incoming = !article.hasClass("is-mine")
             val time = article.selectFirst("time")
             val rawTime = time?.text()?.trim().orEmpty()
@@ -46,15 +57,32 @@ object DirectMessageHtmlParser {
                 avatarUrl = if (incoming) SourceHtmlSupport.absUrl(SourceHtmlSupport.avatarOf(article)) else partnerAvatar,
                 incoming = incoming,
                 content = content,
+                contentHtml = contentHtml,
+                imageUrl = imageUrl,
                 timeText = rawTime,
                 ts = ts,
                 seq = index.toLong(),
+                quoteText = quoteText,
             )
         }
+        val composeForm = d.selectFirst("form.direct-messages-compose")
+            ?: d.select("form").firstOrNull { it.selectFirst("textarea[name=content]") != null }
+        val composeTextarea = composeForm?.selectFirst("textarea[name=content]")
+        val maxLength = composeTextarea?.attr("maxlength")?.toIntOrNull()?.takeIf { it > 0 } ?: 500
+        val csrf = composeForm?.selectFirst("input[name=_csrf]")?.attr("value").orEmpty()
+            .ifBlank { d.selectFirst("input[name=_csrf]")?.attr("value").orEmpty() }
         val blockForm = d.select("form").firstOrNull { it.selectFirst("input[name=direct_messages_block_action]") != null }
-        return DirectMessageThread(partnerId, partnerName, partnerAvatar, messages,
+        return DirectMessageThread(
+            partnerId = partnerId,
+            partnerName = partnerName,
+            avatarUrl = partnerAvatar,
+            messages = messages,
             canSend = d.selectFirst("textarea[name=content]:not([disabled])") != null,
-            blockLabel = blockForm?.selectFirst("button[type=submit]")?.text().orEmpty())
+            blockLabel = blockForm?.selectFirst("button[type=submit]")?.text().orEmpty(),
+            maxLength = maxLength,
+            stickerPicker = StickerPackHtmlParser.parsePicker(composeForm, csrf),
+            stickerCollect = StickerPackHtmlParser.parseCollect(d),
+        )
     }
 
     /** 源站 meta 文本可能自带前导分隔符（· / | 等），显示层自己排版，这里统一剥掉。 */
